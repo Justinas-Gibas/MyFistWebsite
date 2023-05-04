@@ -1,9 +1,30 @@
-window.addEventListener("DOMContentLoaded", () => {
-  const box = document.querySelector("#box");
-  const changeColorButton = document.querySelector("#changeColor");
+document.addEventListener("DOMContentLoaded", () => {
+  const sceneEl = document.querySelector("a-scene");
+  const camera = document.querySelector("#mainCamera");
 
-  changeColorButton.addEventListener("click", () => {
-    const randomColor = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
-    box.setAttribute("color", randomColor);
-  });
+  if (sceneEl) {
+    sceneEl.addEventListener("click", (event) => {
+      const clickedPlane = event.detail.intersection?.object.el;
+
+      if (clickedPlane) {
+        if (clickedPlane.id === "blackPlane") {
+          localStorage.setItem("userPosition", JSON.stringify(camera.getAttribute("position")));
+          window.location.href = "outside.html";
+        } else if (clickedPlane.id === "whitePlane") {
+          localStorage.setItem("userPosition", JSON.stringify(camera.getAttribute("position")));
+          window.location.href = "outside.html";
+        }
+
+        const returningFromOutside = localStorage.getItem("returningFromOutside");
+        if (returningFromOutside === "true") {
+          const userPosition = JSON.parse(localStorage.getItem("userPosition"));
+          camera.setAttribute("position", userPosition);
+
+          // Clear the localStorage flags
+          localStorage.removeItem("returningFromOutside");
+          localStorage.removeItem("userPosition");
+        }
+      }
+    });
+  }
 });
