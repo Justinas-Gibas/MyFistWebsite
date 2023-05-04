@@ -1,30 +1,36 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const sceneEl = document.querySelector("a-scene");
   const camera = document.querySelector("#mainCamera");
-  const blackPlane = document.querySelector("#blackPlane");
-  const whitePlane = document.querySelector("#whitePlane");
 
-  function handlePlaneClick(event) {
-    const clickedPlane = event.target;
+  if (sceneEl) {
+    // Create a cursor and add a raycaster component
+    const cursor = document.createElement("a-entity");
+    cursor.setAttribute("cursor", "rayOrigin: mouse");
+    cursor.setAttribute("raycaster", "objects: .clickable");
+    camera.appendChild(cursor);
 
-    if (clickedPlane.id === "blackPlane") {
-      localStorage.setItem("userPosition", JSON.stringify(camera.getAttribute("position")));
-      window.location.href = "outside.html";
-    } else if (clickedPlane.id === "whitePlane") {
-      localStorage.setItem("userPosition", JSON.stringify(camera.getAttribute("position")));
-      window.location.href = "outside.html";
+    sceneEl.addEventListener("raycaster-intersection", (event) => {
+      const clickedPlane = event.detail.els[0];
+
+      if (clickedPlane) {
+        if (clickedPlane.id === "blackPlane") {
+          localStorage.setItem("userPosition", JSON.stringify(camera.getAttribute("position")));
+          window.location.href = "outside.html";
+        } else if (clickedPlane.id === "whitePlane") {
+          localStorage.setItem("userPosition", JSON.stringify(camera.getAttribute("position")));
+          window.location.href = "outside.html";
+        }
+      }
+    });
+
+    const returningFromOutside = localStorage.getItem("returningFromOutside");
+    if (returningFromOutside === "true") {
+      const userPosition = JSON.parse(localStorage.getItem("userPosition"));
+      camera.setAttribute("position", userPosition);
+
+      // Clear the localStorage flags
+      localStorage.removeItem("returningFromOutside");
+      localStorage.removeItem("userPosition");
     }
-  }
-
-  if (blackPlane) blackPlane.addEventListener("click", handlePlaneClick);
-  if (whitePlane) whitePlane.addEventListener("click", handlePlaneClick);
-
-  const returningFromOutside = localStorage.getItem("returningFromOutside");
-  if (returningFromOutside === "true") {
-    const userPosition = JSON.parse(localStorage.getItem("userPosition"));
-    camera.setAttribute("position", userPosition);
-
-    // Clear the localStorage flags
-    localStorage.removeItem("returningFromOutside");
-    localStorage.removeItem("userPosition");
   }
 });
