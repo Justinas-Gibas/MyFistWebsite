@@ -16,13 +16,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (clickedPlane.id === "blackPlane") {
       localStorage.setItem("userPosition", JSON.stringify(camera.getAttribute("position")));
-     // localStorage.setItem("userRotation", JSON.stringify(camera.getAttribute("rotation")));
+      localStorage.setItem("userRotation", JSON.stringify(camera.getAttribute("rotation")));
       localStorage.setItem("returningFromOutside", "true");
 //	PlaySound();
       window.location.href = "outside.html";
     } else if (clickedPlane.id === "whitePlane") {
       localStorage.setItem("userPosition", JSON.stringify(camera.getAttribute("position")));
-  //    localStorage.setItem("userRotation", JSON.stringify(camera.getAttribute"rotation")));
+      localStorage.setItem("userRotation", JSON.stringify(camera.getAttribute"rotation")));
       localStorage.setItem("returningFromOutside", "true");
 //	PlaySoud();
       window.location.href = "index.html";
@@ -35,14 +35,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const returningFromOutside = localStorage.getItem("returningFromOutside");
   if (returningFromOutside === "true") {
     const userPosition = JSON.parse(localStorage.getItem("userPosition"));
-//    const userRotation = JSON.parse(localStorage.getItem("userRotation"));
+    const userRotation = JSON.parse(localStorage.getItem("userRotation"));
     camera.setAttribute("position", userPosition);
-  //  camera.setAttribute("rotation", userRotation);
+    camera.setAttribute("rotation", userRotation);
 
     // Clear the localStorage flags
     localStorage.removeItem("returningFromOutside");
     localStorage.removeItem("userPosition");
-  //  localStorage.removeItem("userRotation");
+    localStorage.removeItem("userRotation");
 }
 
 });
