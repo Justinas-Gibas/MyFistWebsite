@@ -17,9 +17,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (clickedPlane.id === "blackPlane") {
       localStorage.setItem("userPosition", JSON.stringify(camera.getAttribute("position")));
       localStorage.setItem("userRotation", JSON.stringify(camera.getAttribute("rotation")));
-      localStorage.setItem("returningFromOutside", "false");
+      localStorage.setItem("returningFromOutside", "true");
 	PlaySound();
-      window.location.href = "outside.html";
+      window.location.href = "index.html";
     } else if (clickedPlane.id === "whitePlane") {
       localStorage.setItem("userPosition", JSON.stringify(camera.getAttribute("position")));
       localStorage.setItem("userRotation", JSON.stringify(camera.getAttribute"rotation")));
