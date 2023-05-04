@@ -1,33 +1,10 @@
-.animated-button {
-  background-color: #4CAF50;
-  border: none;
-  color: white;
-  padding: 15px 32px;
+.ui {
+  width: 400px;
+  margin: 10px auto;
   text-align: center;
-  text-decoration: none;
+  font-family: sans-serif;
+}
+
+.controls {
   display: inline-block;
-  font-size: 16px;
-  margin: 4px 2px;
-  cursor: pointer;
-  transition: background-color 0.5s;
-}
-
-.animated-button:hover {
-  background-color: #45a049;
-}
-
-@keyframes scaleAnimation {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-.animated-button.animate {
-  animation: scaleAnimation 0.5s;
 }
