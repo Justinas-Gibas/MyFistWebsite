@@ -9,7 +9,9 @@
   </head>
   <body>
     <a-scene>
-      <a-camera id="mainCamera" position="0 1.6 0"></a-camera>
+      <a-camera id="mainCamera" position="0 1.6 0">
+        <a-entity cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
+      </a-camera>
       <a-plane id="blackPlane" class="clickable" position="0 1 -4" rotation="-90 0 0" width="2" height="2" color="black"></a-plane>
       <a-sky color="#ECECEC"></a-sky>
     </a-scene>
