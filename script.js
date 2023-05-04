@@ -28,18 +28,16 @@ function loadChunk(chunk) {
 
     const scene = document.querySelector("a-scene");
     scene.appendChild(newEntity);
-  } else if (!entity.getAttribute("visible")) {
-    // If the chunk entity already exists but is hidden, set it to visible.
-    entity.setAttribute("visible", true);
   }
 }
 
 function unloadChunk(chunk) {
   const entity = document.querySelector(`#chunk-${chunk.x}-${chunk.z}`);
 
-  if (entity && entity.getAttribute("visible")) {
-    // If the chunk entity exists and is visible, set it to hidden.
-    entity.setAttribute("visible", false);
+  if (entity) {
+    // If the chunk entity exists, remove it from the scene.
+    const scene = document.querySelector("a-scene");
+    scene.removeChild(entity);
   }
 }
 
@@ -80,4 +78,3 @@ AFRAME.registerComponent("level-streaming", {
     updateChunks();
   },
 });
-
