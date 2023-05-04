@@ -8,9 +8,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (clickedPlane.id === "blackPlane") {
       localStorage.setItem("userPosition", JSON.stringify(camera.getAttribute("position")));
+      localStorage.setItem("returningFromOutside", "true");
       window.location.href = "outside.html";
     } else if (clickedPlane.id === "whitePlane") {
       localStorage.setItem("userPosition", JSON.stringify(camera.getAttribute("position")));
+      localStorage.setItem("returningFromOutside", "true");
       window.location.href = "outside.html";
     }
   }
@@ -26,5 +28,5 @@ document.addEventListener("DOMContentLoaded", () => {
     // Clear the localStorage flags
     localStorage.removeItem("returningFromOutside");
     localStorage.removeItem("userPosition");
-  }
+}
 });
