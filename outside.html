@@ -12,8 +12,8 @@
       <a-camera id="mainCamera" position="0 1.6 0">
         <a-entity cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
       </a-camera>
-      <a-plane id="whitePlane" class="clickable" position="-2 1 -4" rotation="-90 0 0" width="2" height="2" color="white"></a-plane>
-      <a-plane id="blackPlane" class="clickable" position="2 1 -4" rotation="-90 0 0" width="2" height="2" color="black"></a-plane>
+      <a-sphere id="whitePlane" class="clickable" position="-2 1 -4" radius="1" color="white"></a-sphere>
+      <a-box id="blackPlane" class="clickable" position="2 1 -4" width="2" height="2" depth="2" color="black"></a-box>
       <a-sky color="#ECECEC"></a-sky>
     </a-scene>
   </body>
