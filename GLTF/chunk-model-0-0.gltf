@@ -1,0 +1,220 @@
+{
+  "images": [
+    {"uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAUklEQVR42u3QAQkAAAjAMONbwyBm0xiCbPACj8qe6+KSAQYYYIABBhhggAEGGGCAAQYYYIABBhhggAEGGGCAAQYYYIABBhjwfwAAAAAAAAAA/Lcy+VDa60FVFwAAAABJRU5ErkJggg=="},
+    {"uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAAT0lEQVR42u3QAQ0AAAjDsPs3DTIgT5vMwJJkHnTKAAMMMMAAAwwwwAADDDDAAAMMMMAAAwwwwAADDDDAAAMMMMAAAwzoHwAAAAAAAAAA5RY36Tz8MRyOKwAAAABJRU5ErkJggg=="}
+  ],
+  "accessors": [
+    {
+      "componentType": 5126,
+      "min": [
+        -16,
+        -16,
+        -16
+      ],
+      "byteOffset": 0,
+      "bufferView": 0,
+      "max": [
+        16,
+        16,
+        16
+      ],
+      "count": 60,
+      "type": "VEC3"
+    },
+    {
+      "componentType": 5126,
+      "byteOffset": 0,
+      "bufferView": 1,
+      "count": 60,
+      "type": "VEC3"
+    },
+    {
+      "componentType": 5126,
+      "byteOffset": 0,
+      "bufferView": 2,
+      "count": 60,
+      "type": "VEC2"
+    },
+    {
+      "componentType": 5126,
+      "byteOffset": 0,
+      "bufferView": 2,
+      "count": 60,
+      "type": "VEC2"
+    }
+  ],
+  "textures": [
+    {
+      "source": 0,
+      "sampler": 0
+    },
+    {
+      "source": 1,
+      "sampler": 0
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 720,
+      "uri": "data:application/octet-stream;base64,AACAwQAAgMEAAIBBAACAwQAAgEEAAIBBAACAwQAAgEEAAIDBAACAwQAAgEEAAIDBAACAwQAAgMEAAIDBAACAwQAAgMEAAIBBAABwwQAAcMEAAIDBAABwwQAAgEEAAIDBAABwwQAAgEEAAIBBAABwwQAAgEEAAIBBAABwwQAAcMEAAIBBAABwwQAAcMEAAIDBAACAQQAAgMEAAIDBAACAQQAAcMEAAIDBAACAQQAAcMEAAIBBAACAQQAAcMEAAIBBAACAQQAAgMEAAIBBAACAQQAAgMEAAIDBAACAwQAAgMEAAIDBAACAQQAAgMEAAIDBAACAQQAAgMEAAIBBAACAQQAAgMEAAIBBAACAwQAAgMEAAIBBAACAwQAAgMEAAIDBAABwwQAAcMEAAIBBAACAQQAAcMEAAIBBAACAQQAAcMEAAIDBAACAQQAAcMEAAIDBAABwwQAAcMEAAIDBAABwwQAAcMEAAIBBAACAwQAAgEEAAIBBAABwwQAAgEEAAIBBAABwwQAAgEEAAIDBAABwwQAAgEEAAIDBAACAwQAAgEEAAIDBAACAwQAAgEEAAIBBAACAwQAAcMEAAIDBAACAQQAAcMEAAIDBAACAQQAAgMEAAIDBAACAQQAAgMEAAIDBAACAwQAAgMEAAIDBAACAwQAAcMEAAIDBAACAwQAAgEEAAIDBAABwwQAAgEEAAIDBAABwwQAAcMEAAIDBAABwwQAAcMEAAIDBAACAwQAAcMEAAIDBAACAwQAAgEEAAIDBAACAwQAAgMEAAIBBAACAQQAAgMEAAIBBAACAQQAAcMEAAIBBAACAQQAAcMEAAIBBAACAwQAAcMEAAIBBAACAwQAAgMEAAIBBAACAwQAAcMEAAIBBAABwwQAAcMEAAIBBAABwwQAAgEEAAIBBAABwwQAAgEEAAIBBAACAwQAAgEEAAIBBAACAwQAAcMEAAIBB"
+    },
+    {
+      "byteLength": 720,
+      "uri": "data:application/octet-stream;base64,AACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAvwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgL8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIC/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/"
+    },
+    {
+      "byteLength": 480,
+      "uri": "data:application/octet-stream;base64,AAAAAAAAAD8AAAA/AAAAPwAAAD8AAAAAAAAAPwAAAAAAAAAAAAAAAAAAAAAAAAA/AAAAAAAAAAAAAPg+AAAAAAAA+D4AAAA/AAD4PgAAAD8AAAAAAAAAPwAAAAAAAAAAAAAAAAAAAAAAAIA8AAAAAAAAgDwAAAA/AACAPAAAAD8AAAAAAAAAPwAAAAAAAAAAAAAAAAAAAAAAAAA/AAAAAAAAAD8AAAA/AAAAPwAAAD8AAAAAAAAAPwAAAAAAAAAAAAAAAAAAAD8AAPg+AAAAPwAA+D4AAAAAAAD4PgAAAAAAAAAAAAAAAAAAAAAAAAA/AAAAAAAAAD8AAIA8AAAAPwAAgDwAAAAAAACAPAAAAAAAAAAAAAAAAAAAAAAAAAA/AACAPAAAAD8AAIA8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPwAAgDwAAAA/AAAAAAAA+D4AAIA8AAD4PgAAgDwAAAAAAACAPAAAAAAAAAAAAAAAAAAAAAAAAPg+AAAAAAAAAD8AAAAAAAAAAAAAgDwAAAAAAACAPAAAAAAAAIA8AAAAPwAAAAAAAAA/AAAAAAAAAAAAAIA8AAAAAAAAgDwAAPg+AACAPAAA+D4AAAAAAAD4PgAAAAAAAAAA"
+    }
+  ],
+  "bufferViews": [
+    {
+      "byteOffset": 0,
+      "byteLength": 720,
+      "buffer": 0,
+      "byteStride": 12,
+      "target": 34962
+    },
+    {
+      "byteOffset": 0,
+      "byteLength": 720,
+      "buffer": 1,
+      "byteStride": 12,
+      "target": 34962
+    },
+    {
+      "byteOffset": 0,
+      "byteLength": 480,
+      "buffer": 2,
+      "byteStride": 8,
+      "target": 34962
+    }
+  ],
+  "samplers": [{
+    "minFilter": 9728,
+    "wrapT": 33071,
+    "wrapS": 33071,
+    "magFilter": 9728
+  }],
+  "scene": 0,
+  "nodes": [
+    {
+      "children": [
+        1,
+        2
+      ],
+      "rotation": [
+        0,
+        -1,
+        0,
+        -4.371138828673793E-8
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "name": "World-Global",
+      "scale": [
+        -1,
+        1,
+        1
+      ]
+    },
+    {
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "name": "World-Local",
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "children": [3],
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "name": "00-Global",
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "rotation": [
+        0,
+        0,
+        0,
+        1
+      ],
+      "translation": [
+        0,
+        16,
+        0
+      ],
+      "name": "00-Local",
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "mesh": 0
+    }
+  ],
+  "materials": [{
+    "name": "00-Material",
+    "emissiveTexture": {
+      "index": 1,
+      "texCoord": 1
+    },
+    "pbrMetallicRoughness": {
+      "baseColorTexture": {"index": 0},
+      "metallicFactor": 0,
+      "roughnessFactor": 1
+    },
+    "emissiveFactor": [
+      1,
+      1,
+      1
+    ]
+  }],
+  "animations": [],
+  "scenes": [{"nodes": [0]}],
+  "asset": {
+    "generator": "VoxEdit Beta 66a30fb4",
+    "version": "2.0"
+  },
+  "meshes": [{
+    "primitives": [{
+      "mode": 4,
+      "material": 0,
+      "attributes": {
+        "POSITION": 0,
+        "TEXCOORD_1": 3,
+        "TEXCOORD_0": 2,
+        "NORMAL": 1
+      }
+    }],
+    "name": "00-Mesh"
+  }]
+}
