@@ -28,3 +28,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Clear the localStorage flags
     localStorage.removeItem("returningFromOutside");
     localStorage.removeItem("userPosition");
+}
+
+});
