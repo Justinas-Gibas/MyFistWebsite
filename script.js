@@ -1,11 +1,6 @@
-document.addEventListener("DOMContentLoaded", function () {
-  const button = document.querySelector(".animated-button");
+const rotationSlider = document.querySelector('#rotation-slider');
+const box = document.querySelector('a-box');
 
-  button.addEventListener("mouseenter", function () {
-    button.classList.add("animate");
-  });
-
-  button.addEventListener("animationend", function () {
-    button.classList.remove("animate");
-  });
+rotationSlider.addEventListener('input', function() {
+  box.setAttribute('rotation', `0 ${rotationSlider.value} 0`);
 });
