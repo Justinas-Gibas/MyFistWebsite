@@ -1,5 +1,8 @@
-.text {
-  font-size: 30px;
-  color: white;
-  text-align: center;
+.a-ui-screen {
+  z-index: 1;
+  position: absolute;
+}
+
+a-canvas {
+  z-index: 0;
 }
