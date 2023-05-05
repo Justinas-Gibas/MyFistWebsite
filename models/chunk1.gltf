@@ -8,29 +8,45 @@
 		{
 			"name":"Scene",
 			"nodes":[
-				0
+				3
 			]
 		}
 	],
 	"nodes":[
 		{
 			"mesh":0,
-			"name":"00-Local.003",
-			"rotation":[
+			"name":"00-Local",
+			"translation":[
+				0,
+				50,
+				0
+			]
+		},
+		{
+			"children":[
+				0
+			],
+			"name":"00-Global"
+		},
+		{
+			"name":"World-Local"
+		},
+		{
+			"children":[
 				1,
+				2
+			],
+			"name":"World-Global",
+			"rotation":[
 				0,
 				0,
+				-1,
 				0
 			],
 			"scale":[
 				-1,
 				-1,
 				-1
-			],
-			"translation":[
-				0,
-				25,
-				0
 			]
 		}
 	],
@@ -45,7 +61,7 @@
 				"index":0,
 				"texCoord":1
 			},
-			"name":"00-Material.007",
+			"name":"00-Material.001",
 			"pbrMetallicRoughness":{
 				"baseColorTexture":{
 					"index":1
@@ -56,7 +72,7 @@
 	],
 	"meshes":[
 		{
-			"name":"00-Mesh.007",
+			"name":"00-Mesh.001",
 			"primitives":[
 				{
 					"attributes":{
@@ -89,81 +105,81 @@
 		},
 		{
 			"mimeType":"image/png",
-			"name":"Image_0-3",
-			"uri":"Image_0-3.png"
+			"name":"Image_0",
+			"uri":"Image_0.png"
 		}
 	],
 	"accessors":[
 		{
 			"bufferView":0,
 			"componentType":5126,
-			"count":1530,
+			"count":80430,
 			"max":[
-				25,
-				25,
-				25
+				50,
+				50,
+				50
 			],
 			"min":[
-				-25,
-				-25,
-				-25
+				-50,
+				-50,
+				-50
 			],
 			"type":"VEC3"
 		},
 		{
 			"bufferView":1,
 			"componentType":5126,
-			"count":1530,
+			"count":80430,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":2,
 			"componentType":5126,
-			"count":1530,
+			"count":80430,
 			"type":"VEC2"
 		},
 		{
 			"bufferView":3,
 			"componentType":5126,
-			"count":1530,
+			"count":80430,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":4,
-			"componentType":5123,
-			"count":1530,
+			"componentType":5125,
+			"count":80430,
 			"type":"SCALAR"
 		}
 	],
 	"bufferViews":[
 		{
 			"buffer":0,
-			"byteLength":18360,
+			"byteLength":965160,
 			"byteOffset":0,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":12240,
-			"byteOffset":18360,
+			"byteLength":643440,
+			"byteOffset":965160,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":12240,
-			"byteOffset":30600,
+			"byteLength":643440,
+			"byteOffset":1608600,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":18360,
-			"byteOffset":42840,
+			"byteLength":965160,
+			"byteOffset":2252040,
 			"target":34962
 		},
 		{
 			"buffer":0,
-			"byteLength":3060,
-			"byteOffset":61200,
+			"byteLength":321720,
+			"byteOffset":3217200,
 			"target":34963
 		}
 	],
@@ -177,7 +193,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":64260,
+			"byteLength":3538920,
 			"uri":"chunk1.bin"
 		}
 	]
