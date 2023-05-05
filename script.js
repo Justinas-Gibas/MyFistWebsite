@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", function () {
   ];
 
   const chunkSize = 100;
-  const worldRadius = 1;
+  const worldRadius = 2;
   const loadedChunks = new Set();
 
   function getChunkCoords(position) {
