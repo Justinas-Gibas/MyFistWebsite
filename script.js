@@ -12,6 +12,12 @@ document.addEventListener("DOMContentLoaded", function () {
   const worldRadius = 2;
   const loadedChunks = new Set();
 
+  function getChunkCoords(position) {
+    const x = Math.floor(position.x / chunkSize) * chunkSize;
+    const z = Math.floor(position.z / chunkSize) * chunkSize;
+    return { x, z };
+  }
+
   function createChunk(x, z, modelIndex) {
     const chunk = document.createElement("a-entity");
     chunk.setAttribute("gltf-model", gltfModels[modelIndex]);
@@ -19,12 +25,6 @@ document.addEventListener("DOMContentLoaded", function () {
     chunk.setAttribute("id", `chunk-${x}-${z}`);
     world.appendChild(chunk);
     loadedChunks.add(`chunk-${x}-${z}`);
-  }
-
-function getChunkCoords(position) {
-    const x = Math.floor(position.x / chunkSize) * chunkSize;
-    const z = Math.floor(position.z / chunkSize) * chunkSize;
-    return { x, z };
   }
 
   function generateWorld(position) {
@@ -44,10 +44,17 @@ function getChunkCoords(position) {
     }
   }
 
-camera.addEventListener("componentchanged", function (evt) {
-  if (evt.detail.name === "position") {
-    const position = { x: evt.detail.newData.x, y: evt.detail.newData.y, z: evt.detail.newData.z };
-    generateWorld(position);
+  let prevCameraPosition = { x: 0, y: 0, z: 0 };
+
+  camera.addEventListener("tick", function () {
+    const currentPosition = camera.getAttribute("position");
+
+    if (
+      Math.floor(currentPosition.x / chunkSize) !== Math.floor(prevCameraPosition.x / chunkSize) ||
+      Math.floor(currentPosition.z / chunkSize) !== Math.floor(prevCameraPosition.z / chunkSize)
+    ) {
+      generateWorld(currentPosition);
+      prevCameraPosition = currentPosition;
     }
   });
 });
