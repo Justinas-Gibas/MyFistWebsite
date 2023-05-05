@@ -47,14 +47,15 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  let prevCameraPosition = { x: 0, y: 0, z: 0 };
+  let prevCameraPosition = null;
 
 function onCameraTick() {
   const currentPosition = camera.getAttribute("position");
   const currentChunkCoords = getChunkCoords(currentPosition);
-  const prevChunkCoords = getChunkCoords(prevCameraPosition);
+  const prevChunkCoords = prevCameraPosition ? getChunkCoords(prevCameraPosition) : null;
 
   if (
+    !prevChunkCoords ||
     currentChunkCoords.x !== prevChunkCoords.x ||
     currentChunkCoords.z !== prevChunkCoords.z
   ) {
