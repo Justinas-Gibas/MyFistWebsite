@@ -7,7 +7,10 @@ AFRAME.registerComponent('update-position', {
   }
 });
 
-document.querySelector('a-camera').addEventListener('componentinitialized', function (e) {
-  if (e.detail.name !== 'position') { return; }
-  e.target.setAttribute('update-position', '');
+document.addEventListener('loaded', function () {
+  var camera = document.querySelector('a-camera');
+  camera.addEventListener('componentinitialized', function (e) {
+    if (e.detail.name !== 'position') { return; }
+    e.target.setAttribute('update-position', '');
+  });
 });
