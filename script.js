@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function generateWorld() {
     const chunkSize = 100;
-    const numChunks = 5;
+    const numChunks = 2;
 
     for (let i = 0; i < numChunks; i++) {
       for (let j = 0; j < numChunks; j++) {
