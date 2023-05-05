@@ -1,20 +1,4 @@
-body, html {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  height: 100%;
-  width: 100%;
-}
-
-#ui {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  z-index: 1000;
-}
-
-#chunk-info {
-  margin-top: 10px;
-  font-size: 16px;
-  color: #000;
-}
+.text {
+  font-size: 30px;
+  color: white;
+  text-align: center;
