@@ -1,80 +1,60 @@
-// Constants
-const chunkSize = 50; // Adjust this according to the size of your chunks.
-const allChunks = [
-  { x: 0, z: 0 },
-  { x: 0, z: 1 },
-  { x: 1, z: 0 },
-  { x: 1, z: 1 },
-  // Add more chunks as necessary
-];
-
-// Helper functions
-function getPlayerChunk(playerPosition, chunkSize) {
-  const chunkX = Math.floor(playerPosition.x / chunkSize);
-  const chunkZ = Math.floor(playerPosition.z / chunkSize);
-
-  return { x: chunkX, z: chunkZ };
-}
-
-function loadChunk(chunk) {
-  const entity = document.querySelector(`#chunk-${chunk.x}-${chunk.z}`);
-
-  if (!entity) {
-    // If the chunk entity doesn't exist yet, create a new entity and set the appropriate glTF model.
-    const newEntity = document.createElement("a-entity");
-    newEntity.setAttribute("id", `chunk-${chunk.x}-${chunk.z}`);
-    newEntity.setAttribute("gltf-model", `#chunk-model-${chunk.x}-${chunk.z}`);
-    newEntity.setAttribute("visible", true);
-
-    const scene = document.querySelector("a-scene");
-    scene.appendChild(newEntity);
-  }
-}
-
-function unloadChunk(chunk) {
-  const entity = document.querySelector(`#chunk-${chunk.x}-${chunk.z}`);
-
-  if (entity) {
-    // If the chunk entity exists, remove it from the scene.
-    const scene = document.querySelector("a-scene");
-    scene.removeChild(entity);
-  }
-}
-
-function updateChunks() {
-  const player = document.querySelector("#camera"); // Assuming you have an entity with ID 'camera' representing the player.
-  const playerPosition = player.getAttribute("position");
-  const currentChunk = getPlayerChunk(playerPosition, chunkSize);
-
-  // Define the coordinates for the surrounding chunks.
-  const surroundingChunks = [
-    { x: currentChunk.x - 1, z: currentChunk.z },
-    { x: currentChunk.x + 1, z: currentChunk.z },
-    { x: currentChunk.x, z: currentChunk.z - 1 },
-    { x: currentChunk.x, z: currentChunk.z + 1 },
-    // Include the current chunk as well
-    currentChunk
-  ];
-
-  // Loop through all chunks and determine if they should be loaded or unloaded.
-  for (const chunk of allChunks) {
-    const shouldBeLoaded = surroundingChunks.some(surroundingChunk => {
-      return chunk.x === surroundingChunk.x && chunk.z === surroundingChunk.z;
+AFRAME.registerComponent("chunk-manager", {
+  init: function () {
+    this.el.sceneEl.addEventListener("loaded", () => {
+      this.manageChunks();
     });
-
-    if (shouldBeLoaded) {
-      // Load the chunk if it's a surrounding chunk.
-      loadChunk(chunk);
-    } else {
-      // Unload the chunk if it's not a surrounding chunk.
-      unloadChunk(chunk);
-    }
-  }
-}
-
-// A-Frame component
-AFRAME.registerComponent("level-streaming", {
-  tick: function () {
-    updateChunks();
+    this.el.sceneEl.addEventListener("componentchanged", (evt) => {
+      if (evt.detail.name === "position") {
+        this.manageChunks();
+      }
+    });
   },
+
+  manageChunks: function () {
+    const rig = document.querySelector("#rig");
+    const chunks = document.querySelector("#chunks");
+    const rigPosition = rig.getAttribute("position");
+
+    // Calculate the chunk the user is in (you can customize the size of the chunks)
+    const chunkSize = 10;
+    const currentChunk = {
+      x: Math.floor(rigPosition.x / chunkSize),
+      z: Math.floor(rigPosition.z / chunkSize),
+    };
+
+    // Loop through all the chunks and load or unload them based on their distance to the current chunk
+    for (let x = -1; x <= 1; x++) {
+      for (let z = -1; z <= 1; z++) {
+        const chunkId = `chunk-${currentChunk.x + x}-${currentChunk.z + z}`;
+
+        if (!chunks.querySelector(`#${chunkId}`)) {
+          const modelId = `chunk${Math.abs(currentChunk.x + x) % 2 + 1}`; // Replace with your own logic to determine the glTF model to use
+          const chunk = document.createElement("a-entity");
+          chunk.setAttribute("id", chunkId);
+          chunk.setAttribute("gltf-model", `#${modelId}`);
+          chunk.setAttribute("position", {
+            x: (currentChunk.x + x) * chunkSize,
+            y: 0,
+            z: (currentChunk.z + z) * chunkSize,
+          });
+          chunks.appendChild(chunk);
+        }
+      }
+    }
+
+    // Unload the chunks that are not adjacent
+    chunks.querySelectorAll("a-entity").forEach((chunk) => {
+      const [_, x, z] = chunk.id.split("-").map((n) => parseInt(n));
+      if (
+        x < currentChunk.x -1 ||
+	  x > currentChunk.x + 1 ||
+	  z < currentChunk.z - 1 ||
+	  z > currentChunk.z + 1
+		) {
+	chunks.removeChild(chunk);
+	}
+	});
+},
 });
+
+document.querySelector("a-scene").setAttribute("chunk-manager", {});

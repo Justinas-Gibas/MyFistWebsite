@@ -1,31 +1,27 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
+    <meta charset="UTF-8" />
+    <title>Chunked World with A-Frame</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="script.js"></script>
   </head>
   <body>
     <a-scene>
       <a-assets>
-        <!-- Replace these with your own chunk glTF assets -->
-        <a-asset-item id="chunk-model-0-0" src="GLTF/chunk-model-0-0.gltf"></a-asset-item>
-        <a-asset-item id="chunk-model-0-1" src="GLTF/chunk-model-0-1.gltf"></a-asset-item>
-        <a-asset-item id="chunk-model-1-0" src="GLTF/chunk-model-1-0.gltf"></a-asset-item>
-        <a-asset-item id="chunk-model-1-1" src="GLTF/chunk-model-1-1.gltf"></a-asset-item>
+        <!-- Add your glTF models here as assets -->
+        <a-asset-item id="chunk1" src="models/chunk1.gltf"></a-asset-item>
+        <a-asset-item id="chunk2" src="models/chunk2.gltf"></a-asset-item>
+        <!-- Add more as needed -->
       </a-assets>
 
-      <!-- Camera -->
-      <a-entity id="camera" camera look-controls wasd-controls position="0 1.6 0"></a-entity>
+      <a-entity id="rig" position="0 0 0">
+        <a-camera look-controls="pointerLockEnabled: true" wasd-controls="acceleration: 150"></a-camera>
+      </a-entity>
 
-      <!-- Ground -->
-      <a-plane position="0 0 0" rotation="-90 0 0" width="100" height="100" color="#7BC8A4" shadow></a-plane>
+      <a-entity id="chunks"></a-entity>
 
-      <!-- Sky -->
       <a-sky color="#ECECEC"></a-sky>
-
-      <!-- Level streaming entity -->
-      <a-entity level-streaming></a-entity>
-
-      <script src="script.js"></script>
     </a-scene>
   </body>
 </html>
