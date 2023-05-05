@@ -57,14 +57,9 @@ AFRAME.registerComponent("chunk-manager", {
   },
 });
 
-// Add the loaded event listener to ensure the scene is fully loaded before executing the code
-document.querySelector("a-scene").addEventListener("loaded", () => {
-  document.querySelector("a-scene").setAttribute("chunk-manager", {});
-});
-
-// Add the componentchanged event listener to ensure the code is executed when the position of the rig is changed
-document.querySelector("a-scene").addEventListener("componentchanged", (evt) => {
-  if (evt.detail.name === "position") {
+// Wait for the DOM to be fully loaded before adding the event listener
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelector("a-scene").addEventListener("loaded", () => {
     document.querySelector("a-scene").setAttribute("chunk-manager", {});
-  }
+  });
 });
