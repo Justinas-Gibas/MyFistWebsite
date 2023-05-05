@@ -44,9 +44,9 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  camera.addEventListener("componentchanged", function (evt) {
-   if (evt.detail.name === "position") {
-    generateWorld(evt.detail.newData.data);
+	camera.addEventListener("componentchanged", function (evt) {
+ 	 if (evt.detail.name === "position") {
+	    generateWorld(evt.detail.newData);
     }
   });
 });
