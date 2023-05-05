@@ -1,3 +1,13 @@
+AFRAME.registerComponent("camera-listener", {
+  init: function () {
+    this.el.addEventListener("componentchanged", (event) => {
+      if (event.detail.name === "position") {
+        onCameraTick();
+      }
+    });
+  },
+});
+
 document.addEventListener("DOMContentLoaded", function () {
   const scene = document.querySelector("a-scene");
   const world = document.querySelector("#world");
@@ -63,7 +73,7 @@ function onCameraTick() {
 }
 
   assets.addEventListener("loaded", function () {
-    scene.addEventListener("tick", onCameraTick);
+    camera.setAttribute("camera-listener", ""); // Add the custom component
     loadGltfButton.addEventListener("click", function () {
       const currentPosition = camera.getAttribute("position");
       generateWorld(currentPosition);
