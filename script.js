@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", function () {
     "#gltfModel2",
   ];
 
-  const chunkSize = 1000;
+  const chunkSize = 1;
   const worldRadius = 2;
   const loadedChunks = new Set();
 
