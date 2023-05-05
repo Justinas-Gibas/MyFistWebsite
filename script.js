@@ -1,9 +1,9 @@
 AFRAME.registerComponent('update-position', {
   tick: function () {
     var position = document.querySelector('#position').getAttribute('position');
-    document.querySelector('#x').innerHTML = position.x;
-    document.querySelector('#y').innerHTML = position.y;
-    document.querySelector('#z').innerHTML = position.z;
+    document.querySelector('#x').innerHTML = position.x.toFixed(2);
+    document.querySelector('#y').innerHTML = position.y.toFixed(2);
+    document.querySelector('#z').innerHTML = position.z.toFixed(2);
   }
 });
 
