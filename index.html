@@ -16,13 +16,21 @@
       </a-assets>
 
       <a-entity id="rig" position="0 0 0">
-        <a-camera look-controls="pointerLockEnabled: true" wasd-controls="acceleration: 150"></a-camera>
+        <a-camera></a-camera>
       </a-entity>
 
       <a-entity id="chunks"></a-entity>
 
       <a-sky color="#ECECEC"></a-sky>
-	<a-plane position="0 0 -5" rotation="-90 0 0" width="10" height="10" color="#7BC8A4"></a-plane>
     </a-scene>
+
+    <!-- Move the DOMContentLoaded event listener to an inline script tag -->
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        document.querySelector("a-scene").addEventListener("loaded", () => {
+          document.querySelector("a-scene").setAttribute("chunk-manager", {});
+        });
+      });
+    </script>
   </body>
 </html>

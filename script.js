@@ -56,10 +56,4 @@ AFRAME.registerComponent("chunk-manager", {
     });
   },
 });
-
-// Wait for the DOM to be fully loaded before adding the event listener
-document.addEventListener("DOMContentLoaded", () => {
-  document.querySelector("a-scene").addEventListener("loaded", () => {
-    document.querySelector("a-scene").setAttribute("chunk-manager", {});
-  });
 });
