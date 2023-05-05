@@ -10,8 +10,8 @@ document.addEventListener("DOMContentLoaded", function () {
     "#gltfModel2",
   ];
 
-  const chunkSize = 10;
-  const worldRadius = 2;
+  const chunkSize = 100;
+  const worldRadius = 1;
   const loadedChunks = new Set();
 
   function getChunkCoords(position) {
