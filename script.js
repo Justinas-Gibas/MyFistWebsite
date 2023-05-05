@@ -33,6 +33,9 @@ document.addEventListener("DOMContentLoaded", function () {
   function generateWorld(position) {
     const { x, z } = getChunkCoords(position);
 
+    // Update chunk-info element content
+    chunkInfo.innerHTML = `Current Chunk: x: ${x}, z: ${z}`;
+
     for (let i = -worldRadius; i <= worldRadius; i++) {
       for (let j = -worldRadius; j <= worldRadius; j++) {
         const xPos = x + i * chunkSize;
