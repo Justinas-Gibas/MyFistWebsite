@@ -45,17 +45,19 @@ document.addEventListener("DOMContentLoaded", function () {
 
   let prevCameraPosition = { x: 0, y: 0, z: 0 };
 
-  function onCameraTick() {
-    const currentPosition = camera.getAttribute("position");
+function onCameraTick() {
+  const currentPosition = camera.getAttribute("position");
+  const currentChunkCoords = getChunkCoords(currentPosition);
+  const prevChunkCoords = getChunkCoords(prevCameraPosition);
 
-    if (
-      Math.floor(currentPosition.x / chunkSize) !== Math.floor(prevCameraPosition.x / chunkSize) ||
-      Math.floor(currentPosition.z / chunkSize) !== Math.floor(prevCameraPosition.z / chunkSize)
-    ) {
-      generateWorld(currentPosition);
-      prevCameraPosition = currentPosition;
-    }
+  if (
+    currentChunkCoords.x !== prevChunkCoords.x ||
+    currentChunkCoords.z !== prevChunkCoords.z
+  ) {
+    generateWorld(currentPosition);
+    prevCameraPosition = currentPosition;
   }
+}
 
   assets.addEventListener("loaded", function () {
     camera.addEventListener("tick", onCameraTick);
