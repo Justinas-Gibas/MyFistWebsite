@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", function () {
   const world = document.querySelector("#world");
   const camera = document.querySelector("a-camera");
+  const assets = document.querySelector("a-assets");
   const gltfModels = [
     "#gltfModel1",
     "#gltfModel2",
@@ -46,7 +47,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   let prevCameraPosition = { x: 0, y: 0, z: 0 };
 
-  camera.addEventListener("tick", function () {
+  function onCameraTick() {
     const currentPosition = camera.getAttribute("position");
 
     if (
@@ -56,5 +57,9 @@ document.addEventListener("DOMContentLoaded", function () {
       generateWorld(currentPosition);
       prevCameraPosition = currentPosition;
     }
+  }
+
+  assets.addEventListener("loaded", function () {
+    camera.addEventListener("tick", onCameraTick);
   });
 });
