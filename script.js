@@ -52,6 +52,7 @@ function onCameraTick() {
   const currentPosition = camera.getAttribute("position");
   const currentChunkCoords = getChunkCoords(currentPosition);
   const prevChunkCoords = getChunkCoords(prevCameraPosition);
+  const chunkInfo = document.querySelector("#chunk-info");
 
   if (
     currentChunkCoords.x !== prevChunkCoords.x ||
@@ -59,11 +60,16 @@ function onCameraTick() {
   ) {
     generateWorld(currentPosition);
     prevCameraPosition = currentPosition;
+
+    // Update chunk-info element content
+    chunkInfo.innerHTML = `Current Chunk: x: ${currentChunkCoords.x}, z: ${currentChunkCoords.z}`;
   }
 }
 
   assets.addEventListener("loaded", function () {
-   camera.tick = onCameraTick;
+    camera.tick = onCameraTick; // Add the tick function
+    const currentPosition = camera.getAttribute("position");
+    generateWorld(currentPosition); // Call generateWorld initially
     loadGltfButton.addEventListener("click", function () {
       const currentPosition = camera.getAttribute("position");
       generateWorld(currentPosition);

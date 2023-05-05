@@ -12,3 +12,9 @@ body, html {
   left: 20px;
   z-index: 1000;
 }
+
+#chunk-info {
+  margin-top: 10px;
+  font-size: 16px;
+  color: #000;
+}
