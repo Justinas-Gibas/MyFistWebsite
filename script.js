@@ -46,15 +46,18 @@ AFRAME.registerComponent("chunk-manager", {
     chunks.querySelectorAll("a-entity").forEach((chunk) => {
       const [_, x, z] = chunk.id.split("-").map((n) => parseInt(n));
       if (
-        x < currentChunk.x -1 ||
-	  x > currentChunk.x + 1 ||
-	  z < currentChunk.z - 1 ||
-	  z > currentChunk.z + 1
-		) {
-	chunks.removeChild(chunk);
-	}
-	});
-},
+        x < currentChunk.x - 1 ||
+        x > currentChunk.x + 1 ||
+        z < currentChunk.z - 1 ||
+        z > currentChunk.z + 1
+      ) {
+        chunks.removeChild(chunk);
+      }
+    });
+  },
 });
 
-document.querySelector("a-scene").setAttribute("chunk-manager", {});
+// Add the loaded event listener to ensure the scene is fully loaded before executing the code
+document.querySelector("a-scene").addEventListener("loaded", () => {
+  document.querySelector("a-scene").setAttribute("chunk-manager", {});
+});
