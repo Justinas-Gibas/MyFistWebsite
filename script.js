@@ -61,3 +61,10 @@ AFRAME.registerComponent("chunk-manager", {
 document.querySelector("a-scene").addEventListener("loaded", () => {
   document.querySelector("a-scene").setAttribute("chunk-manager", {});
 });
+
+// Add the componentchanged event listener to ensure the code is executed when the position of the rig is changed
+document.querySelector("a-scene").addEventListener("componentchanged", (evt) => {
+  if (evt.detail.name === "position") {
+    document.querySelector("a-scene").setAttribute("chunk-manager", {});
+  }
+});
