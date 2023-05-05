@@ -3,6 +3,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const world = document.querySelector("#world");
   const camera = document.querySelector("a-camera");
   const assets = document.querySelector("a-assets");
+  const chunkInfo = document.querySelector("#chunk-info");
   const loadGltfButton = document.querySelector("#loadGltf");
 
   const gltfModels = [
@@ -52,7 +53,6 @@ function onCameraTick() {
   const currentPosition = camera.getAttribute("position");
   const currentChunkCoords = getChunkCoords(currentPosition);
   const prevChunkCoords = getChunkCoords(prevCameraPosition);
-  const chunkInfo = document.querySelector("#chunk-info");
 
   if (
     currentChunkCoords.x !== prevChunkCoords.x ||
