@@ -12,12 +12,6 @@ document.addEventListener("DOMContentLoaded", function () {
   const worldRadius = 2;
   const loadedChunks = new Set();
 
-  function getChunkCoords(position) {
-    const x = Math.floor(position.x / chunkSize) * chunkSize;
-    const z = Math.floor(position.z / chunkSize) * chunkSize;
-    return { x, z };
-  }
-
   function createChunk(x, z, modelIndex) {
     const chunk = document.createElement("a-entity");
     chunk.setAttribute("gltf-model", gltfModels[modelIndex]);
@@ -25,6 +19,12 @@ document.addEventListener("DOMContentLoaded", function () {
     chunk.setAttribute("id", `chunk-${x}-${z}`);
     world.appendChild(chunk);
     loadedChunks.add(`chunk-${x}-${z}`);
+  }
+
+function getChunkCoords(position) {
+    const x = Math.floor(position.x / chunkSize) * chunkSize;
+    const z = Math.floor(position.z / chunkSize) * chunkSize;
+    return { x, z };
   }
 
   function generateWorld(position) {
