@@ -6,6 +6,12 @@ document.addEventListener("DOMContentLoaded", function () {
   const chunkInfo = document.querySelector("#chunk-info");
   const loadGltfButton = document.querySelector("#loadGltf");
 
+  AFRAME.registerComponent("tick-listener", {
+    tick: function () {
+      onCameraTick();
+    },
+  });
+
   const gltfModels = [
     "#gltfModel1",
     "#gltfModel2",
@@ -71,7 +77,7 @@ function onCameraTick() {
 }
 
   assets.addEventListener("loaded", function () {
-    camera.tick = onCameraTick; // Add the tick function
+    camera.setAttribute("tick-listener", "");
     const currentPosition = camera.getAttribute("position");
     generateWorld(currentPosition); // Call generateWorld initially
     loadGltfButton.addEventListener("click", function () {
