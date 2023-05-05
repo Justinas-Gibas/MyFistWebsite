@@ -56,4 +56,3 @@ AFRAME.registerComponent("chunk-manager", {
     });
   },
 });
-);
