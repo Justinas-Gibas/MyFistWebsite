@@ -8,10 +8,13 @@
   <title>Dynamic World</title>
 </head>
 <body>
+  <div id="ui">
+    <button id="loadGltf">Load glTF</button>
+  </div>
   <a-scene>
     <a-assets>
-      <a-asset-item id="gltfModel1" src="models/chunk1.gltf"></a-asset-item>
-      <a-asset-item id="gltfModel2" src="models/chunk2.gltf"></a-asset-item>
+      <a-asset-item id="gltfModel1" src="path/to/your/gltf/model1.gltf"></a-asset-item>
+      <a-asset-item id="gltfModel2" src="path/to/your/gltf/model2.gltf"></a-asset-item>
     </a-assets>
 
     <a-plane position="0 0 0" rotation="-90 0 0" width="100" height="100" color="#ECECEC" shadow></a-plane>
