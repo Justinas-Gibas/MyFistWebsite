@@ -44,9 +44,11 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-	camera.addEventListener("componentchanged", function (evt) {
- 	 if (evt.detail.name === "position") {
-	    generateWorld(evt.detail.newData);
+camera.addEventListener("componentchanged", function (evt) {
+  if (evt.detail.name === "position") {
+    setTimeout(() => {
+      generateWorld(evt.detail.newData);
+    }, 100);
     }
   });
 });
