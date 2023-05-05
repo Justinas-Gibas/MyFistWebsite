@@ -2,35 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Chunked World with A-Frame</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>A-Frame Chunks World</title>
     <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
-    <script src="script.js"></script>
+    <script src="script.js" defer></script>
   </head>
   <body>
     <a-scene>
       <a-assets>
-        <!-- Add your glTF models here as assets -->
-        <a-asset-item id="chunk1" src="models/chunk1.gltf"></a-asset-item>
-        <a-asset-item id="chunk2" src="models/chunk2.gltf"></a-asset-item>
-        <!-- Add more as needed -->
+        <a-asset-item id="gltfModel1" src="models/chunk1.gltf"></a-asset-item>
+        <a-asset-item id="gltfModel2" src="models/chunk2.gltf"></a-asset-item>
+        <!-- Add more asset items as needed -->
       </a-assets>
-
-      <a-entity id="rig" position="0 0 0">
-        <a-camera></a-camera>
-      </a-entity>
-
-      <a-entity id="chunks"></a-entity>
-
+      <a-entity id="world"></a-entity>
+      <a-camera position="0 1.6 3"></a-camera>
       <a-sky color="#ECECEC"></a-sky>
     </a-scene>
-
-    <!-- Move the DOMContentLoaded event listener to an inline script tag -->
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        document.querySelector("a-scene").addEventListener("loaded", () => {
-          document.querySelector("a-scene").setAttribute("chunk-manager", {});
-        });
-      });
-    </script>
   </body>
 </html>
