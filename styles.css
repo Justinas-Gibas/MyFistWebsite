@@ -21,3 +21,31 @@ p {
 .hover-text:hover {
   font-size: 24px;
 }
+
+.menu-container {
+  position: relative;
+  display: inline-block;
+}
+
+.menu-icon {
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+}
+
+.main-menu {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  padding: 10px;
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.3s ease-in-out;
+  white-space: nowrap;
+}
+
+.menu-container:hover .main-menu {
+  max-height: 200px; /* Adjust the height according to your menu content */
+}
