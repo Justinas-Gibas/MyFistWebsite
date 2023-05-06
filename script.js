@@ -1,4 +1,4 @@
-document.addEventListener("DOMContentLoaded", function () {
+/* document.addEventListener("DOMContentLoaded", function () {
   var menuIcon = document.querySelector(".menu-icon");
   var mainMenu = document.querySelector(".main-menu");
 
@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", function () {
     mainMenu.classList.toggle("menu-open");
   });
 });
-
+*/
 
 function showAlert() {
     alert('Hello, World!');
