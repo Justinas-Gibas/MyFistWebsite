@@ -1,8 +1,12 @@
-.a-ui-screen {
-  z-index: 1;
-  position: absolute;
+body {
+    font-family: Arial, sans-serif;
+    background-color: lightgray;
 }
 
-a-canvas {
-  z-index: 0;
+h1 {
+    color: darkblue;
+}
+
+p {
+    color: darkgreen;
 }
