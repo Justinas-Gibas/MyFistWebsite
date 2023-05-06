@@ -42,10 +42,21 @@ p {
   padding: 10px;
   overflow: hidden;
   max-height: 0;
-  transition: max-height 0.3s ease-in-out;
+  opacity: 0;
+  visibility: hidden;
+  transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
   white-space: nowrap;
 }
 
 .menu-container:hover .main-menu {
   max-height: 200px; /* Adjust the height according to your menu content */
+  opacity: 1;
+  visibility: visible;
 }
+
+.main-menu.menu-open {
+  max-height: 200px;
+  opacity: 1;
+  visibility: visible;
+}
+
