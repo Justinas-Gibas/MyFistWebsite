@@ -23,40 +23,38 @@ p {
 }
 
 .menu-container {
-  position: relative;
-  display: inline-block;
+  position: fixed;
+  top: 0px; /* Adjust this value according to your preference */
+  left: 0;
+  height: 100%;
+  width: 250px; /* Width of the menu */
+  overflow-x: hidden;
+  z-index: 1000;
 }
 
 .menu-icon {
   width: 40px;
   height: 40px;
   cursor: pointer;
+  position: absolute;
+  left: 0px;
+  top: 0;
 }
 
 .main-menu {
   position: absolute;
-  left: 0;
-  top: 100%;
+  left: -100%;
+  top: 0;
   background-color: #fff;
-  border: 1px solid #ccc;
-  padding: 10px;
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  visibility: hidden;
-  transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+  height: 100%;
+  width: 100%;
+  transition: left 0.3s ease-in-out;
   white-space: nowrap;
 }
 
-.menu-container:hover .main-menu {
-  max-height: 200px; /* Adjust the height according to your menu content */
-  opacity: 1;
-  visibility: visible;
-}
 
+.menu-container:hover .main-menu,
 .main-menu.menu-open {
-  max-height: 200px;
-  opacity: 1;
-  visibility: visible;
+  left: 0;
 }
 
