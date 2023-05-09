@@ -3,19 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <title>Justinas Gibas - Portfolio</title>
-    <!-- Add a favicon to improve brand recognition -->
     <link rel="icon" href="favicon.ico">
-    <!-- Add Google Fonts for typography -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Use a reset stylesheet to ensure consistent styling across browsers -->
     <link rel="stylesheet" href="reset.css">
-    <!-- Apply custom styles in a separate stylesheet -->
     <link rel="stylesheet" href="style.css">
-    <!-- Add a script tag to load Three.js library from the web -->
     <script src="https://cdn.rawgit.com/mrdoob/three.js/r68/build/three.min.js"></script>
+    <!-- Add Font Awesome library for icons -->
+    <script src="https://kit.fontawesome.com/4ea372eb61.js" crossorigin="anonymous"></script>
 </head>
 <body>
-    <!-- Use semantic HTML5 tags for better accessibility and SEO -->
     <header class="header">
         <div class="container">
             <h1 class="header__title">Justinas Gibas</h1>
@@ -29,67 +25,50 @@
         </div>
     </header>
 
-    <!-- Use section tags to group related content and apply appropriate headings -->
     <main class="main">
-        <section id="about" class="section section--about">
-            <div class="container container--narrow">
+        <section id="about" class="section">
+            <div class="container">
                 <h2 class="section__title">About</h2>
-
                 <h3 class="section__subtitle">About Me</h3>
-
                 <p class="section__text">My name is Justinas Gibas, and I am a 28-year-old dental technician from Vilnius, Lithuania. I was born on August
                     8, 1995, and pursued my studies in dental technology at the Utena College Medical Faculty.</p>
-
                 <p class="section__text">My hobbies include creating music using electronic devices and working on various computer-related projects. In my
                     free time, you can often find me enjoying the sun and sipping water. I am proud to have trained more than a hundred
                     people in using the latest dental software and equipment.</p>
-
                 <p class="section__text">In the future, I aspire to:</p>
-
                 <ul class="section__list">
                     <li>Develop games or create various virtual/digital spaces for different purposes.</li>
                     <li>Learn more programming languages to broaden my skill set.</li>
                     <li>Travel around the world and experience different cultures.</li>
                 </ul>
-
                 <p class="section__text">I am fluent in Lithuanian and English, and I have been actively learning programming languages such as HTML, CSS,
                     JavaScript, and Python.</p>
             </div>
         </section>
 
-        <section id="work" class="section section--work">
-            <div class="container container--narrow">
+        <section id="work" class="section">
+            <div class="container">
                 <h2 class="section__title">Work</h2>
-
                 <h3 class="section__subtitle">My Work</h3>
-
-                <!-- Use figure and figcaption tags for better accessibility -->
                 <figure class="work-item">
                     <img src="dental.jpg" alt="A photo of me working on a dental model" class="work-item__image">
                     <figcaption class="work-item__caption">A photo of me working on a dental model</figcaption>
                 </figure>
-
                 <figure class="work-item">
-                    <!-- Use video tag to embed videos -->
-                    <video src="music.mp4" controls class="work-item__video" poster="music-poster.jpg">A video of me creating music using electronic devices</video>
+                    <video src="music.mp4" controls class="work-item__video__" poster="music-poster.jpg">A video of me creating music using electronic devices</video>
                     <figcaption class="work-item__caption">A video of me creating music using electronic devices</figcaption>
                 </figure>
             </div>
         </section>
 
-        <section id="contact" class="section section--contact">
-            <div class="container container--narrow">
+        <section id="contact" class="section">
+            <div class="container">
                 <h2 class="section__title">Contact</h2>
-
                 <h3 class="section__subtitle">Contact Me</h3>
-
                 <p class="section__text">If you want to get in touch with me, you can:</p>
-
                 <ul class="section__list">
-                    <!-- Use appropriate HTML tags for different types of content -->
                     <li><a href="mailto:justinas.gibas@gmail.com" class="link link--email">Email me at justinas.gibas@gmail.com</a></li>
                     <li><a href="tel:+3701234567" class="link link--phone">Call me at +370 123 4567</a></li>
-                    <!-- Add icons to improve visual appeal and user experience -->
                     <li><a href="#" aria-label="Follow me on Facebook" class="link link--social"><i class="fab fa-facebook-square"></i>Facebook</a></li>
                     <li><a href="#" aria-label="Follow me on Twitter" class="link link--social"><i class="fab fa-twitter-square"></i>Twitter</a></li>
                     <li><a href="#" aria-label="Follow me on Instagram" class="link link--social"><i class="fab fa-instagram-square"></i>Instagram</a></li>
@@ -101,19 +80,14 @@
     </main>
 
     <footer class="footer">
-        <div class="container container--narrow">
+        <div class="container">
             <p>Contact me:</p>
-
             <ul class="footer__list">
-                <!-- Use appropriate HTML tags for different types of content -->
                 <li>Email: <a href="mailto:justinasgibas@gmail.com" class="link link--email">justinasgibas@gmail.com</a></li>
                 <li>Phone: <a href="tel:+3701234567" class="link link--phone">+370 123 4567</a></li>
             </ul>
-
             <p>Follow me:</p>
-
             <ul class="footer__list">
-                <!-- Add icons to improve visual appeal and user experience -->
                 <li><a href="#" aria-label="Follow me on Facebook" class="link link--social"><i class="fab fa-facebook-square"></i></a></li>
                 <li><a href="#" aria-label="Follow me on Twitter" class="link link--social"><i class="fab fa-twitter-square"></i></a></li>
                 <li><a href="#" aria-label="Follow me on Instagram" class="link link--social"><i class="fab fa-instagram-square"></i></a></li>
@@ -121,13 +95,9 @@
         </div>
     </footer>
 
-    <!-- Add a container for Three.js model -->
     <div id="container"></div>
 
-    <!-- Add a script tag to load custom JavaScript -->
     <script src="./script.js"></script>
-
-    <!-- Add Font Awesome library for icons -->
-    <script src="https://kit.fontawesome.com/4ea372eb61.js" crossorigin="anonymous"></script>
 </body>
 </html>
+

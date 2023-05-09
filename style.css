@@ -14,108 +14,133 @@ body {
   background-repeat: no-repeat;
   background-attachment: fixed;
   scroll-behavior: smooth;
-  font-family: 'Roboto', sans-serif; /* Changed font family to Roboto */
+  font-family: 'Poppins', sans-serif;
   font-size: 16px;
   line-height: 1.5;
 }
 
 /* Set wrapper styles */
-.wrapper {
+.container {
   max-width: 1200px;
   margin: 0 auto;
+  padding: 0 20px;
 }
 
 /* Style the header section */
-header {
-    position: fixed; 
-    display:flex; 
-    justify-content: space-between; 
-    align-items:center; 
-    width:100%; 
-    z-index:999; 
-    padding:20px; 
-    background-color:#333; 
-    color:#fff
-}
-header h1 {
-    font-size :36px
-}
-nav ul {
-    display:flex; 
-    list-style:none
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 20px;
+  background-color: #333;
+  color: #fff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 999;
 }
 
-nav li {
-    margin-right :20px
+.header__title {
+  font-size: 24px;
 }
-nav a {
-    color:#fff; 
-    text-decoration:none; 
-    font-size :18px
+
+.header__nav {
+  display: flex;
 }
-nav a:hover {text-decoration :underline}
+
+.nav-list {
+  display: flex;
+  list-style: none;
+}
+
+.nav-list li {
+  margin-right: 20px;
+}
+
+.nav-link {
+  color: #fff;
+  text-decoration: none;
+  font-size: 18px;
+}
+
+.nav-link:hover {
+  text-decoration: underline;
+}
 
 /* Style the main section */
-main {padding :50px}
+.main {
+  padding: 50px 0;
+}
 
-section {margin-bottom :50px}
-section h2 {
-      font-size :36px; /* Increased heading size for emphasis */
-      margin-bottom :20px
+.section {
+  margin-bottom: 50px;
 }
-section h3 { /* Added style for subtitle headings */
-      font-size :24px;
-      color:#888888;
-      margin-bottom :20px
+
+.section__title {
+  font-size: 36px;
+  margin-bottom: 20px;
 }
-section p {
-      font-size :18px;  
-      line-height :1.5; 
-      margin-bottom :20px
+
+.section__subtitle {
+  font-size: 24px;
+  color: #888888;
+  margin-bottom: 20px;
 }
-.section--about .section__text:last-child { /* Added margin bottom to last paragraph in about section */
-  margin-bottom: 0;
+
+.section__text {
+  font-size: 18px;
+  line-height: 1.5;
+  margin-bottom: 20px;
 }
-.section__list { /* Added styles for lists */
+
+.section__list {
   list-style: none;
   padding-left: 0;
 }
+
 .section__list li {
   margin-bottom: 10px;
 }
 
 /* Style the footer section */
-footer {
-    position: fixed;
-    bottom: 0;
-    width: 100%;
-    z-index: 999;
-    background-color:#333; 
-    color:#fff; 
-    padding:20px; 
-    text-align:center
+.footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding: 20px;
+  background-color: #333;
+  color: #fff;
+  text-align: center;
 }
-footer ul {
-    display:flex; 
-    justify-content:center; 
-    list-style:none; 
-    margin-bottom:20px
+
+.footer__list {
+  display: flex;
+  justify-content: center;
+  list-style: none;
+  margin-bottom: 20px;
 }
-footer li {
-      margin-right :20px
+
+.footer__list li {
+  margin-right: 20px;
 }
-footer a {
-      color:#fff; 
-      text-decoration:none; 
-      font-size :18px
+
+.footer a {
+  color: #fff;
+  text-decoration: none;
+  font-size: 18px;
 }
-footer a:hover {text-decoration :underline}
+
+.footer a:hover {
+  text-decoration: underline;
+}
 
 /* Added styles for links */
 .link {
   color: #333;
   text-decoration: none;
-  transition: all ease-in-out .2s;
+  transition: all ease-in-out 0.2s;
 }
 
 .link:hover {
@@ -126,30 +151,44 @@ footer a:hover {text-decoration :underline}
 .link--phone:before,
 .link--social:before,
 .link--external:before {
-  margin-right: .5em;
+  margin-right: 0.5em;
 }
 
-.link--email:before { content: "\f0e0"; } /* Added Font Awesome icons for links */
-.link--phone:before { content: "\f3cd"; }
-.link--social:before { content: "\f09a"; }
-.link--external:before { content:"\f35d"; }
+.link--email:before {
+  content: "\f0e0";
+}
+
+.link--phone:before {
+  content: "\f3cd";
+}
+
+.link--social:before {
+  content: "\f09a";
+}
+
+.link--external:before {
+  content: "\f35d";
+}
 
 /* Added hover effect to nav links */
 .nav-link:hover {
-      text-decoration :underline; 
-      cursor:pointer
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 /* Custom scrollbar styles */
 ::-webkit-scrollbar {
   width: 10px;
 }
+
 ::-webkit-scrollbar-track {
   background: #f1f1f1;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #888;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
