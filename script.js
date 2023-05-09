@@ -24,6 +24,9 @@ window.addEventListener('scroll', () => {
   wrapper.style.transform = `translateY(${scrollPosition * 0.5}px)`;
 });
 
+// Import the GLTFLoader from the three.js library
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
 // Create a new Three.js scene
 var scene = new THREE.Scene();
 
@@ -36,17 +39,16 @@ var renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// Create a new cube and add it to the scene
-var geometry = new THREE.BoxGeometry();
-var material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-var cube = new THREE.Mesh(geometry, material);
-scene.add(cube);
+// Load the .gltf file using the GLTFLoader
+var loader = new GLTFLoader();
+loader.load('models/chunk1.gltf', function(gltf) {
+  // Add the loaded model to the scene
+  scene.add(gltf.scene);
+});
 
 // Render the scene
 function animate() {
   requestAnimationFrame(animate);
-  cube.rotation.x += 0.01;
-  cube.rotation.y += 0.01;
   renderer.render(scene, camera);
 }
 animate();
