@@ -25,7 +25,7 @@ window.addEventListener('scroll', () => {
 });
 
 // Import the GLTFLoader from the three.js library
-import { GLTFLoader } from 'lib/GLTFLoader.js';
+import { GLTFLoader } from './lib/GLTFLoader.js';
 
 // Create a new Three.js scene
 var scene = new THREE.Scene();
@@ -41,7 +41,7 @@ document.body.appendChild(renderer.domElement);
 
 // Load the .gltf file using the GLTFLoader
 var loader = new GLTFLoader();
-loader.load('models/chunk1.gltf', function(gltf) {
+loader.load('./models/chunk1.gltf', function(gltf) {
   // Add the loaded model to the scene
   scene.add(gltf.scene);
 });

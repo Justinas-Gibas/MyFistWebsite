@@ -1,70 +1,99 @@
 <!DOCTYPE html>
-<html>
-  <head>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
     <title>Justinas Gibas - Portfolio</title>
     <link rel="stylesheet" href="style.css">
     <script src="lib/three.min.js"></script>
-  </head>
-  <body>
+</head>
+<body>
     <div class="wrapper">
-      <header>
-        <h1>Justinas Gibas</h1>
-        <nav>
-          <ul>
-            <li><a class="nav-link" href="#about">About</a></li>
-            <li><a class="nav-link" href="#work">Work</a></li>
-            <li><a class="nav-link" href="#contact">Contact</a></li>
-          </ul>
-        </nav>
-      </header>
-      <main>
-        <section id="about">
-          <h2>About</h2>
-          <h3>About Me</h3>
-          <p>My name is Justinas Gibas, and I am a 28-year-old dental technician from Vilnius, Lithuania. I was born on August 8, 1995, and pursued my studies in dental technology at the Utena College Medical Faculty.</p>
-          <p>My hobbies include creating music using electronic devices and working on various computer-related projects. In my free time, you can often find me enjoying the sun and sipping water. I am proud to have trained more than a hundred people in using the latest dental software and equipment.</p>
-          <p>In the future, I aspire to:</p>
-          <ul>
-            <li>Develop games or create various virtual/digital spaces for different purposes.</li>
-            <li>Learn more programming languages to broaden my skill set.</li>
-            <li>Travel around the world and experience different cultures.</li>
-          </ul>
-          <p>I am fluent in Lithuanian and English, and I have been actively learning programming languages such as HTML, CSS, JavaScript, and Python.</p>
-        </section>
-        <section id="work">
-          <h2>Work</h2>
-          <h3>My Work</h3>
-          <p>Here are some examples of my work:</p>
-          <img src="dental.jpg" alt="A photo of me working on a dental model" width="300" height="200">
-          <video src="music.mp4" controls width="300" height="200">A video of me creating music using electronic devices</video>
-        </section>
-        <section id="contact">
-          <h2>Contact</h2>
-          <h3>Contact Me</h3>
-          <p>If you want to get in touch with me, you can:</p>
-          <ul>
-            <li>Email me at justinas.gibas@gmail.com</li>
-            <li>Call me at +370 123 4567</li>
-            <li>Follow me on <a href="https://www.facebook.com/justinas.gibas">Facebook</a>, <a href="https://www.instagram.com/justinas.gibas">Instagram</a>, or <a href="https://www.twitter.com/justinas.gibas">Twitter</a></li>
-            <li>Visit my <a href="https://www.github.com/justinas-gibas">GitHub</a> or <a href="https://www.codepen.io/justinas-gibas">CodePen</a> profiles to see more of my projects</li>
-          </ul>
-        </section>
-      </main>
-      <footer>
-        <p>Contact me:</p>
-        <ul>
-          <li>Email: justinasgibas@gmail.com</li>
-          <li>Phone: +370 123 4567</li>
-        </ul>
-        <p>Follow me:</p>
-        <ul>
-          <li><a href="#">Facebook</a></li>
-          <li><a href="#">Twitter</a></li>
-          <li><a href="#">Instagram</a></li>
-        </ul>
-      </footer>
-      <div id="container"></div>
+        <header>
+            <h1>Justinas Gibas</h1>
+            <nav>
+                <ul>
+                    <li><a class="nav-link" href="#about">About</a></li>
+                    <li><a class="nav-link" href="#work">Work</a></li>
+                    <li><a class="nav-link" href="#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </header>
+
+        <main>
+            <section id="about">
+                <h2>About</h2>
+
+                <h3>About Me</h3>
+
+                <p>My name is Justinas Gibas, and I am a 28-year-old dental technician from Vilnius, Lithuania. I was born on August
+                    8, 1995, and pursued my studies in dental technology at the Utena College Medical Faculty.</p>
+
+                <p>My hobbies include creating music using electronic devices and working on various computer-related projects. In my
+                    free time, you can often find me enjoying the sun and sipping water. I am proud to have trained more than a hundred
+                    people in using the latest dental software and equipment.</p>
+
+                <p>In the future, I aspire to:</p>
+
+                <ul>
+                    <li>Develop games or create various virtual/digital spaces for different purposes.</li>
+                    <li>Learn more programming languages to broaden my skill set.</li>
+                    <li>Travel around the world and experience different cultures.</li>
+                </ul>
+
+                <p>I am fluent in Lithuanian and English, and I have been actively learning programming languages such as HTML, CSS,
+                    JavaScript, and Python.</p>
+            </section>
+
+            <section id="work">
+                <h2>Work</h2>
+
+                <h3>My Work</h3>
+
+                <p>Here are some examples of my work:</p>
+
+                <img src="dental.jpg" alt="A photo of me working on a dental model" width="300" height="200">
+
+                <video src="music.mp4" controls width="300" height="200" poster="music-poster.jpg">A video of me creating music using electronic devices</video>
+            </section>
+
+            <section id="contact">
+                <h2>Contact</h2>
+
+                <h3>Contact Me</h3>
+
+                <p>If you want to get in touch with me, you can:</p>
+
+                <ul>
+                    <li>Email me at justinas.gibas@gmail.com</li>
+                    <li>Call me at +370 123 4567</li>
+                    <li>Follow me on <a href="https://www.facebook.com/justinas.gibas" aria-label="Follow me on Facebook">Facebook</a>, <a href="https://www.instagram.com/justinas.gibas" aria-label="Follow me on Instagram">Instagram</a>, or <a href="https://www.twitter.com/justinas.gibas" aria-label="Follow me on Twitter">Twitter</a></li>
+                    <li>Visit my <a href="https://www.github.com/justinas-gibas" aria-label="Visit my GitHub profile">GitHub</a> or <a href="https://www.codepen.io/justinas-gibas" aria-label="Visit my CodePen profile">CodePen</a> profiles to see more of my projects</li>
+                </ul>
+            </section>
+        </main>
+
+        <footer>
+            <p>Contact me:</p>
+
+            <ul>
+                <li>Email: justinasgibas@gmail.com</li>
+                <li>Phone: +370 123 4567</li>
+            </ul>
+
+            <p>Follow me:</p>
+
+            <ul>
+                <li><a href="#" title="Follow me on Facebook">Facebook</a></li>
+                <li><a href="#" title="Follow me on Twitter">Twitter</a></li>
+                <li><a href="#" title="Follow me on Instagram">Instagram</a></li>
+            </ul>
+        </footer>
+
+        <!-- Three.js model container -->
+        <div id="container"></div>
+
+        <!-- Script for smooth scrolling -->
+        <script src="./script.js"></script>
     </div>
-    <script src="script.js"></script>
-  </body>
+</body>
 </html>
