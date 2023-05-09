@@ -1,3 +1,3 @@
 # MyFistWebsite
- My fist website repository
+ My fist website
 https://justinas-gibas.github.io/MyFistWebsite/index.html
