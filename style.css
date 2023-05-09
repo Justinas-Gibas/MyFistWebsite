@@ -14,21 +14,15 @@ body {
   background-repeat: no-repeat;
   background-attachment: fixed;
   scroll-behavior: smooth;
-  font-family: Arial, sans-serif;
+  font-family: 'Roboto', sans-serif; /* Changed font family to Roboto */
   font-size: 16px;
   line-height: 1.5;
-  color: #333;
 }
 
+/* Set wrapper styles */
 .wrapper {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px;
-  background-color: transparent;
-  background-attachment: scroll;
-   /* parallax scrolling amount */
-   transform: translateY(10);
-   transition: transform .5s ease-out;
 }
 
 /* Style the header section */
@@ -43,11 +37,9 @@ header {
     background-color:#333; 
     color:#fff
 }
-
 header h1 {
     font-size :36px
 }
-
 nav ul {
     display:flex; 
     list-style:none
@@ -56,13 +48,11 @@ nav ul {
 nav li {
     margin-right :20px
 }
-
 nav a {
     color:#fff; 
     text-decoration:none; 
     font-size :18px
 }
-
 nav a:hover {text-decoration :underline}
 
 /* Style the main section */
@@ -70,13 +60,28 @@ main {padding :50px}
 
 section {margin-bottom :50px}
 section h2 {
-      font-size :24px; 
+      font-size :36px; /* Increased heading size for emphasis */
+      margin-bottom :20px
+}
+section h3 { /* Added style for subtitle headings */
+      font-size :24px;
+      color:#888888;
       margin-bottom :20px
 }
 section p {
       font-size :18px;  
       line-height :1.5; 
       margin-bottom :20px
+}
+.section--about .section__text:last-child { /* Added margin bottom to last paragraph in about section */
+  margin-bottom: 0;
+}
+.section__list { /* Added styles for lists */
+  list-style: none;
+  padding-left: 0;
+}
+.section__list li {
+  margin-bottom: 10px;
 }
 
 /* Style the footer section */
@@ -90,43 +95,61 @@ footer {
     padding:20px; 
     text-align:center
 }
-
 footer ul {
     display:flex; 
     justify-content:center; 
     list-style:none; 
     margin-bottom:20px
 }
-
 footer li {
       margin-right :20px
 }
-
 footer a {
       color:#fff; 
       text-decoration:none; 
       font-size :18px
 }
-
 footer a:hover {text-decoration :underline}
 
+/* Added styles for links */
+.link {
+  color: #333;
+  text-decoration: none;
+  transition: all ease-in-out .2s;
+}
+
+.link:hover {
+  color: #666;
+}
+
+.link--email:before,
+.link--phone:before,
+.link--social:before,
+.link--external:before {
+  margin-right: .5em;
+}
+
+.link--email:before { content: "\f0e0"; } /* Added Font Awesome icons for links */
+.link--phone:before { content: "\f3cd"; }
+.link--social:before { content: "\f09a"; }
+.link--external:before { content:"\f35d"; }
+
+/* Added hover effect to nav links */
 .nav-link:hover {
       text-decoration :underline; 
       cursor:pointer
 }
 
+/* Custom scrollbar styles */
 ::-webkit-scrollbar {
   width: 10px;
 }
-
 ::-webkit-scrollbar-track {
   background: #f1f1f1;
 }
-
 ::-webkit-scrollbar-thumb {
   background: #888;
 }
-
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
