@@ -24,7 +24,7 @@ body {
 .wrapper {
   background-color: transparent;
   background-attachment: scroll;
-  transform: translateY(0); /* parallax scrolling amount */
+  transform: translateY(50); /* parallax scrolling amount */
   transition: transform 0.5s ease-out;
 }
 
