@@ -25,7 +25,7 @@ window.addEventListener('scroll', () => {
 });
 
 // Import the GLTFLoader from the three.js library
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
 // Create a new Three.js scene
 var scene = new THREE.Scene();
