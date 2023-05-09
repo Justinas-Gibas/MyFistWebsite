@@ -17,6 +17,13 @@ navLinks.forEach(link => {
   });
 });
 
+const wrapper = document.querySelector('.wrapper');
+
+window.addEventListener('scroll', () => {
+  const scrollPosition = window.pageYOffset;
+  wrapper.style.transform = `translateY(${scrollPosition * 0.5}px)`;
+});
+
 // Create a new Three.js scene
 var scene = new THREE.Scene();
 

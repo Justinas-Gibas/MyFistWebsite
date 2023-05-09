@@ -12,6 +12,22 @@ body {
   background-color: #fff;
 }
 
+body {
+  margin: 0;
+  padding: 0;
+  background-image: url('/deeper/Senesni\ bandymai/images/potw2046a.jpg');
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+.wrapper {
+  background-color: transparent;
+  background-attachment: scroll;
+  transform: translateY(0);
+  transition: transform 0.5s ease-out;
+}
+
 /* Style the header section */
 header {
   display: flex;
