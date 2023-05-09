@@ -19,9 +19,16 @@ body {
   background-size: cover;
   background-repeat: no-repeat;
   background-attachment: fixed;
+  scroll-behavior: smooth;
+  font-family: Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
 }
 
 .wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
   background-color: transparent;
   background-attachment: scroll;
   transform: translateY(10); /* parallax scrolling amount */
@@ -36,6 +43,9 @@ header {
   padding: 20px;
   background-color: #333;
   color: #fff;
+  position: fixed;
+  width: 100%;
+  z-index: 999;
 }
 
 header h1 {
@@ -87,6 +97,10 @@ footer {
   color: #fff;
   padding: 20px;
   text-align: center;
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  z-index: 999
 }
 
 footer ul {
@@ -113,4 +127,20 @@ footer a:hover {
 .nav-link:hover {
   text-decoration: underline;
   cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
