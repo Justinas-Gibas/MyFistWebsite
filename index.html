@@ -2,10 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Justinas Gibas - Portfolio</title>
+    <link rel="icon" href="favicon.ico">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="reset.css">
     <link rel="stylesheet" href="style.css">
-    <script src="https://kit.fontawesome.com/your-fontawesome-kit-id.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.rawgit.com/mrdoob/three.js/r68/build/three.min.js"></script>
+    <!-- Add Font Awesome library for icons -->
+    <script src="https://kit.fontawesome.com/4ea372eb61.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <header class="header">
@@ -13,91 +17,77 @@
             <h1 class="header__title">Justinas Gibas</h1>
             <nav class="header__nav">
                 <ul class="nav-list">
-                    <li class="nav-item">
-                        <a href="#home" class="nav-item__link">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#about" class="nav-item__link">About</a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#my-work" class="nav-item__link">My Work</a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="#contact" class="nav-item__link">Contact</a>
-                    </li>
+                    <li><a class="nav-link" href="#about">About</a></li>
+                    <li><a class="nav-link" href="#work">Work</a></li>
+                    <li><a class="nav-link" href="#contact">Contact</a></li>
                 </ul>
             </nav>
         </div>
     </header>
-    <main>
-      <section id="home" class="section">
-          <div class="container">
-              <h2 class="section__title">Welcome</h2>
-              <p class="section__text">Hello! I'm Justinas Gibas, a software developer and electronic music enthusiast. Welcome to my portfolio website!</p>
-          </div>
-      </section>
-     
+    <main class="main">
       <section id="about" class="section">
           <div class="container">
               <h2 class="section__title">About</h2>
-              <h3 class="section__subtitle">Who Am I?</h3>
-              <p class="section__text">I'm a passionate software developer with experience in web development, mobile applications, and machine learning. In my free time, I enjoy creating electronic music and exploring new technologies. My goal is to create innovative solutions to real-world problems using my programming and creative skills.</p>
+              <h3 class="section__subtitle">About Me</h3>
+              <p class="section__text">My name is Justinas Gibas, and I am a 28-year-old dental technician from Vilnius, Lithuania. I was born on August
+                  8, 1995, and pursued my studies in dental technology at the Utena College Medical Faculty.</p>
+              <p class="section__text">My hobbies include creating music using electronic devices and working on various computer-related projects. In my
+                  free time, you can often find me enjoying the sun and sipping water. I am proud to have trained more than a hundred
+                  people in using the latest dental software and equipment.</p>
+              <p class="section__text">In the future, I aspire to:</p>
+              <ul class="section__list">
+                  <li>Develop games or create various virtual/digital spaces for different purposes.</li>
+                  <li>Learn more programming languages to broaden my skill set.</li>
+                  <li>Travel around the world and experience different cultures.</li>
+              </ul>
+              <p class="section__text">I am fluent in Lithuanian and English, and I have been actively learning programming languages such as HTML, CSS,
+                  JavaScript, and Python.</p>
           </div>
       </section>
-
-      <section id="my-work" class="section">
+      <section id="work" class="section">
           <div class="container">
-              <h2 class="section__title">My Work</h2>
-              <h3 class="section__subtitle">Projects</h3>
+              <h2 class="section__title">Work</h2>
+              <h3 class="section__subtitle">My Work</h3>
               <figure class="work-item">
-                  <img src="mobile-app.jpg" alt="A screenshot of a mobile app I developed" class="work-item__image">
-                  <figcaption class="work-item__caption">A screenshot of a mobile app I developed</figcaption>
+                  <img src="dental.jpg" alt="A photo of me working on a dental model" class="work-item__image">
+                  <figcaption class="work-item__caption">A photo of me working on a dental model</figcaption>
               </figure>
               <figure class="work-item">
-                  <video src="electronic-music.mp4" controls class="work-item__video">A video of me creating
-                  music using electronic devices</video>
+                  <video src="music.mp4" controls class="work-item__video__" poster="music-poster.jpg">A video of me creating music using electronic devices</video>
                   <figcaption class="work-item__caption">A video of me creating music using electronic devices</figcaption>
-              </figure>
-              <figure class="work-item">
+                  </figure>
+                  <figure class="work-item">
                   <img src="coding.jpg" alt="A photo of me coding on my laptop" class="work-item__image">
                   <figcaption class="work-item__caption">A photo of me coding on my laptop</figcaption>
-              </figure>
-              <figure class="work-item">
-                  <img src="three-scene.jpg" alt="A 3D scene I created using Three.js" class="work-item__image">
-                  <figcaption class="work-item__caption">A3D scene I created using Three.js</figcaption>
-                </figure>
-                </div>
-                </section>
-                <section id="contact" class="section">
-                  <div class="container">
-                      <h2 class="section__title">Contact</h2>
-                      <h3 class="section__subtitle">Get in Touch</h3>
-                      <p class="section__text">If you're interested in working together, discussing an idea, or just want to say hi, feel free to reach out to me using the contact information below or by filling out the contact form.</p>
-                      <address class="contact-info">
-                          <span class="contact-item">
-                              <i class="fas fa-envelope"></i> Email: <a href="mailto:justinas@example.com">justinas@example.com</a>
-                          </span>
-                          <span class="contact-item">
-                              <i class="fas fa-phone"></i> Phone: <a href="tel:+1234567890">+1 (234) 567-890</a>
-                          </span>
-                          <span class="contact-item">
-                              <i class="fab fa-linkedin"></i> LinkedIn: <a href="https://www.linkedin.com/in/justinasgibas/" target="_blank">linkedin.com/in/justinasgibas</a>
-                          </span>
-                       </address>
-                      <form class="contact-form" action="#" method="POST">
-                          <input type="text" name="name" placeholder="Name" class="form-control" required>
-                          <input type="email" name="email" placeholder="Email" class="form-control" required>
-                          <textarea name="message" placeholder="Message" class="form-control" required></textarea>
-                          <button type="submit" class="form-submit">Send Message</button>
-                      </form>
+                  </figure>
+                  </div>
+                  </section>
+                  <section id="contact" class="section">
+                    <div class="container">
+                        <h2 class="section__title">Contact</h2>
+                        <h3 class="section__subtitle">Get in Touch</h3>
+                        <p class="section__text">If you have any questions, would like to collaborate on a project, or simply want to get in touch, feel free to contact me via:</p>
+                        <ul class="contact-list">
+                            <li class="contact-item">
+                                <i class="fas fa-envelope"></i>
+                                <a href="mailto:justinas.gibas@example.com" class="contact-item__link">justinas.gibas@example.com</a>
+                            </li>
+                            <li class="contact-item">
+                                <i class="fab fa-linkedin"></i>
+                                <a href="https://www.linkedin.com/in/justinas-gibas" target="_blank" rel="noopener noreferrer" class="contact-item__link">LinkedIn</a>
+                            </li>
+                            <li class="contact-item">
+                                <i class="fab fa-github"></i>
+                                <a href="https://github.com/justinasgibas" target="_blank" rel="noopener noreferrer" class="contact-item__link">GitHub</a>
+                            </li>
+                        </ul>
                     </div>
-                 </section>
-     </main>
-          <footer class="footer">
-              <div class="container">
-                  <p class="footer__text">&copy; 2023 Justinas Gibas. All rights reserved.</p>
-              </div>
-          </footer>
-          <script src="scripts.js"></script>
-   </body>
+                </section>
+            </main>
+            <footer class="footer">
+                <div class="container">
+                    <p class="footer__text">© 2023 Justinas Gibas. All rights reserved.</p>
+                </div>
+            </footer>
+  </body>
 </html>
