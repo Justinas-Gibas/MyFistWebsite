@@ -1,5 +1,3 @@
-script.js:
-
 // Select all links with the .nav-link class
 const navLinks = document.querySelectorAll('.nav-link');
 
