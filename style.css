@@ -35,7 +35,7 @@ body {
   left: 0;
   width: 100%;
   padding: 20px;
-  margin-bottom: 20px;
+/*  margin-bottom: 20px;*/
   background-color: #333;
   color: #fff;
   display: flex;
@@ -187,7 +187,7 @@ body {
 }
 
 .contact-item__link {
-  color: #333;
+  color: #c7c7c7;
   text-decoration: none;
   transition: all ease-in-out 0.2s;
 }
