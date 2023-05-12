@@ -1,3 +1,5 @@
+/* Global styles */
+
 /* Reset default browser styles */
 * {
   margin: 0;
@@ -19,14 +21,14 @@ body {
   line-height: 1.5;
 }
 
-/* Set wrapper styles */
+/* Container styles */
 .container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px;
 }
 
-/* Style the header section */
+/* Header styles */
 .header {
   position: fixed;
   top: 0;
@@ -68,11 +70,12 @@ body {
   text-decoration: underline;
 }
 
-/* Style the main section */
+/* Main section styles */
 .main {
   padding: 50px 0;
 }
 
+/* Section styles */
 .section {
   margin-bottom: 50px;
 }
@@ -103,7 +106,7 @@ body {
   margin-bottom: 10px;
 }
 
-/* Style the footer section */
+/* Footer styles */
 .footer {
   position: fixed;
   bottom: 0;
@@ -113,6 +116,10 @@ body {
   background-color: #333;
   color: #fff;
   text-align: center;
+}
+
+.footer__text {
+  margin: 0;
 }
 
 .footer__list {
@@ -136,7 +143,7 @@ body {
   text-decoration: underline;
 }
 
-/* Added styles for links */
+/* Links styles */
 .link {
   color: #333;
   text-decoration: none;
@@ -162,18 +169,35 @@ body {
   content: "\f3cd";
 }
 
-.link--social:before {
-  content: "\f09a";
+/* Contact section styles */
+.contact-list {
+  list-style: none;
+  padding-left: 0;
 }
 
-.link--external:before {
-  content: "\f35d";
+.contact-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
-/* Added hover effect to nav links */
-.nav-link:hover {
+.contact-item i {
+  margin-right: 5px;
+}
+
+.contact-item__link {
+  color: #333;
+  text-decoration: none;
+  transition: all ease-in-out 0.2s;
+}
+
+.contact-item__link:hover {
   text-decoration: underline;
-  cursor: pointer;
+}
+
+/* Additional styles */
+.wrapper {
+  position: relative;
 }
 
 /* Custom scrollbar styles */
