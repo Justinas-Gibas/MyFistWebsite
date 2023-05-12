@@ -26,6 +26,19 @@ body{
     background: #1a1a1a;
 }
 
+@media (max-width: 768px) {
+    .navbar {
+      width: 100%;
+    }
+  }
+  
+@media (min-width: 769px) {
+    .navbar {
+      width: 80%;
+      margin: 0 auto;
+    }
+  }
+
 .link-group{
     list-style: none;
     display: flex;
