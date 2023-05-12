@@ -1,36 +1,59 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
+    <meta charset="UTF-8">
     <title>My 3D Website</title>
+    <link rel="stylesheet" href="reset.css">
+    <link rel="stylesheet" href="style.css">
     <script src="https://threejs.org/build/three.min.js"></script>
     <script src="https://threejs.org/examples/js/loaders/GLTFLoader.js"></script>
+    <!--link rel="stylesheet" type="text/css" href="style.css"-->
   </head>
   <body>
-    <div id="container"></div>
-    <script>
-      // Create a scene
-      const scene = new THREE.Scene();
-
-      // Create a camera
-      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-
-      // Create a renderer
-      const renderer = new THREE.WebGLRenderer();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
-
-      // Load a GLTF model
-      const loader = new THREE.GLTFLoader();
-      loader.load('model.gltf', function (gltf) {
-        scene.add(gltf.scene);
-      });
-
-      // Render the scene
-      function render() {
-        requestAnimationFrame(render);
-        renderer.render(scene, camera);
-      }
-      render();
-    </script>
+    <!-- Header content here -->
+    <header class="header">
+        <div class="container">
+            <h1 class="header__title">Justinas Gibas</h1>
+            <nav class="header__nav">
+                <ul class="nav-list">
+                    <li><a class="nav-link" href="#about">About</a></li>
+                    <li><a class="nav-link" href="#work">Work</a></li>
+                    <li><a class="nav-link" href="#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    <main class="main">
+        <script>
+            // Create a scene
+            const scene = new THREE.Scene();
+      
+            // Create a camera
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      
+            // Create a renderer
+            const renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+      
+            // Load a GLTF model
+            const loader = new THREE.GLTFLoader();
+            loader.load('model.gltf', function (gltf) {
+              scene.add(gltf.scene);
+            });
+      
+            // Render the scene
+            function render() {
+              requestAnimationFrame(render);
+              renderer.render(scene, camera);
+            }
+            render();
+          </script>
+    </main>   
+    <footer class="footer">
+        <div class="container">
+            <p class="footer__text">© 2023 Justinas Gibas. All rights reserved.</p>
+        </div>
+    </footer>
   </body>
 </html>
