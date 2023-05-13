@@ -47,11 +47,50 @@ body{
     opacity: 1;
 }
 
-/* Adjust space between items for small screens */
+/* Adjust space between navbar items for small screens */
 @media screen and (max-width: 600px) {
     .link a {
         padding: 10px 3px;
         margin: 0 2px;
         font-size: 17px;
     }
+}
+
+.home-section{
+    width: 100%;
+    height: 100vh;
+    padding: 0 150px;
+    display: flex;
+    align-items: center;
+    position: relative;
+    /* position: fixed */
+    top: 0;
+    opacity: 0;
+    transition: 1s;
+}
+
+.hero-heading{
+    color: #fff;
+    font-size: 120px;
+    text-transform: capitalize;
+    font-weight: 300;
+}
+
+.home-img{
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: 50%;
+    object-fit: cover;
+    opacity: 0.2;
+}
+
+.home-section.active,
+.project-section.active,
+.about-section.active,
+.contact-section.active{
+    position: relative;
+    opacity: 1;
+    z-index: 8;
 }
