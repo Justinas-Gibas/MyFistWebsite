@@ -6,12 +6,13 @@
 
 body{
     width: 100%;
-    max-width: 1400px;
+    max-width: 1920px;
     display: block;
     margin: auto;
     min-height: 100vh;
     background: #191919;
     font-family: sans-serif;
+    overflow: hidden;
 }
 
 .navbar{
@@ -29,7 +30,6 @@ body{
 .link-group{
     list-style: none;
     display: flex;
-    align-items: center;
 }
 
 .link a{
@@ -41,7 +41,8 @@ body{
     margin: 1vw 1vw;
     line-height: 10vh;
     transition: .5s;
-    font-size: clamp(20px, 5vw, 100%);
+    font-size: clamp(20px, 3vh, 5vw);
+    /*clamp(20px, 5vw, 100%);calc(3vh + 0.7vw);clamp(20px, 3vh, 5vw)*/
 }
 
 .link a:hover, .link.active a{
@@ -53,7 +54,8 @@ body{
     .link a{
         padding: 1vw 3vw;
         margin: 1 2vw;
-        font-size: clamp(14px, 10vw, 100%);
+        font-size: clamp(14px, calc(1.5vw - 20px * 5vh), 10vw);
+        /*clamp(14px, 10vw, 100%);calc(2vw -20px + 3vh);clamp(14px, calc(2vw - 20px + 3vh), 10vw)*/
         
     }
 }
@@ -86,8 +88,8 @@ body{
     top: 0;
     right: 0;
     height: 100vh;
-    width: 50%;
-    object-fit: cover;
+    width: 60%;
+    object-fit: contain;
     opacity: 0.5;
     z-index: 0;
 }
