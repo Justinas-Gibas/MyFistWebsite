@@ -106,7 +106,7 @@ body{
     left: 0;
     right: 0;
     bottom: 0;
-    background-image: url("your-seamless-texture.png");
+    background-image: url("./img/BackWater.png");
     background-repeat: repeat;
   }
 
