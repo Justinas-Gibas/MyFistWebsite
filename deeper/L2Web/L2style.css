@@ -83,7 +83,7 @@ body{
     position: absolute;
     top: 0;
     right: 0;
-    height: 100vh;
+    height: 200vh;
     width: 60%;
     /*object-fit: contain;*/
     opacity: 0.5;
@@ -106,9 +106,9 @@ body{
     left: 0;
     right: 0;
     bottom: 0;
-    background-image: url("./img/BackWater.png");
+    background-image: url=("./img/BackWater.png");
     background-repeat: repeat;
-  }
+}
 
 /* activation logic*/  
 .home-section.active,
