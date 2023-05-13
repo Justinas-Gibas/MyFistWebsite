@@ -26,18 +26,17 @@ body{
     background: #1a1a1a;
 }
 
-@media (max-width: 768px) {
-    .navbar {
-      width: 100%;
+/* Adjust space between items */
+.navbar > * {
+    margin: 0 1em; 
+}
+
+/* Adjust space between items for small screens */
+@media screen and (max-width: 600px) {
+    .navbar > * {
+        margin: 0.2em 0; 
     }
-  }
-  
-@media (min-width: 769px) {
-    .navbar {
-      width: 80%;
-      margin: 0 auto;
-    }
-  }
+}
 
 .link-group{
     list-style: none;
