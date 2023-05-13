@@ -26,18 +26,6 @@ body{
     background: #1a1a1a;
 }
 
-/* Adjust space between items */
-.navbar > * {
-    margin: 0 1em; 
-}
-
-/* Adjust space between items for small screens */
-@media screen and (max-width: 600px) {
-    .navbar > * {
-        margin: 0.2em 0; 
-    }
-}
-
 .link-group{
     list-style: none;
     display: flex;
@@ -57,4 +45,13 @@ body{
 
 .link a:hover, .link.active a{
     opacity: 1;
+}
+
+/* Adjust space between items for small screens */
+@media screen and (max-width: 600px) {
+    .link a {
+        padding: 10px 3px;
+        margin: 0 2px;
+        font-size: 17px;
+    }
 }
