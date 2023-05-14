@@ -6,7 +6,7 @@
 
 body{
     width: 100%;
-    max-width: 1920px;
+    /*max-width: 1920px;*/
     display: block;
     margin: auto;
     min-height: 100vh;
@@ -47,14 +47,6 @@ body{
     opacity: 1;
 }
 
-/* Adjust space between navbar items for small screens */
-@media screen and (max-width: 600px) {
-    .link a{
-        padding: 1vw 3vw;
-        margin: 1 2vw;
-    }
-}
-
 /* home-section */
 
 .home-section{
@@ -81,14 +73,12 @@ body{
 .home-img{
     position: absolute;
     top: 0;
-    right: 10;
+    right: 0;
     height: 100vh;
-    width: 100rem;
+    width: 50%;
     object-fit: cover;
     opacity: 0.5;
     z-index: 0;
-    background-image: url(/deeper/L2Web/img/BackWater.png);
-    background-repeat: repeat;
 }
 
 /* activation logic*/  
