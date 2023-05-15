@@ -13,7 +13,16 @@ links.forEach((link, i) => {
             setTimeout(() => {
                 activeLink = i;
                 sections[i].classList.add('active');
-            }, 1000);
+            }, 500);
         }
     })
 })
+
+$('.project-container').slick({
+    autoplay: true,
+    autoplaySpeed: 2000,
+    slidesToShow: 3,
+    slidesToScroll: 1,
+    dots: false,
+    arrows: false,
+});
