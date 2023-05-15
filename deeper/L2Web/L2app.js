@@ -17,12 +17,3 @@ links.forEach((link, i) => {
         }
     })
 })
-
-$('.project-container').slick({
-    autoplay: true,
-    autoplaySpeed: 2000,
-    slidesToShow: 3,
-    slidesToScroll: 1,
-    dots: false,
-    arrows: false,
-});

@@ -143,18 +143,13 @@ body{
     display: none;
 }
 
-.project-container img{
-    width: 400px;
-    height: 400px;
-}
-
 .project-container{
-    /*display: flex;
+    display: flex;
     background-color:#191919;
     flex: 0 0 30%;
     height: 100vh;
     overflow: auto;
-    overflow-y: scroll;*/
+    overflow-y: scroll;
 }
 
 .project-card{
