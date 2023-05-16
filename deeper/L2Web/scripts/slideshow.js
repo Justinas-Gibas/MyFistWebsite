@@ -35,6 +35,7 @@ function scrollToCard(index) {
       projectContainer.scrollTo({
         left: Math.min(maxScrollLeft, Math.max(0, targetLeft)),
         behavior: 'smooth',
+        duration: 5000, // Adjust the duration to control the speed (in milliseconds)
     });
     }
   }
@@ -60,6 +61,22 @@ projectCards.forEach((card, i) => {
     scrollToCard(i);
   });
 });
+
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowRight') {
+      // Scroll to the next card
+      if (activeCard < projectCards.length - 1) {
+        setActiveCard(activeCard + 1);
+        scrollToCard(activeCard);
+      }
+    } else if (event.key === 'ArrowLeft') {
+      // Scroll to the previous card
+      if (activeCard > 0) {
+        setActiveCard(activeCard - 1);
+        scrollToCard(activeCard);
+      }
+    }
+  });
 
 projectContainer.addEventListener('wheel', (event) => {
     event.preventDefault();

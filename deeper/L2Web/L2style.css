@@ -155,12 +155,14 @@ body{
     overflow: auto;
     overflow-y: hidden;
     overflow-x: hidden;
-    transition: transform 0.5s ease-in-out;
+    transition: transform 0.5s ease-in-out; 
     flex-wrap: nowrap;
     height: 100vh;
     overflow-x: scroll;
     overflow-y: hidden;
     scroll-behavior: smooth;
+    scroll-snap-type: x mandatory; /* Ensures snapping behavior */
+    scroll-snap-align: center; /* Centers the cards when scrolling */
 }
 
 
