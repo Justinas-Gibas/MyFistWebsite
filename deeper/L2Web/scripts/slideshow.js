@@ -35,11 +35,41 @@ function scrollToCard(index) {
       projectContainer.scrollTo({
         left: Math.min(maxScrollLeft, Math.max(0, targetLeft)),
         behavior: 'smooth',
-        duration: 5000, // Adjust the duration to control the speed (in milliseconds)
     });
     }
   }
 }
+
+/*/ Add a function to enable or disable the slideshow functionality based on the active section
+function toggleSlideshow(enable) {
+  if (enable) {
+    nextButton.addEventListener('click', () => {
+      // Your existing nextButton click event listener...
+    });
+
+    prevButton.addEventListener('click', () => {
+      // Your existing prevButton click event listener...
+    });
+
+    // Add the rest of your event listeners for card clicks, wheel, touch events, etc.
+    // ...
+
+  } else {
+    nextButton.removeEventListener('click', () => {});
+    prevButton.removeEventListener('click', () => {});
+    // Remove the event listeners for card clicks, wheel, touch events, etc.
+    // ...
+  }
+}
+
+// Function to check if the projects section is active
+function isProjectsSectionActive() {
+    const projectsSection = document.querySelector('.projects-section');
+    return projectsSection.classList.contains('active');
+  }
+
+// Call the toggleSlideshow function with the initial state based on the active section
+toggleSlideshow(isProjectsSectionActive());*/
 
 nextButton.addEventListener('click', () => {
   if (activeCard < projectCards.length - 1) {

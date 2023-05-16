@@ -142,7 +142,7 @@ body{
     transition: 1s;
 }
 
-/*.project-container::-webkit-scrollbar{
+/*.projects-container::-webkit-scrollbar{
     display: none;
 }*/
 
@@ -255,7 +255,7 @@ body{
 
 /* project hover */
 .project-card:hover .project-img{
-    /*filter: blur(20px);*/
+    filter: blur(20px);
     transform: scale(1.1);
 }
 
