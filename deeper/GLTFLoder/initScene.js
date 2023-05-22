@@ -1,4 +1,4 @@
-import * as THREE from 'https://threejs.org/build/three.module.js';
+import * as THREE from '../lib/three.module.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 
@@ -16,6 +16,13 @@ camera.position.z = 5;
 export const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
+
+// Window resize event handler
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}, false);
 
 // Add orbit controls so that we can pan around the object
 export const controls = new OrbitControls(camera, renderer.domElement);
