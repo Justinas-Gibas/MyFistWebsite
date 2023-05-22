@@ -1,6 +1,6 @@
 import * as THREE from 'https://threejs.org/build/three.module.js';
-import { GLTFLoader } from './deeper/lib/loaders/GLTFLoader.js';
-import { OrbitControls } from './deeper/lib/controls/OrbitControls.js';
+import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
+import { OrbitControls } from '../lib/controls/OrbitControls.js';
 
 // Instantiate a loader
 export const loader = new GLTFLoader();
