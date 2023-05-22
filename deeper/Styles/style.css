@@ -11,7 +11,7 @@
 body {
   margin: 0;
   padding: 0;
-  background-image: url('../deeper/Images/potw2046aW.jpg');
+  background-image: url('../Images/potw2046aW.jpg');
   background-size: cover;
   background-repeat: no-repeat;
   background-attachment: fixed;
@@ -224,7 +224,7 @@ body {
   position: fixed;
   top: 95%;
   left: 90%;
-  background-image: url('../deeper/Images/ESO.P.Horálek.svg');
+  background-image: url('../Images/ESO.P.Horálek.svg');
   background-size: contain;
   background-repeat: no-repeat;
   width: 10vw;
