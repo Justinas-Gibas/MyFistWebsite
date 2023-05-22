@@ -2,14 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <title>My 3D GLTFLoader Website</title>
+    
+    <meta name="author" content="Justinas Gibas" />
     <meta name="description" content="This is a 3D GLTFLoader website webpage.">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#ffffff">
+    <title>My 3D GLTFLoader Website</title>
     <link rel="stylesheet" href="reset.css">
     <link rel="stylesheet" href="style.css">
     <script src="https://threejs.org/build/three.min.js"></script>
-    <script src="https://threejs.org/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="./deeper/lib/loaders/GLTFLoader.js"></script>
+    <script src="./deeper/lib/controls/OrbitControls.js"></script>
   </head>
   <body>
     <!-- Header content here -->
@@ -26,31 +29,7 @@
         </div>
     </header>
     <main class="main">
-        <script>
-            // Create a scene
-            const scene = new THREE.Scene();
-      
-            // Create a camera
-            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      
-            // Create a renderer
-            const renderer = new THREE.WebGLRenderer();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
-      
-            // Load a GLTF model
-            const loader = new THREE.GLTFLoader();
-            loader.load('model.gltf', function (gltf) {
-              scene.add(gltf.scene);
-            });
-      
-            // Render the scene
-            function render() {
-              requestAnimationFrame(render);
-              renderer.render(scene, camera);
-            }
-            render();
-          </script>
+      <script type="module" src="./loadModel.js"></script>
     </main>   
     <footer class="footer">
         <div class="container">
