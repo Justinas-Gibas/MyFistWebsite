@@ -1,4 +1,4 @@
-import * as THREE from '../lib/three.module'
+import * as THREE from '../lib/three.module.js'
 
 // Instantiate a loader
 export const loader = new GLTFLoader();
