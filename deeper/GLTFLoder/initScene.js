@@ -15,8 +15,8 @@ export const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window
 camera.position.z = 50;
 camera.position.y = 10;
 
-// background texture
-new RGBELoader()
+// Background texture
+export const backgroundloader = new RGBELoader()
 .load('../images/potw2046a360.hdr', function(texture) {
     texture.maping = THREE.EquirectangularReflectionMapping;
     scene.background = texture;
