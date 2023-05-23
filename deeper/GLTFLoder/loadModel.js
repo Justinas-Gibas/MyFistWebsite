@@ -3,7 +3,7 @@ import { loader, scene, camera, renderer, controls } from './initScene.js';
 // Load a glTF resource
 loader.load(
   // resource URL
-  '../models/chunk1.gltf',
+  '../lib/models/chunk1.gltf',
   // called when the resource is loaded
   function ( gltf ) {
     scene.add( gltf.scene );
