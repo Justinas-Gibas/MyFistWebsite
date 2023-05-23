@@ -232,8 +232,8 @@ body {
   z-index: 999;
 }
 
-.GLTFLoader {
-  margin-top: 10vh;
+.canvas {
+  margin-top: 5vh;
   display: flex;
   justify-content: center;
   align-items: center;
