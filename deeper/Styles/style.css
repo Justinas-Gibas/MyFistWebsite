@@ -231,3 +231,10 @@ body {
   height: 10vh;
   z-index: 999;
 }
+
+.GLTFLoader {
+  margin-top: 10vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
