@@ -30,7 +30,6 @@ renderer.setSize(width, height);
 
 // Modify the body style
 document.body.style.margin = 0;  // Remove margins
-document.body.style.height = '100vh';  // Set height to 100% of the viewport
 document.body.style.display = 'flex';  // Enable flexbox
 document.body.style.justifyContent = 'center';  // Center horizontally
 document.body.style.alignItems = 'center';  // Center vertically
