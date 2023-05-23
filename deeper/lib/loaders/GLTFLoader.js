@@ -61,7 +61,7 @@ import {
 	Vector3,
 	VectorKeyframeTrack,
 	SRGBColorSpace
-} from '../three.module.js';//testai ai tesstai
+} from 'three';
 import { toTrianglesDrawMode } from '../utils/BufferGeometryUtils.js';
 
 class GLTFLoader extends Loader {

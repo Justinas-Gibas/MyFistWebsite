@@ -10,9 +10,7 @@
     <title>My 3D GLTFLoader Website</title>
     <link rel="stylesheet" href="../Styles/reset.css">
     <link rel="stylesheet" href="../Styles/style.css">
-    <!--script type="module" src="../lib/three.module.js"></script>
-    <cript type="module" src="../lib/loaders/GLTFLoader.js"></script>
-    <script type="module" src="../lib/controls/OrbitControls.js"></script-->
+
         <!-- Import maps polyfill -->
         <!-- Remove this when import maps will be widely supported -->
         <script async src="../lib/utils/es-module-shims.js"></script>
@@ -24,7 +22,14 @@
                 }
             }
         </script>
-  </head>
+
+        <script type="module">import 'three'</script>
+        <script type="module">import 'GLTFLoader'</script>
+        <script type="module">import * as THREE from 'three/examples/jsm/loaders/GLTFLoader.js';</script>
+        <script type="module">import * as THREE from 'three/examples/jsm/utils/BufferGeometryUtils.js';</script>
+        <script type="module">import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';</script>
+
+    </head>
   <body>
     <!-- Header content here -->
     <header class="header">
