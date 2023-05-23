@@ -13,16 +13,29 @@ export const scene = new THREE.Scene();
 export const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.z = 5;
 
+// Add an ambient light
+const ambientLight = new THREE.AmbientLight(0x404040); // soft white light
+scene.add(ambientLight);
+
+// Add a point light
+const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+pointLight.position.set(0, 0, 5); // you can change the position as you need
+scene.add(pointLight);
+
 // Create a renderer
 export const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
+let width = window.innerWidth * 0.8;  // 80% of the viewport width
+let height = window.innerHeight * 0.8; // 80% of the viewport height
+renderer.setSize(width, height);
 document.body.appendChild(renderer.domElement);
 
 // Window resize event handler
 window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
+    let width = window.innerWidth * 0.8;
+    let height = window.innerHeight * 0.8;
+    camera.aspect = width / height;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(width, height);
 }, false);
 
 // Add orbit controls so that we can pan around the object
