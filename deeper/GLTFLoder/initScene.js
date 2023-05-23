@@ -1,6 +1,7 @@
 import * as THREE from '../lib/three.module.js'
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js'
 import { OrbitControls } from '../lib/controls/OrbitControls.js'
+import { RGBELoder } from '../lib/loaders/RGBELoader.js'
 import Stats from '../lib/libs/stats.module.js'
 
 // Instantiate a loader
@@ -8,6 +9,13 @@ export const loader = new GLTFLoader();
 
 // Create a scene
 export const scene = new THREE.Scene();
+
+new RGBELoder()
+.load('../images/potw2046a360.hdr', function(texture){
+    texture.maping = THREE.EquirectangularReflectionMapping;
+    scene.background = texture;
+    scene.environment = texture;
+});
 
 // Create a camera and position it
 export const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
