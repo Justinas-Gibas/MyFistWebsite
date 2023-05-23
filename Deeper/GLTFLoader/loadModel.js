@@ -3,7 +3,7 @@ import { loader, scene, startRendering } from './initScene.js';
 // Load a glTF resource
 loader.load(
   // resource URL
-  '../lib/models/chunk1.gltf',
+  '../lib/models/TimeBeast01.gltf',
   // called when the resource is loaded
   function ( gltf ) {
     scene.add( gltf.scene );
