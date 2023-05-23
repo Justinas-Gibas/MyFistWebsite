@@ -232,7 +232,7 @@ body {
   z-index: 999;
 }
 
-.canvas {
+.GLTFLoader {
   margin-top: 5vh;
   display: flex;
   justify-content: center;

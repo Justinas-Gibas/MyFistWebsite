@@ -30,7 +30,11 @@ let height = window.innerHeight * 0.8; // 80% of the viewport height
 renderer.setSize(width, height);
 
 // Add the renderer's canvas to the body
-document.body.appendChild(renderer.domElement);
+//document.body.appendChild(renderer.domElement);
+
+// Add the renderer's canvas to the div with id "canvas-container"
+const canvasContainer = document.getElementById('canvas-container');
+canvasContainer.appendChild(renderer.domElement);
 
 // Create a stats instance
 export const stats = new Stats();
