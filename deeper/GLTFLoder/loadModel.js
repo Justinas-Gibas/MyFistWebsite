@@ -1,9 +1,4 @@
-import { loader, scene, camera, renderer, controls } from './initScene.js';
-import Stats from '../lib/libs/stats.module.js'
-
-// Create a stats instance
-const stats = new Stats();
-document.body.appendChild(stats.dom);
+import { loader, scene, startRendering } from './initScene.js';
 
 // Load a glTF resource
 loader.load(
@@ -12,6 +7,7 @@ loader.load(
   // called when the resource is loaded
   function ( gltf ) {
     scene.add( gltf.scene );
+    startRendering();  // Start the rendering loop after the model is loaded
   },
   // called while loading is progressing
   function ( xhr ) {
@@ -22,13 +18,3 @@ loader.load(
     console.log( 'An error happened' );
   }
 );
-
-// Render the scene
-function render() {
-  requestAnimationFrame(render);
-  controls.update();
-  renderer.render(scene, camera);
-  Stats.update();
-}
-
-render();
