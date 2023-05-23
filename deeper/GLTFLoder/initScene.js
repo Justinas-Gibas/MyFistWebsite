@@ -1,7 +1,4 @@
-import * as THREE from 'three'
-import { OrbitControls } from '../lib/controls/OrbitControls.js'
-import { GLTFLoader } from '../lib/loaders/GLTFLoader.js'
-import Stats  from '../lib/libs/stats.module.js'
+import * as THREE from '../lib/three.module'
 
 // Instantiate a loader
 export const loader = new GLTFLoader();
