@@ -1,4 +1,9 @@
 import { loader, scene, camera, renderer, controls } from './initScene.js';
+import Stats from '../lib/libs/stats.module.js'
+
+// Create a stats instance
+const stats = new Stats();
+document.body.appendChild(stats.dom);
 
 // Load a glTF resource
 loader.load(
@@ -23,6 +28,7 @@ function render() {
   requestAnimationFrame(render);
   controls.update();
   renderer.render(scene, camera);
+  Stats.update();
 }
 
 render();

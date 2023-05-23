@@ -1,7 +1,6 @@
 import * as THREE from '../lib/three.module.js'
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js'
 import { OrbitControls } from '../lib/controls/OrbitControls.js'
-import Stats from '../lib/libs/stats.module.js'
 
 // Instantiate a loader
 export const loader = new GLTFLoader();
@@ -37,10 +36,6 @@ document.body.style.alignItems = 'center';  // Center vertically
 
 // Add the renderer's canvas to the body
 document.body.appendChild(renderer.domElement);
-
-// Create a stats instance
-const stats = new Stats();
-document.body.appendChild(stats.dom);
 
 // Window resize event handler
 window.addEventListener('resize', () => {
