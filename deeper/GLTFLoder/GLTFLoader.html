@@ -11,25 +11,18 @@
     <link rel="stylesheet" href="../Styles/reset.css">
     <link rel="stylesheet" href="../Styles/style.css">
 
-        <!-- Import maps polyfill -->
-        <!-- Remove this when import maps will be widely supported -->
-        <script async src="../lib/utils/es-module-shims.js"></script>
+    <!-- Import maps polyfill -->
+    <!-- Remove this when import maps will be widely supported -->
+    <script async src="../lib/utils/es-module-shims.js"></script>
 
-        <script type="importmap">
-            {
-                "imports": {
-                    "three": "../lib/three.module.js"
-                }
-            }
-        </script>
-
-        <script type="module">import 'three'</script>
-        <script type="module">import 'GLTFLoader'</script>
-        <script type="module">import * as THREE from 'three/examples/jsm/loaders/GLTFLoader.js';</script>
-        <script type="module">import * as THREE from 'three/examples/jsm/utils/BufferGeometryUtils.js';</script>
-        <script type="module">import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';</script>
-
-    </head>
+    <script type="importmap">
+        {
+          "imports": {
+              "three": "../lib/three.module.js"
+           }
+        }
+    </script>
+  </head>
   <body>
     <!-- Header content here -->
     <header class="header">
@@ -45,6 +38,13 @@
         </div>
     </header>
     <main class="main">
+      <progress value="0" max="100" id="progressBar"></progress>
+      <script type="module">
+          import * as THREE from 'three'
+          import { OrbitControls } from '../lib/controls/OrbitControls.js'
+          import { GLTFLoader } from '../lib/loaders/GLTFLoader.js'
+          import Stats from '../lib/libs/stats.module.js'
+      </script>
       <script type="module" src="./loadModel.js"></script>
     </main>   
     <footer class="footer">
