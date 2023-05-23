@@ -29,6 +29,10 @@ let height = window.innerHeight * 0.8; // 80% of the viewport height
 renderer.setSize(width, height);
 document.body.appendChild(renderer.domElement);
 
+// Create a stats instance
+const stats = new Stats();
+document.body.appendChild(stats.dom);
+
 // Window resize event handler
 window.addEventListener('resize', () => {
     let width = window.innerWidth * 0.8;

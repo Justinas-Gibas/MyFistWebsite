@@ -22,6 +22,15 @@ loader.load(
 function render() {
   requestAnimationFrame(render);
   controls.update();
+  stats.update();
   renderer.render(scene, camera);
 }
-render();
+
+// Animation loop
+function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera); // assuming you're rendering the scene here
+  controls.update();
+  stats.update();
+}
+animate(); // start the animation loop
