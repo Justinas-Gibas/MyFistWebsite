@@ -12,12 +12,12 @@ export const scene = new THREE.Scene();
 
 // Create a camera and position it
 export const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.z = 50;
-camera.position.y = 10;
+camera.position.z = 5;
+camera.position.y = 1;
 
 // Background texture
 export const backgroundloader = new RGBELoader()
-.load('../images/potw2046a360.hdr', function(texture) {
+.load('../lib/images/potw2046a360.hdr', function(texture) {
     texture.maping = THREE.EquirectangularReflectionMapping;
     scene.background = texture;
     scene.environment = texture;
@@ -29,7 +29,7 @@ scene.add(ambientLight);
 
 // Add a point light
 const pointLight = new THREE.PointLight(0xffffff, 1, 100);
-pointLight.position.set(0, 0, 50); // you can change the position as you need
+pointLight.position.set(-1, 0, 0); // you can change the position as you need
 scene.add(pointLight);
 
 // Create a renderer
