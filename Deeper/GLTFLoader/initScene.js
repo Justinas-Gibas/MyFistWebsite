@@ -24,12 +24,12 @@ export const backgroundloader = new RGBELoader()
 });
 
 // Add an ambient light
-const ambientLight = new THREE.AmbientLight(0x404040); // soft white light
+const ambientLight = new THREE.AmbientLight(0xffffff); // soft white light
 scene.add(ambientLight);
 
 // Add a point light
 const pointLight = new THREE.PointLight(0xffffff, 1, 100);
-pointLight.position.set(-1, 0, 0); // you can change the position as you need
+pointLight.position.set(0, -1, 0); // you can change the position as you need
 scene.add(pointLight);
 
 // Create a renderer
