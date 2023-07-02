@@ -23,10 +23,6 @@ canvasContainer.appendChild(renderer.domElement);
 // Add orbit controls so that we can pan around the object
 export const controls = new OrbitControls(camera, renderer.domElement);
 
-// Create a stats instance
-export const stats = new Stats();
-document.body.appendChild(stats.dom);
-
 // Create the GLTF loader and model cache
 const loader = new GLTFLoader();
 const modelCache = {};
