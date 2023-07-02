@@ -28,7 +28,7 @@ const loader = new GLTFLoader();
 const modelCache = {};
 
 // Define the size of the chunks
-const chunkSize = 10;
+const chunkSize = 256;
 
 const predefinedChunks = {
     '0,0,0':   '../lib/models/chunk1.gltf',
@@ -79,7 +79,7 @@ function getCurrentChunk(camera) {
     return {
       x: Math.floor(camera.position.x / chunkSize),
       y: Math.floor(camera.position.y / chunkSize),
-      z: Math.floor(camera.position.z / chunkSize)
+      z: Math.floor(camera.position.z / chunkSize)-5
     };
 }
 
