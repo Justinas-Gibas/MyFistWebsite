@@ -1,4 +1,5 @@
 import * as THREE from '../lib/three.module.js';
+import { OrbitControls } from '../lib/controls/OrbitControls.js'
 import { FirstPersonControls } from '../lib/controls/FirstPersonControls.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 import Stats from '../lib/libs/stats.module.js'
@@ -35,8 +36,11 @@ document.body.appendChild(renderer.domElement);
 const canvasContainer = document.getElementById('canvas-container');
 canvasContainer.appendChild(renderer.domElement);
 
+// Add orbit controls so that we can pan around the object
+const controls = new OrbitControls(camera, renderer.domElement);
+
 // Add first person controls
-const controls = new FirstPersonControls(camera, renderer.domElement);
+//const controls = new FirstPersonControls(camera, renderer.domElement);
 
 // Create the GLTF loader and model cache
 const loader = new GLTFLoader();
@@ -159,7 +163,7 @@ function update() {
 
   // If there's a collision, prevent the controls from moving
   if (collision) {
-      controls.movementSpeed = 0;
+      controls.movementSpeed = 0.1;
   } else {
       controls.movementSpeed = 10;
   }
