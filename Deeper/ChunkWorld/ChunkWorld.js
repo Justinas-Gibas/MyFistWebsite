@@ -31,14 +31,14 @@ const modelCache = {};
 const chunkSize = 10;
 
 const predefinedChunks = {
-    '0,0,0':   /*'../lib/models/TimeBeast01.gltf',*/'../lib/models/chunk1.gltf',
+    '0,0,0':   '../lib/models/chunk1.gltf',
     // Add more predefined chunks here if needed...
 };
   
 function generateModelPathForChunk(chunk) {
-    // This is a simple example that selects a model based on the x coordinate.
+    // This is a simple example that selects a model based on the x, y, and z coordinates.
     // Replace this with your own logic.
-    if (chunk.x % 2 === 0) {
+    if (chunk.x % 2 === 0 && chunk.y % 2 === 0 && chunk.z % 2 === 0) {
       return '../lib/models/chunk1.gltf';
     } else {
       return '../lib/models/chunk2.gltf';
@@ -83,10 +83,14 @@ function getCurrentChunk(camera) {
     };
 }
 
-// Function to update the chunks based on the camera position
+// Function to update the scene based on the camera position
 function updateChunks(camera) {
   const currentChunk = getCurrentChunk(camera);
+
+  // Look for new chunks to load
   loadModelIntoChunk(currentChunk);
+
+  // Refresh the scene if necessary
 }
 
 // Animation loop

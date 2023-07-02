@@ -10,7 +10,7 @@ body {
   margin: 0;
   padding: 0;
   background-image: url('../images/potw2046aW.jpg');
-  background-size: auto 90%;
+  background-size: cover;
   background-repeat: no-repeat;
   background-attachment: fixed;
   scroll-behavior: smooth;
