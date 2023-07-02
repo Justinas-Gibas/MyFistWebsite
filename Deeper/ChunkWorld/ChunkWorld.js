@@ -17,7 +17,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
 // Position the camera a bit higher than the character
-camera.position.set(0, 5, 0);  // Adjust as necessary
+camera.position.set(0, 2, 0);  // Adjust as necessary
 character.add(camera);  // Add the camera as a child of the character
 
 // Add the character to the scene
@@ -96,12 +96,12 @@ function loadModelIntoChunk(chunk) {
     }
 }
 
-// calculate the chunk at camera position and load it to a chunkmap
-function getCurrentChunk(camera) {
+// calculate the chunk at character position and load it to a chunkmap
+function getCurrentChunk(character) {
   const chunkCoordinates = {
-    x: Math.floor(camera.position.x / chunkSize),
-    y: Math.floor(camera.position.y / chunkSize),
-    //z: Math.floor(camera.position.z / chunkSize)
+    x: Math.floor(character.position.x / chunkSize),
+    y: Math.floor(character.position.y / chunkSize),
+    //z: Math.floor(character.position.z / chunkSize)
   };
   let chunk = chunkMap.get(`${chunkCoordinates.x},${chunkCoordinates.y},${chunkCoordinates.z}`);
   if (!chunk) {
@@ -115,9 +115,9 @@ function getCurrentChunk(camera) {
 // Chunk size setting
 const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
 
-// Function to update the scene based on the camera position and addtional chunks
-function updateChunks(camera) {
-  const currentChunk = getCurrentChunk(camera);
+// Function to update the scene based on the character position and addtional chunks
+function updateChunks(character) {
+  const currentChunk = getCurrentChunk(character);
 
   // Look for new chunks to load
   for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
@@ -142,16 +142,16 @@ controls.lookSpeed = 0.1; // Adjust to your liking
 
 // Collisions V0.1.1
 function update() {
-  // Get the camera's next position
-  const nextPosition = camera.position.clone();
+  // Get the character's next position
+  const nextPosition = character.position.clone();
 
   // Check if the next position intersects with any object
   let collision = false;
   scene.traverse(object => {
       if (object.isMesh) {
           // Generate a raycaster from the current position to the next position
-          const direction = nextPosition.clone().sub(camera.position).normalize();
-          const raycaster = new THREE.Raycaster(camera.position, direction);
+          const direction = nextPosition.clone().sub(character.position).normalize();
+          const raycaster = new THREE.Raycaster(character.position, direction);
 
           // Check if the ray intersects with the object
           const intersections = raycaster.intersectObject(object);
@@ -163,7 +163,7 @@ function update() {
 
   // If there's a collision, prevent the controls from moving
   if (collision) {
-      controls.movementSpeed = 0.1;
+      controls.movementSpeed = 6;
   } else {
       controls.movementSpeed = 10;
   }
@@ -179,7 +179,7 @@ function animate() {
   update();
 
   // Update the chunks
-  updateChunks(camera);
+  updateChunks(character);
 
   // Render the scene
   renderer.render(scene, camera);
