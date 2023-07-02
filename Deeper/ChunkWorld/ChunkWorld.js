@@ -79,7 +79,7 @@ function getCurrentChunk(camera) {
     return {
       x: Math.floor(camera.position.x / chunkSize),
       y: Math.floor(camera.position.y / chunkSize),
-      z: Math.floor(camera.position.z / chunkSize)-5
+      z: Math.floor(camera.position.z / chunkSize)
     };
 }
 
