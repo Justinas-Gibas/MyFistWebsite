@@ -93,9 +93,52 @@ function updateChunks(camera) {
   // Refresh the scene if necessary
 }
 
+// Add the WASD controls
+
+const keys = {
+  W: false,
+  A: false,
+  S: false,
+  D: false,
+};
+
+document.addEventListener('keydown', (event) => {
+  const key = event.key.toUpperCase();
+  if (key in keys) {
+    keys[key] = true;
+  }
+});
+
+document.addEventListener('keyup', (event) => {
+  const key = event.key.toUpperCase();
+  if (key in keys) {
+    keys[key] = false;
+  }
+});
+
+function updateCameraPosition(camera) {
+  const movementSpeed = 1.1;
+
+  if (keys.W) {
+    camera.position.z -= movementSpeed;
+  }
+  if (keys.A) {
+    camera.position.x -= movementSpeed;
+  }
+  if (keys.S) {
+    camera.position.z += movementSpeed;
+  }
+  if (keys.D) {
+    camera.position.x += movementSpeed;
+  }
+}
+
 // Animation loop
 function animate() {
   requestAnimationFrame(animate);
+
+  // Update camera position
+  updateCameraPosition(camera);
 
   // Update the chunks
   updateChunks(camera);
