@@ -83,12 +83,21 @@ function getCurrentChunk(camera) {
     };
 }
 
-// Function to update the scene based on the camera position
+const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
+
+// Function to update the scene based on the camera position and addtional chunks
 function updateChunks(camera) {
   const currentChunk = getCurrentChunk(camera);
 
   // Look for new chunks to load
-  loadModelIntoChunk(currentChunk);
+  for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
+    for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
+      for (let z = currentChunk.z - CHUNK_DISTANCE; z <= currentChunk.z + CHUNK_DISTANCE; z++) {
+        const chunk = { x, y, z };
+        loadModelIntoChunk(chunk);
+      }
+    }
+  }
 
   // Refresh the scene if necessary
 }
