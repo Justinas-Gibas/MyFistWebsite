@@ -27,7 +27,7 @@ const modelCache = {};
 const chunkSize = 10;
 
 const predefinedChunks = {
-    '0,0,0':   '../lib/models/TimeBeast01.gltf',
+    '0,0,0':   /*'../lib/models/TimeBeast01.gltf',*/'../lib/models/chunk1.gltf',
     // Add more predefined chunks here if needed...
 };
   
@@ -35,9 +35,9 @@ function generateModelPathForChunk(chunk) {
     // This is a simple example that selects a model based on the x coordinate.
     // Replace this with your own logic.
     if (chunk.x % 2 === 0) {
-      return '../lib/models/chunk.gltf';
+      return '../lib/models/chunk1.gltf';
     } else {
-      return '../lib/models/chunk.gltf';
+      return '../lib/models/chunk2.gltf';
     }
 }
   
