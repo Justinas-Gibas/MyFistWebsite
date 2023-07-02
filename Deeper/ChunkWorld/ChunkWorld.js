@@ -1,5 +1,5 @@
 import * as THREE from '../lib/three.module.js';
-import { OrbitControls } from '../lib/controls/OrbitControls.js'
+//import { OrbitControls } from '../lib/controls/OrbitControls.js'
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 
 // Create the scene and camera
@@ -21,7 +21,7 @@ const canvasContainer = document.getElementById('canvas-container');
 canvasContainer.appendChild(renderer.domElement);
 
 // Add orbit controls so that we can pan around the object
-export const controls = new OrbitControls(camera, renderer.domElement);
+//export const controls = new OrbitControls(camera, renderer.domElement);
 
 // Create the GLTF loader and model cache
 const loader = new GLTFLoader();
@@ -79,7 +79,7 @@ function getCurrentChunk(camera) {
     return {
       x: Math.floor(camera.position.x / chunkSize),
       y: Math.floor(camera.position.y / chunkSize),
-      z: Math.floor(camera.position.z / chunkSize)
+      //z: Math.floor(camera.position.z / chunkSize)
     };
 }
 
@@ -144,7 +144,23 @@ function updateCameraPosition(camera) {
   if (keys.D) {
     camera.position.add(cameraRightDirection.multiplyScalar(movementSpeed));
   }
+
+  // Update camera rotation based on mouse movements
+  const sensitivity = 0.002;
+  const deltaMove = {
+    x: controls.getAzimuthalAngle() - previousMousePosition.x,
+    y: controls.getPolarAngle() - previousMousePosition.y
+  };
+
+  camera.rotation.y -= deltaMove.x * sensitivity;
+  camera.rotation.x -= deltaMove.y * sensitivity;
+
+  previousMousePosition = {
+    x: controls.getAzimuthalAngle(),
+    y: controls.getPolarAngle()
+  };
 }
+
 
 // Animation loop
 function animate() {
