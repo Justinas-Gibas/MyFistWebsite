@@ -238,3 +238,10 @@ body {
   justify-content: center;
   align-items: center;
 }
+
+.ChunkWorld {
+  margin-top: 5vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
