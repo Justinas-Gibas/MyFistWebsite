@@ -1,5 +1,5 @@
 import * as THREE from '../lib/three.module.js';
-//import { OrbitControls } from '../lib/controls/OrbitControls.js'
+import { OrbitControls } from '../lib/controls/OrbitControls.js'
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 
 // Create the scene and camera
@@ -21,7 +21,7 @@ const canvasContainer = document.getElementById('canvas-container');
 canvasContainer.appendChild(renderer.domElement);
 
 // Add orbit controls so that we can pan around the object
-//export const controls = new OrbitControls(camera, renderer.domElement);
+export const controls = new OrbitControls(camera, renderer.domElement);
 
 // Create the GLTF loader and model cache
 const loader = new GLTFLoader();
