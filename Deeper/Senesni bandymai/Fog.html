@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>My A-Frame Scene</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.rawgit.com/donmccurdy/aframe-extras/v6.1.0/dist/aframe-extras.min.js"></script>
+  </head>
+  <body>
+    <a-scene fog="type: exponential; color: #6EBAA7; density: 0.1;">
+      <a-sky color="#6EBAA7"></a-sky>
+      <a-plane position="0 -1 0" rotation="-90 0 0" width="100" height="100" color="#7BC8A4"></a-plane>
+      <a-box position="0 0.5 0" width="1" height="1" depth="1" material="metalness: 1; roughness: 0.5; src: #boxTexture; normalMap: #boxNormal; roughnessMap: #boxRoughness;"></a-box>
+      <a-entity camera look-controls wasd-controls></a-entity>
+      <a-assets>
+        <img id="boxTexture" src="">
+        <img id="boxNormal" src="">
+        <img id="boxRoughness" src="">
+      </a-assets>
+    </a-scene>
+    <script>
+      // Load textures from local machine
+      var textureLoader = new THREE.TextureLoader();
+      var boxTexture = textureLoader.load('path/to/boxTexture.jpg');
+      var boxNormal = textureLoader.load('path/to/boxNormal.jpg');
+      var boxRoughness = textureLoader.load('path/to/boxRoughness.jpg');
+      
+      // Set the texture assets in A-Frame
+      var assets = document.querySelector('a-assets');
+      assets.querySelector('#boxTexture').setAttribute('src', boxTexture);
+      assets.querySelector('#boxNormal').setAttribute('src', boxNormal);
+      assets.querySelector('#boxRoughness').setAttribute('src', boxRoughness);
+    </script>
+  </body>
+</html>
