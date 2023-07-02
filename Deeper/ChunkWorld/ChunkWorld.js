@@ -28,7 +28,7 @@ const loader = new GLTFLoader();
 const modelCache = {};
 
 // Define the size of the chunks
-const chunkSize = 256;
+const chunkSize = 100;
 
 const predefinedChunks = {
     '0,0,0':   '../lib/models/chunk1.gltf',
@@ -116,20 +116,33 @@ document.addEventListener('keyup', (event) => {
   }
 });
 
+// Calculate the camera's forward direction vector
+const cameraForward = new THREE.Vector3();
+const cameraQuaternion = new THREE.Quaternion();
+const cameraRotation = new THREE.Euler();
+camera.getWorldQuaternion(cameraQuaternion);
+cameraRotation.setFromQuaternion(cameraQuaternion);
+cameraForward.set(0, 0, -1);
+cameraForward.applyEuler(cameraRotation);
+
 function updateCameraPosition(camera) {
   const movementSpeed = 1.1;
 
+  const cameraForwardDirection = cameraForward.clone().normalize();
+  const cameraRightDirection = new THREE.Vector3();
+  cameraRightDirection.crossVectors(camera.up, cameraForwardDirection);
+
   if (keys.W) {
-    camera.position.z -= movementSpeed;
-  }
-  if (keys.A) {
-    camera.position.x -= movementSpeed;
+    camera.position.add(cameraForwardDirection.multiplyScalar(-movementSpeed));
   }
   if (keys.S) {
-    camera.position.z += movementSpeed;
+    camera.position.add(cameraForwardDirection.multiplyScalar(movementSpeed));
+  }
+  if (keys.A) {
+    camera.position.add(cameraRightDirection.multiplyScalar(-movementSpeed));
   }
   if (keys.D) {
-    camera.position.x += movementSpeed;
+    camera.position.add(cameraRightDirection.multiplyScalar(movementSpeed));
   }
 }
 
