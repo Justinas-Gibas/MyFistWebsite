@@ -21,8 +21,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const wrapper = document.querySelector('.wrapper');
   let scrollPosition;
 
-  window.addEventListener('scroll', () => {
+  /*window.addEventListener('scroll', () => {
     scrollPosition = window.pageYOffset;
     wrapper.style.transform = `translateY(${scrollPosition * 0.5}px)`;
-  });
+  });*/
 });
