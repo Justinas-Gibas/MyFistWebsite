@@ -1,5 +1,5 @@
 import * as THREE from '../lib/three.module.js';
-import { FirstPersonControls } from '..lib/controls/FirstPersonControls.js';
+import { FirstPersonControls } from '../lib/controls/FirstPersonControls.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 import Stats from '../lib/libs/stats.module.js'
 
