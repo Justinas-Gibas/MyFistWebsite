@@ -7,10 +7,20 @@ import Stats from '../lib/libs/stats.module.js'
 // Create a Clock instance
 const clock = new THREE.Clock();
 
+// Create the character
+const character = new THREE.Object3D();
+character.position.set(0, 0, 0);  // Set initial position if necessary
+
 // Create the scene and camera
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.z = 5;
+
+// Position the camera a bit higher than the character
+camera.position.set(0, 5, 0);  // Adjust as necessary
+character.add(camera);  // Add the camera as a child of the character
+
+// Add the character to the scene
+scene.add(character);
 
 // Add an ambient light
 const ambientLight = new THREE.AmbientLight(0xffffff); // soft white light
@@ -26,14 +36,14 @@ const canvasContainer = document.getElementById('canvas-container');
 canvasContainer.appendChild(renderer.domElement);
 
 // Add first person controls
-export const controls = new FirstPersonControls(camera, renderer.domElement);
+const controls = new FirstPersonControls(camera, renderer.domElement);
 
 // Create the GLTF loader and model cache
 const loader = new GLTFLoader();
 const modelCache = {};
 
 // Create a stats instance
-export const stats = new Stats();
+const stats = new Stats();
 document.body.appendChild(stats.dom);
 
 // Define the size of the chunks
