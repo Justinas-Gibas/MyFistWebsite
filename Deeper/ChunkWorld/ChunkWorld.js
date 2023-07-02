@@ -1,6 +1,11 @@
 import * as THREE from '../lib/three.module.js';
-import { OrbitControls } from '../lib/controls/OrbitControls.js'
+import { FirstPersonControls } from '..lib/controls/FirstPersonControls.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
+import Stats from '../lib/libs/stats.module.js'
+
+
+// Create a Clock instance
+const clock = new THREE.Clock();
 
 // Create the scene and camera
 const scene = new THREE.Scene();
@@ -20,38 +25,41 @@ document.body.appendChild(renderer.domElement);
 const canvasContainer = document.getElementById('canvas-container');
 canvasContainer.appendChild(renderer.domElement);
 
-// Add orbit controls so that we can pan around the object
-export const controls = new OrbitControls(camera, renderer.domElement);
+// Add first person controls
+export const controls = new FirstPersonControls(camera, renderer.domElement);
 
 // Create the GLTF loader and model cache
 const loader = new GLTFLoader();
 const modelCache = {};
 
+// Create a stats instance
+export const stats = new Stats();
+document.body.appendChild(stats.dom);
+
 // Define the size of the chunks
 const chunkSize = 100;
 
-const predefinedChunks = {
-    '0,0,0':   '../lib/models/chunk1.gltf',
-    // Add more predefined chunks here if needed...
-};
-  
+// chunk Map
+const chunkMap = new Map();  // This will map chunk coordinates to chunks
+
+// Define the available models
+const models = [
+  '../lib/models/chunk1.gltf',
+  '../lib/models/chunk2.gltf'
+];
+
+// Define the model to be loded into chunk
 function generateModelPathForChunk(chunk) {
-    // This is a simple example that selects a model based on the x, y, and z coordinates.
-    // Replace this with your own logic.
-    if (chunk.x % 2 === 0 && chunk.y % 2 === 0 && chunk.z % 2 === 0) {
-      return '../lib/models/chunk1.gltf';
-    } else {
-      return '../lib/models/chunk2.gltf';
-    }
+  // In this example, we select a model at random.
+  // You could replace this with your own logic, e.g., based on the neighboring chunks.
+  const modelPath = models[Math.floor(Math.random() * models.length)];
+  chunk.modelPath = modelPath;
+  return modelPath;
 }
   
-function getModelPathForChunk(chunk) {
-    // Use the predefined model if available, otherwise generate one.
-    return predefinedChunks[`${chunk.x},${chunk.y},${chunk.z}`] || generateModelPathForChunk(chunk);
-}
-  
+// load GLTF file into scene
 function loadModelIntoChunk(chunk) {
-    const modelPath = getModelPathForChunk(chunk);
+    const modelPath = chunk.modelPath || generateModelPathForChunk(chunk);
     if (modelPath) {
       // Check if the model is in the cache
       if (modelCache[modelPath]) {
@@ -74,15 +82,23 @@ function loadModelIntoChunk(chunk) {
     }
 }
 
-// Function to calculate the current chunk based on the camera position
+// calculate the chunk at camera position and load it to a chunkmap
 function getCurrentChunk(camera) {
-    return {
-      x: Math.floor(camera.position.x / chunkSize),
-      y: Math.floor(camera.position.y / chunkSize),
-      //z: Math.floor(camera.position.z / chunkSize)
-    };
+  const chunkCoordinates = {
+    x: Math.floor(camera.position.x / chunkSize),
+    y: Math.floor(camera.position.y / chunkSize),
+    //z: Math.floor(camera.position.z / chunkSize)
+  };
+  let chunk = chunkMap.get(`${chunkCoordinates.x},${chunkCoordinates.y},${chunkCoordinates.z}`);
+  if (!chunk) {
+    // If the chunk does not exist yet, create it
+    chunk = { ...chunkCoordinates };
+    chunkMap.set(`${chunkCoordinates.x},${chunkCoordinates.y},${chunkCoordinates.z}`, chunk);
+  }
+  return chunk;
 }
 
+// Chunk size setting
 const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
 
 // Function to update the scene based on the camera position and addtional chunks
@@ -93,96 +109,63 @@ function updateChunks(camera) {
   for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
     for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
       for (let z = currentChunk.z - CHUNK_DISTANCE; z <= currentChunk.z + CHUNK_DISTANCE; z++) {
-        const chunk = { x, y, z };
+        let chunk = chunkMap.get(`${x},${y},${z}`);
+        if (!chunk) {
+          // If the chunk does not exist yet, create it
+          chunk = { x, y, z };
+          chunkMap.set(`${x},${y},${z}`, chunk);
+        }
         loadModelIntoChunk(chunk);
       }
     }
   }
-
   // Refresh the scene if necessary
 }
 
-// Add the WASD controls
+// controls settings
+controls.movementSpeed = 10; // Adjust to your liking
+controls.lookSpeed = 0.1; // Adjust to your liking
 
-const keys = {
-  W: false,
-  A: false,
-  S: false,
-  D: false,
-};
+// Collisions V0.1.1
+function update() {
+  // Get the camera's next position
+  const nextPosition = camera.position.clone();
 
-document.addEventListener('keydown', (event) => {
-  const key = event.key.toUpperCase();
-  if (key in keys) {
-    keys[key] = true;
-  }
-});
+  // Check if the next position intersects with any object
+  let collision = false;
+  scene.traverse(object => {
+      if (object.isMesh) {
+          // Generate a raycaster from the current position to the next position
+          const direction = nextPosition.clone().sub(camera.position).normalize();
+          const raycaster = new THREE.Raycaster(camera.position, direction);
 
-document.addEventListener('keyup', (event) => {
-  const key = event.key.toUpperCase();
-  if (key in keys) {
-    keys[key] = false;
-  }
-});
+          // Check if the ray intersects with the object
+          const intersections = raycaster.intersectObject(object);
+          if (intersections.length > 0) {
+              collision = true;
+          }
+      }
+  });
 
-// Calculate the camera's forward direction vector
-const cameraForward = new THREE.Vector3();
-const cameraQuaternion = new THREE.Quaternion();
-const cameraRotation = new THREE.Euler();
-camera.getWorldQuaternion(cameraQuaternion);
-cameraRotation.setFromQuaternion(cameraQuaternion);
-cameraForward.set(0, 0, -1);
-cameraForward.applyEuler(cameraRotation);
-
-function updateCameraPosition(camera) {
-  const movementSpeed = 1.1;
-
-  const cameraForwardDirection = cameraForward.clone().normalize();
-  const cameraRightDirection = new THREE.Vector3();
-  cameraRightDirection.crossVectors(camera.up, cameraForwardDirection);
-
-  if (keys.W) {
-    camera.position.add(cameraForwardDirection.multiplyScalar(-movementSpeed));
-  }
-  if (keys.S) {
-    camera.position.add(cameraForwardDirection.multiplyScalar(movementSpeed));
-  }
-  if (keys.A) {
-    camera.position.add(cameraRightDirection.multiplyScalar(-movementSpeed));
-  }
-  if (keys.D) {
-    camera.position.add(cameraRightDirection.multiplyScalar(movementSpeed));
+  // If there's a collision, prevent the controls from moving
+  if (collision) {
+      controls.movementSpeed = 0;
+  } else {
+      controls.movementSpeed = 10;
   }
 
-  // Update camera rotation based on mouse movements
-  const sensitivity = 0.002;
-  const deltaMove = {
-    x: controls.getAzimuthalAngle() - previousMousePosition.x,
-    y: controls.getPolarAngle() - previousMousePosition.y
-  };
-
-  camera.rotation.y -= deltaMove.x * sensitivity;
-  camera.rotation.x -= deltaMove.y * sensitivity;
-
-  previousMousePosition = {
-    x: controls.getAzimuthalAngle(),
-    y: controls.getPolarAngle()
-  };
+  controls.update(clock.getDelta());
 }
-
 
 // Animation loop
 function animate() {
   requestAnimationFrame(animate);
 
-  // Update camera position
-  updateCameraPosition(camera);
+  // Update controls and handle collisions
+  update();
 
   // Update the chunks
   updateChunks(camera);
-
-  // Update controls
-  controls.update();
 
   // Render the scene
   renderer.render(scene, camera);
