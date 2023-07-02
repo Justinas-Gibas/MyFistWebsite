@@ -92,6 +92,9 @@ function animate() {
   // Update the chunks
   updateChunks(camera);
 
+  // Update controls
+  controls.update();
+
   // Render the scene
   renderer.render(scene, camera);
 }
