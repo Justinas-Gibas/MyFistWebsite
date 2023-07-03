@@ -199,7 +199,7 @@ function update() {
   const angle = forward.angleTo(cameraDirection);
 
   // If the angle is more than 5 degrees, we start rotating the character
-  if (angle > THREE.Math.degToRad(5)) {
+  if (angle > 5 * Math.PI / 180) {
     // We calculate the cross product of the forward and camera direction
     // This gives us a vector that is perpendicular to the two vectors, and its
     // direction tells us whether we need to rotate left or right
