@@ -34,8 +34,8 @@ scene.add(pointLight);
 
 // Create a renderer
 export const renderer = new THREE.WebGLRenderer();
-let width = window.innerWidth * 0.8;  // 80% of the viewport width
-let height = window.innerHeight * 0.8; // 80% of the viewport height
+let width = window.innerWidth * 0.9;  // 80% of the viewport width
+let height = window.innerHeight * 0.7; // 80% of the viewport height
 renderer.setSize(width, height);
 
 // Add the renderer's canvas to the body
@@ -51,8 +51,8 @@ document.body.appendChild(stats.dom);
 
 // Window resize event handler
 window.addEventListener('resize', () => {
-    let width = window.innerWidth * 0.8;
-    let height = window.innerHeight * 0.8;
+    let width = window.innerWidth * 0.9;
+    let height = window.innerHeight * 0.7;
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);

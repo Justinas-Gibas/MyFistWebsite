@@ -12,22 +12,16 @@ const clock = new THREE.Clock();
 const character = new THREE.Object3D();
 character.position.set(0, 0, 0);
 
-// Create a sphere and add it to the character
-const geometry = new THREE.SphereGeometry(1, 32, 32); // Parameters: radius, widthSegments, heightSegments
-const material = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Set color to red
-const sphere = new THREE.Mesh(geometry, material);
-character.add(sphere); // Add the sphere as a child of the character
-
 // Create the scene and camera
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(95, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(105, window.innerWidth / window.innerHeight, 0.1, 1000);
 
 // Add the character to the scene
 scene.add(character);
 
 // Position the camera a bit higher than the character
-camera.position.set(3, 0, 0);  // Adjust as necessary
-character.add(camera);  // Add the camera as a child of the character
+camera.position.set(0, 2, 0);  // Adjust as necessary
+//character.add(camera);  // Add the camera as a child of the character
 
 // Add an ambient light
 const ambientLight = new THREE.AmbientLight(0xffffff); // soft white light
@@ -35,12 +29,17 @@ scene.add(ambientLight);
 
 // Create the renderer
 const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(window.innerWidth * 0.9, window.innerHeight * 0.7);
 document.body.appendChild(renderer.domElement);
 
 // Add the renderer's canvas to the div with id "canvas-container"
 const canvasContainer = document.getElementById('canvas-container');
 canvasContainer.appendChild(renderer.domElement);
+
+// add an event listener for the window's 'resize' event
+window.addEventListener('resize', function() {
+  renderer.setSize(window.innerWidth * 0.9, window.innerHeight * 0.7);
+});
 
 // Add orbit controls so that we can pan around the object
 //const controls = new OrbitControls(camera, renderer.domElement);
@@ -192,7 +191,7 @@ function updateChunks(character) {
 // Controls setup
 controls.movementSpeed = 30; // Adjust to your liking
 controls.lookSpeed = 0; // Adjust to your liking
-const rotationSpeed = 0.01; // How fast the character rotates to face the camera direction
+const rotationSpeed = 0.5; // How fast the character rotates to face the camera direction
 let pointerLocked = false;
 
 document.addEventListener('pointerlockchange', function() {
@@ -246,40 +245,6 @@ function update() {
 
   controls.update(clock.getDelta());
 }
-
-/* Collisions V0.1.1
-function update() {
-  // Get the character's next position
-  const nextPosition = character.position.clone();
-
-  // Check if the next position intersects with any object
-  let collision = false;
-  scene.traverse(object => {
-      if (object.isMesh) {
-          // Generate a raycaster from the current position to the next position
-          const direction = nextPosition.clone().sub(character.position).normalize();
-          const raycaster = new THREE.Raycaster(character.position, direction);
-
-          // Check if the ray intersects with the object
-          const intersections = raycaster.intersectObject(object);
-          if (intersections.length > 0) {
-              collision = true;
-          }
-      }
-  });
-
-  // If there's a collision, prevent the controls from moving
-  if (collision) {
-    console.log("collision on function called")
-      controls.movementSpeed = 1;
-  } else {
-    //console.log("collision off function called")
-      controls.movementSpeed = 10;
-  }
-
-  controls.update(clock.getDelta());
-}
-*/
 
 // Animation loop
 function animate() {
