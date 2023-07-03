@@ -1,6 +1,7 @@
 import * as THREE from '../lib/three.module.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js'
 import { FirstPersonControls } from '../lib/controls/FirstPersonControls.js';
+import { PointerLockControls } from '../lib/controls/PointerLockControls.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 import Stats from '../lib/libs/stats.module.js'
 
@@ -38,8 +39,13 @@ canvasContainer.appendChild(renderer.domElement);
 
 // add an event listener for the window's 'resize' event
 window.addEventListener('resize', function() {
-  renderer.setSize(window.innerWidth * 0.9, window.innerHeight * 0.7);
+  let width = window.innerWidth * 0.9;
+  let height = window.innerHeight * 0.7;
+  renderer.setSize(width, height);
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
 });
+
 
 // Add orbit controls so that we can pan around the object
 //const controls = new OrbitControls(camera, renderer.domElement);
@@ -81,6 +87,7 @@ const chunkSize = 100;
 
 // chunk Map
 const chunkMap = new Map();  // This will map chunk coordinates to chunks
+chunk.modelLoaded = false;
 
 // Define the available models
 const models = [
@@ -195,7 +202,7 @@ function updateChunks(character) {
 controls.movementSpeed = 30; // Adjust to your liking
 controls.lookSpeed = 0; // Adjust to your liking
 const rotationSpeed = 0.5; // How fast the character rotates to face the camera direction
-let controls.isLocked = false;
+controls.isLocked = false;
 
 document.addEventListener('pointerlockchange', function() {
   if (document.pointerLockElement === document.body) {
@@ -250,8 +257,7 @@ function update() {
     character.rotateY(rotationSpeed * Math.sign(cross.y));
   }
 
-  //controls.update(clock.getDelta());
-  controls.update();
+  controls.update(clock.getDelta());
 }
 
 // Animation loop
