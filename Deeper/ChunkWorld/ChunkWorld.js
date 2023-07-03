@@ -16,12 +16,12 @@ character.position.set(0, 0, 0);  // Set initial position if necessary
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-// Position the camera a bit higher than the character
-camera.position.set(0, 2, 0);  // Adjust as necessary
-character.add(camera);  // Add the camera as a child of the character
-
 // Add the character to the scene
 scene.add(character);
+
+// Position the camera a bit higher than the character
+camera.position.set(0, 20, 0);  // Adjust as necessary
+character.add(camera);  // Add the camera as a child of the character
 
 // Add an ambient light
 const ambientLight = new THREE.AmbientLight(0xffffff); // soft white light
@@ -202,6 +202,9 @@ function animate() {
 
   // Update the chunks
   updateChunks(character);
+
+  // Update the fps stats
+  stats.update();
 
   // Render the scene
   renderer.render(scene, camera);
