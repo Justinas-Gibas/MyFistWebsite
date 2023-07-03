@@ -12,6 +12,12 @@ const clock = new THREE.Clock();
 const character = new THREE.Object3D();
 character.position.set(0, 0, 0);
 
+// Create a sphere and add it to the character
+const geometry = new THREE.SphereGeometry(1, 32, 32); // Parameters: radius, widthSegments, heightSegments
+const material = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Set color to red
+const sphere = new THREE.Mesh(geometry, material);
+character.add(sphere); // Add the sphere as a child of the character
+
 // Create the scene and camera
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -139,7 +145,7 @@ function getCurrentChunk(character) {
 }
 
 // Chunk size setting
-const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
+const CHUNK_DISTANCE = 0; // Number of chunks in each direction to load
 
 // Function to update the scene based on the character position and addtional chunks
 function updateChunks(character) {
@@ -150,6 +156,9 @@ function updateChunks(character) {
   for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
     for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
       for (let z = currentChunk.z - CHUNK_DISTANCE; z <= currentChunk.z + CHUNK_DISTANCE; z++) {
+        // Skip the loop if z is not zero
+        if (z != 0) continue;
+        
         let chunk = chunkMap.get(`${x},${y},${z}`);
         if (!chunk) {
           // If the chunk does not exist yet, create it
@@ -168,11 +177,42 @@ function updateChunks(character) {
   console.log("update  4 function done");
 }
 
-// FirstPersonControls settings
-//controls.movementSpeed = 10; // Adjust to your liking
-//controls.lookSpeed = 0.1; // Adjust to your liking
+// Controls setup
+controls.movementSpeed = 10; // Adjust to your liking
+controls.lookSpeed = 0.1; // Adjust to your liking
+const rotationSpeed = 0.1; // How fast the character rotates to face the camera direction
 
-// Collisions V0.1.1
+function update() {
+  // First, we'll calculate the character's forward direction
+  const forward = new THREE.Vector3();
+  character.getWorldDirection(forward);
+  forward.y = 0;
+  forward.normalize();
+
+  // Next, we calculate the direction the camera is looking
+  const cameraDirection = new THREE.Vector3();
+  camera.getWorldDirection(cameraDirection);
+  cameraDirection.y = 0;
+  cameraDirection.normalize();
+
+  // Now we calculate the angle between the forward direction and camera direction
+  const angle = forward.angleTo(cameraDirection);
+
+  // If the angle is more than 5 degrees, we start rotating the character
+  if (angle > THREE.Math.degToRad(5)) {
+    // We calculate the cross product of the forward and camera direction
+    // This gives us a vector that is perpendicular to the two vectors, and its
+    // direction tells us whether we need to rotate left or right
+    const cross = forward.cross(cameraDirection);
+
+    // We rotate the character around the Y axis, at the specified speed and direction
+    character.rotateY(rotationSpeed * Math.sign(cross.y));
+  }
+
+  controls.update(clock.getDelta());
+}
+
+/* Collisions V0.1.1
 function update() {
   // Get the character's next position
   const nextPosition = character.position.clone();
@@ -204,6 +244,7 @@ function update() {
 
   controls.update(clock.getDelta());
 }
+*/
 
 // Animation loop
 function animate() {
