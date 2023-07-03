@@ -53,7 +53,7 @@ document.body.appendChild(stats.dom);
 // Load a glTF resource
 loader.load(
   // resource URL
-  '../lib/models/TimeBeast01.gltf',
+  '../lib/models/chunk2.gltf',
   // called when the resource is loaded
   function ( gltf ) {
     scene.add( gltf.scene );
@@ -139,11 +139,11 @@ function getCurrentChunk(character) {
 }
 
 // Chunk size setting
-const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
+const CHUNK_DISTANCE = 2; // Number of chunks in each direction to load
 
 // Function to update the scene based on the character position and addtional chunks
 function updateChunks(character) {
-  //console.log("update chunks function called");
+  console.log("update chunks function called", chunk.chunkCoordinates);
   const currentChunk = getCurrentChunk(character);
 
   // Look for new chunks to load
