@@ -100,7 +100,6 @@ function getCurrentChunk(character) {
   }
   return chunk;
 }
-chunk.modelLoaded = false;
 
 function generateModelPathForChunk(chunk) {
   const modelPath = models[Math.floor(Math.random() * models.length)];
