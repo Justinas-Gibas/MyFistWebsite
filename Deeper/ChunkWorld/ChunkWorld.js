@@ -20,8 +20,8 @@ const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerH
 scene.add(character);
 
 // Position the camera a bit higher than the character
-camera.position.set(0, 20, 0);  // Adjust as necessary
-character.add(camera);  // Add the camera as a child of the character
+//camera.position.set(0, 20, 0);  // Adjust as necessary
+//character.add(camera);  // Add the camera as a child of the character
 
 // Add an ambient light
 const ambientLight = new THREE.AmbientLight(0xffffff); // soft white light
@@ -91,6 +91,7 @@ function generateModelPathForChunk(chunk) {
   
 // load GLTF file into scene
 function loadModelIntoChunk(chunk) {
+  console.log("Load model function called");
     const modelPath = chunk.modelPath || generateModelPathForChunk(chunk);
     if (modelPath) {
       // Check if the model is in the cache
@@ -116,6 +117,7 @@ function loadModelIntoChunk(chunk) {
 
 // calculate the chunk at character position and load it to a chunkmap
 function getCurrentChunk(character) {
+  console.log("get chunk coordinates function called", character.position);
   const chunkCoordinates = {
     x: Math.floor(character.position.x / chunkSize),
     y: Math.floor(character.position.y / chunkSize),
@@ -135,6 +137,7 @@ const CHUNK_DISTANCE = 0; // Number of chunks in each direction to load
 
 // Function to update the scene based on the character position and addtional chunks
 function updateChunks(character) {
+  console.log("update function called");
   const currentChunk = getCurrentChunk(character);
 
   // Look for new chunks to load
@@ -192,6 +195,7 @@ function update() {
 
 // Animation loop
 function animate() {
+  console.log("animate function called");  // This will print to the console every time animate is called
   requestAnimationFrame(animate);
 
   // Update the control
