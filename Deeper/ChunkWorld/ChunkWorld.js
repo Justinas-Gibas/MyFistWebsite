@@ -93,7 +93,7 @@ function generateModelPathForChunk(chunk) {
   
 // load GLTF file into scene
 function loadModelIntoChunk(chunk) {
-  console.log("Load model function called");
+  console.log("Load model into chunk function called");
     const modelPath = chunk.modelPath || generateModelPathForChunk(chunk);
     if (modelPath) {
       // Check if the model is in the cache
@@ -102,6 +102,7 @@ function loadModelIntoChunk(chunk) {
         const model = modelCache[modelPath].clone();
         model.position.set(chunk.x * chunkSize, chunk.y * chunkSize, chunk.z * chunkSize);
         scene.add(model);
+          console.log("load model from cache done");
       } else {
         // If the model is not in the cache, load it
         loader.load(modelPath, (gltf) => {
@@ -112,6 +113,7 @@ function loadModelIntoChunk(chunk) {
           const model = gltf.scene.clone();
           model.position.set(chunk.x * chunkSize, chunk.y * chunkSize, chunk.z * chunkSize);
           scene.add(model);
+            console.log("load model To cache and scene done");
         });
       }
     }
@@ -119,7 +121,7 @@ function loadModelIntoChunk(chunk) {
 
 // calculate the chunk at character position and load it to a chunkmap
 function getCurrentChunk(character) {
-  console.log("get chunk coordinates function called", character.position);
+  //console.log("get chunk coordinates function called", character.position);
   const chunkCoordinates = {
     x: Math.floor(character.position.x / chunkSize),
     y: Math.floor(character.position.y / chunkSize),
@@ -130,6 +132,8 @@ function getCurrentChunk(character) {
     // If the chunk does not exist yet, create it
     chunk = { ...chunkCoordinates };
     chunkMap.set(`${chunkCoordinates.x},${chunkCoordinates.y},${chunkCoordinates.z}`, chunk);
+      console.log("create new chunk done");
+
   }
   return chunk;
 }
@@ -151,6 +155,7 @@ function updateChunks(character) {
           // If the chunk does not exist yet, create it
           chunk = { x, y, z };
           chunkMap.set(`${x},${y},${z}`, chunk);
+            console.log("create new chunk 2 done");
         }
         loadModelIntoChunk(chunk);
       }
