@@ -6,7 +6,7 @@ import Stats from '../lib/libs/stats.module.js'
 
 
 // Create a Clock instance
-const clock = new THREE.Clock();
+//const clock = new THREE.Clock();
 
 // Create the character
 const character = new THREE.Object3D();
@@ -49,6 +49,24 @@ const modelCache = {};
 // Create a stats instance
 const stats = new Stats();
 document.body.appendChild(stats.dom);
+
+// Load a glTF resource
+loader.load(
+  // resource URL
+  '../lib/models/TimeBeast01.gltf',
+  // called when the resource is loaded
+  function ( gltf ) {
+    scene.add( gltf.scene );
+  },
+  // called while loading is progressing
+  function ( xhr ) {
+    console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
+  },
+  // called when loading has errors
+  function ( error ) {
+    console.log( 'An error happened' );
+  }
+);
 
 // Define the size of the chunks
 const chunkSize = 100;
@@ -140,8 +158,8 @@ function updateChunks(character) {
 //controls.movementSpeed = 10; // Adjust to your liking
 //controls.lookSpeed = 0.1; // Adjust to your liking
 
-// Collisions V0.1.1
-/*function update() {
+/* Collisions V0.1.1
+function update() {
   // Get the character's next position
   const nextPosition = character.position.clone();
 
@@ -169,7 +187,8 @@ function updateChunks(character) {
   }
 
   controls.update(clock.getDelta());
-}*/
+}
+*/
 
 // Animation loop
 function animate() {
