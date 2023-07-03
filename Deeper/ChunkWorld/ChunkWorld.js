@@ -221,15 +221,13 @@ document.addEventListener('keydown', function(event) {
 
 function update() {
   // First, we'll calculate the character's forward direction
-  const forward = new THREE.Vector3();
-  character.getWorldDirection(forward);
-  forward.y = 0;
+  const forward = new THREE.Vector3(0, 0, -1);
+  forward.applyQuaternion(character.quaternion);
   forward.normalize();
 
   // Next, we calculate the direction the camera is looking
-  const cameraDirection = new THREE.Vector3();
-  camera.getWorldDirection(cameraDirection);
-  cameraDirection.y = 0;
+  const cameraDirection = new THREE.Vector3(0, 0, -1);
+  cameraDirection.applyQuaternion(camera.quaternion);
   cameraDirection.normalize();
 
   // Now we calculate the angle between the forward direction and camera direction
