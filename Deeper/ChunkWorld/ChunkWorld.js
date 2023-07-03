@@ -125,7 +125,7 @@ function getCurrentChunk(character) {
   const chunkCoordinates = {
     x: Math.floor(character.position.x / chunkSize),
     y: Math.floor(character.position.y / chunkSize),
-    //z: Math.floor(character.position.z / chunkSize)
+    z: Math.floor(character.position.z / chunkSize)
   };
   let chunk = chunkMap.get(`${chunkCoordinates.x},${chunkCoordinates.y},${chunkCoordinates.z}`);
   if (!chunk) {
@@ -139,7 +139,7 @@ function getCurrentChunk(character) {
 }
 
 // Chunk size setting
-const CHUNK_DISTANCE = 2; // Number of chunks in each direction to load
+const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
 
 // Function to update the scene based on the character position and addtional chunks
 function updateChunks(character) {
