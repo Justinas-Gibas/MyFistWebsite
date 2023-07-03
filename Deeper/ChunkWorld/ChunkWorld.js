@@ -20,7 +20,7 @@ character.add(sphere); // Add the sphere as a child of the character
 
 // Create the scene and camera
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(95, window.innerWidth / window.innerHeight, 0.1, 1000);
 
 // Add the character to the scene
 scene.add(character);
