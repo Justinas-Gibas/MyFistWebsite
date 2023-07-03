@@ -100,6 +100,10 @@ function generateModelPathForChunk(chunk) {
 // load GLTF file into scene
 function loadModelIntoChunk(chunk) {
   console.log("Load model into chunk function called", chunk);
+  if (chunk.modelLoaded) {
+    // The model has already been loaded into this chunk, so no need to load it again
+    return;
+  }
     const modelPath = chunk.modelPath || generateModelPathForChunk(chunk);
     if (modelPath) {
       // Check if the model is in the cache
@@ -119,7 +123,8 @@ function loadModelIntoChunk(chunk) {
           const model = gltf.scene.clone();
           model.position.set(chunk.x * chunkSize, chunk.y * chunkSize, chunk.z * chunkSize);
           scene.add(model);
-            console.log("load model To cache and scene done");
+          chunk.modelLoaded = true;
+            console.log("load model To cache and scene. done", chunk);
         });
       }
     }
@@ -144,13 +149,20 @@ function getCurrentChunk(character) {
   return chunk;
 }
 
-// Chunk size setting
-const CHUNK_DISTANCE = 0; // Number of chunks in each direction to load
+// Chunk settings
+const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
+let lastChunkPosition = null;
 
 // Function to update the scene based on the character position and addtional chunks
 function updateChunks(character) {
   //console.log("update chunks function called");
   const currentChunk = getCurrentChunk(character);
+
+  if (lastChunkPosition && lastChunkPosition.x === currentChunk.x && lastChunkPosition.y === currentChunk.y && lastChunkPosition.z === currentChunk.z) {
+    // The character is still in the same chunk, so no need to update
+    return;
+  }
+  lastChunkPosition = { ...currentChunk }; // update last known chunk position
 
   // Look for new chunks to load
   for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
