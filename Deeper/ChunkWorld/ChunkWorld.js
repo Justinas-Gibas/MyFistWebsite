@@ -93,7 +93,7 @@ function generateModelPathForChunk(chunk) {
   
 // load GLTF file into scene
 function loadModelIntoChunk(chunk) {
-  console.log("Load model into chunk function called" chunk.position);
+  console.log("Load model into chunk function called");
     const modelPath = chunk.modelPath || generateModelPathForChunk(chunk);
     if (modelPath) {
       // Check if the model is in the cache
