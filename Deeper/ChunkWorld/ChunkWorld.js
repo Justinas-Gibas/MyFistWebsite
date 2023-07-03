@@ -20,8 +20,8 @@ const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerH
 scene.add(character);
 
 // Position the camera a bit higher than the character
-//camera.position.set(0, 20, 0);  // Adjust as necessary
-//character.add(camera);  // Add the camera as a child of the character
+camera.position.set(0, 2, 0);  // Adjust as necessary
+character.add(camera);  // Add the camera as a child of the character
 
 // Add an ambient light
 const ambientLight = new THREE.AmbientLight(0xffffff); // soft white light
@@ -37,10 +37,10 @@ const canvasContainer = document.getElementById('canvas-container');
 canvasContainer.appendChild(renderer.domElement);
 
 // Add orbit controls so that we can pan around the object
-const controls = new OrbitControls(camera, renderer.domElement);
+//const controls = new OrbitControls(camera, renderer.domElement);
 
 // Add first person controls
-//const controls = new FirstPersonControls(camera, renderer.domElement);
+const controls = new FirstPersonControls(character, renderer.domElement);
 
 // Create the GLTF loader and model cache
 const loader = new GLTFLoader();
