@@ -100,6 +100,7 @@ function getCurrentChunk(character) {
   }
   return chunk;
 }
+chunk.modelLoaded = false;
 
 function generateModelPathForChunk(chunk) {
   const modelPath = models[Math.floor(Math.random() * models.length)];
@@ -127,7 +128,6 @@ function loadModel(chunk, modelPath) {
 
 // Chunk settings
 const CHUNK_DISTANCE = 2; // Number of chunks in each direction to load
-chunk.modelLoaded = false;
 
   function updateChunks(character) {
     const currentChunk = getCurrentChunk(character);
