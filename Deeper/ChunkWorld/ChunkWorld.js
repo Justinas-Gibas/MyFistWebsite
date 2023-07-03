@@ -99,7 +99,7 @@ function generateModelPathForChunk(chunk) {
   
 // load GLTF file into scene
 function loadModelIntoChunk(chunk) {
-  console.log("Load model into chunk function called");
+  console.log("Load model into chunk function called", chunk);
     const modelPath = chunk.modelPath || generateModelPathForChunk(chunk);
     if (modelPath) {
       // Check if the model is in the cache
@@ -138,7 +138,7 @@ function getCurrentChunk(character) {
     // If the chunk does not exist yet, create it
     chunk = { ...chunkCoordinates };
     chunkMap.set(`${chunkCoordinates.x},${chunkCoordinates.y},${chunkCoordinates.z}`, chunk);
-      console.log("create new chunk done");
+      console.log("create new chunk done", chunk);
 
   }
   return chunk;
