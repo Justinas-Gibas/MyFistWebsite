@@ -137,11 +137,11 @@ function updateChunks(character) {
 }
 
 // controls settings
-controls.movementSpeed = 10; // Adjust to your liking
-controls.lookSpeed = 0.1; // Adjust to your liking
+//controls.movementSpeed = 10; // Adjust to your liking
+//controls.lookSpeed = 0.1; // Adjust to your liking
 
 // Collisions V0.1.1
-function update() {
+/*function update() {
   // Get the character's next position
   const nextPosition = character.position.clone();
 
@@ -169,14 +169,17 @@ function update() {
   }
 
   controls.update(clock.getDelta());
-}
+}*/
 
 // Animation loop
 function animate() {
   requestAnimationFrame(animate);
 
+  // Update the control
+  controls.update();
+
   // Update controls and handle collisions
-  update();
+  //update();
 
   // Update the chunks
   updateChunks(character);
