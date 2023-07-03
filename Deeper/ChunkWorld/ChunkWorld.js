@@ -131,7 +131,7 @@ function getCurrentChunk(character) {
 }
 
 // Chunk size setting
-const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
+const CHUNK_DISTANCE = 0; // Number of chunks in each direction to load
 
 // Function to update the scene based on the character position and addtional chunks
 function updateChunks(character) {
