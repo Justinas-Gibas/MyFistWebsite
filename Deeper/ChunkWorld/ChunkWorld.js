@@ -26,7 +26,7 @@ const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerH
 scene.add(character);
 
 // Position the camera a bit higher than the character
-camera.position.set(0, 2, 0);  // Adjust as necessary
+camera.position.set(3, 0, 0);  // Adjust as necessary
 character.add(camera);  // Add the camera as a child of the character
 
 // Add an ambient light
@@ -192,22 +192,30 @@ function updateChunks(character) {
 // Controls setup
 controls.movementSpeed = 30; // Adjust to your liking
 controls.lookSpeed = 0; // Adjust to your liking
-const rotationSpeed = 0.3; // How fast the character rotates to face the camera direction
+const rotationSpeed = 0.01; // How fast the character rotates to face the camera direction
+let pointerLocked = false;
 
 document.addEventListener('pointerlockchange', function() {
   if (document.pointerLockElement === document.body) {
     // The pointer is locked, increase the look speed
-    controls.lookSpeed = 0.2;
+    controls.lookSpeed = 0.1;
+    pointerLocked = true;
   } else {
     // The pointer is not locked, set the look speed to 0
     controls.lookSpeed = 0;
+    pointerLocked = false;
   }
 }, false);
 
 document.addEventListener('keydown', function(event) {
   if (event.code === 'ControlLeft' || event.code === 'ControlRight') {
-    // Request pointer lock
-    document.body.requestPointerLock();
+    if (pointerLocked) {
+      // If the pointer is currently locked, unlock it
+      document.exitPointerLock();
+    } else {
+      // If the pointer is not currently locked, lock it
+      document.body.requestPointerLock();
+    }
   }
 });
 
