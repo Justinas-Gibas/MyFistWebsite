@@ -88,7 +88,7 @@ const models = [
 
 // Define the model to be loded into chunk
 function generateModelPathForChunk(chunk) {
-    console.log("get model path function called");
+    console.log("get model path function called", chunk);
 
   // In this example, we select a model at random.
   // You could replace this with your own logic, e.g., based on the neighboring chunks.
@@ -112,7 +112,7 @@ function loadModelIntoChunk(chunk) {
         const model = modelCache[modelPath].clone();
         model.position.set(chunk.x * chunkSize, chunk.y * chunkSize, chunk.z * chunkSize);
         scene.add(model);
-          console.log("load model from cache done");
+          console.log("load model from cache done", chunk);
       } else {
         // If the model is not in the cache, load it
         loader.load(modelPath, (gltf) => {
@@ -140,11 +140,11 @@ function getCurrentChunk(character) {
   };
   let chunk = chunkMap.get(`${chunkCoordinates.x},${chunkCoordinates.y},${chunkCoordinates.z}`);
   if (!chunk) {
-    // If the chunk does not exist yet, create it
+    // If the chunk does not exist yet, create it and load model to it
     chunk = { ...chunkCoordinates };
     chunkMap.set(`${chunkCoordinates.x},${chunkCoordinates.y},${chunkCoordinates.z}`, chunk);
-      console.log("create new chunk done", chunk);
-
+    loadModelIntoChunk(chunk);
+      console.log("create new chunk 1 done", chunk);
   }
   return chunk;
 }
@@ -179,14 +179,14 @@ function updateChunks(character) {
             console.log("create new chunk 2 done", chunk);
         }
         loadModelIntoChunk(chunk);
-          console.log("update  1 function done");
+          console.log("update  1 function done", chunk);
       }
-        console.log("update  2 (z) function done");
+        console.log("update  2 (z) function done", chunk);
     }
-    console.log("update  3 (y) function done");
+    console.log("update  3 (y) function done", chunk);
   }
   // Refresh the scene if necessary
-  console.log("update  4 (x) function done");
+  console.log("update  4 (x) function done", chunk);
 }
 
 // Controls setup
