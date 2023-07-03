@@ -46,7 +46,6 @@ window.addEventListener('resize', function() {
   camera.updateProjectionMatrix();
 });
 
-
 // Add orbit controls so that we can pan around the object
 //const controls = new OrbitControls(camera, renderer.domElement);
 
@@ -82,66 +81,13 @@ loader.load(
   }
 );
 
-// Define the size of the chunks
 const chunkSize = 100;
-
-// chunk Map
-const chunkMap = new Map();  // This will map chunk coordinates to chunks
-chunk.modelLoaded = false;
-
-// Define the available models
-const models = [
-  '../lib/models/chunk1.gltf',
-  '../lib/models/chunk2.gltf'
-];
-
-// Define the model to be loded into chunk
-function generateModelPathForChunk(chunk) {
-    console.log("get model path function called", chunk);
-
-  // In this example, we select a model at random.
-  // You could replace this with your own logic, e.g., based on the neighboring chunks.
-  const modelPath = models[Math.floor(Math.random() * models.length)];
-  chunk.modelPath = modelPath;
-  return modelPath;
-}
-  
-// load GLTF file into scene
-function loadModelIntoChunk(chunk) {
-  console.log("Load model into chunk function called", chunk);
-  if (chunk.modelLoaded) {
-    // The model has already been loaded into this chunk, so no need to load it again
-    return;
-  }
-    const modelPath = chunk.modelPath || generateModelPathForChunk(chunk);
-    if (modelPath) {
-      // Check if the model is in the cache
-      if (modelCache[modelPath]) {
-        // If the model is in the cache, clone it and add it to the chunk
-        const model = modelCache[modelPath].clone();
-        model.position.set(chunk.x * chunkSize, chunk.y * chunkSize, chunk.z * chunkSize);
-        scene.add(model);
-          console.log("load model from cache done", chunk);
-      } else {
-        // If the model is not in the cache, load it
-        loader.load(modelPath, (gltf) => {
-          // Store the model in the cache
-          modelCache[modelPath] = gltf.scene;
-  
-          // Clone the model and add it to the chunk
-          const model = gltf.scene.clone();
-          model.position.set(chunk.x * chunkSize, chunk.y * chunkSize, chunk.z * chunkSize);
-          scene.add(model);
-          chunk.modelLoaded = true;
-            console.log("load model To cache and scene. done", chunk);
-        });
-      }
-    }
-}
+const chunkMap = new Map();
+const models = ['../lib/models/chunk1.gltf', '../lib/models/chunk2.gltf'];
+let lastChunkPosition = null;
 
 // calculate the chunk at character position and load it to a chunkmap
 function getCurrentChunk(character) {
-  //console.log("get chunk coordinates function called", character.position);
   const chunkCoordinates = {
     x: Math.floor(character.position.x / chunkSize),
     y: Math.floor(character.position.y / chunkSize),
@@ -149,54 +95,64 @@ function getCurrentChunk(character) {
   };
   let chunk = chunkMap.get(`${chunkCoordinates.x},${chunkCoordinates.y},${chunkCoordinates.z}`);
   if (!chunk) {
-    // If the chunk does not exist yet, create it and load model to it
-    chunk = { ...chunkCoordinates };
+    chunk = { ...chunkCoordinates, modelLoaded: false };
     chunkMap.set(`${chunkCoordinates.x},${chunkCoordinates.y},${chunkCoordinates.z}`, chunk);
-    loadModelIntoChunk(chunk);
-      console.log("create new chunk 1 done", chunk);
   }
   return chunk;
 }
 
+function generateModelPathForChunk(chunk) {
+  const modelPath = models[Math.floor(Math.random() * models.length)];
+  chunk.modelPath = modelPath;
+  return modelPath;
+}
+
+function loadModel(chunk, modelPath) {
+  if (chunk.modelLoaded) return;
+  
+  if (modelCache[modelPath]) {
+    const model = modelCache[modelPath].clone();
+    model.position.set(chunk.x * chunkSize, chunk.y * chunkSize, chunk.z * chunkSize);
+    scene.add(model);
+  } else {
+    loader.load(modelPath, (gltf) => {
+      modelCache[modelPath] = gltf.scene;
+      const model = gltf.scene.clone();
+      model.position.set(chunk.x * chunkSize, chunk.y * chunkSize, chunk.z * chunkSize);
+      scene.add(model);
+      chunk.modelLoaded = true;
+    });
+  }
+}
+
 // Chunk settings
 const CHUNK_DISTANCE = 2; // Number of chunks in each direction to load
-let lastChunkPosition = null;
+chunk.modelLoaded = false;
 
-// Function to update the scene based on the character position and addtional chunks
-function updateChunks(character) {
-  //console.log("update chunks function called");
-  const currentChunk = getCurrentChunk(character);
-
-  if (lastChunkPosition && lastChunkPosition.x === currentChunk.x && lastChunkPosition.y === currentChunk.y && lastChunkPosition.z === currentChunk.z) {
-    // The character is still in the same chunk, so no need to update
-    return;
-  }
-  lastChunkPosition = { ...currentChunk }; // update last known chunk position
-
-  // Look for new chunks to load
-  for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
-    for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
-      for (let z = currentChunk.z - CHUNK_DISTANCE; z <= currentChunk.z + CHUNK_DISTANCE; z++) {
-        // Skip the loop if z is not zero
-        if (z != 0) continue;
-        
-        let chunk = chunkMap.get(`${x},${y},${z}`);
-        if (!chunk) {
-          // If the chunk does not exist yet, create it
-          chunk = { x, y, z };
-          chunkMap.set(`${x},${y},${z}`, chunk);
-            console.log("create new chunk 2 done", chunk);
-        }
-        loadModelIntoChunk(chunk);
-          console.log("update  1 function done", chunk);
-      }
-        console.log("update  2 (z) function done");
+  function updateChunks(character) {
+    const currentChunk = getCurrentChunk(character);
+  
+    if (lastChunkPosition && lastChunkPosition.x === currentChunk.x && lastChunkPosition.y === currentChunk.y && lastChunkPosition.z === currentChunk.z) {
+      return;
     }
-    console.log("update  3 (y) function done");
+    lastChunkPosition = { ...currentChunk };
+  
+    for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
+      for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
+        for (let z = currentChunk.z - CHUNK_DISTANCE; z <= currentChunk.z + CHUNK_DISTANCE; z++) {
+          if (z != 0) continue;
+          
+          let chunk = chunkMap.get(`${x},${y},${z}`);
+          if (!chunk) {
+            chunk = { x, y, z, modelLoaded: false };
+            chunkMap.set(`${x},${y},${z}`, chunk);
+            let modelPath = generateModelPathForChunk(chunk);
+            loadModel(chunk, modelPath);
+          }
+        }
+      }
+    }
   }
-  // Refresh the scene if necessary
-  console.log("update  4 (x) function done");
-}
 
 // Controls setup
 controls.movementSpeed = 30; // Adjust to your liking
@@ -236,12 +192,10 @@ function update() {
   // First, we'll calculate the character's forward direction
   const forward = new THREE.Vector3(0, 0, -1);
   forward.applyQuaternion(character.quaternion);
-  forward.normalize();
-
+ 
   // Next, we calculate the direction the camera is looking
   const cameraDirection = new THREE.Vector3(0, 0, -1);
   cameraDirection.applyQuaternion(camera.quaternion);
-  cameraDirection.normalize();
 
   // Now we calculate the angle between the forward direction and camera direction
   const angle = forward.angleTo(cameraDirection);
@@ -264,9 +218,6 @@ function update() {
 function animate() {
   //console.log("animate function called");  // This will print to the console every time animate is called
   requestAnimationFrame(animate);
-
-  // Update the control
-  //controls.update();
 
   // Update controls and handle collisions
   update();
