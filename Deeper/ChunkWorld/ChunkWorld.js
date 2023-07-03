@@ -190,9 +190,26 @@ function updateChunks(character) {
 }
 
 // Controls setup
-controls.movementSpeed = 10; // Adjust to your liking
+controls.movementSpeed = 30; // Adjust to your liking
 controls.lookSpeed = 0; // Adjust to your liking
-const rotationSpeed = 0.1; // How fast the character rotates to face the camera direction
+const rotationSpeed = 0.3; // How fast the character rotates to face the camera direction
+
+document.addEventListener('pointerlockchange', function() {
+  if (document.pointerLockElement === document.body) {
+    // The pointer is locked, increase the look speed
+    controls.lookSpeed = 0.2;
+  } else {
+    // The pointer is not locked, set the look speed to 0
+    controls.lookSpeed = 0;
+  }
+}, false);
+
+document.addEventListener('keydown', function(event) {
+  if (event.code === 'ControlLeft' || event.code === 'ControlRight') {
+    // Request pointer lock
+    document.body.requestPointerLock();
+  }
+});
 
 function update() {
   // First, we'll calculate the character's forward direction
