@@ -143,7 +143,7 @@ const CHUNK_DISTANCE = 2; // Number of chunks in each direction to load
 
 // Function to update the scene based on the character position and addtional chunks
 function updateChunks(character) {
-  console.log("update chunks function called");
+  //console.log("update chunks function called");
   const currentChunk = getCurrentChunk(character);
 
   // Look for new chunks to load
@@ -158,10 +158,14 @@ function updateChunks(character) {
             console.log("create new chunk 2 done");
         }
         loadModelIntoChunk(chunk);
+          console.log("update  1 function done");
       }
+        console.log("update  2 function done");
     }
+    console.log("update  3 function done");
   }
   // Refresh the scene if necessary
+  console.log("update  4 function done");
 }
 
 // FirstPersonControls settings
@@ -194,7 +198,7 @@ function update() {
     console.log("collision on function called")
       controls.movementSpeed = 1;
   } else {
-    console.log("collision off function called")
+    //console.log("collision off function called")
       controls.movementSpeed = 10;
   }
 
