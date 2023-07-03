@@ -209,8 +209,8 @@ function update() {
     // We rotate the character around the Y axis, at the specified speed and direction
     character.rotateY(rotationSpeed * Math.sign(cross.y));
   }
-
-  controls.update(clock.getDelta());
+  controls.update
+  //controls.update(clock.getDelta());
 }
 
 // Animation loop
