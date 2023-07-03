@@ -7,7 +7,7 @@ import Stats from '../lib/libs/stats.module.js'
 
 
 // Create a Clock instance
-const clock = new THREE.Clock();
+//const clock = new THREE.Clock();
 
 // Create the character
 const character = new THREE.Object3D();
