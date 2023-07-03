@@ -45,7 +45,10 @@ window.addEventListener('resize', function() {
 //const controls = new OrbitControls(camera, renderer.domElement);
 
 // Add first person controls
-const controls = new FirstPersonControls(character, renderer.domElement);
+//const controls = new FirstPersonControls(character, renderer.domElement);
+
+// Add pointer lock controls
+const controls = new PointerLockControls(camera, document.body);
 
 // Create the GLTF loader and model cache
 const loader = new GLTFLoader();
@@ -149,7 +152,7 @@ function getCurrentChunk(character) {
 }
 
 // Chunk settings
-const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
+const CHUNK_DISTANCE = 2; // Number of chunks in each direction to load
 let lastChunkPosition = null;
 
 // Function to update the scene based on the character position and addtional chunks
@@ -192,33 +195,37 @@ function updateChunks(character) {
 controls.movementSpeed = 30; // Adjust to your liking
 controls.lookSpeed = 0; // Adjust to your liking
 const rotationSpeed = 0.5; // How fast the character rotates to face the camera direction
-let pointerLocked = false;
+let controls.isLocked = false;
 
 document.addEventListener('pointerlockchange', function() {
   if (document.pointerLockElement === document.body) {
     // The pointer is locked, increase the look speed
-    controls.lookSpeed = 0.1;
-    pointerLocked = true;
+    controls.lookSpeed = 0.5;
+    controls.isLocked = true;
   } else {
     // The pointer is not locked, set the look speed to 0
     controls.lookSpeed = 0;
-    pointerLocked = false;
+    controls.isLocked = false;
   }
 }, false);
 
+// Add event listener for when the control key is pressed
 document.addEventListener('keydown', function(event) {
   if (event.code === 'ControlLeft' || event.code === 'ControlRight') {
-    if (pointerLocked) {
-      // If the pointer is currently locked, unlock it
-      document.exitPointerLock();
-    } else {
-      // If the pointer is not currently locked, lock it
-      document.body.requestPointerLock();
-    }
+      if (controls.isLocked) {
+          // If the pointer is currently locked, unlock it
+          controls.unlock();
+      } else {
+          // If the pointer is not currently locked, lock it
+          controls.lock();
+      }
   }
 });
 
 function update() {
+  // Update the camera's position to match the character's position
+  camera.position.copy(character.position);
+
   // First, we'll calculate the character's forward direction
   const forward = new THREE.Vector3(0, 0, -1);
   forward.applyQuaternion(character.quaternion);
@@ -243,7 +250,8 @@ function update() {
     character.rotateY(rotationSpeed * Math.sign(cross.y));
   }
 
-  controls.update(clock.getDelta());
+  //controls.update(clock.getDelta());
+  controls.update();
 }
 
 // Animation loop
