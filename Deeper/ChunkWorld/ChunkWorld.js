@@ -136,7 +136,7 @@ function updateChunks(character) {
   // Refresh the scene if necessary
 }
 
-// controls settings
+// FirstPersonControls settings
 //controls.movementSpeed = 10; // Adjust to your liking
 //controls.lookSpeed = 0.1; // Adjust to your liking
 
