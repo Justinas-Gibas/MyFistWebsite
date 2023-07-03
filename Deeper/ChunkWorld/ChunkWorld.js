@@ -164,22 +164,22 @@ function updateChunks(character) {
           // If the chunk does not exist yet, create it
           chunk = { x, y, z };
           chunkMap.set(`${x},${y},${z}`, chunk);
-            console.log("create new chunk 2 done");
+            console.log("create new chunk 2 done", chunk);
         }
         loadModelIntoChunk(chunk);
           console.log("update  1 function done");
       }
-        console.log("update  2 function done");
+        console.log("update  2 (z) function done");
     }
-    console.log("update  3 function done");
+    console.log("update  3 (y) function done");
   }
   // Refresh the scene if necessary
-  console.log("update  4 function done");
+  console.log("update  4 (x) function done");
 }
 
 // Controls setup
 controls.movementSpeed = 10; // Adjust to your liking
-controls.lookSpeed = 0.1; // Adjust to your liking
+controls.lookSpeed = 0; // Adjust to your liking
 const rotationSpeed = 0.1; // How fast the character rotates to face the camera direction
 
 function update() {
