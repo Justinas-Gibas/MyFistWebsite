@@ -179,7 +179,7 @@ function updateChunks(character) {
             console.log("create new chunk 2 done", chunk);
         }
         loadModelIntoChunk(chunk);
-          console.log("update  1 function done");
+          console.log("update  1 function done", chunk);
       }
         console.log("update  2 (z) function done");
     }
