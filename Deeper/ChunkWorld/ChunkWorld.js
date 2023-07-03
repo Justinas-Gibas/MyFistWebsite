@@ -10,7 +10,7 @@ import Stats from '../lib/libs/stats.module.js'
 
 // Create the character
 const character = new THREE.Object3D();
-character.position.set(0, 0, 0);  // Set initial position if necessary
+character.position.set(0, 0, 0);
 
 // Create the scene and camera
 const scene = new THREE.Scene();
@@ -82,6 +82,8 @@ const models = [
 
 // Define the model to be loded into chunk
 function generateModelPathForChunk(chunk) {
+    console.log("get model path function called");
+
   // In this example, we select a model at random.
   // You could replace this with your own logic, e.g., based on the neighboring chunks.
   const modelPath = models[Math.floor(Math.random() * models.length)];
@@ -137,7 +139,7 @@ const CHUNK_DISTANCE = 0; // Number of chunks in each direction to load
 
 // Function to update the scene based on the character position and addtional chunks
 function updateChunks(character) {
-  console.log("update function called");
+  //console.log("update function called");
   const currentChunk = getCurrentChunk(character);
 
   // Look for new chunks to load
@@ -195,7 +197,7 @@ function update() {
 
 // Animation loop
 function animate() {
-  console.log("animate function called");  // This will print to the console every time animate is called
+  //console.log("animate function called");  // This will print to the console every time animate is called
   requestAnimationFrame(animate);
 
   // Update the control
