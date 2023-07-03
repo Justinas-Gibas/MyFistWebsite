@@ -6,7 +6,7 @@ import Stats from '../lib/libs/stats.module.js'
 
 
 // Create a Clock instance
-//const clock = new THREE.Clock();
+const clock = new THREE.Clock();
 
 // Create the character
 const character = new THREE.Object3D();
@@ -93,7 +93,7 @@ function generateModelPathForChunk(chunk) {
   
 // load GLTF file into scene
 function loadModelIntoChunk(chunk) {
-  console.log("Load model into chunk function called");
+  console.log("Load model into chunk function called" chunk.position);
     const modelPath = chunk.modelPath || generateModelPathForChunk(chunk);
     if (modelPath) {
       // Check if the model is in the cache
@@ -168,7 +168,7 @@ function updateChunks(character) {
 //controls.movementSpeed = 10; // Adjust to your liking
 //controls.lookSpeed = 0.1; // Adjust to your liking
 
-/* Collisions V0.1.1
+// Collisions V0.1.1
 function update() {
   // Get the character's next position
   const nextPosition = character.position.clone();
@@ -191,14 +191,15 @@ function update() {
 
   // If there's a collision, prevent the controls from moving
   if (collision) {
-      controls.movementSpeed = 6;
+    console.log("collision on function called")
+      controls.movementSpeed = 1;
   } else {
+    console.log("collision off function called")
       controls.movementSpeed = 10;
   }
 
   controls.update(clock.getDelta());
 }
-*/
 
 // Animation loop
 function animate() {
@@ -206,10 +207,10 @@ function animate() {
   requestAnimationFrame(animate);
 
   // Update the control
-  controls.update();
+  //controls.update();
 
   // Update controls and handle collisions
-  //update();
+  update();
 
   // Update the chunks
   updateChunks(character);
