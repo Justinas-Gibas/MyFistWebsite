@@ -9,13 +9,34 @@ import Stats from '../lib/libs/stats.module.js'
 // Create a Clock instance
 //const clock = new THREE.Clock();
 
+// Create the scene and camera
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+// Create a sphere geometry with a radius of 1, and 32 segments both along the width and height
+const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
+
+// Create a black basic material
+const sphereMaterial = new THREE.MeshBasicMaterial({color: 0x000000}); // 0x000000 is black
+
+// Combine the geometry and material into a mesh
+const sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial);
+
 // Create the character
 const character = new THREE.Object3D();
 character.position.set(0, 0, 0);
 
-// Create the scene and camera
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+// Create a sphere geometry with a radius of 1, and 32 segments both along the width and height
+const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
+
+// Create a black basic material
+const sphereMaterial = new THREE.MeshBasicMaterial({color: 0x000000}); // 0x000000 is black
+
+// Combine the geometry and material into a mesh
+const sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial);
+
+// Add the mesh to the character
+character.add(sphereMesh);
 
 // Add the character to the scene
 scene.add(character);
