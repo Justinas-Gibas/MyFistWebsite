@@ -34,7 +34,7 @@ scene.add(character);
 
 // Position the camera a bit higher than the character
 camera.position.set(0, 2, 0);  // Adjust as necessary
-//character.add(camera);  // Add the camera as a child of the character
+character.add(camera);  // Add the camera as a child of the character
 
 // Add an ambient light
 const ambientLight = new THREE.AmbientLight(0xffffff); // soft white light
@@ -142,7 +142,7 @@ function loadModel(chunk, modelPath) {
 }
 
 // Chunk settings
-const CHUNK_DISTANCE = 3; // Number of chunks in each direction to load
+const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
 
   function updateChunks(character) {
     const currentChunk = getCurrentChunk(character);
@@ -172,7 +172,7 @@ const CHUNK_DISTANCE = 3; // Number of chunks in each direction to load
 // Controls setup
 //controls.movementSpeed = 30; // Adjust to your liking
 //controls.lookSpeed = 0; // Adjust to your liking
-const moveSpeed = 0.05; // adjust as needed
+const moveSpeed = 1.5; // adjust as needed
 const rotationSpeed = 0.5; // How fast the character rotates to face the camera direction
 const keyState = {};
 controls.isLocked = false;
