@@ -11,7 +11,7 @@ import Stats from '../lib/libs/stats.module.js'
 
 // Create the scene and camera
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 10, 5000);
 
 // Create the character
 const character = new THREE.Object3D();
@@ -143,7 +143,7 @@ function loadModel(chunk, modelPath) {
 }
 
 // Chunk settings
-const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
+const CHUNK_DISTANCE = 3; // Number of chunks in each direction to load
 
   function updateChunks(character) {
     const currentChunk = getCurrentChunk(character);
@@ -152,7 +152,7 @@ const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
       return;
     }
     lastChunkPosition = { ...currentChunk };
-      console.log("lastChunkPosition", lastChunkPosition);
+      console.log("lastChunkPosition",currentChunk, lastChunkPosition);
   
     for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
       for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
