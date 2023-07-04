@@ -151,7 +151,7 @@ const CHUNK_DISTANCE = 3; // Number of chunks in each direction to load
       return;
     }
     lastChunkPosition = { ...currentChunk };
-      console.log("lastChunkPosition", currentChunk);
+      console.log("lastChunkPosition", lastChunkPosition);
   
     for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
       for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
