@@ -86,6 +86,7 @@ const chunkMap = new Map();
 const models = ['../lib/models/chunk1.gltf', '../lib/models/chunk2.gltf'];
 let lastChunkPosition = null;
 
+
 // calculate the chunk at character position and load it to a chunkmap
 function getCurrentChunk(character) {
   const chunkCoordinates = {
@@ -154,10 +155,21 @@ const CHUNK_DISTANCE = 10; // Number of chunks in each direction to load
   }
 
 // Controls setup
-controls.movementSpeed = 30; // Adjust to your liking
-controls.lookSpeed = 0; // Adjust to your liking
+//controls.movementSpeed = 30; // Adjust to your liking
+//controls.lookSpeed = 0; // Adjust to your liking
+const moveSpeed = 0.05; // adjust as needed
 const rotationSpeed = 0.5; // How fast the character rotates to face the camera direction
+const keyState = {};
 controls.isLocked = false;
+controls.movementEnabled = true; 
+
+window.addEventListener('keydown', function(event) {
+  keyState[event.code] = true;
+});
+
+window.addEventListener('keyup', function(event) {
+  keyState[event.code] = false;
+});
 
 document.addEventListener('pointerlockchange', function() {
   if (document.pointerLockElement === document.body) {
@@ -209,6 +221,22 @@ function update() {
     // We rotate the character around the Y axis, at the specified speed and direction
     character.rotateY(rotationSpeed * Math.sign(cross.y));
   }
+
+  const direction = new THREE.Vector3();
+  if (keyState['KeyW']) {
+    direction.z = -moveSpeed;
+  } else if (keyState['KeyS']) {
+    direction.z = moveSpeed;
+  }
+  if (keyState['KeyA']) {
+    direction.x = -moveSpeed;
+  } else if (keyState['KeyD']) {
+    direction.x = moveSpeed;
+  }
+  
+  direction.applyQuaternion(camera.quaternion);
+  character.position.add(direction);
+
   controls.update
   //controls.update(clock.getDelta());
 }
