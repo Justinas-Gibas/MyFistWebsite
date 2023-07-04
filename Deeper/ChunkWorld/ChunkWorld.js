@@ -99,12 +99,14 @@ function getCurrentChunk(character) {
     chunk = { ...chunkCoordinates, modelLoaded: false };
     chunkMap.set(`${chunkCoordinates.x},${chunkCoordinates.y},${chunkCoordinates.z}`, chunk);
   }
+  console.log("getCurrentChunk", chunk);
   return chunk;
 }
 
 function generateModelPathForChunk(chunk) {
   const modelPath = models[Math.floor(Math.random() * models.length)];
   chunk.modelPath = modelPath;
+  console.log("generateModelPathForChunk", chunk);
   return modelPath;
 }
 
@@ -124,6 +126,7 @@ function loadModel(chunk, modelPath) {
       chunk.modelLoaded = true;
     });
   }
+  console.log("loadModel", chunk);
 }
 
 // Chunk settings
@@ -136,7 +139,7 @@ const CHUNK_DISTANCE = 3; // Number of chunks in each direction to load
       return;
     }
     lastChunkPosition = { ...currentChunk };
-      console.log("Chunk lastChunkPosition changed");
+      console.log("lastChunkPosition", chunk);
   
     for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
       for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
@@ -197,7 +200,8 @@ document.addEventListener('keydown', function(event) {
 });
 
 function update() {
-  // Update the camera's position to match the character's position
+  console.log("Position", character.position);
+  /* Update the camera's position to match the character's position
   //camera.position.copy(character.position);
 
   // First, we'll calculate the character's forward direction
@@ -220,7 +224,7 @@ function update() {
 
     // We rotate the character around the Y axis, at the specified speed and direction
     character.rotateY(rotationSpeed * Math.sign(cross.y));
-  }
+  }*/
 
   const direction = new THREE.Vector3();
   if (keyState['KeyW']) {
