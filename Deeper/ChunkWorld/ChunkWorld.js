@@ -139,7 +139,6 @@ const CHUNK_DISTANCE = 2; // Number of chunks in each direction to load
     for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
       for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
         for (let z = currentChunk.z - CHUNK_DISTANCE; z <= currentChunk.z + CHUNK_DISTANCE; z++) {
-          if (z != 0) continue;
           
           let chunk = chunkMap.get(`${x},${y},${z}`);
           if (!chunk) {
@@ -186,7 +185,7 @@ document.addEventListener('keydown', function(event) {
 
 function update() {
   // Update the camera's position to match the character's position
-  camera.position.copy(character.position);
+  //camera.position.copy(character.position);
 
   // First, we'll calculate the character's forward direction
   const forward = new THREE.Vector3(0, 0, -1);
