@@ -15,7 +15,7 @@ character.position.set(0, 0, 0);
 
 // Create the scene and camera
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(105, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 
 // Add the character to the scene
 scene.add(character);
