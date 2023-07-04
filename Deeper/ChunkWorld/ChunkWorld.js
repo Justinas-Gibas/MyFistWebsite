@@ -129,6 +129,7 @@ function loadModel(chunk, modelPath) {
     const model = modelCache[modelPath].clone();
     model.position.set(chunk.x * chunkSize, chunk.y * chunkSize, chunk.z * chunkSize);
     scene.add(model);
+    chunk.modelLoaded = true;
   } else {
     loader.load(modelPath, (gltf) => {
       modelCache[modelPath] = gltf.scene;
@@ -156,7 +157,8 @@ const CHUNK_DISTANCE = 1; // Number of chunks in each direction to load
     for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
       for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
         for (let z = currentChunk.z - CHUNK_DISTANCE; z <= currentChunk.z + CHUNK_DISTANCE; z++) {
-          
+          if (y != 0) continue;
+
           let chunk = chunkMap.get(`${x},${y},${z}`);
           if (!chunk) {
             chunk = { x, y, z, modelLoaded: false };
