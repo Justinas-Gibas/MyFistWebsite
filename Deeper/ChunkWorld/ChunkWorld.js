@@ -126,7 +126,7 @@ function loadModel(chunk, modelPath) {
 }
 
 // Chunk settings
-const CHUNK_DISTANCE = 2; // Number of chunks in each direction to load
+const CHUNK_DISTANCE = 10; // Number of chunks in each direction to load
 
   function updateChunks(character) {
     const currentChunk = getCurrentChunk(character);
@@ -135,6 +135,7 @@ const CHUNK_DISTANCE = 2; // Number of chunks in each direction to load
       return;
     }
     lastChunkPosition = { ...currentChunk };
+      console.log("Chunk lastChunkPosition changed", Chunk);
   
     for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
       for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
