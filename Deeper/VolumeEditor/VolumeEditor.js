@@ -24,7 +24,7 @@ for(let i = -5; i <= 5; i++) {
 }
 
 // Set the camera position
-camera.position.z = 25;
+camera.position.z = 45;
 
 // Render the scene
 function animate() {
