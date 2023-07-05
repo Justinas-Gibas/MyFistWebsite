@@ -18,13 +18,13 @@ const character = new THREE.Object3D();
 character.position.set(0, 0, 0);
 
 // Create a sphere geometry with a radius of 1, and 32 segments both along the width and height
-const boxGeometry = new THREE.BoxGeometry(1, 32, 32);
+const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
 
 // Create a black basic material
 const blackMaterial = new THREE.MeshBasicMaterial({color: 0x000000}); // 0x000000 is black
 
 // Combine the geometry and material into a mesh
-const characterMesh = new THREE.Mesh(boxGeometry, blackMaterial);
+const characterMesh = new THREE.Mesh(sphereGeometry, blackMaterial);
 
 // Add the mesh to the character
 character.add(characterMesh);
