@@ -10,6 +10,10 @@ const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth * 0.9, window.innerHeight * 0.7);
 document.body.appendChild(renderer.domElement);
 
+// Add the renderer's canvas to the div with id "canvas-container"
+const canvasContainer = document.getElementById('canvas-container');
+canvasContainer.appendChild(renderer.domElement);
+
 // Add OrbitControls
 const controls = new OrbitControls(camera, renderer.domElement);
 
@@ -48,15 +52,29 @@ window.addEventListener('click', (event) => {
     // Calculate objects intersecting the picking ray
     const intersects = raycaster.intersectObjects(cubes);
 
-    // Toggle the size and color of the intersected objects
-    for(let i = 0; i < intersects.length; i++) {
-        const cube = intersects[i].object;
+    // Change the size and color of the first intersected object
+    if(intersects.length > 0) {
+        const cube = intersects[0].object;
         if(cube.scale.x === 1) {
             cube.scale.set(0.5, 0.5, 0.5);
             cube.material.color.set(0x808080);
         } else {
             cube.scale.set(1, 1, 1);
             cube.material.color.set(0x00ff00);
+        }
+
+        // Check if the cube is on the edge of the volume
+        if(cube.position.x === 5 || cube.position.y === 5 || cube.position.z === 5) {
+            // Add a new row, column, or section of cubes
+            // ...
+        }
+
+        // Calculate the 8-bit number representing the cube
+        let cubeInfo = 0;
+        for(let i = 0; i < 8; i++) {
+            // Check if the i-th corner of the cube is "full"
+            // If so, set the i-th bit of cubeInfo to 1
+            // ...
         }
     }
 });
