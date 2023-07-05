@@ -6,12 +6,13 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer();
 
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(window.innerWidth * 0.9, window.innerHeight * 0.7);
 document.body.appendChild(renderer.domElement);
 
 // Create a grid of cubes
 const geometry = new THREE.BoxGeometry(1, 1, 1);
 const material = new THREE.MeshBasicMaterial({color: 0x00ff00});
+const cubes = [];
 
 for(let i = -5; i <= 5; i++) {
     for(let j = -5; j <= 5; j++) {
@@ -19,12 +20,35 @@ for(let i = -5; i <= 5; i++) {
             const cube = new THREE.Mesh(geometry, material);
             cube.position.set(i * 2, j * 2, k * 2);
             scene.add(cube);
+            cubes.push(cube);
         }
     }
 }
 
 // Set the camera position
 camera.position.z = 45;
+
+// Add a raycaster and a mouse vector
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+// Add an event listener for when the user clicks
+window.addEventListener('click', (event) => {
+    // Calculate where the user clicked in normalized device coordinates
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    // Update the picking ray with the camera and mouse position
+    raycaster.setFromCamera(mouse, camera);
+
+    // Calculate objects intersecting the picking ray
+    const intersects = raycaster.intersectObjects(cubes);
+
+    // Change the color of the intersected objects
+    for(let i = 0; i < intersects.length; i++) {
+        intersects[i].object.material.color.set(0xff0000);
+    }
+});
 
 // Render the scene
 function animate() {
