@@ -169,7 +169,8 @@ function updateChunks(character) {
   for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
     for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
       for (let z = currentChunk.z - CHUNK_DISTANCE; z <= currentChunk.z + CHUNK_DISTANCE; z++) {
-        
+        if (y != 0) continue;
+
         let chunk = chunkMap.get(`${x},${y},${z}`);
         if (!chunk) {
           chunk = { x, y, z, modelLoaded: false };
@@ -183,12 +184,12 @@ function updateChunks(character) {
     }
   }
 
-  // Unload chunks that are too far away
+  /* Unload chunks that are too far away
   for (let [key, chunk] of chunkMap) {
     if (!currentChunks.has(key) && chunk.modelLoaded) {
       unloadChunk(chunk);
     }
-  }
+  }*/
 }
 
 
