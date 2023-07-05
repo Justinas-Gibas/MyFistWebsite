@@ -23,6 +23,14 @@ let grid = new Array(gridSize).fill().map(() =>
     )
 );
 
+// Import necessary THREE.js components
+import { BoxGeometry, MeshBasicMaterial, Mesh, PointLight } from 'three';
+
+// Add a basic light source
+const light = new PointLight(0xffffff, 1, 1000);
+light.position.set(50, 50, 50);
+scene.add(light);
+
 // Define a block
 class Block {
     constructor(x, y, z, type) {
@@ -30,6 +38,17 @@ class Block {
         this.y = y;
         this.z = z;
         this.type = type; // This could be a number representing different block types
+
+        // Create a cube to represent the block
+        const geometry = new BoxGeometry(1, 1, 1);
+        const material = new MeshBasicMaterial({ color: 0x00ff00 });
+        this.cube = new Mesh(geometry, material);
+
+        // Position the cube
+        this.cube.position.set(x, y, z);
+
+        // Add the cube to the scene
+        scene.add(this.cube);
     }
 }
 
@@ -42,10 +61,9 @@ function addBlock(x, y, z, type) {
 // Add a block to the grid
 addBlock(1, 1, 1, 1);
 
-
 // Render the scene
 function animate() {
     requestAnimationFrame(animate);
     renderer.render(scene, camera);
 }
-animate()
+animate();
