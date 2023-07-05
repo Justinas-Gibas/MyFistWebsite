@@ -7,7 +7,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer();
 
-renderer.setSize(window.innerWidth * 0.9, window.innerHeight * 0.7);
+renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // Add OrbitControls
@@ -30,7 +30,7 @@ for(let i = -5; i <= 5; i++) {
 }
 
 // Set the camera position
-camera.position.z = 35;
+camera.position.z = 5;
 
 // Add a raycaster and a mouse vector
 const raycaster = new THREE.Raycaster();
@@ -48,34 +48,15 @@ window.addEventListener('click', (event) => {
     // Calculate objects intersecting the picking ray
     const intersects = raycaster.intersectObjects(cubes);
 
-    // Toggle the size and color of the intersected objects
-    if(intersects.length > 0) {
-        const cube = intersects[0].object;
-        if(cube.scale.x === 1) {
-            cube.scale.set(0.5, 0.5, 0.5);
-            cube.material.color.set(0x808080);
-            console.log("Cube clicked: turned small and gray");
-        } else {
-            cube.scale.set(1, 1, 1);
-            cube.material.color.set(0x00ff00);
-            console.log("Cube clicked: turned large and green");
-        }
-
-        // Calculate the 8-bit number representing the cube
-        let cubeInfo = 0;
-        for(let i = 0; i < 8; i++) {
-            // Check if the i-th corner of the cube is "full"
-            // If so, set the i-th bit of cubeInfo to 1
-            // This part is left as an exercise for you
-        }
-        console.log("Cube info: " + cubeInfo);
+    // Change the color of the intersected objects
+    for(let i = 0; i < intersects.length; i++) {
+        intersects[i].object.material.color.set(0xff0000);
     }
 });
 
 // Render the scene
 function animate() {
     requestAnimationFrame(animate);
-    controls.update(); // Update OrbitControls
     renderer.render(scene, camera);
 }
-animate();
+animate()
