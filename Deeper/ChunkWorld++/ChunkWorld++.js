@@ -142,8 +142,19 @@ function loadModel(chunk, modelPath) {
   console.log("loadModel", chunk);
 }
 
+function unloadChunk(chunk) {
+  scene.traverse((object) => {
+    if (object.position.x === chunk.x * chunkSize &&
+        object.position.y === chunk.y * chunkSize &&
+        object.position.z === chunk.z * chunkSize) {
+      scene.remove(object);
+      chunk.modelLoaded = false;
+    }
+  });
+}
+
 // Chunk settings
-const CHUNK_DISTANCE = 3; // Number of chunks in each direction to load
+const CHUNK_DISTANCE = 10; // Number of chunks in each direction to load
 
   function updateChunks(character) {
     const currentChunk = getCurrentChunk(character);
@@ -166,7 +177,16 @@ const CHUNK_DISTANCE = 3; // Number of chunks in each direction to load
             let modelPath = generateModelPathForChunk(chunk);
             loadModel(chunk, modelPath);
           }
+
+          currentChunks.set(`${x},${y},${z}`, chunk);
         }
+      }
+    }
+
+    // Unload chunks that are too far away
+    for (let [key, chunk] of chunkMap) {
+      if (!currentChunks.has(key) && chunk.modelLoaded) {
+        unloadChunk(chunk);
       }
     }
   }
@@ -215,7 +235,7 @@ document.addEventListener('keydown', function(event) {
 
 function update() {
   console.log("Position", character.position);
-  // Update the camera's position to match the character's position
+  /* Update the camera's position to match the character's position
   //camera.position.copy(character.position);
 
   // First, we'll calculate the character's forward direction
@@ -238,7 +258,7 @@ function update() {
 
     // We rotate the character around the Y axis, at the specified speed and direction
     character.rotateY(rotationSpeed * Math.sign(cross.y));
-  }
+  }*/
 
   const direction = new THREE.Vector3();
   if (keyState['KeyW']) {
