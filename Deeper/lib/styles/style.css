@@ -258,21 +258,21 @@ body {
 }
 
 .GLTFLoader {
-  margin-top: 5vh;
+  margin-top: 10vh;
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
 .ChunkWorld {
-  margin-top: 5vh;
+  margin-top: 10vh;
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
-.MyTest {
-  margin-top: 5vh;
+.VolumeEditor {
+  margin-top: 10vh;
   display: flex;
   justify-content: center;
   align-items: center;
