@@ -1,6 +1,6 @@
 // Import Three.js and OrbitControls
-import * as THREE from 'three';
-import { OrbitControls } from '../lib/controls/OrbitControls';
+import * as THREE from '../lib/three.module.js';
+import { OrbitControls } from '../lib/controls/OrbitControls.js';
 
 // Create a scene, camera, and renderer
 const scene = new THREE.Scene();
