@@ -1,7 +1,13 @@
 import * as THREE from '../lib/three.module.js';
+import { OrbitControls } from '../lib/controls/OrbitControls.js'
+import { FirstPersonControls } from '../lib/controls/FirstPersonControls.js';
 import { PointerLockControls } from '../lib/controls/PointerLockControls.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 import Stats from '../lib/libs/stats.module.js'
+
+
+// Create a Clock instance
+//const clock = new THREE.Clock();
 
 // Create the scene and camera
 const scene = new THREE.Scene();
@@ -51,6 +57,12 @@ window.addEventListener('resize', function() {
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
 });
+
+// Add orbit controls so that we can pan around the object
+//const controls = new OrbitControls(camera, renderer.domElement);
+
+// Add first person controls
+//const controls = new FirstPersonControls(character, renderer.domElement);
 
 // Add pointer lock controls
 const controls = new PointerLockControls(camera, document.body);
@@ -130,34 +142,38 @@ function loadModel(chunk, modelPath) {
   console.log("loadModel", chunk);
 }
 
+// Chunk settings
 const CHUNK_DISTANCE = 3; // Number of chunks in each direction to load
 
-function updateChunks(character) {
-  const currentChunk = getCurrentChunk(character);
+  function updateChunks(character) {
+    const currentChunk = getCurrentChunk(character);
+  
+    if (lastChunkPosition && lastChunkPosition.x === currentChunk.x && lastChunkPosition.y === currentChunk.y && lastChunkPosition.z === currentChunk.z) {
+      return;
+    }
+    lastChunkPosition = { ...currentChunk };
+      console.log("lastChunkPosition",currentChunk, lastChunkPosition);
+  
+    for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
+      for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
+        for (let z = currentChunk.z - CHUNK_DISTANCE; z <= currentChunk.z + CHUNK_DISTANCE; z++) {
+          if (y != 0) continue;
 
-  if (lastChunkPosition && lastChunkPosition.x === currentChunk.x && lastChunkPosition.y === currentChunk.y && lastChunkPosition.z === currentChunk.z) {
-    return;
-  }
-  lastChunkPosition = { ...currentChunk };
-    console.log("lastChunkPosition",currentChunk, lastChunkPosition);
-
-  for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
-    for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
-      for (let z = currentChunk.z - CHUNK_DISTANCE; z <= currentChunk.z + CHUNK_DISTANCE; z++) {
-        if (y != 0) continue;
-
-        let chunk = chunkMap.get(`${x},${y},${z}`);
-        if (!chunk) {
-          chunk = { x, y, z, modelLoaded: false };
-          chunkMap.set(`${x},${y},${z}`, chunk);
-          let modelPath = generateModelPathForChunk(chunk);
-           loadModel(chunk, modelPath);
+          let chunk = chunkMap.get(`${x},${y},${z}`);
+          if (!chunk) {
+            chunk = { x, y, z, modelLoaded: false };
+            chunkMap.set(`${x},${y},${z}`, chunk);
+            let modelPath = generateModelPathForChunk(chunk);
+            loadModel(chunk, modelPath);
+          }
         }
       }
     }
   }
-}
 
+// Controls setup
+//controls.movementSpeed = 30; // Adjust to your liking
+//controls.lookSpeed = 0; // Adjust to your liking
 const moveSpeed = 2.5; // adjust as needed
 const rotationSpeed = 0.1; // How fast the character rotates to face the camera direction
 const keyState = {};
@@ -199,6 +215,30 @@ document.addEventListener('keydown', function(event) {
 
 function update() {
   console.log("Position", character.position);
+  // Update the camera's position to match the character's position
+  //camera.position.copy(character.position);
+
+  // First, we'll calculate the character's forward direction
+  const forward = new THREE.Vector3(0, 0, -1);
+  forward.applyQuaternion(character.quaternion);
+ 
+  // Next, we calculate the direction the camera is looking
+  const cameraDirection = new THREE.Vector3(0, 0, -1);
+  cameraDirection.applyQuaternion(camera.quaternion);
+
+  // Now we calculate the angle between the forward direction and camera direction
+  const angle = forward.angleTo(cameraDirection);
+
+  // If the angle is more than 5 degrees, we start rotating the character
+  if (angle > 5 * Math.PI / 180) {
+    // We calculate the cross product of the forward and camera direction
+    // This gives us a vector that is perpendicular to the two vectors, and its
+    // direction tells us whether we need to rotate left or right
+    const cross = forward.cross(cameraDirection);
+
+    // We rotate the character around the Y axis, at the specified speed and direction
+    character.rotateY(rotationSpeed * Math.sign(cross.y));
+  }
 
   const direction = new THREE.Vector3();
   if (keyState['KeyW']) {
@@ -221,6 +261,7 @@ function update() {
 
 // Animation loop
 function animate() {
+  //console.log("animate function called");  // This will print to the console every time animate is called
   requestAnimationFrame(animate);
 
   // Update controls and handle collisions
