@@ -154,42 +154,43 @@ function unloadChunk(chunk) {
 }
 
 // Chunk settings
-const CHUNK_DISTANCE = 10; // Number of chunks in each direction to load
+const CHUNK_DISTANCE = 3; // Number of chunks in each direction to load
 
-  function updateChunks(character) {
-    const currentChunk = getCurrentChunk(character);
+function updateChunks(character) {
+  const currentChunk = getCurrentChunk(character);
   
-    if (lastChunkPosition && lastChunkPosition.x === currentChunk.x && lastChunkPosition.y === currentChunk.y && lastChunkPosition.z === currentChunk.z) {
-      return;
-    }
-    lastChunkPosition = { ...currentChunk };
-      console.log("lastChunkPosition",currentChunk, lastChunkPosition);
-  
-    for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
-      for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
-        for (let z = currentChunk.z - CHUNK_DISTANCE; z <= currentChunk.z + CHUNK_DISTANCE; z++) {
-          if (y != 0) continue;
+  if (lastChunkPosition && lastChunkPosition.x === currentChunk.x && lastChunkPosition.y === currentChunk.y && lastChunkPosition.z === currentChunk.z) {
+    return;
+  }
+  lastChunkPosition = { ...currentChunk };
 
-          let chunk = chunkMap.get(`${x},${y},${z}`);
-          if (!chunk) {
-            chunk = { x, y, z, modelLoaded: false };
-            chunkMap.set(`${x},${y},${z}`, chunk);
-            let modelPath = generateModelPathForChunk(chunk);
-            loadModel(chunk, modelPath);
-          }
+  let currentChunks = new Map();
 
-          currentChunks.set(`${x},${y},${z}`, chunk);
+  for (let x = currentChunk.x - CHUNK_DISTANCE; x <= currentChunk.x + CHUNK_DISTANCE; x++) {
+    for (let y = currentChunk.y - CHUNK_DISTANCE; y <= currentChunk.y + CHUNK_DISTANCE; y++) {
+      for (let z = currentChunk.z - CHUNK_DISTANCE; z <= currentChunk.z + CHUNK_DISTANCE; z++) {
+        
+        let chunk = chunkMap.get(`${x},${y},${z}`);
+        if (!chunk) {
+          chunk = { x, y, z, modelLoaded: false };
+          chunkMap.set(`${x},${y},${z}`, chunk);
+          let modelPath = generateModelPathForChunk(chunk);
+          loadModel(chunk, modelPath);
         }
-      }
-    }
 
-    // Unload chunks that are too far away
-    for (let [key, chunk] of chunkMap) {
-      if (!currentChunks.has(key) && chunk.modelLoaded) {
-        unloadChunk(chunk);
+        currentChunks.set(`${x},${y},${z}`, chunk);
       }
     }
   }
+
+  // Unload chunks that are too far away
+  for (let [key, chunk] of chunkMap) {
+    if (!currentChunks.has(key) && chunk.modelLoaded) {
+      unloadChunk(chunk);
+    }
+  }
+}
+
 
 // Controls setup
 //controls.movementSpeed = 30; // Adjust to your liking
