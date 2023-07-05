@@ -11,23 +11,23 @@ import Stats from '../lib/libs/stats.module.js'
 
 // Create the scene and camera
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 10, 5000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
 
 // Create the character
 const character = new THREE.Object3D();
 character.position.set(0, 0, 0);
 
 // Create a sphere geometry with a radius of 1, and 32 segments both along the width and height
-const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
+const boxGeometry = new THREE.BoxGeometry(1, 32, 32);
 
 // Create a black basic material
-const sphereMaterial = new THREE.MeshBasicMaterial({color: 0x000000}); // 0x000000 is black
+const blackMaterial = new THREE.MeshBasicMaterial({color: 0x000000}); // 0x000000 is black
 
 // Combine the geometry and material into a mesh
-const sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial);
+const characterMesh = new THREE.Mesh(boxGeometry, blackMaterial);
 
 // Add the mesh to the character
-character.add(sphereMesh);
+character.add(characterMesh);
 
 // Add the character to the scene
 scene.add(character);
@@ -174,8 +174,8 @@ const CHUNK_DISTANCE = 3; // Number of chunks in each direction to load
 // Controls setup
 //controls.movementSpeed = 30; // Adjust to your liking
 //controls.lookSpeed = 0; // Adjust to your liking
-const moveSpeed = 1.5; // adjust as needed
-const rotationSpeed = 0.5; // How fast the character rotates to face the camera direction
+const moveSpeed = 2.5; // adjust as needed
+const rotationSpeed = 0.1; // How fast the character rotates to face the camera direction
 const keyState = {};
 controls.isLocked = false;
 controls.movementEnabled = true; 
@@ -215,7 +215,7 @@ document.addEventListener('keydown', function(event) {
 
 function update() {
   console.log("Position", character.position);
-  /* Update the camera's position to match the character's position
+  // Update the camera's position to match the character's position
   //camera.position.copy(character.position);
 
   // First, we'll calculate the character's forward direction
@@ -238,7 +238,7 @@ function update() {
 
     // We rotate the character around the Y axis, at the specified speed and direction
     character.rotateY(rotationSpeed * Math.sign(cross.y));
-  }*/
+  }
 
   const direction = new THREE.Vector3();
   if (keyState['KeyW']) {
