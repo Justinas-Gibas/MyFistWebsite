@@ -12,6 +12,8 @@ document.body.appendChild(renderer.domElement);
 
 // Add OrbitControls
 const controls = new OrbitControls(camera, renderer.domElement);
+//
+
 
 // Define the size of the grid
 const gridSize = 10;
