@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Three.js XR - Virtual Art Gallery</title>
+    <title>Three.js XR - Enhanced Virtual Art Gallery</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
@@ -40,18 +40,13 @@
         document.body.appendChild(container);
 
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x808080);
 
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
         camera.position.set(0, 1.6, 3);
 
         // Lighting
-        const ambientLight = new THREE.HemisphereLight(0xffffff, 0x444444);
+        const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 5);
         scene.add(ambientLight);
-
-        const directionalLight = new THREE.DirectionalLight(0xffffff);
-        directionalLight.position.set(0, 20, 10);
-        scene.add(directionalLight);
 
         // Renderer
         renderer = new THREE.WebGLRenderer({antialias: true});
@@ -70,13 +65,36 @@
 
         // Gallery Room
         const roomGeometry = new THREE.BoxGeometry(10, 4, 10);
-        const roomMaterial = new THREE.MeshBasicMaterial({color: 0xadd8e6, side: THREE.BackSide});
+        const roomMaterial = new THREE.MeshPhongMaterial({color: 0xadd8e6, side: THREE.BackSide});
         const room = new THREE.Mesh(roomGeometry, roomMaterial);
         room.position.set(0, 2, 0);
         scene.add(room);
 
+        // Checkerboard Floor
+        const floorGeometry = new THREE.PlaneGeometry(10, 10, 10, 10);
+        const floorMaterial = new THREE.MeshPhongMaterial({color: 0xffffff, side: THREE.DoubleSide, vertexColors: true});
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = Math.PI / 2;
+        floor.position.y = -0.01;
+        scene.add(floor);
+
+        const colors = floorGeometry.attributes.position.count;
+        const color = new THREE.Color();
+        for(let i = 0; i < colors; i++) {
+            color.set(i % 2 === 0 ? 0xffffff : 0x000000);
+            floorGeometry.attributes.color.setXYZ(i, color.r, color.g, color.b);
+        }
+        floorGeometry.attributes.color.needsUpdate = true;
+
+        // Art Pieces
+        const artGeometry = new THREE.PlaneGeometry(2, 2);
+        const artMaterial = new THREE.MeshBasicMaterial({color: 0x123456});
+        const art = new THREE.Mesh(artGeometry, artMaterial);
+        art.position.set(0, 2, -4.99); // Slightly in front of the back wall
+        scene.add(art);
+
         // Event Listeners
-        window.addEventListener('resize', onWindowResize);
+        window.addEventListener('resize', onWindowResize, false);
     }
 
     function onWindowResize() {
