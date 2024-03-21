@@ -3,12 +3,127 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VR Art Gallery</title>
+    <title>VR Art Gallery Debug</title>
     <style>
         body { margin: 0; }
     </style>
 </head>
 <body>
-    <script type="module" src="main.js"></script>
+<script type="module">
+    import('../lib/three.module.js').then(module => {
+        console.log('THREE module loaded successfully', module);
+        window.THREE = module;
+        continueInitialization();
+    }).catch(error => {
+        console.error('Failed to load THREE module:', error);
+    });
+</script>
+<script type="module">
+    import('../lib/webxr/XRButton.js').then(module => {
+        console.log('XRButton module loaded successfully', module);
+        window.XRButton = module.XRButton;
+        continueInitialization();
+    }).catch(error => {
+        console.error('Failed to load XRButton module:', error);
+    });
+</script>
+<script type="module">
+    import('../lib/controls/OrbitControls.js').then(module => {
+        console.log('OrbitControls module loaded successfully', module);
+        window.OrbitControls = module.OrbitControls;
+        continueInitialization();
+    }).catch(error => {
+        console.error('Failed to load OrbitControls module:', error);
+    });
+</script>
+<script type="module">
+    let modulesLoaded = 0;
+
+    function continueInitialization() {
+        modulesLoaded++;
+        if (modulesLoaded === 3) {
+            console.log("All modules loaded successfully. Initializing scene...");
+            initScene();
+        }
+    }
+
+    function initScene() {
+        if (!window.THREE || !window.XRButton || !window.OrbitControls) {
+            console.error("Initialization failed: One or more modules are not available.");
+            return;
+        }
+
+        let camera, scene, renderer;
+        let room, controls;
+
+        init();
+animate();
+
+function init() {
+    console.log("Initializing scene...");
+    // Scene setup
+    scene = new THREE.Scene();
+
+    // Camera setup
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 1.6, 3);
+
+    // Renderer setup
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    if (renderer) {
+        console.log("Renderer initialized successfully.");
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+        document.body.appendChild(XRButton.createButton(renderer));
+    } else {
+        console.error("Failed to initialize renderer.");
+        return; // Stop initialization if renderer fails
+    }
+
+    // Orbit Controls
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.addEventListener('change', () => console.log("OrbitControls change event"));
+    console.log("OrbitControls added.");
+
+    // Room setup
+    const geometry = new THREE.BoxGeometry(30, 12, 30);
+    const material = new THREE.MeshPhongMaterial({ color: 0xffffff, side: THREE.BackSide });
+    room = new THREE.Mesh(geometry, material);
+    scene.add(room);
+    console.log("Room added to scene.");
+
+    // Lighting setup
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+    const pointLight = new THREE.PointLight(0xffffff, 0.5);
+    pointLight.position.set(0, 10, 0);
+    scene.add(pointLight);
+    console.log("Lighting added to scene.");
+
+    // Handle window resize
+    window.addEventListener('resize', onWindowResize, false);
+    console.log("Scene initialization complete.");
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    console.log("Window resize handled.");
+}
+
+function animate() {
+    renderer.setAnimationLoop(render);
+}
+
+function render() {
+    controls.update(); // Required if controls.enableDamping or controls.autoRotate are set to true
+    renderer.render(scene, camera);
+}
+
+console.log("Script setup complete. Entering animation loop...");
+    }
+</script>
 </body>
 </html>
