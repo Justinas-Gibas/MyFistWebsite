@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Virtual Art Gallery</title>
+    <title>Simple Box Interior with Three.js</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
@@ -10,93 +10,67 @@
     </style>
 </head>
 <body>
+    <script type="module">
 
-<script type="module">
-
-    import * as THREE from '../lib/three.module.js';
-    import { OrbitControls } from '../lib/controls/OrbitControls.js';
-    import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
-    import { RGBELoader } from '../lib/loaders/RGBELoader.js';
-    import Stats from '../lib/libs/stats.module.js';
-
-    let camera, scene, renderer, controls, stats;
-    let galleryInterior;
-
-    init();
-    animate();
-
-    function init() {
-        const container = document.createElement( 'div' );
-        document.body.appendChild( container );
-
-        // Scene
-        scene = new THREE.Scene();
-
-        // Camera
-        camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 0.1, 100 );
-        camera.position.set( 0, 1.6, 3 );
-
-        // Renderer
-        renderer = new THREE.WebGLRenderer( { antialias: true } );
-        renderer.setPixelRatio( window.devicePixelRatio );
-        renderer.setSize( window.innerWidth, window.innerHeight );
-        renderer.xr.enabled = true;
-        container.appendChild( renderer.domElement );
-
-        // Controls
-        controls = new OrbitControls( camera, renderer.domElement );
-        controls.target.set( 0, 1.6, -3 );
-        controls.update();
-
-        // Lighting
-        const ambientLight = new THREE.AmbientLight( 0xcccccc, 0.4 );
-        scene.add( ambientLight );
-
-        const directionalLight = new THREE.DirectionalLight( 0xffffff, 0.8 );
-        directionalLight.position.set( 0, 3, 0 ).normalize();
-        scene.add( directionalLight );
-
-        // Environment
-        new RGBELoader()
-            .setPath( 'textures/equirectangular/' )
-            .load( 'royal_esplanade_1k.hdr', function ( texture ) {
-                texture.mapping = THREE.EquirectangularReflectionMapping;
-                scene.background = texture;
-                scene.environment = texture;
-
-                // Load Gallery Interior Here
-                // Placeholder for gallery model
-                const geometry = new THREE.BoxGeometry( 10, 10, 10 );
-                const material = new THREE.MeshBasicMaterial( { color: 0x555555, wireframe: true } );
-                galleryInterior = new THREE.Mesh( geometry, material );
-                scene.add( galleryInterior );
-
-            });
-
-        // Stats
-        stats = new Stats();
-        container.appendChild( stats.dom );
-
-        // Event listeners
-        window.addEventListener( 'resize', onWindowResize );
-    }
-
-    function onWindowResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize( window.innerWidth, window.innerHeight );
-    }
-
-    function animate() {
-        renderer.setAnimationLoop( render );
-    }
-
-    function render() {
-        stats.update();
-        controls.update();
-        renderer.render( scene, camera );
-    }
-
-</script>
+        import * as THREE from '../lib/three.module.js';
+        import { XRButton } from '../lib/webxr/XRButton.js';
+    
+        let camera, scene, renderer;
+        let room;
+    
+        init();
+        animate();
+    
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+    
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.z = 5;
+    
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
+    
+            // Adding XR Button
+            document.body.appendChild(XRButton.createButton(renderer));
+    
+            // Room - large box
+            const geometry = new THREE.BoxGeometry(10, 10, 10);
+            const material = new THREE.MeshBasicMaterial({color: 0x00ff00, side: THREE.BackSide});
+            room = new THREE.Mesh(geometry, material);
+            scene.add(room);
+    
+            // Light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+    
+            const pointLight = new THREE.PointLight(0xffffff, 1);
+            camera.add(pointLight);
+            scene.add(camera);
+    
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize, false);
+        }
+    
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
+    
+        function render() {
+            renderer.render(scene, camera);
+        }
+    
+    </script>
+    
 </body>
 </html>
