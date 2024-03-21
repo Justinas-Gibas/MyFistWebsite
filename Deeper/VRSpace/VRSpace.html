@@ -3,16 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Art Gallery in WebXR</title>
+    <title>VR Art Gallery</title>
     <style>
         body { margin: 0; }
     </style>
 </head>
 <body>
     <script type="module">
-        import * as THREE from '../lib/three.module.js';
-        import { XRButton } from '../lib/webxr/XRButton.js';
-        import { OrbitControls } from '../lib/controls/OrbitControls.js';
+        console.log("Starting script execution...");
+
+        // Module Imports with Debugging
+        try {
+            import * as THREE from '../lib/three.module.js';
+            import { XRButton } from '../lib/webxr/XRButton.js';
+            import { OrbitControls } from '../lib/controls/OrbitControls.js';
+            console.log("Modules imported successfully.");
+        } catch (error) {
+            console.error("Error importing modules:", error);
+            alert("Failed to load modules. Check console for details.");
+            throw error; // Stop further execution
+        }
 
         let camera, scene, renderer;
         let room, controls;
@@ -21,9 +31,9 @@
         animate();
 
         function init() {
+            console.log("Initializing scene...");
             // Scene setup
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xf0f0f0);
 
             // Camera setup
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
@@ -31,40 +41,47 @@
 
             // Renderer setup
             renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            document.body.appendChild(renderer.domElement);
-
-            // Adding XR Button
-            document.body.appendChild(XRButton.createButton(renderer));
+            if (renderer) {
+                console.log("Renderer initialized successfully.");
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.xr.enabled = true;
+                document.body.appendChild(renderer.domElement);
+                document.body.appendChild(XRButton.createButton(renderer));
+            } else {
+                console.error("Failed to initialize renderer.");
+                return; // Stop initialization if renderer fails
+            }
 
             // Orbit Controls
             controls = new OrbitControls(camera, renderer.domElement);
-            controls.target.set(0, 1.6, 0);
-            controls.update();
+            controls.addEventListener('change', () => console.log("OrbitControls change event"));
+            console.log("OrbitControls added.");
 
-            // Room - large box
+            // Room setup
             const geometry = new THREE.BoxGeometry(30, 12, 30);
-            const material = new THREE.MeshPhongMaterial({color: 0xffffff, side: THREE.BackSide}); // White walls
+            const material = new THREE.MeshPhongMaterial({color: 0xffffff, side: THREE.BackSide});
             room = new THREE.Mesh(geometry, material);
             scene.add(room);
+            console.log("Room added to scene.");
 
-            // Light
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Soft white light
+            // Lighting setup
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
             scene.add(ambientLight);
-
             const pointLight = new THREE.PointLight(0xffffff, 0.5);
             pointLight.position.set(0, 10, 0);
             scene.add(pointLight);
+            console.log("Lighting added to scene.");
 
             // Handle window resize
             window.addEventListener('resize', onWindowResize, false);
+            console.log("Scene initialization complete.");
         }
 
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            console.log("Window resize handled.");
         }
 
         function animate() {
@@ -72,9 +89,11 @@
         }
 
         function render() {
-            controls.update(); // Only required if controls.enableDamping = true, or if controls.autoRotate = true
+            controls.update(); // Required if controls.enableDamping or controls.autoRotate are set to true
             renderer.render(scene, camera);
         }
+
+        console.log("Script setup complete. Entering animation loop...");
     </script>
 </body>
 </html>
