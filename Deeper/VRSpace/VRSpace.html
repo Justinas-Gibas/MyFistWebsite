@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VR Art Gallery Debug</title>
+    <title>VR Art Gallery</title>
     <style>
         body { margin: 0; }
         #errorMessage { display: none; position: fixed; top: 0; left: 0; right: 0; background-color: #ffdddd; color: #333; text-align: center; padding: 10px; font-size: 18px; }
@@ -22,22 +22,26 @@
 
     modules.forEach(module => {
         import(module.path).then(loadedModule => {
-            window[module.name] = module.name === 'XRButton' ? loadedModule.XRButton : loadedModule;
+            if(module.name === 'THREE') {
+                window.THREE = loadedModule;
+            } else if(module.name === 'XRButton') {
+                window.XRButton = loadedModule.XRButton;
+            } else if(module.name === 'OrbitControls') {
+                window.OrbitControls = loadedModule.OrbitControls; // Adjust based on actual export
+                // If OrbitControls is a function needing THREE, you might need something like:
+                // window.OrbitControls = loadedModule.OrbitControls(THREE);
+            }
             console.log(`${module.name} module loaded successfully`);
-            checkInitialization();
+            modulesLoaded++;
+            if (modulesLoaded === requiredModules) {
+                console.log("All modules loaded successfully. Initializing scene...");
+                initScene();
+            }
         }).catch(error => {
             console.error(`Failed to load ${module.name} module:`, error);
             displayErrorMessage();
         });
     });
-
-    function checkInitialization() {
-        modulesLoaded++;
-        if (modulesLoaded === requiredModules) {
-            console.log("All modules loaded successfully. Initializing scene...");
-            initScene();
-        }
-    }
 
     function displayErrorMessage() {
         document.getElementById('errorMessage').style.display = 'block';
@@ -129,6 +133,3 @@
 </script>
 </body>
 </html>
-
-
-        
