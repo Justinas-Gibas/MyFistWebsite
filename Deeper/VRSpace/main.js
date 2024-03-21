@@ -1,6 +1,6 @@
-import * as THREE from './lib/three.module.js';
-import { XRButton } from './lib/webxr/XRButton.js';
-import { OrbitControls } from './lib/controls/OrbitControls.js';
+import * as THREE from '../lib/three.module.js';
+import { XRButton } from '../lib/webxr/XRButton.js';
+import { OrbitControls } from '../lib/controls/OrbitControls.js';
 
 console.log("Starting script execution...");
 
