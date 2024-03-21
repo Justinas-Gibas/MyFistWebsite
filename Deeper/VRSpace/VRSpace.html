@@ -6,50 +6,48 @@
     <title>VR Art Gallery Debug</title>
     <style>
         body { margin: 0; }
+        #errorMessage { display: none; position: fixed; top: 0; left: 0; right: 0; background-color: #ffdddd; color: #333; text-align: center; padding: 10px; font-size: 18px; }
     </style>
 </head>
 <body>
-<script type="module">
-    import('../lib/three.module.js').then(module => {
-        console.log('THREE module loaded successfully', module);
-        window.THREE = module;
-        continueInitialization();
-    }).catch(error => {
-        console.error('Failed to load THREE module:', error);
-    });
-</script>
-<script type="module">
-    import('../lib/webxr/XRButton.js').then(module => {
-        console.log('XRButton module loaded successfully', module);
-        window.XRButton = module.XRButton;
-        continueInitialization();
-    }).catch(error => {
-        console.error('Failed to load XRButton module:', error);
-    });
-</script>
-<script type="module">
-    import('../lib/controls/OrbitControls.js').then(module => {
-        console.log('OrbitControls module loaded successfully', module);
-        window.OrbitControls = module.OrbitControls;
-        continueInitialization();
-    }).catch(error => {
-        console.error('Failed to load OrbitControls module:', error);
-    });
-</script>
+<div id="errorMessage">An error occurred while loading the VR Art Gallery. Please check your console for more details.</div>
 <script type="module">
     let modulesLoaded = 0;
+    const requiredModules = 3;
+    const modules = [
+        { path: '../lib/three.module.js', name: 'THREE' },
+        { path: '../lib/webxr/XRButton.js', name: 'XRButton' },
+        { path: '../lib/controls/OrbitControls.js', name: 'OrbitControls' }
+    ];
 
-    function continueInitialization() {
+    modules.forEach(module => {
+        import(module.path).then(loadedModule => {
+            window[module.name] = module.name === 'XRButton' ? loadedModule.XRButton : loadedModule;
+            console.log(`${module.name} module loaded successfully`);
+            checkInitialization();
+        }).catch(error => {
+            console.error(`Failed to load ${module.name} module:`, error);
+            displayErrorMessage();
+        });
+    });
+
+    function checkInitialization() {
         modulesLoaded++;
-        if (modulesLoaded === 3) {
+        if (modulesLoaded === requiredModules) {
             console.log("All modules loaded successfully. Initializing scene...");
             initScene();
         }
     }
 
+    function displayErrorMessage() {
+        document.getElementById('errorMessage').style.display = 'block';
+    }
+
     function initScene() {
+        // Check if all modules are loaded
         if (!window.THREE || !window.XRButton || !window.OrbitControls) {
             console.error("Initialization failed: One or more modules are not available.");
+            displayErrorMessage();
             return;
         }
 
@@ -57,73 +55,80 @@
         let room, controls;
 
         init();
-animate();
+        animate();
 
-function init() {
-    console.log("Initializing scene...");
-    // Scene setup
-    scene = new THREE.Scene();
+        function init() {
+            console.log("Initializing scene...");
+            // Scene setup
+            scene = new THREE.Scene();
 
-    // Camera setup
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 1.6, 3);
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 1.6, 3);
 
-    // Renderer setup
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    if (renderer) {
-        console.log("Renderer initialized successfully.");
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.xr.enabled = true;
-        document.body.appendChild(renderer.domElement);
-        document.body.appendChild(XRButton.createButton(renderer));
-    } else {
-        console.error("Failed to initialize renderer.");
-        return; // Stop initialization if renderer fails
-    }
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            if (renderer) {
+                console.log("Renderer initialized successfully.");
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.xr.enabled = true;
+                document.body.appendChild(renderer.domElement);
+                document.body.appendChild(XRButton.createButton(renderer));
+            } else {
+                console.error("Failed to initialize renderer.");
+                return; // Stop initialization if renderer fails
+            }
 
-    // Orbit Controls
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.addEventListener('change', () => console.log("OrbitControls change event"));
-    console.log("OrbitControls added.");
+            // Orbit Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.addEventListener('change', () => console.log("OrbitControls change event"));
+            console.log("OrbitControls added.");
 
-    // Room setup
-    const geometry = new THREE.BoxGeometry(30, 12, 30);
-    const material = new THREE.MeshPhongMaterial({ color: 0xffffff, side: THREE.BackSide });
-    room = new THREE.Mesh(geometry, material);
-    scene.add(room);
-    console.log("Room added to scene.");
+            // Room setup
+            const geometry = new THREE.BoxGeometry(30, 12, 30);
+            const material = new THREE.MeshPhongMaterial({ color: 0xffffff, side: THREE.BackSide });
+            room = new THREE.Mesh(geometry, material);
+            scene.add(room);
+            console.log("Room added to scene.");
 
-    // Lighting setup
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambientLight);
-    const pointLight = new THREE.PointLight(0xffffff, 0.5);
-    pointLight.position.set(0, 10, 0);
-    scene.add(pointLight);
-    console.log("Lighting added to scene.");
+            // Lighting setup
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            const pointLight = new THREE.PointLight(0xffffff, 0.5);
+            pointLight.position.set(0, 10, 0);
+            scene.add(pointLight);
+            console.log("Lighting added to scene.");
 
-    // Handle window resize
-    window.addEventListener('resize', onWindowResize, false);
-    console.log("Scene initialization complete.");
-}
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize, false);
+            console.log("Scene initialization complete.");
+        }
 
-function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    console.log("Window resize handled.");
-}
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            console.log("Window resize handled.");
+        }
 
-function animate() {
-    renderer.setAnimationLoop(render);
-}
+        function animate() {
+            renderer.setAnimationLoop(render);
+        }
 
-function render() {
-    controls.update(); // Required if controls.enableDamping or controls.autoRotate are set to true
-    renderer.render(scene, camera);
-}
+        function render() {
+            controls.update(); // Required if controls.enableDamping or controls.autoRotate are set to true
+            renderer.render(scene, camera);
+        }
 
-console.log("Script setup complete. Entering animation loop...");
+        console.log("Script setup complete. Entering animation loop...");
+
+
+        // Define init, animate, and other functions here...
+        console.log("Script setup complete. Entering animation loop...");
     }
 </script>
 </body>
 </html>
+
+
+        
