@@ -63,53 +63,54 @@ function init() {
     createCheckerboardFloor();
     loadArtPieces();
 
-
     function createGalleryBoundaries() {
-    // Adding Thin White Boxes as Boundaries
-    const boundaryMaterial = new THREE.MeshStandardMaterial({color: 0xffffff});
-    const boundaryThickness = 0.05;
-    const boundaryHeight = 4;
-    const boundaryLength = 10 + boundaryThickness; // To cover the ends
-    // Top and Bottom
-    [2, -2].forEach(y => {
-        const boundary = new THREE.Mesh(new THREE.BoxGeometry(boundaryLength, boundaryThickness, boundaryThickness), boundaryMaterial);
-        boundary.position.set(0, y, 0);
-        scene.add(boundary);
-    });
-    // Sides
-    [5, -5].forEach(z => {
-        const boundary = new THREE.Mesh(new THREE.BoxGeometry(boundaryThickness, boundaryHeight, boundaryThickness), boundaryMaterial);
-        boundary.position.set(0, 0, z);
-        scene.add(boundary);
-    });
+        const boundaryMaterial = new THREE.MeshStandardMaterial({color: 0xffffff});
+        // Define the size of the planes to use as boundaries
+        const boundaryHeight = 4;
+        const boundaryWidth = 10;
+
+        // Front and back walls
+        ['front', 'back'].forEach((side, index) => {
+            const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
+            const wall = new THREE.Mesh(geometry, boundaryMaterial);
+            wall.position.set(0, boundaryHeight / 2, index === 0 ? -boundaryWidth / 2 : boundaryWidth / 2);
+            wall.rotation.y = Math.PI / 2; // Rotate to face inward or outward
+            scene.add(wall);
+        });
+
+        // Left and right walls
+        ['left', 'right'].forEach((side, index) => {
+            const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
+            const wall = new THREE.Mesh(geometry, boundaryMaterial);
+            wall.position.set(index === 0 ? -boundaryWidth / 2 : boundaryWidth / 2, boundaryHeight / 2, 0);
+            scene.add(wall);
+        });
     }
 
     function createCheckerboardFloor() {    
-    // Checkerboard Floor with PBR
-    const tileSize = 1;
-    const tilesPerSide = 10;
-    const checkerboardGroup = new THREE.Group();
-    for (let x = 0; x < tilesPerSide; x++) {
-        for (let z = 0; z < tilesPerSide; z++) {
-            const geometry = new THREE.PlaneGeometry(tileSize, tileSize);
-            const material = new THREE.MeshStandardMaterial({
-                color: (x + z) % 2 === 0 ? 0x000000 : 0xffffff,
-                side: THREE.DoubleSide
-            });
-            const tile = new THREE.Mesh(geometry, material);
-            tile.castShadow = true;
-            tile.receiveShadow = true;
-            tile.position.x = (x - tilesPerSide / 2) * tileSize + tileSize / 2;
-            tile.position.z = (z - tilesPerSide / 2) * tileSize + tileSize / 2;
-            tile.rotation.x = -Math.PI / 2;
-            checkerboardGroup.add(tile);
+        // Checkerboard Floor with PBR
+        const tileSize = 1;
+        const tilesPerSide = 10;
+        const checkerboardGroup = new THREE.Group();
+        for (let x = 0; x < tilesPerSide; x++) {
+            for (let z = 0; z < tilesPerSide; z++) {
+                const geometry = new THREE.PlaneGeometry(tileSize, tileSize);
+                const material = new THREE.MeshStandardMaterial({
+                    color: (x + z) % 2 === 0 ? 0x000000 : 0xffffff,
+                    side: THREE.DoubleSide
+                });
+                const tile = new THREE.Mesh(geometry, material);
+                tile.castShadow = true;
+                tile.receiveShadow = true;
+                tile.position.x = (x - tilesPerSide / 2) * tileSize + tileSize / 2;
+                tile.position.z = (z - tilesPerSide / 2) * tileSize + tileSize / 2;
+                tile.rotation.x = -Math.PI / 2;
+                checkerboardGroup.add(tile);
+            }
         }
+        checkerboardGroup.position.y = -0.01;
+        scene.add(checkerboardGroup);
     }
-    checkerboardGroup.position.y = -0.01;
-    scene.add(checkerboardGroup);
-
-    }
-
 
     function loadArtPieces() {
     const textureLoader = new THREE.TextureLoader();
