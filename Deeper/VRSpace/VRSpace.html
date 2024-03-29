@@ -62,13 +62,23 @@ function init() {
 
     document.body.appendChild(XRButton.createButton(renderer));
 
-    // Gallery Room with PBR
-    const roomGeometry = new THREE.BoxGeometry(10, 4, 10);
-    const roomMaterial = new THREE.MeshStandardMaterial({color: 0xadd8e6, side: THREE.BackSide});
-    const room = new THREE.Mesh(roomGeometry, roomMaterial);
-    room.receiveShadow = true;
-    room.position.set(0, 2, 0);
-    scene.add(room);
+    // Adding Thin White Boxes as Boundaries
+    const boundaryMaterial = new THREE.MeshStandardMaterial({color: 0xffffff});
+    const boundaryThickness = 0.05;
+    const boundaryHeight = 4;
+    const boundaryLength = 10 + boundaryThickness; // To cover the ends
+    // Top and Bottom
+    [2, -2].forEach(y => {
+        const boundary = new THREE.Mesh(new THREE.BoxGeometry(boundaryLength, boundaryThickness, boundaryThickness), boundaryMaterial);
+        boundary.position.set(0, y, 0);
+        scene.add(boundary);
+    });
+    // Sides
+    [5, -5].forEach(z => {
+        const boundary = new THREE.Mesh(new THREE.BoxGeometry(boundaryThickness, boundaryHeight, boundaryThickness), boundaryMaterial);
+        boundary.position.set(0, 0, z);
+        scene.add(boundary);
+    });
 
     // Checkerboard Floor with PBR
     const tileSize = 1;
@@ -93,13 +103,16 @@ function init() {
     checkerboardGroup.position.y = -0.01;
     scene.add(checkerboardGroup);
 
-    // Art Pieces with PBR
+    // Art Pieces with Image Texture
+    const textureLoader = new THREE.TextureLoader();
     const artGeometry = new THREE.PlaneGeometry(2, 2);
-    const artMaterial = new THREE.MeshStandardMaterial({color: 0x123456});
-    const art = new THREE.Mesh(artGeometry, artMaterial);
-    art.castShadow = true;
-    art.position.set(0, 2, -4.99);
-    scene.add(art);
+    textureLoader.load('Deeper/L2Web/img/BackWater.png', function(texture) {
+        const artMaterial = new THREE.MeshStandardMaterial({map: texture});
+        const art = new THREE.Mesh(artGeometry, artMaterial);
+        art.castShadow = true;
+        art.position.set(0, 2, -4.99);
+        scene.add(art);
+    });
 
     window.addEventListener('resize', onWindowResize, false);
 }
