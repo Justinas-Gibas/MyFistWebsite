@@ -5,119 +5,118 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
-        body {
-            margin: 0;
-        }
-        canvas {
-            display: block;
-        }
+        body { margin: 0; }
+        canvas { display: block; }
     </style>
 </head>
 <body>
 
 <script type="importmap">
-    {
-      "imports": {
-          "three": "../lib/three.module.js"
-       }
-    }
+{
+  "imports": {
+    "three": "../lib/three.module.js"
+  }
+}
 </script>
 
 <script type="module">
-    import * as THREE from 'three';
+import * as THREE from 'three';
+import { OrbitControls } from '../lib/controls/OrbitControls.js';
+import { XRButton } from '../lib/webxr/XRButton.js';
 
-    let camera, scene, renderer, controls;
+let camera, scene, renderer, controls;
 
-    // Import statements for modules that are now local must be adjusted manually
-    // to point to the relative paths in your project structure.
-    // As an example, assuming OrbitControls.js and XRButton.js are located in a similar local directory structure
-    import { OrbitControls } from '../lib/controls/OrbitControls.js';
-    import { XRButton } from '../lib/webxr/XRButton.js';
+init();
+animate();
 
-    init();
-    animate();
+function init() {
+    const container = document.createElement('div');
+    document.body.appendChild(container);
 
-    function init() {
-        const container = document.createElement('div');
-        document.body.appendChild(container);
+    scene = new THREE.Scene();
 
-        scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(0, 1.6, 3);
 
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-        camera.position.set(0, 1.6, 3);
+    // Enhanced Lighting
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
+    scene.add(ambientLight);
 
-        // Lighting
-        const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 5);
-        scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(5, 10, 7.5);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
 
-        // Renderer
-        renderer = new THREE.WebGLRenderer({antialias: true});
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.xr.enabled = true;
-        container.appendChild(renderer.domElement);
+    // Renderer
+    renderer = new THREE.WebGLRenderer({antialias: true});
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.xr.enabled = true;
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
 
-        // Camera controls
-        controls = new OrbitControls(camera, renderer.domElement);
-        controls.target.set(0, 1.6, 0);
-        controls.update();
+    // Camera controls
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.6, 0);
+    controls.update();
 
-        // XR Button
-        document.body.appendChild(XRButton.createButton(renderer));
+    document.body.appendChild(XRButton.createButton(renderer));
 
-        // Gallery Room
-        const roomGeometry = new THREE.BoxGeometry(10, 4, 10);
-        const roomMaterial = new THREE.MeshPhongMaterial({color: 0xadd8e6, side: THREE.BackSide});
-        const room = new THREE.Mesh(roomGeometry, roomMaterial);
-        room.position.set(0, 2, 0);
-        scene.add(room);
+    // Gallery Room with PBR
+    const roomGeometry = new THREE.BoxGeometry(10, 4, 10);
+    const roomMaterial = new THREE.MeshStandardMaterial({color: 0xadd8e6, side: THREE.BackSide});
+    const room = new THREE.Mesh(roomGeometry, roomMaterial);
+    room.receiveShadow = true;
+    room.position.set(0, 2, 0);
+    scene.add(room);
 
-        // Checkerboard Floor
-        const tileSize = 1;
-        const tilesPerSide = 10;
-        const checkerboardGroup = new THREE.Group();
-
-        for (let x = 0; x < tilesPerSide; x++) {
-            for (let z = 0; z < tilesPerSide; z++) {
-                const geometry = new THREE.PlaneGeometry(tileSize, tileSize);
-                const material = new THREE.MeshBasicMaterial({
-                    color: (x + z) % 2 === 0 ? 0x000000 : 0xffffff,
-                    side: THREE.DoubleSide
-                });
-                const tile = new THREE.Mesh(geometry, material);
-                tile.position.x = (x - tilesPerSide / 2) * tileSize + tileSize / 2;
-                tile.position.z = (z - tilesPerSide / 2) * tileSize + tileSize / 2;
-                tile.rotation.x = -Math.PI / 2;
-                checkerboardGroup.add(tile);
-            }
+    // Checkerboard Floor with PBR
+    const tileSize = 1;
+    const tilesPerSide = 10;
+    const checkerboardGroup = new THREE.Group();
+    for (let x = 0; x < tilesPerSide; x++) {
+        for (let z = 0; z < tilesPerSide; z++) {
+            const geometry = new THREE.PlaneGeometry(tileSize, tileSize);
+            const material = new THREE.MeshStandardMaterial({
+                color: (x + z) % 2 === 0 ? 0x000000 : 0xffffff,
+                side: THREE.DoubleSide
+            });
+            const tile = new THREE.Mesh(geometry, material);
+            tile.castShadow = true;
+            tile.receiveShadow = true;
+            tile.position.x = (x - tilesPerSide / 2) * tileSize + tileSize / 2;
+            tile.position.z = (z - tilesPerSide / 2) * tileSize + tileSize / 2;
+            tile.rotation.x = -Math.PI / 2;
+            checkerboardGroup.add(tile);
         }
-        scene.add(checkerboardGroup);
-        checkerboardGroup.position.y = -0.01; // Slightly below the art pieces and room to avoid z-fighting
-
-        // Art Pieces
-        const artGeometry = new THREE.PlaneGeometry(2, 2);
-        const artMaterial = new THREE.MeshBasicMaterial({color: 0x123456});
-        const art = new THREE.Mesh(artGeometry, artMaterial);
-        art.position.set(0, 2, -4.99); // Slightly in front of the back wall
-        scene.add(art);
-
-        // Event Listeners
-        window.addEventListener('resize', onWindowResize, false);
     }
+    checkerboardGroup.position.y = -0.01;
+    scene.add(checkerboardGroup);
 
-    function onWindowResize() {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    }
+    // Art Pieces with PBR
+    const artGeometry = new THREE.PlaneGeometry(2, 2);
+    const artMaterial = new THREE.MeshStandardMaterial({color: 0x123456});
+    const art = new THREE.Mesh(artGeometry, artMaterial);
+    art.castShadow = true;
+    art.position.set(0, 2, -4.99);
+    scene.add(art);
 
-    function animate() {
-        renderer.setAnimationLoop(render);
-    }
+    window.addEventListener('resize', onWindowResize, false);
+}
 
-    function render() {
-        renderer.render(scene, camera);
-    }
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+    renderer.setAnimationLoop(render);
+}
+
+function render() {
+    renderer.render(scene, camera);
+}
 </script>
 
 </body>
