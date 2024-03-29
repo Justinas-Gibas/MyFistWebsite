@@ -38,7 +38,6 @@ function init() {
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
     camera.position.set(0, 1.6, 3);
 
-    // Enhanced Lighting
     const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
     scene.add(ambientLight);
 
@@ -47,7 +46,6 @@ function init() {
     directionalLight.castShadow = true;
     scene.add(directionalLight);
 
-    // Renderer
     renderer = new THREE.WebGLRenderer({antialias: true});
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -55,13 +53,18 @@ function init() {
     renderer.shadowMap.enabled = true;
     container.appendChild(renderer.domElement);
 
-    // Camera controls
     controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.6, 0);
     controls.update();
 
     document.body.appendChild(XRButton.createButton(renderer));
 
+    createGalleryBoundaries();
+    createCheckerboardFloor();
+    loadArtPieces();
+
+
+    function createGalleryBoundaries() {
     // Adding Thin White Boxes as Boundaries
     const boundaryMaterial = new THREE.MeshStandardMaterial({color: 0xffffff});
     const boundaryThickness = 0.05;
@@ -79,7 +82,9 @@ function init() {
         boundary.position.set(0, 0, z);
         scene.add(boundary);
     });
+    }
 
+    function createCheckerboardFloor() {    
     // Checkerboard Floor with PBR
     const tileSize = 1;
     const tilesPerSide = 10;
@@ -103,16 +108,21 @@ function init() {
     checkerboardGroup.position.y = -0.01;
     scene.add(checkerboardGroup);
 
-    // Art Pieces with Image Texture
+    }
+
+
+    function loadArtPieces() {
     const textureLoader = new THREE.TextureLoader();
     const artGeometry = new THREE.PlaneGeometry(2, 2);
-    textureLoader.load('Deeper/L2Web/img/BackWater.png', function(texture) {
+    textureLoader.load('BackWater.png', function(texture) {
         const artMaterial = new THREE.MeshStandardMaterial({map: texture});
         const art = new THREE.Mesh(artGeometry, artMaterial);
         art.castShadow = true;
         art.position.set(0, 2, -4.99);
         scene.add(art);
     });
+
+}
 
     window.addEventListener('resize', onWindowResize, false);
 }
