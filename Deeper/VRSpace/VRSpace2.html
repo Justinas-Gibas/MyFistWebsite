@@ -170,9 +170,22 @@ function createCheckerboardFloor(scene) {
             const art = new THREE.Mesh(artGeometry, artMaterial);
             art.castShadow = true;
             art.position.set(0, 2, -4.99);
+            art.userData = { clickable: true }; // Mark art as clickable
             scene.add(art);
+
+            // Event listener for double click/tap
+            art.addEventListener('dblclick', function(event) {
+                translateCameraToArt(art.position);
+            }, false);
         });
     }
+
+    function translateCameraToArt(targetPosition) {
+    // Assuming 'camera' is accessible in this context
+    // Smooth transition or animation logic goes here
+    camera.position.lerp(targetPosition, 0.5); // A simple lerp for demonstration; might need more complex animation
+    }
+
 
 function onWindowResize(camera, renderer) {
     camera.aspect = window.innerWidth / window.innerHeight;
