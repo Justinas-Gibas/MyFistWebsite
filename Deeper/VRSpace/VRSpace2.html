@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Three.js XR - Enhanced Virtual Art Gallery</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        body, html { margin: 0; height: 100%; overflow: hidden; }
+        canvas { width: 100%; height: 100%; display: block; }
+    </style>
+</head>
+<body>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "../lib/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from '../lib/controls/OrbitControls.js';
+import { XRButton } from '../lib/webxr/XRButton.js';
+
+function initGallery() {
+    const scene = new THREE.Scene();
+    const camera = setupCamera();
+    const renderer = setupRenderer();
+    setupLighting(scene);
+    setupControls(camera, renderer);
+    setupGallery(scene);
+    setupEventListeners();
+
+    function setupCamera() {
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
+        camera.position.set(0, 1.6, 3);
+        return camera;
+    }
+
+    function setupRenderer() {
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+        document.body.appendChild(XRButton.createButton(renderer));
+        return renderer;
+    }
+
+    function setupLighting(scene) {
+        const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 7.5);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+    }
+
+    function setupControls(camera, renderer) {
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.target.set(0, 1.6, 0);
+        controls.update();
+    }
+
+    function setupGallery(scene) {
+        createGalleryBoundaries(scene);
+        createCheckerboardFloor(scene);
+        loadArtPieces(scene);
+    }
+
+    function setupEventListeners() {
+        window.addEventListener('resize', () => onWindowResize(camera, renderer), false);
+    }
+
+    function animate() {
+        renderer.setAnimationLoop(() => render(scene, camera, renderer));
+    }
+
+    animate();
+}
+
+function createGalleryBoundaries() {
+    // Two materials for alternating colors
+    const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+    const grayMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
+
+    const boundaryHeight = 2; // Two units tall
+    const boundaryWidth = 1; // One unit wide
+    const roomSize = 10; // Room size to cover with walls
+
+    const wallPositions = createWallPositions(boundaryWidth, boundaryHeight, roomSize);
+
+    // Create and position walls based on the modular design with alternating colors
+    wallPositions.forEach((wallData, index) => {
+        const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
+        // Alternate materials based on index
+        const material = index % 2 === 0 ? whiteMaterial : grayMaterial;
+        const wall = new THREE.Mesh(geometry, material);
+        wall.position.set(...wallData.position);
+        wall.rotation.y = wallData.rotation;
+        scene.add(wall);
+    });
+}
+
+function createCheckerboardFloor() {    
+        // Checkerboard Floor with PBR
+        const tileSize = 1;
+        const tilesPerSide = 10;
+        const checkerboardGroup = new THREE.Group();
+        for (let x = 0; x < tilesPerSide; x++) {
+            for (let z = 0; z < tilesPerSide; z++) {
+                const geometry = new THREE.PlaneGeometry(tileSize, tileSize);
+                const material = new THREE.MeshStandardMaterial({
+                    color: (x + z) % 2 === 0 ? 0x000000 : 0xffffff,
+                    side: THREE.DoubleSide
+                });
+                const tile = new THREE.Mesh(geometry, material);
+                tile.castShadow = true;
+                tile.receiveShadow = true;
+                tile.position.x = (x - tilesPerSide / 2) * tileSize + tileSize / 2;
+                tile.position.z = (z - tilesPerSide / 2) * tileSize + tileSize / 2;
+                tile.rotation.x = -Math.PI / 2;
+                checkerboardGroup.add(tile);
+            }
+        }
+        checkerboardGroup.position.y = -0.01;
+        scene.add(checkerboardGroup);
+    }
+
+    function loadArtPieces() {
+        const textureLoader = new THREE.TextureLoader();
+        const artGeometry = new THREE.PlaneGeometry(2, 2);
+        textureLoader.load('BackWater.png', function(texture) {
+            const artMaterial = new THREE.MeshStandardMaterial({map: texture});
+            const art = new THREE.Mesh(artGeometry, artMaterial);
+            art.castShadow = true;
+            art.position.set(0, 2, -4.99);
+            scene.add(art);
+        });
+    }
+
+function onWindowResize(camera, renderer) {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function render(scene, camera, renderer) {
+    renderer.render(scene, camera);
+}
+
+initGallery();
+</script>
+
+</body>
+</html>
