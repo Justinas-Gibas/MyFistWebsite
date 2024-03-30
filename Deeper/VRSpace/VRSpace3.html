@@ -78,87 +78,64 @@ function setupGallery() {
 }
 
 function createGalleryBoundaries(scene) {
+    // Two materials for alternating colors
     const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
-    const blackMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+    const grayMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
 
-    const boundaryHeight = 2;
-    const boundaryWidth = 1;
-    const roomSize = 10;
-    const tilesPerSide = roomSize / boundaryWidth; // assuming the wall boundaryWidth matches the floor tile size
+    const boundaryHeight = 2; // Two units tall
+    const boundaryWidth = 1; // One unit wide
+    const roomSize = 10; // Room size to cover with walls
 
-    // Calculate wall colors to match the checkerboard floor
-    for (let i = 0; i < tilesPerSide; i++) {
-        for (let j = 0; j < tilesPerSide; j++) {
-            const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
-            // Calculate material based on checkerboard pattern
-            const material = ((i + j) % 2 === 0) ? blackMaterial : whiteMaterial;
+    const wallPositions = createWallPositions(boundaryWidth, boundaryHeight, roomSize);
 
-            // Front wall
-            const frontWall = new THREE.Mesh(geometry, material);
-            frontWall.position.set(i - roomSize / 2 + boundaryWidth / 2, boundaryHeight / 2, -roomSize / 2);
-            frontWall.rotation.y = Math.PI; // Rotate to face inside
-            scene.add(frontWall);
-
-            // Back wall
-            const backWall = new THREE.Mesh(geometry, material);
-            backWall.position.set(i - roomSize / 2 + boundaryWidth / 2, boundaryHeight / 2, roomSize / 2);
-            scene.add(backWall);
-
-            // Left wall
-            const leftWall = new THREE.Mesh(geometry, material);
-            leftWall.position.set(-roomSize / 2, boundaryHeight / 2, j - roomSize / 2 + boundaryWidth / 2);
-            leftWall.rotation.y = -Math.PI / 2; // Rotate to face inside
-            scene.add(leftWall);
-
-            // Right wall
-            const rightWall = new THREE.Mesh(geometry, material);
-            rightWall.position.set(roomSize / 2, boundaryHeight / 2, j - roomSize / 2 + boundaryWidth / 2);
-            rightWall.rotation.y = Math.PI / 2; // Rotate to face inside
-            scene.add(rightWall);
-        }
-    }
+    // Create and position walls based on the modular design with alternating colors
+    wallPositions.forEach((wallData, index) => {
+        const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
+        // Alternate materials based on row and column indices
+        const material = (wallData.rowIndex + wallData.colIndex) % 2 === 0 ? whiteMaterial : grayMaterial;
+        const wall = new THREE.Mesh(geometry, material);
+        wall.position.set(...wallData.position);
+        wall.rotation.y = wallData.rotation;
+        scene.add(wall);
+    });
 }
 
 function createWallPositions(width, height, size) {
+    // Number of planes needed for the length of the room
     const planesPerWall = Math.ceil(size / width);
     const halfSize = size / 2;
     const wallPositions = [];
-    const numberOfRows = 2; // Number of vertical rows of walls
-    const totalHeight = height * numberOfRows; // Total height after stacking walls
 
-    // Adjustments to include a second row of walls
-    for (let row = 0; row < numberOfRows; row++) {
-        // Front and Back walls
-        for (let i = 0; i < planesPerWall; i++) {
-            wallPositions.push({
-                position: [-halfSize + i * width + width / 2, (height / 2) + (row * height), -halfSize],
-                rotation: 0,
-                rowIndex: row,
-                colIndex: i
-            });
-            wallPositions.push({
-                position: [-halfSize + i * width + width / 2, (height / 2) + (row * height), halfSize],
-                rotation: Math.PI,
-                rowIndex: row,
-                colIndex: i
-            });
-        }
+    // Front and Back walls
+    for (let i = 0; i < planesPerWall; i++) {
+        wallPositions.push({
+            position: [-halfSize + i * width + width / 2, height / 2, -halfSize],
+            rotation: 0,
+            rowIndex: 0, // Front and Back walls have rowIndex 0
+            colIndex: i // Column index for horizontal alternation
+        });
+        wallPositions.push({
+            position: [-halfSize + i * width + width / 2, height / 2, halfSize],
+            rotation: Math.PI,
+            rowIndex: 0, // Front and Back walls have rowIndex 0
+            colIndex: i // Column index for horizontal alternation
+        });
+    }
 
-        // Left and Right walls
-        for (let i = 0; i < planesPerWall; i++) {
-            wallPositions.push({
-                position: [-halfSize, (height / 2) + (row * height), -halfSize + i * width + width / 2],
-                rotation: Math.PI / 2,
-                rowIndex: row,
-                colIndex: 0
-            });
-            wallPositions.push({
-                position: [halfSize, (height / 2) + (row * height), -halfSize + i * width + width / 2],
-                rotation: -Math.PI / 2,
-                rowIndex: row,
-                colIndex: 0
-            });
-        }
+    // Left and Right walls
+    for (let i = 0; i < planesPerWall; i++) {
+        wallPositions.push({
+            position: [-halfSize, height / 2, -halfSize + i * width + width / 2],
+            rotation: Math.PI / 2,
+            rowIndex: i, // Row index for vertical alternation
+            colIndex: 0 // Left and Right walls have colIndex 0
+        });
+        wallPositions.push({
+            position: [halfSize, height / 2, -halfSize + i * width + width / 2],
+            rotation: -Math.PI / 2,
+            rowIndex: i, // Row index for vertical alternation
+            colIndex: 0 // Left and Right walls have colIndex 0
+        });
     }
 
     return wallPositions;
@@ -219,7 +196,7 @@ function createCheckerboardFloor(scene) {
 
     function translateCameraToArt(targetPosition) {
         const startPosition = camera.position.clone();
-        const endPosition = targetPosition.clone();
+        const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 1)); // Adjust Z to stop in front of the artwork
         endPosition.y = camera.position.y; // Keep the camera at the same height
         let alpha = 0.0;
 
@@ -227,13 +204,20 @@ function createCheckerboardFloor(scene) {
             if (alpha < 1.0) {
                 alpha += 0.01; // Speed of the camera movement
                 camera.position.lerpVectors(startPosition, endPosition, alpha);
-                camera.lookAt(targetPosition); // Ensure the camera still looks at the target
+                camera.lookAt(targetPosition.x, targetPosition.y, targetPosition.z - 1); // Look at a point slightly in front of the artwork
                 requestAnimationFrame(animate);
+            } else {
+                updateOrbitControlsTarget(endPosition); // Update after animation completes
             }
         }
         animate();
     }
 
+function updateOrbitControlsTarget(newTarget) {
+    const controls = new OrbitControls(camera, renderer.domElement); // Assuming controls is accessible
+    controls.target.set(newTarget.x, newTarget.y, newTarget.z);
+    controls.update();
+}
 
     function checkForIntersections() {
         raycaster.setFromCamera(mouse, camera);
