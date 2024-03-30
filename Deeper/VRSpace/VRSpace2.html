@@ -170,12 +170,16 @@ function createCheckerboardFloor(scene) {
 function loadText(scene) {
     const loader = new FontLoader();
 
-    loader.parse('gentilis_regular.typeface.json');
-    
-        const textGeometry = new THREE.TextGeometry('The Art Title', {
+    loader.load('helvetiker_regular.typeface.json', function (font) {
+        const geometry = new THREE.TextGeometry('Hello Three.js!', {
             font: font,
-            size: 10,
-            height: 10,
+            size: 80,
+            height: 5,
+            curveSegments: 12,
+            bevelEnabled: true,
+            bevelThickness: 10,
+            bevelSize: 8,
+            bevelSegments: 5
         });
 
         const textMaterial = new THREE.MeshBasicMaterial({color: 0xaaaaaa});
