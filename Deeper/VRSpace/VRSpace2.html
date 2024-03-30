@@ -176,22 +176,22 @@ function loadText(scene) {
     loader.parse('gentilis_regular.typeface.json', function(font) {
         const textGeometry = new THREE.TextGeometry('The Art Title', {
             font: font,
-            size: 0.5,
-            height: 0.2,
+            size: 1,
+            height: 1,
             curveSegments: 12,
             bevelEnabled: true,
             bevelThickness: 0.03,
             bevelSize: 0.02,
             bevelOffset: 0,
-            bevelSegments: 5,
+            bevelSegments: 1,
         });
 
-        const textMaterial = new THREE.MeshBasicMaterial({color: 0xffaaff});
+        const textMaterial = new THREE.MeshBasicMaterial({color: 0xaaaaaa});
         const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
         // Adjust position to be on the other side of the painting
         textMesh.position.set(0, 2, -0.1); // Example position, adjust as needed
-        textMesh.rotation.y = Math.PI; // Rotate to face the opposite direction
+        textMesh.rotation.y = -Math.PI; // Rotate to face the opposite direction
 
         scene.add(textMesh);
     });
