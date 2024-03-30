@@ -32,7 +32,7 @@ function initGallery() {
     scene = new THREE.Scene();
     camera = setupCamera();
     renderer = setupRenderer();
-    
+
     setupLighting();
     setupControls();
     setupGallery();
@@ -91,8 +91,8 @@ function createGalleryBoundaries(scene) {
     // Create and position walls based on the modular design with alternating colors
     wallPositions.forEach((wallData, index) => {
         const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
-        // Alternate materials based on index
-        const material = index % 2 === 0 ? whiteMaterial : grayMaterial;
+        // Alternate materials based on row and column indices
+        const material = (wallData.rowIndex + wallData.colIndex) % 2 === 0 ? whiteMaterial : grayMaterial;
         const wall = new THREE.Mesh(geometry, material);
         wall.position.set(...wallData.position);
         wall.rotation.y = wallData.rotation;
@@ -110,11 +110,15 @@ function createWallPositions(width, height, size) {
     for (let i = 0; i < planesPerWall; i++) {
         wallPositions.push({
             position: [-halfSize + i * width + width / 2, height / 2, -halfSize],
-            rotation: 0
+            rotation: 0,
+            rowIndex: 0, // Front and Back walls have rowIndex 0
+            colIndex: i // Column index for horizontal alternation
         });
         wallPositions.push({
             position: [-halfSize + i * width + width / 2, height / 2, halfSize],
-            rotation: Math.PI
+            rotation: Math.PI,
+            rowIndex: 0, // Front and Back walls have rowIndex 0
+            colIndex: i // Column index for horizontal alternation
         });
     }
 
@@ -122,11 +126,15 @@ function createWallPositions(width, height, size) {
     for (let i = 0; i < planesPerWall; i++) {
         wallPositions.push({
             position: [-halfSize, height / 2, -halfSize + i * width + width / 2],
-            rotation: Math.PI / 2
+            rotation: Math.PI / 2,
+            rowIndex: i, // Row index for vertical alternation
+            colIndex: 0 // Left and Right walls have colIndex 0
         });
         wallPositions.push({
             position: [halfSize, height / 2, -halfSize + i * width + width / 2],
-            rotation: -Math.PI / 2
+            rotation: -Math.PI / 2,
+            rowIndex: i, // Row index for vertical alternation
+            colIndex: 0 // Left and Right walls have colIndex 0
         });
     }
 
