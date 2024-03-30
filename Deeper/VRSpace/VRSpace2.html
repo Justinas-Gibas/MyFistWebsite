@@ -23,80 +23,60 @@
 import * as THREE from 'three';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
-import { XRButton } from '../lib/webxr/XRButton.js';
+//import { XRButton } from '../lib/webxr/XRButton.js';
+
+let camera, scene, renderer; // Define these in a wider scope
 
 function initGallery() {
-    const scene = new THREE.Scene();
-    const camera = setupCamera();
-    const renderer = setupRenderer();
+    scene = new THREE.Scene();
+    camera = setupCamera();
+    renderer = setupRenderer();
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
-    setupLighting(scene);
-    setupControls(camera, renderer);
-    setupGallery(scene);
+
+    setupLighting();
+    setupControls();
+    setupGallery();
     setupEventListeners();
-
-    function setupCamera() {
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-        camera.position.set(0, 1.6, 3);
-        return camera;
-    }
-
-    function setupRenderer() {
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.ar.enabled = true;
-        renderer.xr.enabled = true;
-        document.body.appendChild(renderer.domElement);
-        document.body.appendChild(ARButton.createButton(renderer));
-        document.body.appendChild(XRButton.createButton(renderer));
-        return renderer;
-    }
-
-    function setupLighting(scene) {
-        const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
-        scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(5, 10, 7.5);
-        directionalLight.castShadow = true;
-        scene.add(directionalLight);
-    }
-
-    function setupControls(camera, renderer) {
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.target.set(0, 1.6, 0);
-        controls.update();
-    }
-
-    function setupGallery(scene) {
-        createGalleryBoundaries(scene);
-        createCheckerboardFloor(scene);
-        loadArtPieces(scene);
-    }
-
-    function setupEventListeners() {
-    window.addEventListener('resize', () => onWindowResize(camera, renderer), false);
-    
-    document.addEventListener('dblclick', onDoubleClick, false);
-    }
-
-    function onDoubleClick(event) {
-        // Calculate mouse position in normalized device coordinates
-        // (-1 to +1) for both components
-        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-        // Now, check for intersections
-        checkForIntersections();
-    }
-
-
-    function animate() {
-        renderer.setAnimationLoop(() => render(scene, camera, renderer));
-    }
-
     animate();
+}
+
+function setupCamera() {
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(0, 1.6, 3);
+    return camera;
+}
+
+function setupRenderer() {
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.xr.enabled = true;
+    document.body.appendChild(renderer.domElement);
+    document.body.appendChild(ARButton.createButton(renderer));
+    //document.body.appendChild(XRButton.createButton(renderer));
+    return renderer;
+}
+
+function setupLighting() {
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(5, 10, 7.5);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+}
+
+function setupControls() {
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.6, 0);
+    controls.update();
+}
+
+function setupGallery() {
+    createGalleryBoundaries(scene);
+    createCheckerboardFloor(scene);
+    loadArtPieces(scene);
 }
 
 function createGalleryBoundaries(scene) {
@@ -198,6 +178,16 @@ function createCheckerboardFloor(scene) {
         });
     }
 
+    function onDoubleClick(event) {
+        // Calculate mouse position in normalized device coordinates
+        // (-1 to +1) for both components
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        // Now, check for intersections
+        checkForIntersections();
+    }
+
     function translateCameraToArt(targetPosition) {
         const startPosition = camera.position.clone();
         const endPosition = targetPosition.clone();
@@ -234,7 +224,16 @@ function onWindowResize(camera, renderer) {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-function render(scene, camera, renderer) {
+function setupEventListeners() {
+    window.addEventListener('resize', () => onWindowResize(camera, renderer), false);
+    document.addEventListener('dblclick', onDoubleClick, false);
+}
+
+function animate() {
+    renderer.setAnimationLoop(() => render());
+}
+
+function render() {
     renderer.render(scene, camera);
 }
 
