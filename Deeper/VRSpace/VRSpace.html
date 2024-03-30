@@ -64,19 +64,22 @@ function init() {
     loadArtPieces();
 
     function createGalleryBoundaries() {
-    const boundaryMaterial = new THREE.MeshStandardMaterial({color: 0xffffff});
-    // Size for modular design
+    // Two materials for alternating colors
+    const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+    const grayMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
+
     const boundaryHeight = 2; // Two units tall
     const boundaryWidth = 1; // One unit wide
     const roomSize = 10; // Room size to cover with walls
 
-    // Create walls by calculating necessary number of planes and correct orientation
     const wallPositions = createWallPositions(boundaryWidth, boundaryHeight, roomSize);
 
-    // Create and position walls based on the modular design
-    wallPositions.forEach(wallData => {
+    // Create and position walls based on the modular design with alternating colors
+    wallPositions.forEach((wallData, index) => {
         const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
-        const wall = new THREE.Mesh(geometry, boundaryMaterial);
+        // Alternate materials based on index
+        const material = index % 2 === 0 ? whiteMaterial : grayMaterial;
+        const wall = new THREE.Mesh(geometry, material);
         wall.position.set(...wallData.position);
         wall.rotation.y = wallData.rotation;
         scene.add(wall);
