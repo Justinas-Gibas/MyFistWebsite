@@ -178,6 +178,16 @@ function createCheckerboardFloor(scene) {
         });
     }
 
+    function onDoubleClick(event) {
+        // Calculate mouse position in normalized device coordinates
+        // (-1 to +1) for both components
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        // Now, check for intersections
+        checkForIntersections();
+    }
+
     function translateCameraToArt(targetPosition) {
         const startPosition = camera.position.clone();
         const endPosition = targetPosition.clone();
