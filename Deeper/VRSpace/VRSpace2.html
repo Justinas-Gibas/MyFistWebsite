@@ -173,7 +173,7 @@ function createCheckerboardFloor(scene) {
 function loadText(scene) {
     const loader = new FontLoader();
 
-    loader.load('gentilis_regular.typeface.json', function(font) {
+    loader.load('/gentilis_regular.typeface.json', function(font) {
         const textGeometry = new THREE.TextGeometry('The Art Title', {
             font: font,
             size: 0.5,
