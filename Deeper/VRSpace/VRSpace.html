@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Three.js XR - Enhanced Virtual Art Gallery</title>
+    <title>Three.js AR/XR - Enhanced Virtual Art Gallery</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
@@ -22,63 +22,59 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
-import { XRButton } from '../lib/webxr/XRButton.js';
+import { ARButton } from '../lib/webxr/ARButton.js';
+
+let camera, scene, renderer, controls;
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
 
 function initGallery() {
-    const scene = new THREE.Scene();
-    const camera = setupCamera();
-    const renderer = setupRenderer();
-    setupLighting(scene);
-    setupControls(camera, renderer);
-    setupGallery(scene);
+    scene = new THREE.Scene();
+    camera = setupCamera();
+    renderer = setupRenderer();
+
+    setupLighting();
+    setupControls();
+    setupGallery();
     setupEventListeners();
-
-    function setupCamera() {
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-        camera.position.set(0, 1.6, 3);
-        return camera;
-    }
-
-    function setupRenderer() {
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.xr.enabled = true;
-        document.body.appendChild(renderer.domElement);
-        document.body.appendChild(XRButton.createButton(renderer));
-        return renderer;
-    }
-
-    function setupLighting(scene) {
-        const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
-        scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(5, 10, 7.5);
-        directionalLight.castShadow = true;
-        scene.add(directionalLight);
-    }
-
-    function setupControls(camera, renderer) {
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.target.set(0, 1.6, 0);
-        controls.update();
-    }
-
-    function setupGallery(scene) {
-        createGalleryBoundaries(scene);
-        createCheckerboardFloor(scene);
-        loadArtPieces(scene);
-    }
-
-    function setupEventListeners() {
-        window.addEventListener('resize', () => onWindowResize(camera, renderer), false);
-    }
-
-    function animate() {
-        renderer.setAnimationLoop(() => render(scene, camera, renderer));
-    }
-
     animate();
+}
+
+function setupCamera() {
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(0, 1.6, 3);
+    return camera;
+}
+
+function setupRenderer() {
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.xr.enabled = true;
+    document.body.appendChild(renderer.domElement);
+    document.body.appendChild(ARButton.createButton(renderer));
+    return renderer;
+}
+
+function setupLighting() {
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(5, 10, 7.5);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+}
+
+function setupControls() {
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.6, 0);
+    controls.update();
+}
+
+function setupGallery() {
+    createGalleryBoundaries(scene);
+    createCheckerboardFloor(scene);
+    loadArtPieces(scene);
 }
 
 function createGalleryBoundaries(scene) {
@@ -95,8 +91,8 @@ function createGalleryBoundaries(scene) {
     // Create and position walls based on the modular design with alternating colors
     wallPositions.forEach((wallData, index) => {
         const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
-        // Alternate materials based on index
-        const material = index % 2 === 0 ? whiteMaterial : grayMaterial;
+        // Alternate materials based on row and column indices
+        const material = (wallData.rowIndex + wallData.colIndex) % 2 === 0 ? whiteMaterial : grayMaterial;
         const wall = new THREE.Mesh(geometry, material);
         wall.position.set(...wallData.position);
         wall.rotation.y = wallData.rotation;
@@ -114,11 +110,15 @@ function createWallPositions(width, height, size) {
     for (let i = 0; i < planesPerWall; i++) {
         wallPositions.push({
             position: [-halfSize + i * width + width / 2, height / 2, -halfSize],
-            rotation: 0
+            rotation: 0,
+            rowIndex: 0, // Front and Back walls have rowIndex 0
+            colIndex: i // Column index for horizontal alternation
         });
         wallPositions.push({
             position: [-halfSize + i * width + width / 2, height / 2, halfSize],
-            rotation: Math.PI
+            rotation: Math.PI,
+            rowIndex: 0, // Front and Back walls have rowIndex 0
+            colIndex: i // Column index for horizontal alternation
         });
     }
 
@@ -126,11 +126,15 @@ function createWallPositions(width, height, size) {
     for (let i = 0; i < planesPerWall; i++) {
         wallPositions.push({
             position: [-halfSize, height / 2, -halfSize + i * width + width / 2],
-            rotation: Math.PI / 2
+            rotation: Math.PI / 2,
+            rowIndex: i, // Row index for vertical alternation
+            colIndex: 0 // Left and Right walls have colIndex 0
         });
         wallPositions.push({
             position: [halfSize, height / 2, -halfSize + i * width + width / 2],
-            rotation: -Math.PI / 2
+            rotation: -Math.PI / 2,
+            rowIndex: i, // Row index for vertical alternation
+            colIndex: 0 // Left and Right walls have colIndex 0
         });
     }
 
@@ -170,8 +174,61 @@ function createCheckerboardFloor(scene) {
             const art = new THREE.Mesh(artGeometry, artMaterial);
             art.castShadow = true;
             art.position.set(0, 2, -4.99);
+            art.userData = { clickable: true }; // Mark art as clickable
             scene.add(art);
+
+            // Event listener for double click/tap
+            art.addEventListener('dblclick', function(event) {
+                translateCameraToArt(art.position);
+            }, false);
         });
+    }
+
+    function onDoubleClick(event) {
+        // Calculate mouse position in normalized device coordinates
+        // (-1 to +1) for both components
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        // Now, check for intersections
+        checkForIntersections();
+    }
+
+    function translateCameraToArt(targetPosition) {
+        const startPosition = camera.position.clone();
+        const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
+        endPosition.y = camera.position.y; // Keep the camera at the same height
+        let alpha = 0.0;
+
+        function animate() {
+            if (alpha < 1.0) {
+                alpha += 0.01; // Speed of the camera movement
+                camera.position.lerpVectors(startPosition, endPosition, alpha);
+                camera.lookAt(targetPosition.x, targetPosition.y, targetPosition.z);
+                requestAnimationFrame(animate);
+            } else {
+                //updateOrbitControlsTarget(endPosition); // Update after animation completes
+            }
+        }
+        animate();
+        updateOrbitControlsTarget(targetPosition);
+    }
+
+    function updateOrbitControlsTarget(newTarget) {
+        controls.target.set(newTarget.x, newTarget.y, newTarget.z); // Update 'controls' directly
+        controls.update();
+    }
+
+    function checkForIntersections() {
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(scene.children);
+
+        for (let i = 0; i < intersects.length; i++) {
+            if (intersects[i].object.userData.clickable) {
+                translateCameraToArt(intersects[i].object.position);
+                break; // Assuming you want to interact with the first object the ray hits that is clickable
+            }
+        }
     }
 
 function onWindowResize(camera, renderer) {
@@ -180,7 +237,16 @@ function onWindowResize(camera, renderer) {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-function render(scene, camera, renderer) {
+function setupEventListeners() {
+    window.addEventListener('resize', () => onWindowResize(camera, renderer), false);
+    document.addEventListener('dblclick', onDoubleClick, false);
+}
+
+function animate() {
+    renderer.setAnimationLoop(() => render());
+}
+
+function render() {
     renderer.render(scene, camera);
 }
 
