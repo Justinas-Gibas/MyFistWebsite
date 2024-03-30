@@ -21,9 +21,9 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { FontLoader } from '../lib/loaders/FontLoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
-import { FontLoader } from '../lib/loaders/FontLoader.js';
 
 let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
@@ -177,7 +177,7 @@ function loadText(scene) {
             height: 0.1,
         });
 
-        const textMaterial = new THREE.MeshBasicMaterial({color: 0xffffff});
+        const textMaterial = new THREE.MeshBasicMaterial({color: 0xffaaff});
         const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
         // Adjust position to be on the other side of the painting
