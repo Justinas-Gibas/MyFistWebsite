@@ -25,6 +25,7 @@ import { FontLoader } from '../lib/loaders/FontLoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
 
+console.log(THREE);
 console.log(FontLoader);
 
 let camera, scene, renderer, controls;
@@ -170,7 +171,7 @@ function createCheckerboardFloor(scene) {
 }
 
 function loadText(scene) {
-    const loader = new THREE.FontLoader();
+    const loader = new FontLoader();
 
     loader.load('gentilis_regular.typeface.json', function(font) {
         const textGeometry = new THREE.TextGeometry('The Art Title', {
