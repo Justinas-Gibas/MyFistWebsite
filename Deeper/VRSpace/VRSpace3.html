@@ -77,38 +77,21 @@ function setupGallery() {
     loadArtPieces(scene);
 }
 
-function createGalleryBoundaries(scene, tileSize) {
+function createGalleryBoundaries(scene) {
+    // Two materials for alternating colors
     const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
     const grayMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
 
-    const boundaryHeight = 2;
-    const boundaryWidth = 1;
-    const roomSize = 10;
+    const boundaryHeight = 2; // Two units tall
+    const boundaryWidth = 1; // One unit wide
+    const roomSize = 10; // Room size to cover with walls
 
     const wallPositions = createWallPositions(boundaryWidth, boundaryHeight, roomSize);
 
-    // Create and position walls for the first row
+    // Create and position walls based on the modular design with alternating colors
     wallPositions.forEach((wallData, index) => {
         const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
-        const material = (wallData.rowIndex + wallData.colIndex) % 2 === 0 ? whiteMaterial : grayMaterial;
-        const wall = new THREE.Mesh(geometry, material);
-        wall.position.set(...wallData.position);
-        wall.rotation.y = wallData.rotation;
-        scene.add(wall);
-    });
-
-    // Create and position walls for the second row
-    const wallPositionsSecondRow = wallPositions.map(wallData => {
-        return {
-            position: [wallData.position[0], wallData.position[1], wallData.position[2] + tileSize],
-            rotation: wallData.rotation,
-            rowIndex: wallData.rowIndex,
-            colIndex: wallData.colIndex
-        };
-    });
-
-    wallPositionsSecondRow.forEach((wallData, index) => {
-        const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
+        // Alternate materials based on row and column indices
         const material = (wallData.rowIndex + wallData.colIndex) % 2 === 0 ? whiteMaterial : grayMaterial;
         const wall = new THREE.Mesh(geometry, material);
         wall.position.set(...wallData.position);
@@ -117,39 +100,46 @@ function createGalleryBoundaries(scene, tileSize) {
     });
 }
 
-
 function createWallPositions(width, height, size) {
     const planesPerWall = Math.ceil(size / width);
     const halfSize = size / 2;
     const wallPositions = [];
+    const numberOfRows = 2; // Number of vertical rows of walls
+    const totalHeight = height * numberOfRows; // Total height after stacking walls
 
-    for (let i = 0; i < planesPerWall; i++) {
-        wallPositions.push({
-            position: [-halfSize + i * width + width / 2, height / 2, -halfSize],
-            rotation: 0,
-            rowIndex: 0,
-            colIndex: i
-        });
-        wallPositions.push({
-            position: [-halfSize + i * width + width / 2, height / 2, halfSize],
-            rotation: Math.PI,
-            rowIndex: 0,
-            colIndex: i
-        });
+    // Adjustments to include a second row of walls
+    for (let row = 0; row < numberOfRows; row++) {
+        // Front and Back walls
+        for (let i = 0; i < planesPerWall; i++) {
+            wallPositions.push({
+                position: [-halfSize + i * width + width / 2, (height / 2) + (row * height), -halfSize],
+                rotation: 0,
+                rowIndex: row,
+                colIndex: i
+            });
+            wallPositions.push({
+                position: [-halfSize + i * width + width / 2, (height / 2) + (row * height), halfSize],
+                rotation: Math.PI,
+                rowIndex: row,
+                colIndex: i
+            });
+        }
 
-        // Add positions for the second row
-        wallPositions.push({
-            position: [-halfSize + i * width + width / 2, height / 2, -halfSize - size], // Adjust the z-position for the second row
-            rotation: 0,
-            rowIndex: 1,
-            colIndex: i
-        });
-        wallPositions.push({
-            position: [-halfSize + i * width + width / 2, height / 2, halfSize - size], // Adjust the z-position for the second row
-            rotation: Math.PI,
-            rowIndex: 1,
-            colIndex: i
-        });
+        // Left and Right walls
+        for (let i = 0; i < planesPerWall; i++) {
+            wallPositions.push({
+                position: [-halfSize, (height / 2) + (row * height), -halfSize + i * width + width / 2],
+                rotation: Math.PI / 2,
+                rowIndex: row,
+                colIndex: 0
+            });
+            wallPositions.push({
+                position: [halfSize, (height / 2) + (row * height), -halfSize + i * width + width / 2],
+                rotation: -Math.PI / 2,
+                rowIndex: row,
+                colIndex: 0
+            });
+        }
     }
 
     return wallPositions;
@@ -212,18 +202,12 @@ function createCheckerboardFloor(scene) {
         const startPosition = camera.position.clone();
         const endPosition = targetPosition.clone();
         endPosition.y = camera.position.y; // Keep the camera at the same height
-
-        const targetDirection = new THREE.Vector3().subVectors(targetPosition, camera.position).normalize();
-        const distance = camera.position.distanceTo(targetPosition);
-
-        const targetPositionAdjusted = new THREE.Vector3().copy(targetPosition).sub(targetDirection.multiplyScalar(distance));
-
         let alpha = 0.0;
 
         function animate() {
             if (alpha < 1.0) {
                 alpha += 0.01; // Speed of the camera movement
-                camera.position.lerpVectors(startPosition, targetPositionAdjusted, alpha);
+                camera.position.lerpVectors(startPosition, endPosition, alpha);
                 camera.lookAt(targetPosition); // Ensure the camera still looks at the target
                 requestAnimationFrame(animate);
             }
