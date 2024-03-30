@@ -23,17 +23,16 @@
 import * as THREE from 'three';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
-import { XRButton } from '../lib/webxr/XRButton.js';
 
-let camera, scene, renderer; // Define these in a wider scope
+let camera, scene, renderer;
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
 
 function initGallery() {
     scene = new THREE.Scene();
     camera = setupCamera();
     renderer = setupRenderer();
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
+    
     setupLighting();
     setupControls();
     setupGallery();
@@ -54,7 +53,6 @@ function setupRenderer() {
     renderer.xr.enabled = true;
     document.body.appendChild(renderer.domElement);
     document.body.appendChild(ARButton.createButton(renderer));
-    document.body.appendChild(XRButton.createButton(renderer));
     return renderer;
 }
 
