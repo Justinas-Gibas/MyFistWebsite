@@ -15,7 +15,6 @@
 {
   "imports": {
     "three": "../lib/three.module.js",
-    "FontLoader": "../lib/loaders/FontLoader.js"
   }
 }
 </script>
@@ -25,6 +24,8 @@ import * as THREE from 'three';
 import { FontLoader } from '../lib/loaders/FontLoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
+
+console.log(FontLoader);
 
 let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
