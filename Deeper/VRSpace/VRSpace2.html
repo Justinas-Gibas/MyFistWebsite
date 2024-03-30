@@ -25,9 +25,6 @@ import { FontLoader } from '../lib/loaders/FontLoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
 
-console.log(THREE);
-console.log(FontLoader);
-
 let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -173,17 +170,11 @@ function createCheckerboardFloor(scene) {
 function loadText(scene) {
     const loader = new FontLoader();
 
-    loader.parse('gentilis_regular.typeface.json', function(font) {
+    loader.parse('gentilis_regular.typeface.json', {
         const textGeometry = new THREE.TextGeometry('The Art Title', {
             font: font,
-            size: 1,
-            height: 1,
-            curveSegments: 12,
-            bevelEnabled: true,
-            bevelThickness: 0.03,
-            bevelSize: 0.02,
-            bevelOffset: 0,
-            bevelSegments: 1,
+            size: 10,
+            height: 10,
         });
 
         const textMaterial = new THREE.MeshBasicMaterial({color: 0xaaaaaa});
