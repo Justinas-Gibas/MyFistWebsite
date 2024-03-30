@@ -78,26 +78,45 @@ function setupGallery() {
 }
 
 function createGalleryBoundaries(scene) {
-    // Two materials for alternating colors
     const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
-    const grayMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
+    const blackMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
 
-    const boundaryHeight = 2; // Two units tall
-    const boundaryWidth = 1; // One unit wide
-    const roomSize = 10; // Room size to cover with walls
+    const boundaryHeight = 2;
+    const boundaryWidth = 1;
+    const roomSize = 10;
+    const tilesPerSide = roomSize / boundaryWidth; // assuming the wall boundaryWidth matches the floor tile size
 
-    const wallPositions = createWallPositions(boundaryWidth, boundaryHeight, roomSize);
+    // Calculate wall colors to match the checkerboard floor
+    for (let i = 0; i < tilesPerSide; i++) {
+        for (let j = 0; j < tilesPerSide; j++) {
+            const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
+            // Calculate material based on checkerboard pattern
+            const material = ((i + j) % 2 === 0) ? blackMaterial : whiteMaterial;
 
-    // Create and position walls based on the modular design with alternating colors
-    wallPositions.forEach((wallData, index) => {
-        const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
-        // Alternate materials based on row and column indices
-        const material = (wallData.rowIndex + wallData.colIndex) % 2 === 0 ? whiteMaterial : grayMaterial;
-        const wall = new THREE.Mesh(geometry, material);
-        wall.position.set(...wallData.position);
-        wall.rotation.y = wallData.rotation;
-        scene.add(wall);
-    });
+            // Front wall
+            const frontWall = new THREE.Mesh(geometry, material);
+            frontWall.position.set(i - roomSize / 2 + boundaryWidth / 2, boundaryHeight / 2, -roomSize / 2);
+            frontWall.rotation.y = Math.PI; // Rotate to face inside
+            scene.add(frontWall);
+
+            // Back wall
+            const backWall = new THREE.Mesh(geometry, material);
+            backWall.position.set(i - roomSize / 2 + boundaryWidth / 2, boundaryHeight / 2, roomSize / 2);
+            scene.add(backWall);
+
+            // Left wall
+            const leftWall = new THREE.Mesh(geometry, material);
+            leftWall.position.set(-roomSize / 2, boundaryHeight / 2, j - roomSize / 2 + boundaryWidth / 2);
+            leftWall.rotation.y = -Math.PI / 2; // Rotate to face inside
+            scene.add(leftWall);
+
+            // Right wall
+            const rightWall = new THREE.Mesh(geometry, material);
+            rightWall.position.set(roomSize / 2, boundaryHeight / 2, j - roomSize / 2 + boundaryWidth / 2);
+            rightWall.rotation.y = Math.PI / 2; // Rotate to face inside
+            scene.add(rightWall);
+        }
+    }
 }
 
 function createWallPositions(width, height, size) {
