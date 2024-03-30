@@ -173,7 +173,7 @@ function createCheckerboardFloor(scene) {
             const artMaterial = new THREE.MeshStandardMaterial({map: texture});
             const art = new THREE.Mesh(artGeometry, artMaterial);
             art.castShadow = true;
-            art.position.set(0, 0, 0);
+            art.position.set(0, 2, 0);
             art.userData = { clickable: true }; // Mark art as clickable
             scene.add(art);
 
