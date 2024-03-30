@@ -24,7 +24,7 @@ import * as THREE from 'three';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
 
-let camera, scene, renderer;
+let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
@@ -66,7 +66,7 @@ function setupLighting() {
 }
 
 function setupControls() {
-    const controls = new OrbitControls(camera, renderer.domElement);
+    controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.6, 0);
     controls.update();
 }
@@ -211,13 +211,13 @@ function createCheckerboardFloor(scene) {
             }
         }
         animate();
+        updateOrbitControlsTarget(targetPosition);
     }
 
-function updateOrbitControlsTarget(newTarget) {
-    const controls = new OrbitControls(camera, renderer.domElement); // Assuming controls is accessible
-    controls.target.set(newTarget.x, newTarget.y, newTarget.z);
-    controls.update();
-}
+    function updateOrbitControlsTarget(newTarget) {
+        controls.target.set(newTarget.x, newTarget.y, newTarget.z); // Update 'controls' directly
+        controls.update();
+    }
 
     function checkForIntersections() {
         raycaster.setFromCamera(mouse, camera);
