@@ -104,6 +104,39 @@ function createGalleryBoundaries() {
     });
 }
 
+function createWallPositions(width, height, size) {
+    // Number of planes needed for the length of the room
+    const planesPerWall = Math.ceil(size / width);
+    const halfSize = size / 2;
+    const wallPositions = [];
+
+    // Front and Back walls
+    for (let i = 0; i < planesPerWall; i++) {
+        wallPositions.push({
+            position: [-halfSize + i * width + width / 2, height / 2, -halfSize],
+            rotation: 0
+        });
+        wallPositions.push({
+            position: [-halfSize + i * width + width / 2, height / 2, halfSize],
+            rotation: Math.PI
+        });
+    }
+
+    // Left and Right walls
+    for (let i = 0; i < planesPerWall; i++) {
+        wallPositions.push({
+            position: [-halfSize, height / 2, -halfSize + i * width + width / 2],
+            rotation: Math.PI / 2
+        });
+        wallPositions.push({
+            position: [halfSize, height / 2, -halfSize + i * width + width / 2],
+            rotation: -Math.PI / 2
+        });
+    }
+
+    return wallPositions;
+}
+
 function createCheckerboardFloor() {    
         // Checkerboard Floor with PBR
         const tileSize = 1;
