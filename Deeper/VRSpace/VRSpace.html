@@ -64,47 +64,57 @@ function init() {
     loadArtPieces();
 
     function createGalleryBoundaries() {
-        const boundaryMaterial = new THREE.MeshStandardMaterial({color: 0xffffff});
-        // Updated size for modular design
-        const boundaryHeight = 2; // Two units tall
-        const boundaryWidth = 1; // One unit wide
-        const wallLength = 10; // Assuming 10 units long wall
-        
-        // Corrected modular walls array to define room size and ensure closure
-        const walls = [
-            // Front wall
-            createWallArray(boundaryWidth, boundaryHeight, wallLength, 0, boundaryHeight / 2, -wallLength / 2, Math.PI / 2),
-            // Back wall
-            createWallArray(boundaryWidth, boundaryHeight, wallLength, 0, boundaryHeight / 2, wallLength / 2, -Math.PI / 2),
-            // Left wall
-            createWallArray(boundaryWidth, boundaryHeight, wallLength, -wallLength / 2, boundaryHeight / 2, 0, 0),
-            // Right wall
-            createWallArray(boundaryWidth, boundaryHeight, wallLength, wallLength / 2, boundaryHeight / 2, 0, Math.PI)
-        ].flat();
+    const boundaryMaterial = new THREE.MeshStandardMaterial({color: 0xffffff});
+    // Size for modular design
+    const boundaryHeight = 2; // Two units tall
+    const boundaryWidth = 1; // One unit wide
+    const roomSize = 10; // Room size to cover with walls
 
-        // Create and position walls based on the modular design
-        walls.forEach(wallData => {
-            const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
-            const wall = new THREE.Mesh(geometry, boundaryMaterial);
-            wall.position.set(...wallData.pos);
-            wall.rotation.y = wallData.rot;
-            scene.add(wall);
+    // Create walls by calculating necessary number of planes and correct orientation
+    const wallPositions = createWallPositions(boundaryWidth, boundaryHeight, roomSize);
+
+    // Create and position walls based on the modular design
+    wallPositions.forEach(wallData => {
+        const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
+        const wall = new THREE.Mesh(geometry, boundaryMaterial);
+        wall.position.set(...wallData.position);
+        wall.rotation.y = wallData.rotation;
+        scene.add(wall);
+    });
+}
+
+function createWallPositions(width, height, size) {
+    // Number of planes needed for the length of the room
+    const planesPerWall = Math.ceil(size / width);
+    const halfSize = size / 2;
+    const wallPositions = [];
+
+    // Front and Back walls
+    for (let i = 0; i < planesPerWall; i++) {
+        wallPositions.push({
+            position: [-halfSize + i * width + width / 2, height / 2, -halfSize],
+            rotation: 0
+        });
+        wallPositions.push({
+            position: [-halfSize + i * width + width / 2, height / 2, halfSize],
+            rotation: Math.PI
         });
     }
 
-    // Function to create an array of walls to form one side of the gallery
-    function createWallArray(width, height, length, startX, startY, startZ, rotation) {
-        const numberOfPlanes = length / width;
-        const wallArray = [];
-        
-        for (let i = 0; i < numberOfPlanes; i++) {
-            const positionX = startX + (i * width) - (length / 2 - width / 2);
-            const positionZ = startZ;
-            wallArray.push({ pos: [positionX, startY, positionZ], rot: rotation });
-        }
-
-        return wallArray;
+    // Left and Right walls
+    for (let i = 0; i < planesPerWall; i++) {
+        wallPositions.push({
+            position: [-halfSize, height / 2, -halfSize + i * width + width / 2],
+            rotation: Math.PI / 2
+        });
+        wallPositions.push({
+            position: [halfSize, height / 2, -halfSize + i * width + width / 2],
+            rotation: -Math.PI / 2
+        });
     }
+
+    return wallPositions;
+}
 
     function createCheckerboardFloor() {    
         // Checkerboard Floor with PBR
