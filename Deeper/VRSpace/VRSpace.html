@@ -68,22 +68,19 @@ function init() {
         // Updated size for modular design
         const boundaryHeight = 2; // Two units tall
         const boundaryWidth = 1; // One unit wide
-
-        // Modular walls array to define room size
+        const wallLength = 10; // Assuming 10 units long wall
+        
+        // Corrected modular walls array to define room size and ensure closure
         const walls = [
-            // Front walls
-            { pos: [boundaryWidth, boundaryHeight / 2, -5], rot: Math.PI / 2 },
-            { pos: [-boundaryWidth, boundaryHeight / 2, -5], rot: Math.PI / 2 },
-            // Back walls
-            { pos: [boundaryWidth, boundaryHeight / 2, 5], rot: -Math.PI / 2 },
-            { pos: [-boundaryWidth, boundaryHeight / 2, 5], rot: -Math.PI / 2 },
-            // Left walls
-            { pos: [-5, boundaryHeight / 2, boundaryWidth], rot: 0 },
-            { pos: [-5, boundaryHeight / 2, -boundaryWidth], rot: 0 },
-            // Right walls
-            { pos: [5, boundaryHeight / 2, boundaryWidth], rot: Math.PI },
-            { pos: [5, boundaryHeight / 2, -boundaryWidth], rot: Math.PI }
-        ];
+            // Front wall
+            createWallArray(boundaryWidth, boundaryHeight, wallLength, 0, boundaryHeight / 2, -wallLength / 2, Math.PI / 2),
+            // Back wall
+            createWallArray(boundaryWidth, boundaryHeight, wallLength, 0, boundaryHeight / 2, wallLength / 2, -Math.PI / 2),
+            // Left wall
+            createWallArray(boundaryWidth, boundaryHeight, wallLength, -wallLength / 2, boundaryHeight / 2, 0, 0),
+            // Right wall
+            createWallArray(boundaryWidth, boundaryHeight, wallLength, wallLength / 2, boundaryHeight / 2, 0, Math.PI)
+        ].flat();
 
         // Create and position walls based on the modular design
         walls.forEach(wallData => {
@@ -93,6 +90,20 @@ function init() {
             wall.rotation.y = wallData.rot;
             scene.add(wall);
         });
+    }
+
+    // Function to create an array of walls to form one side of the gallery
+    function createWallArray(width, height, length, startX, startY, startZ, rotation) {
+        const numberOfPlanes = length / width;
+        const wallArray = [];
+        
+        for (let i = 0; i < numberOfPlanes; i++) {
+            const positionX = startX + (i * width) - (length / 2 - width / 2);
+            const positionZ = startZ;
+            wallArray.push({ pos: [positionX, startY, positionZ], rot: rotation });
+        }
+
+        return wallArray;
     }
 
     function createCheckerboardFloor() {    
@@ -121,17 +132,16 @@ function init() {
     }
 
     function loadArtPieces() {
-    const textureLoader = new THREE.TextureLoader();
-    const artGeometry = new THREE.PlaneGeometry(2, 2);
-    textureLoader.load('BackWater.png', function(texture) {
-        const artMaterial = new THREE.MeshStandardMaterial({map: texture});
-        const art = new THREE.Mesh(artGeometry, artMaterial);
-        art.castShadow = true;
-        art.position.set(0, 2, -4.99);
-        scene.add(art);
-    });
-
-}
+        const textureLoader = new THREE.TextureLoader();
+        const artGeometry = new THREE.PlaneGeometry(2, 2);
+        textureLoader.load('BackWater.png', function(texture) {
+            const artMaterial = new THREE.MeshStandardMaterial({map: texture});
+            const art = new THREE.Mesh(artGeometry, artMaterial);
+            art.castShadow = true;
+            art.position.set(0, 2, -4.99);
+            scene.add(art);
+        });
+    }
 
     window.addEventListener('resize', onWindowResize, false);
 }
