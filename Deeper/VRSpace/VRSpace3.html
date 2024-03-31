@@ -311,10 +311,11 @@ function animate() {
 }
 
 function render() {
+    stats.begin();
     renderer.render(scene, camera);
+    stats.end();
 }
 
-stats.update(); 
 initGallery();
 </script>
 
