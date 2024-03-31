@@ -260,28 +260,31 @@ function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
     const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
 
+    // Calculate the direct look-at quaternion for the initial camera position
     const startQuaternion = camera.quaternion.clone();
-
-    // Calculate the desired end look-at position, possibly adjusting Y to match camera's current Y to minimize vertical movement
-    const lookAtPosition = new THREE.Vector3(targetPosition.x, camera.position.y, targetPosition.z);
-
-    // Create a dummy object for calculating the end quaternion towards the adjusted look-at position
-    const dummy = new THREE.Object3D();
-    dummy.position.copy(camera.position);
-    dummy.lookAt(lookAtPosition);
-    const endQuaternion = dummy.quaternion;
+    const targetLookAtQuaternion = new THREE.Quaternion().setFromUnitVectors(
+        camera.up, 
+        new THREE.Vector3().subVectors(targetPosition, camera.position).normalize()
+    );
 
     let alpha = 0.0;
 
     function animate() {
         if (alpha < 1.0) {
-            alpha += 0.01; // Speed of the camera movement
+            alpha += 0.02; // Adjust speed as necessary
+
+            // Interpolate camera position
             camera.position.lerpVectors(startPosition, endPosition, alpha);
-            camera.quaternion.slerpQuaternions(startQuaternion, endQuaternion, alpha);
+
+            // Interpolate camera quaternion to smoothly transition to looking at the target
+            THREE.Quaternion.slerp(startQuaternion, targetLookAtQuaternion, camera.quaternion, alpha);
+
             requestAnimationFrame(animate);
         } else {
-            // Optionally, update orbit controls target here, if needed
-            updateOrbitControlsTarget(targetPosition); // Update after animation completes
+            // After completing the movement, explicitly set the camera to look at the artwork
+            camera.lookAt(targetPosition);
+            // Optionally update orbit controls target here, if used
+            updateOrbitControlsTarget(targetPosition);
         }
     }
     animate();
