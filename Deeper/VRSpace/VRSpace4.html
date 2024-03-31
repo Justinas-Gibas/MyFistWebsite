@@ -260,13 +260,10 @@ function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
     const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
 
-    // Create a dummy object to use for calculating the lookAt quaternion
-    const dummy = new THREE.Object3D();
-    dummy.position.copy(camera.position);
-    dummy.lookAt(targetPosition);
+    // Instead of using a dummy object for the quaternion, we maintain the camera's original orientation or slightly adjust it towards the target
     const startQuaternion = camera.quaternion.clone();
-    const endQuaternion = dummy.quaternion;
-
+    
+    // Directly lerp the camera's position and adjust its quaternion to look at the target smoothly
     let alpha = 0.0;
 
     function animate() {
@@ -274,8 +271,10 @@ function translateCameraToArt(targetPosition) {
             alpha += 0.01; // Speed of the camera movement
             camera.position.lerpVectors(startPosition, endPosition, alpha);
 
-            // Corrected slerp usage
-            camera.quaternion.slerpQuaternions(startQuaternion, endQuaternion, alpha);
+            // Adjust the camera to look at the target position gradually
+            // This approach keeps the camera's up vector aligned with the global up and prevents side rotations
+            const lookAtPosition = targetPosition.clone();
+            camera.lookAt(lookAtPosition.x, lookAtPosition.y, lookAtPosition.z);
 
             requestAnimationFrame(animate);
         } else {
@@ -284,8 +283,6 @@ function translateCameraToArt(targetPosition) {
         }
     }
     animate();
-    // Assuming you want to update this immediately, but it might depend on your application's logic
-    //updateOrbitControlsTarget(targetPosition);
 }
 
 function updateOrbitControlsTarget(newTarget) {
