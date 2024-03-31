@@ -273,7 +273,7 @@ function translateCameraToArt(targetPosition) {
             camera.position.lerpVectors(startPosition, endPosition, alpha);
 
             // During the initial animation, smoothly transition the rotation
-            if (alpha <= 0.5) { // Adjust the threshold as needed
+            if (alpha <= 0.2) { // Adjust the threshold as needed
                 camera.quaternion.slerpQuaternions(startQuaternion, endQuaternion, alpha * 2); // Speed up slerp in the first half
             } else {
                 // Once the initial slerp is done, continuously face the art
