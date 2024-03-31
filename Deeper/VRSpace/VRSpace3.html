@@ -203,7 +203,7 @@ function loadText(scene) {
         const maxCharsPerLine = 30;
         const lineHeight = 0.15;
 
-        const lines = wrapText('Your long text that needs to be wrapped goes here.  Autoriai: JK, AK, JG.', maxCharsPerLine);
+        const lines = wrapText('Our long text that needs to be wrapped goes here.  Autoriai: JK, AK, JG.', maxCharsPerLine);
 
         lines.forEach((line, index) => {
             const textGeometry = new TextGeometry(line, {

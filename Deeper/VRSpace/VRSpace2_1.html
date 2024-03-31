@@ -203,7 +203,7 @@ function loadText(scene) {
         const maxCharsPerLine = 30;
         const lineHeight = 0.15;
 
-        const lines = wrapText('Your long text that needs to be wrapped goes here.  Autorius Justinas Gibas', maxCharsPerLine);
+        const lines = wrapText('Our long text that needs to be wrapped goes here. . .      AA             AA           ą  č  ę  ė  į  š  ų  ū  9  0  -  ž ||,                   Autorai: JK, AK, JG', maxCharsPerLine);
 
         lines.forEach((line, index) => {
             const textGeometry = new TextGeometry(line, {
@@ -258,33 +258,28 @@ function onDoubleClick(event) {
 
 function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
-    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3));
-
-    const startQuaternion = camera.quaternion.clone();
-    camera.lookAt(targetPosition);
-    const endQuaternion = camera.quaternion.clone();
-    camera.quaternion.copy(startQuaternion);
+    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust to position in front of the artwork
 
     let alpha = 0.0;
 
     function animate() {
         if (alpha < 1.0) {
-            alpha += 0.02; // Adjust speed as necessary
-            camera.position.lerpVectors(startPosition, endPosition, alpha);
+            alpha += 0.01; // Incrementally increase alpha towards 1
 
-            // During the initial animation, smoothly transition the rotation
-            if (alpha <= 0.2) { // Adjust the threshold as needed
-                camera.quaternion.slerpQuaternions(startQuaternion, endQuaternion, alpha * 2); // Speed up slerp in the first half
-            } else {
-                // Once the initial slerp is done, continuously face the art
-                camera.lookAt(targetPosition);
-            }
+            // Lerp the camera's position towards the end position
+            camera.position.lerpVectors(startPosition, endPosition, alpha);
+            
+            // Dynamically calculate the direction vector from the camera to the target
+            const direction = new THREE.Vector3().subVectors(targetPosition, camera.position).normalize();
+            // Create a quaternion that represents the orientation needed to look at the target
+            const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
+            
+            // Slerp the camera's quaternion towards the dynamically calculated target quaternion
+            camera.quaternion.slerp(targetQuaternion, Math.min(alpha * 2, 1)); // Accelerate rotation if needed
 
             requestAnimationFrame(animate);
         } else {
-            // Ensure the camera is directly facing the artwork at the end
-            camera.position.copy(endPosition);
-            camera.lookAt(targetPosition);
+            // Optional: Update orbit controls target after animation completes
             updateOrbitControlsTarget(targetPosition);
         }
     }
