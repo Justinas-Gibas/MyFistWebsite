@@ -258,14 +258,11 @@ function onDoubleClick(event) {
 
 function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
-    // Adjust the end position if needed
     const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3));
 
     const startQuaternion = camera.quaternion.clone();
-    // Initial look-at orientation towards the target
     camera.lookAt(targetPosition);
     const endQuaternion = camera.quaternion.clone();
-    // Reset camera to original orientation to start the animation
     camera.quaternion.copy(startQuaternion);
 
     let alpha = 0.0;
@@ -274,13 +271,20 @@ function translateCameraToArt(targetPosition) {
         if (alpha < 1.0) {
             alpha += 0.02; // Adjust speed as necessary
             camera.position.lerpVectors(startPosition, endPosition, alpha);
-            camera.quaternion.slerpQuaternions(startQuaternion, endQuaternion, alpha);
+
+            // During the initial animation, smoothly transition the rotation
+            if (alpha <= 0.5) { // Adjust the threshold as needed
+                camera.quaternion.slerpQuaternions(startQuaternion, endQuaternion, alpha * 2); // Speed up slerp in the first half
+            } else {
+                // Once the initial slerp is done, continuously face the art
+                camera.lookAt(targetPosition);
+            }
+
             requestAnimationFrame(animate);
         } else {
-            // Directly face the artwork by setting the camera to look at the target position again
+            // Ensure the camera is directly facing the artwork at the end
             camera.position.copy(endPosition);
             camera.lookAt(targetPosition);
-            // Optionally, update orbit controls target here, if used
             updateOrbitControlsTarget(targetPosition);
         }
     }
