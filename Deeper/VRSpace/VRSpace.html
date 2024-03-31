@@ -257,10 +257,12 @@ function animate() {
     renderer.setAnimationLoop(() => render());
 }
 
+
 function render() {
     renderer.render(scene, camera);
 }
 
+stats.update();
 initGallery();
 </script>
 
