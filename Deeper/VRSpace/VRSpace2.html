@@ -169,10 +169,10 @@ function createCheckerboardFloor(scene) {
 }
 
 function loadText(scene) {
-    const loader = new FontLoader();
+    const textloader = new FontLoader();
 
-    loader.load('helvetiker_regular.typeface.json', function (font) {
-        const textgeometry = new TextGeometry('Paveikslo Pavadinimas', {
+    textloader.load('helvetiker_regular.typeface.json', function (font) {
+        const textGeometry = new TextGeometry('Paveikslo Pavadinimas', {
             font: font,
             size: 80,
             height: 5,
@@ -180,7 +180,7 @@ function loadText(scene) {
             bevelEnabled: true,
             bevelThickness: 10,
             bevelSize: 8,
-            bevelSegments: 5
+            bevelSegments: 3
         });
 
         const textMaterial = new THREE.MeshBasicMaterial({color: 0xaaaaaa});
