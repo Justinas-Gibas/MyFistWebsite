@@ -192,7 +192,7 @@ function loadText(scene) {
         const maxCharsPerLine = 30;
         const lineHeight = 0.15;
 
-        const lines = wrapText('Your long text that needs to be wrapped goes here', maxCharsPerLine);
+        const lines = wrapText('Your long text that needs to be wrapped goes here.  Autorius Justinas Gibas', maxCharsPerLine);
 
         lines.forEach((line, index) => {
             const textGeometry = new TextGeometry(line, {
@@ -208,7 +208,7 @@ function loadText(scene) {
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
             // Adjust Y position based on the line index
-            textMesh.position.set(1, 2 - (index * lineHeight), -0.1); // Adjust X and Z as needed
+            textMesh.position.set(1.2, 2.5 - (index * lineHeight), -0.01); // Adjust X and Z as needed
             //textMesh.rotation.y = -Math.PI; // Rotate to face the opposite direction
 
             scene.add(textMesh);
