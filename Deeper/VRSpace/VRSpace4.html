@@ -274,13 +274,13 @@ function translateCameraToArt(targetPosition) {
             alpha += 0.01; // Speed of the camera movement
             camera.position.lerpVectors(startPosition, endPosition, alpha);
 
-            // Slerp the camera's quaternion
-            THREE.Quaternion.slerp(startQuaternion, endQuaternion, camera.quaternion, alpha);
+            // Corrected slerp usage
+            camera.quaternion.slerpQuaternions(startQuaternion, endQuaternion, alpha);
 
             requestAnimationFrame(animate);
         } else {
             // Optionally update orbit controls target here, if needed
-            //updateOrbitControlsTarget(endPosition); // Update after animation completes
+            updateOrbitControlsTarget(targetPosition); // Update after animation completes
         }
     }
     animate();
