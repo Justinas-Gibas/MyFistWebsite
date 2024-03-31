@@ -258,22 +258,31 @@ function onDoubleClick(event) {
 
 function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
-    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
-    endPosition.y = camera.position.y; // Keep the camera at the same height
-    let alpha = 0.0;
+    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to keep a distance from the artwork
+    let alpha = 0.0; // Used for linear interpolation of position
+
+    // Calculate the target rotation towards the art
+    const targetQuaternion = new THREE.Quaternion();
+    const lookAtTarget = new THREE.Object3D(); // Temporary object for calculating look-at quaternion
+    lookAtTarget.position.copy(targetPosition);
+    lookAtTarget.lookAt(targetPosition);
+    targetQuaternion.copy(lookAtTarget.quaternion);
 
     function animate() {
         if (alpha < 1.0) {
-            alpha += 0.01; // Speed of the camera movement
-            camera.position.lerpVectors(startPosition, endPosition, alpha);
+            alpha += 0.01; // Speed of the camera movement and rotation
+            camera.position.lerpVectors(startPosition, endPosition, alpha); // Interpolate position
+
+            THREE.Quaternion.slerp(camera.quaternion, targetQuaternion, camera.quaternion, alpha); // Interpolate rotation
+
             camera.lookAt(targetPosition.x, targetPosition.y, targetPosition.z);
             requestAnimationFrame(animate);
         } else {
-            //updateOrbitControlsTarget(endPosition); // Update after animation completes
+            // Optionally adjust orbit controls target here if using them
+            updateOrbitControlsTarget(targetPosition);
         }
     }
     animate();
-    updateOrbitControlsTarget(targetPosition);
 }
 
 function updateOrbitControlsTarget(newTarget) {
