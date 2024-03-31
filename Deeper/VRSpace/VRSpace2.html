@@ -219,7 +219,7 @@ function loadText(scene) {
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
             // Adjust Y position based on the line index
-            textMesh.position.set(1.2, 2.5 - (index * lineHeight), -0.01); // Adjust X and Z as needed
+            textMesh.position.set(1.2, 2.5 - (index * lineHeight), -4.01); // Adjust X and Z as needed
             //textMesh.rotation.y = -Math.PI; // Rotate to face the opposite direction
 
             scene.add(textMesh);
@@ -234,7 +234,7 @@ function loadArtPieces(scene) {
         const artMaterial = new THREE.MeshStandardMaterial({map: texture});
         const art = new THREE.Mesh(artGeometry, artMaterial);
         art.castShadow = true;
-        art.position.set(0, 2, 0);
+        art.position.set(0, 2, -4);
         art.userData = { clickable: true }; // Mark art as clickable
         scene.add(art);
 
