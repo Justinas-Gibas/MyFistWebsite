@@ -258,27 +258,30 @@ function onDoubleClick(event) {
 
 function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
-    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to position the camera in front of the artwork
+    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust to position in front of the artwork
     
-    // Calculate the direction vector from the camera to the target
-    const direction = new THREE.Vector3().subVectors(targetPosition, camera.position).normalize();
-    // Create a quaternion that represents the orientation needed to look at the target
-    const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
-
+    // Create a temporary camera for calculating the target rotation
+    const tempCamera = camera.clone();
+    tempCamera.position.copy(camera.position); // Ensure it has the same position as the real camera
+    tempCamera.lookAt(targetPosition); // Rotate it to look at the target
+    
+    const targetQuaternion = tempCamera.quaternion; // This is now our target rotation
+    
     let alpha = 0.0;
 
     function animate() {
         if (alpha < 1.0) {
             alpha += 0.01; // Speed of the movement and rotation
             
+            // Lerp the camera's position towards the target position
             camera.position.lerpVectors(startPosition, endPosition, alpha);
             
-            // Use Quaternion.slerpQuaternions for a smoother interpolation
-            THREE.Quaternion.slerpQuaternions(camera.quaternion, targetQuaternion, camera.quaternion, alpha);
+            // Slerp the camera's quaternion towards the target quaternion
+            camera.quaternion.slerp(targetQuaternion, alpha);
 
             requestAnimationFrame(animate);
         } else {
-            // After the animation completes, you might want to update the orbit controls target
+            // Optional: Update orbit controls target after animation completes
             updateOrbitControlsTarget(targetPosition);
         }
     }
