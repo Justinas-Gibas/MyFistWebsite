@@ -269,15 +269,26 @@ function translateCameraToArt(targetPosition) {
     
     let alpha = 0.0;
 
+    function translateCameraToArt(targetPosition) {
+    const startPosition = camera.position.clone();
+    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust to position in front of the artwork
+
+    let alpha = 0.0;
+
     function animate() {
         if (alpha < 1.0) {
-            alpha += 0.01; // Speed of the movement and rotation
-            
-            // Lerp the camera's position towards the target position
+            alpha += 0.01; // Incrementally increase alpha towards 1
+
+            // Lerp the camera's position towards the end position
             camera.position.lerpVectors(startPosition, endPosition, alpha);
             
-            // Slerp the camera's quaternion towards the target quaternion
-            camera.quaternion.slerp(targetQuaternion, alpha);
+            // Dynamically calculate the direction vector from the camera to the target
+            const direction = new THREE.Vector3().subVectors(targetPosition, camera.position).normalize();
+            // Create a quaternion that represents the orientation needed to look at the target
+            const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
+            
+            // Slerp the camera's quaternion towards the dynamically calculated target quaternion
+            camera.quaternion.slerp(targetQuaternion, Math.min(alpha * 2, 1)); // Accelerate rotation if needed
 
             requestAnimationFrame(animate);
         } else {
