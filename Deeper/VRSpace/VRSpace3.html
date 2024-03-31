@@ -261,7 +261,7 @@ function onDoubleClick(event) {
 function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
     const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
-    endPosition.y = camera.position.y; // Keep the camera at the same height
+    //endPosition.y = camera.position.y; // Keep the camera at the same height
     let alpha = 0.0;
 
     function animate() {
