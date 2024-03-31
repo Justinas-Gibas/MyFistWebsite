@@ -260,20 +260,21 @@ function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
     const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
     
-    // Create a temporary Object3D to aim at the target and get the target rotation
-    const tempObject = new THREE.Object3D();
-    tempObject.lookAt(targetPosition);
-    const targetQuaternion = tempObject.quaternion;
-
+    // Correct the approach to calculate the target quaternion
+    camera.lookAt(targetPosition); // Temporarily point the camera towards the target
+    const targetQuaternion = camera.quaternion.clone(); // Copy the quaternion after rotation
+    camera.quaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'XYZ')); // Reset camera rotation
+    
     let alpha = 0.0;
 
     function animate() {
         if (alpha < 1.0) {
             alpha += 0.01; // Speed of the movement and rotation
-
+            
+            // Lerp camera position
             camera.position.lerpVectors(startPosition, endPosition, alpha);
             
-            // Correct use of slerp for quaternion interpolation
+            // Slerp camera rotation
             camera.quaternion.slerp(targetQuaternion, alpha);
 
             requestAnimationFrame(animate);
