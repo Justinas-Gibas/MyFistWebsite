@@ -258,30 +258,41 @@ function onDoubleClick(event) {
 
 function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
-    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
-    //endPosition.y = camera.position.y; // Keep the camera at the same height
+    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, -3)); // Adjust for a comfortable viewing distance
 
-    const startQuaternion = camera.quaternion.clone();
-    camera.lookAt(targetPosition); // Temporarily look at target to get desired end quaternion
+    // Look at the target position to calculate the end rotation
+    camera.lookAt(targetPosition);
     const endQuaternion = camera.quaternion.clone();
-    camera.quaternion.copy(startQuaternion); // Reset to original rotation
+
+    // Reset camera to its original rotation
+    camera.quaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'XYZ'));
+    camera.position.copy(startPosition);
 
     let alpha = 0.0;
 
-    function animate() {
-        if (alpha < 1.0) {
-            alpha += 0.01; // Speed of the camera movement and rotation
-            camera.position.lerpVectors(startPosition, endPosition, alpha);
-            THREE.Quaternion.slerp(startQuaternion, endQuaternion, camera.quaternion, alpha);
-            requestAnimationFrame(animate);
+    function animateTransition() {
+        alpha += 0.01; // Adjust this value to control the speed of the animation
+
+        // Interpolate position
+        camera.position.lerpVectors(startPosition, endPosition, alpha);
+
+        // Interpolate rotation using slerp
+        THREE.Quaternion.slerp(camera.quaternion, endQuaternion, camera.quaternion, alpha);
+
+        if (alpha < 1) {
+            requestAnimationFrame(animateTransition);
         } else {
-            // Optionally, directly set the final position and rotation for precision
+            // Ensure the final position and orientation are set precisely
             camera.position.copy(endPosition);
             camera.quaternion.copy(endQuaternion);
-            updateOrbitControlsTarget(targetPosition); // Ensure controls are updated if used
+            if (controls) {
+                controls.target.set(targetPosition.x, targetPosition.y, targetPosition.z);
+                controls.update();
+            }
         }
     }
-    animate();
+
+    animateTransition();
 }
 
 function updateOrbitControlsTarget(newTarget) {
