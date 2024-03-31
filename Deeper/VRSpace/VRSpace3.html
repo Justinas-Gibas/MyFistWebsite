@@ -38,6 +38,9 @@ let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
+const stats = new Stats();
+document.body.appendChild(stats.dom);
+
 function initGallery() {
     scene = new THREE.Scene();
     camera = setupCamera();
