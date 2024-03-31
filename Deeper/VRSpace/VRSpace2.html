@@ -168,27 +168,49 @@ function createCheckerboardFloor(scene) {
     scene.add(checkerboardGroup);
 }
 
+function wrapText(text, maxCharsPerLine) {
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = words[0];
+
+    for (let i = 1; i < words.length; i++) {
+        if ((currentLine + words[i]).length < maxCharsPerLine) {
+            currentLine += ' ' + words[i];
+        } else {
+            lines.push(currentLine);
+            currentLine = words[i];
+        }
+    }
+    lines.push(currentLine); // Add the last line
+
+    return lines;
+}
+
 function loadText(scene) {
-    const textloader = new FontLoader();
+    const loader = new FontLoader();
+    loader.load('helvetiker_regular.typeface.json', function (font) {
+        const maxCharsPerLine = 60;
+        const lineHeight = 0.15;
 
-    textloader.load('helvetiker_regular.typeface.json', function (font) {
-        const textGeometry = new TextGeometry('Paveikslo Pavadinimas', {
-            font: font,
-            size: 0.1,
-            height: 1,
-            depth: 0.01,
-            curveSegments: 12,
-            bevelEnabled: false,
+        const lines = wrapText('Your long text that needs to be wrapped goes here', maxCharsPerLine);
+
+        lines.forEach((line, index) => {
+            const textGeometry = new TextGeometry(line, {
+                font: font,
+                size: 0.1,
+                height: 0.01,
+                curveSegments: 12,
+                bevelEnabled: false,
+            });
+
+            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+
+            // Adjust Y position based on the line index
+            textMesh.position.set(1, 2 - (index * lineHeight), -0.1); // Adjust X and Z as needed
+
+            scene.add(textMesh);
         });
-
-        const textMaterial = new THREE.MeshBasicMaterial({color: 0xaaaaaa});
-        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-
-        // Adjust position to be on the other side of the painting
-        textMesh.position.set(1, 2, -0.1); // Example position, adjust as needed
-        textMesh.rotation.y = -Math.PI; // Rotate to face the opposite direction
-
-        scene.add(textMesh);
     });
 }
 
