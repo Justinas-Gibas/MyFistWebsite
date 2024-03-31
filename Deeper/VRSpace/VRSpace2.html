@@ -85,8 +85,8 @@ function setupControls() {
 }
 
 function setupGallery() {
-    //createGalleryBoundaries(scene);
-    //createCheckerboardFloor(scene);
+    createGalleryBoundaries(scene);
+    createCheckerboardFloor(scene);
     loadArtPieces(scene);
 }
 
@@ -238,7 +238,6 @@ function loadArtPieces(scene) {
         art.userData = { clickable: true }; // Mark art as clickable
         scene.add(art);
 
-        // Now also load text
         loadText(scene);
 
         // Event listener for double click/tap
@@ -254,7 +253,6 @@ function onDoubleClick(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    // Now, check for intersections
     checkForIntersections();
 }
 
