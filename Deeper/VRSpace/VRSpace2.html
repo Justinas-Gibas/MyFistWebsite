@@ -259,26 +259,31 @@ function onDoubleClick(event) {
 function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
     const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
-    //endPosition.y = camera.position.y; // Keep the camera at the same height
+    
+    // New: Determine the target quaternion for rotation
+    const tempObject = new THREE.Object3D();
+    tempObject.position.copy(targetPosition);
+    tempObject.lookAt(camera.position);
+    const targetQuaternion = tempObject.quaternion.clone();
+
     let alpha = 0.0;
 
     function animate() {
         if (alpha < 1.0) {
-            alpha += 0.01; // Speed of the camera movement
+            alpha += 0.01; // Speed of the movement and rotation
             camera.position.lerpVectors(startPosition, endPosition, alpha);
-            camera.lookAt(targetPosition.x, targetPosition.y, targetPosition.z);
+            
+            // New: Slerp camera rotation
+            THREE.Quaternion.slerp(camera.quaternion, targetQuaternion, camera.quaternion, alpha);
+
             requestAnimationFrame(animate);
         } else {
-            //updateOrbitControlsTarget(endPosition); // Update after animation completes
+            // Optional: Update orbit controls target after animation completes
+            //updateOrbitControlsTarget(targetPosition);
         }
     }
     animate();
     updateOrbitControlsTarget(targetPosition);
-}
-
-function updateOrbitControlsTarget(newTarget) {
-    controls.target.set(newTarget.x, newTarget.y, newTarget.z); // Update 'controls' directly
-    controls.update();
 }
 
 function updateOrbitControlsTarget(newTarget) {
