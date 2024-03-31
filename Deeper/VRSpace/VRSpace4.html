@@ -256,7 +256,7 @@ function onDoubleClick(event) {
     checkForIntersections();
 }
 
-function translateCameraToArtAndRotate(targetPosition) {
+function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
     const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
 
@@ -285,7 +285,7 @@ function translateCameraToArtAndRotate(targetPosition) {
     }
     animate();
     // Assuming you want to update this immediately, but it might depend on your application's logic
-    updateOrbitControlsTarget(targetPosition);
+    //updateOrbitControlsTarget(targetPosition);
 }
 
 function updateOrbitControlsTarget(newTarget) {
