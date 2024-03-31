@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Three.js AR/XR - Enhanced Virtual Art Gallery</title>
+    <meta charset="UTF-8">
+    
+    <meta name="author" content="Justinas Gibas" />
+    <meta name="description" content="Three.js AR/XR - Enhanced Virtual Art Gallery">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ffffff">
+
+    <style>
+        body, html { margin: 0; height: 100%; overflow: hidden; }
+        canvas { width: 100%; height: 100%; display: block; }
+    </style>
+</head>
+<body>
+
+<script async src="../lib/utils/es-module-shims.js"></script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "../lib/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { FontLoader } from '../lib/loaders/FontLoader.js';
+import { TextGeometry } from '../lib/utils/TextGeometry.js';
+import { OrbitControls } from '../lib/controls/OrbitControls.js';
+import { ARButton } from '../lib/webxr/ARButton.js';
+import Stats from '../lib/libs/stats.module.js'
+
+let camera, scene, renderer, controls;
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+const stats = new Stats();
+document.body.appendChild(stats.dom);
+
+function initGallery() {
+    scene = new THREE.Scene();
+    camera = setupCamera();
+    renderer = setupRenderer();
+
+    setupLighting();
+    setupControls();
+    setupGallery();
+    setupEventListeners();
+    animate();
+}
+
+function setupCamera() {
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(0, 1.6, 3);
+    return camera;
+}
+
+function setupRenderer() {
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.xr.enabled = true;
+    document.body.appendChild(renderer.domElement);
+    document.body.appendChild(ARButton.createButton(renderer));
+    return renderer;
+}
+
+function setupLighting() {
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(5, 10, 7.5);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+}
+
+function setupControls() {
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.6, 0);
+    controls.update();
+}
+
+function setupGallery() {
+    createGalleryBoundaries(scene);
+    createCheckerboardFloor(scene);
+    loadArtPieces(scene);
+}
+
+function createGalleryBoundaries(scene) {
+    // Two materials for alternating colors
+    const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+    const grayMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
+
+    const boundaryHeight = 2; // Two units tall
+    const boundaryWidth = 1; // One unit wide
+    const roomSize = 10; // Room size to cover with walls
+
+    const wallPositions = createWallPositions(boundaryWidth, boundaryHeight, roomSize);
+
+    // Create and position walls based on the modular design with alternating colors
+    wallPositions.forEach((wallData, index) => {
+        const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
+        // Alternate materials based on row and column indices
+        const material = (wallData.rowIndex + wallData.colIndex) % 2 === 0 ? whiteMaterial : grayMaterial;
+        const wall = new THREE.Mesh(geometry, material);
+        wall.position.set(...wallData.position);
+        wall.rotation.y = wallData.rotation;
+        scene.add(wall);
+    });
+}
+
+function createWallPositions(width, height, size) {
+    // Number of planes needed for the length of the room
+    const planesPerWall = Math.ceil(size / width);
+    const halfSize = size / 2;
+    const wallPositions = [];
+
+    // Front and Back walls
+    for (let i = 0; i < planesPerWall; i++) {
+        wallPositions.push({
+            position: [-halfSize + i * width + width / 2, height / 2, -halfSize],
+            rotation: 0,
+            rowIndex: 0, // Front and Back walls have rowIndex 0
+            colIndex: i // Column index for horizontal alternation
+        });
+        wallPositions.push({
+            position: [-halfSize + i * width + width / 2, height / 2, halfSize],
+            rotation: Math.PI,
+            rowIndex: 0, // Front and Back walls have rowIndex 0
+            colIndex: i // Column index for horizontal alternation
+        });
+    }
+
+    // Left and Right walls
+    for (let i = 0; i < planesPerWall; i++) {
+        wallPositions.push({
+            position: [-halfSize, height / 2, -halfSize + i * width + width / 2],
+            rotation: Math.PI / 2,
+            rowIndex: i, // Row index for vertical alternation
+            colIndex: 0 // Left and Right walls have colIndex 0
+        });
+        wallPositions.push({
+            position: [halfSize, height / 2, -halfSize + i * width + width / 2],
+            rotation: -Math.PI / 2,
+            rowIndex: i, // Row index for vertical alternation
+            colIndex: 0 // Left and Right walls have colIndex 0
+        });
+    }
+
+    return wallPositions;
+}
+
+function createCheckerboardFloor(scene) {    
+    // Checkerboard Floor with PBR
+    const tileSize = 1;
+    const tilesPerSide = 10;
+    const checkerboardGroup = new THREE.Group();
+    for (let x = 0; x < tilesPerSide; x++) {
+        for (let z = 0; z < tilesPerSide; z++) {
+            const geometry = new THREE.PlaneGeometry(tileSize, tileSize);
+            const material = new THREE.MeshStandardMaterial({
+                color: (x + z) % 2 === 0 ? 0x000000 : 0xffffff,
+                side: THREE.DoubleSide
+            });
+            const tile = new THREE.Mesh(geometry, material);
+            tile.castShadow = true;
+            tile.receiveShadow = true;
+            tile.position.x = (x - tilesPerSide / 2) * tileSize + tileSize / 2;
+            tile.position.z = (z - tilesPerSide / 2) * tileSize + tileSize / 2;
+            tile.rotation.x = -Math.PI / 2;
+            checkerboardGroup.add(tile);
+        }
+    }
+    checkerboardGroup.position.y = -0.01;
+    scene.add(checkerboardGroup);
+}
+
+function wrapText(text, maxCharsPerLine) {
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = words[0];
+
+    for (let i = 1; i < words.length; i++) {
+        if ((currentLine + words[i]).length < maxCharsPerLine) {
+            currentLine += ' ' + words[i];
+        } else {
+            lines.push(currentLine);
+            currentLine = words[i];
+        }
+    }
+    lines.push(currentLine); // Add the last line
+
+    return lines;
+}
+
+function loadText(scene) {
+    const loader = new FontLoader();
+    loader.load('helvetiker_regular.typeface.json', function (font) {
+        const maxCharsPerLine = 30;
+        const lineHeight = 0.15;
+
+        const lines = wrapText('Your long text that needs to be wrapped goes here.  Autorius Justinas Gibas', maxCharsPerLine);
+
+        lines.forEach((line, index) => {
+            const textGeometry = new TextGeometry(line, {
+                font: font,
+                size: 0.1,
+                height: 0.01,
+                depth: 0,
+                curveSegments: 4,
+                bevelEnabled: false,
+            });
+
+            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+
+            // Adjust Y position based on the line index
+            textMesh.position.set(1.2, 2.5 - (index * lineHeight), -4.01); // Adjust X and Z as needed
+            //textMesh.rotation.y = -Math.PI; // Rotate to face the opposite direction
+
+            scene.add(textMesh);
+        });
+    });
+}
+
+function loadArtPieces(scene) {
+    const textureLoader = new THREE.TextureLoader();
+    const artGeometry = new THREE.PlaneGeometry(2, 2);
+    textureLoader.load('BackWater.png', function(texture) {
+        const artMaterial = new THREE.MeshStandardMaterial({map: texture});
+        const art = new THREE.Mesh(artGeometry, artMaterial);
+        art.castShadow = true;
+        art.position.set(0, 2, -4);
+        art.userData = { clickable: true }; // Mark art as clickable
+        scene.add(art);
+
+        loadText(scene);
+
+        // Event listener for double click/tap
+        art.addEventListener('dblclick', function(event) {
+            translateCameraToArt(art.position);
+        }, false);
+    });
+}
+
+function onDoubleClick(event) {
+    // Calculate mouse position in normalized device coordinates
+    // (-1 to +1) for both components
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    checkForIntersections();
+}
+
+function translateCameraToArtAndRotate(targetPosition) {
+    const startPosition = camera.position.clone();
+    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
+
+    // Create a dummy object to use for calculating the lookAt quaternion
+    const dummy = new THREE.Object3D();
+    dummy.position.copy(camera.position);
+    dummy.lookAt(targetPosition);
+    const startQuaternion = camera.quaternion.clone();
+    const endQuaternion = dummy.quaternion;
+
+    let alpha = 0.0;
+
+    function animate() {
+        if (alpha < 1.0) {
+            alpha += 0.01; // Speed of the camera movement
+            camera.position.lerpVectors(startPosition, endPosition, alpha);
+
+            // Slerp the camera's quaternion
+            THREE.Quaternion.slerp(startQuaternion, endQuaternion, camera.quaternion, alpha);
+
+            requestAnimationFrame(animate);
+        } else {
+            // Optionally update orbit controls target here, if needed
+            //updateOrbitControlsTarget(endPosition); // Update after animation completes
+        }
+    }
+    animate();
+    // Assuming you want to update this immediately, but it might depend on your application's logic
+    updateOrbitControlsTarget(targetPosition);
+}
+
+function updateOrbitControlsTarget(newTarget) {
+    controls.target.set(newTarget.x, newTarget.y, newTarget.z); // Update 'controls' directly
+    controls.update();
+}
+
+function checkForIntersections() {
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children);
+
+    for (let i = 0; i < intersects.length; i++) {
+        if (intersects[i].object.userData.clickable) {
+            translateCameraToArt(intersects[i].object.position);
+            break; // Assuming you want to interact with the first object the ray hits that is clickable
+        }
+    }
+}
+
+function onWindowResize(camera, renderer) {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function setupEventListeners() {
+    window.addEventListener('resize', () => onWindowResize(camera, renderer), false);
+    document.addEventListener('dblclick', onDoubleClick, false);
+}
+
+function animate() {
+    renderer.setAnimationLoop(() => render());
+}
+
+function render() {
+    stats.begin();
+    renderer.render(scene, camera);
+    stats.end();
+}
+
+initGallery();
+</script>
+
+</body>
+</html>
