@@ -258,41 +258,27 @@ function onDoubleClick(event) {
 
 function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
-    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, -3)); // Adjust for a comfortable viewing distance
-
-    // Look at the target position to calculate the end rotation
-    camera.lookAt(targetPosition);
-    const endQuaternion = camera.quaternion.clone();
-
-    // Reset camera to its original rotation
-    camera.quaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'XYZ'));
-    camera.position.copy(startPosition);
-
+    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
+    //endPosition.y = camera.position.y; // Keep the camera at the same height
     let alpha = 0.0;
 
-    function animateTransition() {
-        alpha += 0.01; // Adjust this value to control the speed of the animation
-
-        // Interpolate position
-        camera.position.lerpVectors(startPosition, endPosition, alpha);
-
-        // Interpolate rotation using slerp
-        THREE.Quaternion.slerp(camera.quaternion, endQuaternion, camera.quaternion, alpha);
-
-        if (alpha < 1) {
-            requestAnimationFrame(animateTransition);
+    function animate() {
+        if (alpha < 1.0) {
+            alpha += 0.01; // Speed of the camera movement
+            camera.position.lerpVectors(startPosition, endPosition, alpha);
+            camera.lookAt(targetPosition.x, targetPosition.y, targetPosition.z);
+            requestAnimationFrame(animate);
         } else {
-            // Ensure the final position and orientation are set precisely
-            camera.position.copy(endPosition);
-            camera.quaternion.copy(endQuaternion);
-            if (controls) {
-                controls.target.set(targetPosition.x, targetPosition.y, targetPosition.z);
-                controls.update();
-            }
+            //updateOrbitControlsTarget(endPosition); // Update after animation completes
         }
     }
+    animate();
+    updateOrbitControlsTarget(targetPosition);
+}
 
-    animateTransition();
+function updateOrbitControlsTarget(newTarget) {
+    controls.target.set(newTarget.x, newTarget.y, newTarget.z); // Update 'controls' directly
+    controls.update();
 }
 
 function updateOrbitControlsTarget(newTarget) {
