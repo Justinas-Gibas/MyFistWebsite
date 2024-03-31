@@ -260,30 +260,29 @@ function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
     const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
     
-    // New: Determine the target quaternion for rotation
+    // Create a temporary Object3D to aim at the target and get the target rotation
     const tempObject = new THREE.Object3D();
-    tempObject.position.copy(targetPosition);
-    tempObject.lookAt(camera.position);
-    const targetQuaternion = tempObject.quaternion.clone();
+    tempObject.lookAt(targetPosition);
+    const targetQuaternion = tempObject.quaternion;
 
     let alpha = 0.0;
 
     function animate() {
         if (alpha < 1.0) {
             alpha += 0.01; // Speed of the movement and rotation
+
             camera.position.lerpVectors(startPosition, endPosition, alpha);
             
-            // New: Slerp camera rotation
-            THREE.Quaternion.slerp(camera.quaternion, targetQuaternion, camera.quaternion, alpha);
+            // Correct use of slerp for quaternion interpolation
+            camera.quaternion.slerp(targetQuaternion, alpha);
 
             requestAnimationFrame(animate);
         } else {
             // Optional: Update orbit controls target after animation completes
-            //updateOrbitControlsTarget(targetPosition);
+            updateOrbitControlsTarget(targetPosition);
         }
     }
     animate();
-    updateOrbitControlsTarget(targetPosition);
 }
 
 function updateOrbitControlsTarget(newTarget) {
