@@ -258,30 +258,29 @@ function onDoubleClick(event) {
 
 function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
-    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
+    // Adjust the end position if needed
+    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3));
 
-    // Calculate the direct look-at quaternion for the initial camera position
     const startQuaternion = camera.quaternion.clone();
-    const targetLookAtQuaternion = new THREE.Quaternion().setFromUnitVectors(
-        camera.up, 
-        new THREE.Vector3().subVectors(targetPosition, camera.position).normalize()
-    );
+    // Calculate the direct look-at quaternion for the end position
+    const dummy = new THREE.Object3D();
+    dummy.position.copy(camera.position);
+    dummy.lookAt(targetPosition);
+    const endQuaternion = dummy.quaternion;
 
     let alpha = 0.0;
 
     function animate() {
         if (alpha < 1.0) {
             alpha += 0.02; // Adjust speed as necessary
-
-            // Interpolate camera position
             camera.position.lerpVectors(startPosition, endPosition, alpha);
 
-            // Interpolate camera quaternion to smoothly transition to looking at the target
-            THREE.Quaternion.slerp(startQuaternion, targetLookAtQuaternion, camera.quaternion, alpha);
+            // Correct usage: slerpQuaternions for quaternion interpolation
+            camera.quaternion.slerpQuaternions(startQuaternion, endQuaternion, alpha);
 
             requestAnimationFrame(animate);
         } else {
-            // After completing the movement, explicitly set the camera to look at the artwork
+            // Make sure the camera is precisely aimed at the target position
             camera.lookAt(targetPosition);
             // Optionally update orbit controls target here, if used
             updateOrbitControlsTarget(targetPosition);
