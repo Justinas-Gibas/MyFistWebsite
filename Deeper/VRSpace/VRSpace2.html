@@ -259,19 +259,6 @@ function onDoubleClick(event) {
 function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
     const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust to position in front of the artwork
-    
-    // Create a temporary camera for calculating the target rotation
-    const tempCamera = camera.clone();
-    tempCamera.position.copy(camera.position); // Ensure it has the same position as the real camera
-    tempCamera.lookAt(targetPosition); // Rotate it to look at the target
-    
-    const targetQuaternion = tempCamera.quaternion; // This is now our target rotation
-    
-    let alpha = 0.0;
-
-    function translateCameraToArt(targetPosition) {
-    const startPosition = camera.position.clone();
-    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust to position in front of the artwork
 
     let alpha = 0.0;
 
