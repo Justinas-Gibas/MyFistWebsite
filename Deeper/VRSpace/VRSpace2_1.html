@@ -166,6 +166,9 @@ function loadText(scene, text, position, rotation) {
             const finalPosition = new THREE.Vector3().copy(position).add(rightDirection.multiplyScalar(xOffset));
             textMesh.position.set(finalPosition.x, position.y + yOffset, finalPosition.z);
 
+            // Apply the artwork's rotation to the text
+            textMesh.rotation.set(rotation.x, rotation.y, rotation.z);
+
             scene.add(textMesh);
         });
     });
