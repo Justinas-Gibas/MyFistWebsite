@@ -156,17 +156,20 @@ function loadText(scene, text, position, rotation) {
             const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-            // Calculate position offset using artwork rotation
-            const xOffset = Math.cos(rotation.y) * 1.5; // Adjust xOffset if necessary
-            const zOffset = Math.sin(rotation.y) * 1.5; // Adjust zOffset to ensure text faces outward
+            // Adjust text position relative to the artwork's rotation
+            const xOffset = 2; // Distance from the artwork to the right
+            const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
+            const rightDirection = new THREE.Vector3(1, 0, 0); // Right direction in local space
+            rightDirection.applyEuler(new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ')); // Apply artwork rotation
 
-            textMesh.position.set(position.x + xOffset, position.y - (index * lineHeight), position.z + zOffset);
-            textMesh.lookAt(camera.position); // Ensure text faces the camera
+            // Calculate final position
+            const finalPosition = new THREE.Vector3().copy(position).add(rightDirection.multiplyScalar(xOffset));
+            textMesh.position.set(finalPosition.x, position.y + yOffset, finalPosition.z);
+
             scene.add(textMesh);
         });
     });
 }
-
 
 function loadArtPieces(scene, artworks) {
     const textureLoader = new THREE.TextureLoader();
