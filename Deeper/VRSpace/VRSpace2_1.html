@@ -158,7 +158,7 @@ function loadText(scene, text, position, rotation) {
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
             // Calculate text position based on artwork's rotation
-            const xOffset = Math.cos(rotation.y) * 2.5; // 2.5 units to the right of the artwork
+            const xOffset = Math.cos(rotation.y) * 1; // 2.5 units to the right of the artwork
             const zOffset = Math.sin(rotation.y) * 2.5; // Adjust based on the artwork's facing direction
 
             textMesh.position.set(position.x + xOffset, position.y - (index * lineHeight), position.z + zOffset);
