@@ -194,9 +194,14 @@ function onDoubleClick(event) {
     checkForIntersections();
 }
 
-function translateCameraToArt(targetPosition) {
+function translateCameraToArt(targetPosition, targetRotation) {
     const startPosition = camera.position.clone();
-    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust to position in front of the artwork. we need to update this so it respects the art work rotation
+    const endPosition = targetPosition.clone(); // Assume we're moving directly in front of the artwork
+
+    // Calculate offsets based on the artwork's orientation
+    const offsetX = Math.cos(targetRotation.y) * 3; // Distance in front of the artwork
+    const offsetZ = Math.sin(targetRotation.y) * 3; // Adjust based on the artwork's facing direction
+    endPosition.add(new THREE.Vector3(offsetX, 0, offsetZ));
 
     let alpha = 0.0;
 
@@ -206,18 +211,15 @@ function translateCameraToArt(targetPosition) {
 
             // Lerp the camera's position towards the end position
             camera.position.lerpVectors(startPosition, endPosition, alpha);
-            
-            // Dynamically calculate the direction vector from the camera to the target
+
+            // Optionally, adjust camera's orientation to face the artwork
             const direction = new THREE.Vector3().subVectors(targetPosition, camera.position).normalize();
-            // Create a quaternion that represents the orientation needed to look at the target
             const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
-            
-            // Slerp the camera's quaternion towards the dynamically calculated target quaternion
-            camera.quaternion.slerp(targetQuaternion, Math.min(alpha * 2, 1)); // Accelerate rotation if needed
+            camera.quaternion.slerp(targetQuaternion, Math.min(alpha * 2, 1)); // Adjust rotation speed if necessary
 
             requestAnimationFrame(animate);
         } else {
-            // Optional: Update orbit controls target after animation completes
+            // After moving the camera, adjust orbit controls target to ensure smooth user interaction
             updateOrbitControlsTarget(targetPosition);
         }
     }
@@ -235,7 +237,8 @@ function checkForIntersections() {
 
     for (let i = 0; i < intersects.length; i++) {
         if (intersects[i].object.userData.clickable) {
-            translateCameraToArt(intersects[i].object.position);
+            const artworkRotation = intersects[i].object.rotation;
+            translateCameraToArt(intersects[i].object.position, artworkRotation);
             break; // Assuming you want to interact with the first object the ray hits that is clickable
         }
     }
