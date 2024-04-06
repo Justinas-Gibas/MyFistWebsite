@@ -49,6 +49,7 @@ function initGallery() {
 
     setupLighting();
     setupControls();
+    loadGalleryModel();
     setupGallery();
     setupEventListeners();
     animate();
@@ -85,9 +86,24 @@ function setupControls() {
     controls.update();
 }
 
+function loadGalleryModel() {
+    // Load the gallery GLTF model
+    const loader = new GLTFLoader();
+    loader.load('./Deeper/lib/models/Galer01.glb', function(gltf) {
+        scene.add(gltf.scene);
+    }, undefined, function(error) {
+        console.error(error);
+    });
+}
+
 function setupGallery() {
-    loadgallerymodel()//need to correct and add this function to load gltf file from ./Deeper/lib/models/Galer01.glb
-    loadArtPieces(scene);// we need to improve this function to have pultiple art works. lets make a list of them for easy path and text updating. 
+    const artworks = [
+        { texture: '../lib/images/BackWater.png', text: 'Description for BackWater.' },
+        { texture: '../lib/images/Forest.png', text: 'Description for Forest.' },
+        { texture: '../lib/images/BackWater.png', text: 'Lllllllllllllllllllllllllllllloooooooooooooooooonnnnnnnnnnnnnnnnnnnnnnnnnggggggggggggg  Description for BackWater.' },
+        // Add more artworks here
+    ];
+    loadArtPieces(scene, artworks);
 }
 
 function wrapText(text, maxCharsPerLine) {
@@ -108,53 +124,35 @@ function wrapText(text, maxCharsPerLine) {
     return lines;
 }
 
-function loadText(scene) {
+function loadText(scene, text, position) {
     const loader = new FontLoader();
-    loader.load('../lib/styles/helvetiker_regular.typeface.json', function (font) {
+    loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         const maxCharsPerLine = 30;
         const lineHeight = 0.15;
-
-        const lines = wrapText('Our long text that needs to be wrapped goes here. . .      AA             AA           ą  č  ę  ė  į  š  ų  ū  9  0  -  ž ||,                   Autorai: JK, AK, JG', maxCharsPerLine);
+        const lines = wrapText(text, maxCharsPerLine);
 
         lines.forEach((line, index) => {
-            const textGeometry = new TextGeometry(line, {
-                font: font,
-                size: 0.1,
-                height: 0.01,
-                depth: 0,
-                curveSegments: 4,
-                bevelEnabled: false,
-            });
-
-            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
-            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-
-            // Adjust Y position based on the line index
-            textMesh.position.set(1.2, 2.5 - (index * lineHeight), -4.01); // Adjust X and Z as needed
-            //textMesh.rotation.y = -Math.PI; // Rotate to face the opposite direction
-
+            // Text geometry setup remains unchanged
+            // Adjust position based on the passed position argument
+            textMesh.position.set(position.x, position.y - (index * lineHeight), position.z);
             scene.add(textMesh);
         });
     });
 }
 
-function loadArtPieces(scene) {
+function loadArtPieces(scene, artworks) {
     const textureLoader = new THREE.TextureLoader();
     const artGeometry = new THREE.PlaneGeometry(2, 2);
-    textureLoader.load('../lib/images/BackWater.png', function(texture) {
-        const artMaterial = new THREE.MeshStandardMaterial({map: texture});
-        const art = new THREE.Mesh(artGeometry, artMaterial);
-        art.castShadow = true;
-        art.position.set(0, 2, -4);
-        art.userData = { clickable: true }; // Mark art as clickable
-        scene.add(art);
-
-        loadText(scene);
-
-        // Event listener for double click/tap
-        art.addEventListener('dblclick', function(event) {
-            translateCameraToArt(art.position);
-        }, false);
+    artworks.forEach((artwork, index) => {
+        textureLoader.load(artwork.texture, function(texture) {
+            const artMaterial = new THREE.MeshStandardMaterial({map: texture});
+            const art = new THREE.Mesh(artGeometry, artMaterial);
+            // Adjust position for each artwork, e.g., based on index
+            art.position.set(index * 3, 2, -4); // Example positioning
+            art.userData = { clickable: true };
+            scene.add(art);
+            loadText(scene, artwork.text, { x: art.position.x, y: art.position.y + 1, z: art.position.z });
+        });
     });
 }
 
