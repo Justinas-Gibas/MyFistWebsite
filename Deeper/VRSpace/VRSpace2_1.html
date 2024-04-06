@@ -86,27 +86,27 @@ function setupLighting() {
     scene.add(pointLight1);
     
     const pointLight2 = new THREE.PointLight(0xffffff, 0.5, 30);
-    pointLight2.position.set(8, 2, 0);
+    pointLight2.position.set(-8, 2, 0);
     pointLight2.castShadow = true;
     scene.add(pointLight2);
 
     const pointLight3 = new THREE.PointLight(0xffffff, 0.5, 30);
-    pointLight3.position.set(-8, 2, 8);
+    pointLight3.position.set(-8, 2, 10);
     pointLight3.castShadow = false;
     scene.add(pointLight3);
 
     const pointLight4 = new THREE.PointLight(0xffffff, 0.5, 30);
-    pointLight4.position.set(-8, 2, -8);
+    pointLight4.position.set(-8, 2, -10);
     pointLight4.castShadow = false;
     scene.add(pointLight4);
 
     const pointLight5 = new THREE.PointLight(0xffffff, 0.5, 30);
-    pointLight5.position.set(8, 2, 8);
+    pointLight5.position.set(8, 2, 10);
     pointLight5.castShadow = false;
     scene.add(pointLight5);
 
     const pointLight6 = new THREE.PointLight(0xffffff, 0.5, 30);
-    pointLight6.position.set(8, 2, -8);
+    pointLight6.position.set(8, 2, -10);
     pointLight6.castShadow = false;
     scene.add(pointLight6);
 
