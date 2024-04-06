@@ -106,8 +106,8 @@ function setupGallery() {
         { 
           texture: '../lib/images/Forest.png', 
           text: 'Description for Forest.', 
-          position: { x: -9.9, y: 2, z: -14.9 },
-          rotation: { x: 0, y: Math.PI / 4, z: 0 }
+          position: { x: -9.9, y: 2, z: -10 },
+          rotation: { x: 0, y: Math.PI / 2, z: 0 }
         },
         { 
           texture: '../lib/images/BackWater.png', 
@@ -137,7 +137,7 @@ function wrapText(text, maxCharsPerLine) {
     return lines;
 }
 
-function loadText(scene, text, position) {
+function loadText(scene, text, position, rotation) {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         const maxCharsPerLine = 30;
@@ -157,12 +157,17 @@ function loadText(scene, text, position) {
             const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-            // Adjust position based on the passed position argument . next we want to just add text right side of the painting.
-            textMesh.position.set(position.x, position.y - (index * lineHeight), position.z);
+            // Calculate text position based on artwork's rotation
+            const xOffset = Math.cos(rotation.y) * 2.5; // 2.5 units to the right of the artwork
+            const zOffset = Math.sin(rotation.y) * 2.5; // Adjust based on the artwork's facing direction
+
+            textMesh.position.set(position.x + xOffset, position.y - (index * lineHeight), position.z + zOffset);
+            textMesh.rotation.y = rotation.y; // Align text rotation with artwork
             scene.add(textMesh);
         });
     });
 }
+
 
 function loadArtPieces(scene, artworks) {
     const textureLoader = new THREE.TextureLoader();
@@ -175,7 +180,7 @@ function loadArtPieces(scene, artworks) {
             art.rotation.set(artwork.rotation.x, artwork.rotation.y, artwork.rotation.z);
             art.userData = { clickable: true };
             scene.add(art);
-            loadText(scene, artwork.text, { x: art.position.x + 2.5, y: art.position.y, z: art.position.z }); // Example text positioning
+            loadText(scene, artwork.text, { x: art.position.x, y: art.position.y, z: art.position.z }, artwork.rotation); // Pass rotation to text positioning
         });
     });
 }
@@ -191,7 +196,7 @@ function onDoubleClick(event) {
 
 function translateCameraToArt(targetPosition) {
     const startPosition = camera.position.clone();
-    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust to position in front of the artwork
+    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust to position in front of the artwork. we need to update this so it respects the art work rotation
 
     let alpha = 0.0;
 
