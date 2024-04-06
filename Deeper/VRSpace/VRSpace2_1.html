@@ -80,7 +80,7 @@ function setupLighting() {
     //scene.add(directionalLight);
 
     // Example of adding a Point Light for more dynamic lighting
-    const pointLight = new THREE.PointLight(0xffffff, 4, 18);
+    const pointLight = new THREE.PointLight(0xffffff, 0.8, 40);
     pointLight.position.set(-8, 3, 0);
     pointLight.castShadow = true;
     scene.add(pointLight);
