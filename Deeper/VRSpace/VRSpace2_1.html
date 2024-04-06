@@ -30,6 +30,7 @@
 import * as THREE from 'three';
 import { FontLoader } from '../lib/loaders/FontLoader.js';
 import { TextGeometry } from '../lib/utils/TextGeometry.js';
+import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
 import Stats from '../lib/libs/stats.module.js'
@@ -85,8 +86,8 @@ function setupControls() {
 }
 
 function setupGallery() {
-    createGalleryBoundaries(scene);
-    createCheckerboardFloor(scene);
+    //createGalleryBoundaries(scene);
+    //createCheckerboardFloor(scene);
     loadArtPieces(scene);
 }
 
@@ -230,7 +231,7 @@ function loadText(scene) {
 function loadArtPieces(scene) {
     const textureLoader = new THREE.TextureLoader();
     const artGeometry = new THREE.PlaneGeometry(2, 2);
-    textureLoader.load('BackWater.png', function(texture) {
+    textureLoader.load('./Deeper/lib/images/BackWater.png', function(texture) {
         const artMaterial = new THREE.MeshStandardMaterial({map: texture});
         const art = new THREE.Mesh(artGeometry, artMaterial);
         art.castShadow = true;
