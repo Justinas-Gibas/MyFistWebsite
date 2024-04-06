@@ -109,11 +109,11 @@ function setupLighting() {
     //pointLight6.position.set(-8, 2, -8);
     //pointLight6.castShadow = true;
     // //scene.add(pointLight6);
-//
-    //const pointLight7 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight7.position.set(15, 2, 0);
-    //pointLight7.castShadow = true;
-    //scene.add(pointLight7);
+
+    const pointLight7 = new THREE.PointLight(0xffffff, 0.5, 30);
+    pointLight7.position.set(15, 2, 0);
+    pointLight7.castShadow = true;
+    scene.add(pointLight7);
     
     // Soft shadows
     renderer.shadowMap.enabled = true;
