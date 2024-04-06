@@ -157,7 +157,7 @@ function loadText(scene, text, position, rotation) {
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
             // Adjust text position relative to the artwork's rotation
-            const xOffset = 0.6 // Distance from the artwork to the right
+            const xOffset = 1.1 // Distance from the artwork to the right
             const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
             const rightDirection = new THREE.Vector3(1, 0, 0); // Right direction in local space
             rightDirection.applyEuler(new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ')); // Apply artwork rotation
