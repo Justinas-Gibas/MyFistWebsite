@@ -248,7 +248,7 @@ function translateCameraToArt(targetPosition, targetRotation) {
     direction.applyEuler(new THREE.Euler(0, targetRotation.y, 0, 'XYZ'));
 
     // Calculate endPosition in front of the artwork
-    endPosition.copy(targetPosition).add(direction.multiplyScalar(3)); // Adjust multiplier to control distance
+    endPosition.copy(targetPosition).add(direction.multiplyScalar(4)); // Adjust multiplier to control distance
 
     const startPosition = camera.position.clone();
     let alpha = 0.0;
