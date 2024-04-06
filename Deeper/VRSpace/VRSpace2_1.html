@@ -86,98 +86,8 @@ function setupControls() {
 }
 
 function setupGallery() {
-    //createGalleryBoundaries(scene);
-    //createCheckerboardFloor(scene);
-    loadArtPieces(scene);
-}
-
-function createGalleryBoundaries(scene) {
-    // Two materials for alternating colors
-    const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
-    const grayMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
-
-    const boundaryHeight = 2; // Two units tall
-    const boundaryWidth = 1; // One unit wide
-    const roomSize = 10; // Room size to cover with walls
-
-    const wallPositions = createWallPositions(boundaryWidth, boundaryHeight, roomSize);
-
-    // Create and position walls based on the modular design with alternating colors
-    wallPositions.forEach((wallData, index) => {
-        const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
-        // Alternate materials based on row and column indices
-        const material = (wallData.rowIndex + wallData.colIndex) % 2 === 0 ? whiteMaterial : grayMaterial;
-        const wall = new THREE.Mesh(geometry, material);
-        wall.position.set(...wallData.position);
-        wall.rotation.y = wallData.rotation;
-        scene.add(wall);
-    });
-}
-
-function createWallPositions(width, height, size) {
-    // Number of planes needed for the length of the room
-    const planesPerWall = Math.ceil(size / width);
-    const halfSize = size / 2;
-    const wallPositions = [];
-
-    // Front and Back walls
-    for (let i = 0; i < planesPerWall; i++) {
-        wallPositions.push({
-            position: [-halfSize + i * width + width / 2, height / 2, -halfSize],
-            rotation: 0,
-            rowIndex: 0, // Front and Back walls have rowIndex 0
-            colIndex: i // Column index for horizontal alternation
-        });
-        wallPositions.push({
-            position: [-halfSize + i * width + width / 2, height / 2, halfSize],
-            rotation: Math.PI,
-            rowIndex: 0, // Front and Back walls have rowIndex 0
-            colIndex: i // Column index for horizontal alternation
-        });
-    }
-
-    // Left and Right walls
-    for (let i = 0; i < planesPerWall; i++) {
-        wallPositions.push({
-            position: [-halfSize, height / 2, -halfSize + i * width + width / 2],
-            rotation: Math.PI / 2,
-            rowIndex: i, // Row index for vertical alternation
-            colIndex: 0 // Left and Right walls have colIndex 0
-        });
-        wallPositions.push({
-            position: [halfSize, height / 2, -halfSize + i * width + width / 2],
-            rotation: -Math.PI / 2,
-            rowIndex: i, // Row index for vertical alternation
-            colIndex: 0 // Left and Right walls have colIndex 0
-        });
-    }
-
-    return wallPositions;
-}
-
-function createCheckerboardFloor(scene) {    
-    // Checkerboard Floor with PBR
-    const tileSize = 1;
-    const tilesPerSide = 10;
-    const checkerboardGroup = new THREE.Group();
-    for (let x = 0; x < tilesPerSide; x++) {
-        for (let z = 0; z < tilesPerSide; z++) {
-            const geometry = new THREE.PlaneGeometry(tileSize, tileSize);
-            const material = new THREE.MeshStandardMaterial({
-                color: (x + z) % 2 === 0 ? 0x000000 : 0xffffff,
-                side: THREE.DoubleSide
-            });
-            const tile = new THREE.Mesh(geometry, material);
-            tile.castShadow = true;
-            tile.receiveShadow = true;
-            tile.position.x = (x - tilesPerSide / 2) * tileSize + tileSize / 2;
-            tile.position.z = (z - tilesPerSide / 2) * tileSize + tileSize / 2;
-            tile.rotation.x = -Math.PI / 2;
-            checkerboardGroup.add(tile);
-        }
-    }
-    checkerboardGroup.position.y = -0.01;
-    scene.add(checkerboardGroup);
+    loadgallerymodel()//need to correct and add this function to load gltf file from ./Deeper/lib/models/Galer01.glb
+    loadArtPieces(scene);// we need to improve this function to have pultiple art works. lets make a list of them for easy path and text updating. 
 }
 
 function wrapText(text, maxCharsPerLine) {
@@ -231,7 +141,7 @@ function loadText(scene) {
 function loadArtPieces(scene) {
     const textureLoader = new THREE.TextureLoader();
     const artGeometry = new THREE.PlaneGeometry(2, 2);
-    textureLoader.load('./Deeper/lib/images/BackWater.png', function(texture) {
+    textureLoader.load('../lib/images/BackWater.png', function(texture) {
         const artMaterial = new THREE.MeshStandardMaterial({map: texture});
         const art = new THREE.Mesh(artGeometry, artMaterial);
         art.castShadow = true;

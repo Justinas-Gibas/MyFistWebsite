@@ -230,7 +230,7 @@ function loadText(scene) {
 function loadArtPieces(scene) {
     const textureLoader = new THREE.TextureLoader();
     const artGeometry = new THREE.PlaneGeometry(2, 2);
-    textureLoader.load('./Deeper/lib/images/BackWater.png', function(texture) {
+    textureLoader.load('../lib/images/BackWater.png', function(texture) {
         const artMaterial = new THREE.MeshStandardMaterial({map: texture});
         const art = new THREE.Mesh(artGeometry, artMaterial);
         art.castShadow = true;
