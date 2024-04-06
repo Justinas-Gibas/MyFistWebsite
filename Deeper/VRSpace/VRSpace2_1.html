@@ -89,7 +89,7 @@ function setupControls() {
 function loadGalleryModel() {
     // Load the gallery GLTF model
     const loader = new GLTFLoader();
-    loader.load('./Deeper/lib/models/Galer01.glb', function(gltf) {
+    loader.load('../lib/models/Galer01.glb', function(gltf) {
         scene.add(gltf.scene);
     }, undefined, function(error) {
         console.error(error);
