@@ -148,12 +148,12 @@ function loadText(scene, text, position, rotation) {
             const textGeometry = new TextGeometry(line, {
                 font: font,
                 size: 0.1,
-                height: 0.01,
+                height: 0,
                 curveSegments: 4,
                 bevelEnabled: false,
             });
 
-            const textMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const textMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
             // Adjust text position relative to the artwork's rotation
