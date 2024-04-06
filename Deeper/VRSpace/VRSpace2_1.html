@@ -195,7 +195,7 @@ function onDoubleClick(event) {
 
 function translateCameraToArt(targetPosition, targetRotation) {
     const endPosition = new THREE.Vector3();
-    const direction = new THREE.Vector3(0, 0, -1); // Assuming the artwork faces along negative z-axis
+    const direction = new THREE.Vector3(0, 0, 1); // Assuming the artwork faces along negative z-axis
     direction.applyEuler(new THREE.Euler(0, targetRotation.y, 0, 'XYZ'));
 
     // Calculate endPosition in front of the artwork
