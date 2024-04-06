@@ -72,48 +72,48 @@ function setupRenderer() {
 
 function setupLighting() {
     const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
-    //scene.add(ambientLight);
+    scene.add(ambientLight);
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
     directionalLight.position.set(5, 10, 7.5);
     directionalLight.castShadow = true;
-    //scene.add(directionalLight);
+    scene.add(directionalLight);
 
-    // Point lights
-    const pointLight1 = new THREE.PointLight(0xffffff, 0.5, 30);
-    pointLight1.position.set(-8, 2, 0);
-    pointLight1.castShadow = false;
-    scene.add(pointLight1);
-    
-    const pointLight2 = new THREE.PointLight(0xffffff, 0.5, 30);
-    pointLight2.position.set(-8, 2, 0);
-    pointLight2.castShadow = true;
-    scene.add(pointLight2);
-
-    const pointLight3 = new THREE.PointLight(0xffffff, 0.5, 30);
-    pointLight3.position.set(-8, 2, 10);
-    pointLight3.castShadow = false;
-    scene.add(pointLight3);
-
-    const pointLight4 = new THREE.PointLight(0xffffff, 0.5, 30);
-    pointLight4.position.set(-8, 2, -10);
-    pointLight4.castShadow = false;
-    scene.add(pointLight4);
-
-    const pointLight5 = new THREE.PointLight(0xffffff, 0.5, 30);
-    pointLight5.position.set(8, 2, 10);
-    pointLight5.castShadow = false;
-    scene.add(pointLight5);
-
-    const pointLight6 = new THREE.PointLight(0xffffff, 0.5, 30);
-    pointLight6.position.set(8, 2, -10);
-    pointLight6.castShadow = false;
-    scene.add(pointLight6);
-
-    const pointLight7 = new THREE.PointLight(0xffffff, 0.5, 30);
-    pointLight7.position.set(15, 2, 0);
-    pointLight7.castShadow = false;
-    scene.add(pointLight7);
+    //// Point lights
+    //const pointLight1 = new THREE.PointLight(0xffffff, 0.5, 30);
+    //pointLight1.position.set(-8, 2, 0);
+    //pointLight1.castShadow = false;
+    //scene.add(pointLight1);
+    //
+    //const pointLight2 = new THREE.PointLight(0xffffff, 0.5, 30);
+    //pointLight2.position.set(-8, 2, 0);
+    //pointLight2.castShadow = true;
+    //scene.add(pointLight2);
+//
+    //const pointLight3 = new THREE.PointLight(0xffffff, 0.5, 30);
+    //pointLight3.position.set(-8, 2, 10);
+    //pointLight3.castShadow = false;
+    //scene.add(pointLight3);
+//
+    //const pointLight4 = new THREE.PointLight(0xffffff, 0.5, 30);
+    //pointLight4.position.set(-8, 2, -10);
+    //pointLight4.castShadow = false;
+    //scene.add(pointLight4);
+//
+    //const pointLight5 = new THREE.PointLight(0xffffff, 0.5, 30);
+    //pointLight5.position.set(8, 2, 10);
+    //pointLight5.castShadow = false;
+    //scene.add(pointLight5);
+//
+    //const pointLight6 = new THREE.PointLight(0xffffff, 0.5, 30);
+    //pointLight6.position.set(8, 2, -10);
+    //pointLight6.castShadow = false;
+    //scene.add(pointLight6);
+//
+    //const pointLight7 = new THREE.PointLight(0xffffff, 0.5, 30);
+    //pointLight7.position.set(15, 2, 0);
+    //pointLight7.castShadow = false;
+    //scene.add(pointLight7);
     
     // Soft shadows
     renderer.shadowMap.enabled = true;
