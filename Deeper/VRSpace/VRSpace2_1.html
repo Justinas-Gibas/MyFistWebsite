@@ -149,20 +149,19 @@ function loadText(scene, text, position, rotation) {
                 font: font,
                 size: 0.1,
                 height: 0.01,
-                depth: 0,
                 curveSegments: 4,
                 bevelEnabled: false,
             });
 
-            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-            // Calculate text position based on artwork's rotation
-            const xOffset = Math.cos(rotation.y) * 1; 
-            const zOffset = Math.sin(rotation.y) * 0; // Adjust based on the artwork's facing direction
+            // Calculate position offset using artwork rotation
+            const xOffset = Math.cos(rotation.y) * 1.5; // Adjust xOffset if necessary
+            const zOffset = Math.sin(rotation.y) * 1.5; // Adjust zOffset to ensure text faces outward
 
             textMesh.position.set(position.x + xOffset, position.y - (index * lineHeight), position.z + zOffset);
-            textMesh.rotation.y = rotation.y; // Align text rotation with artwork
+            textMesh.lookAt(camera.position); // Ensure text faces the camera
             scene.add(textMesh);
         });
     });
@@ -195,31 +194,28 @@ function onDoubleClick(event) {
 }
 
 function translateCameraToArt(targetPosition, targetRotation) {
+    const endPosition = new THREE.Vector3();
+    const direction = new THREE.Vector3(0, 0, -1); // Assuming the artwork faces along negative z-axis
+    direction.applyEuler(new THREE.Euler(0, targetRotation.y, 0, 'XYZ'));
+
+    // Calculate endPosition in front of the artwork
+    endPosition.copy(targetPosition).add(direction.multiplyScalar(3)); // Adjust multiplier to control distance
+
     const startPosition = camera.position.clone();
-    const endPosition = targetPosition.clone(); // Assume we're moving directly in front of the artwork
-
-    // Calculate offsets based on the artwork's orientation
-    const offsetX = Math.cos(targetRotation.y) * 3; // Distance in front of the artwork
-    const offsetZ = Math.sin(targetRotation.y) * 3; // Adjust based on the artwork's facing direction
-    endPosition.add(new THREE.Vector3(offsetX, 0, offsetZ));
-
     let alpha = 0.0;
 
     function animate() {
         if (alpha < 1.0) {
             alpha += 0.01; // Incrementally increase alpha towards 1
 
-            // Lerp the camera's position towards the end position
             camera.position.lerpVectors(startPosition, endPosition, alpha);
 
-            // Optionally, adjust camera's orientation to face the artwork
-            const direction = new THREE.Vector3().subVectors(targetPosition, camera.position).normalize();
-            const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
-            camera.quaternion.slerp(targetQuaternion, Math.min(alpha * 2, 1)); // Adjust rotation speed if necessary
+            // Rotate camera to face the artwork
+            camera.lookAt(targetPosition);
 
             requestAnimationFrame(animate);
         } else {
-            // After moving the camera, adjust orbit controls target to ensure smooth user interaction
+            // Adjust orbit controls target for smooth interaction
             updateOrbitControlsTarget(targetPosition);
         }
     }
