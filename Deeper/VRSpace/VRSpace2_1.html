@@ -79,12 +79,42 @@ function setupLighting() {
     directionalLight.castShadow = true;
     //scene.add(directionalLight);
 
-    // Example of adding a Point Light for more dynamic lighting
+    // Point lights
     const pointLight = new THREE.PointLight(0xffffff, 0.8, 40);
     pointLight.position.set(-8, 3, 0);
     pointLight.castShadow = true;
     scene.add(pointLight);
-    
+
+    const pointLight2 = new THREE.PointLight(0xffffff, 0.8, 40);
+    pointLight2.position.set(8, 3, 0);
+    pointLight2.castShadow = true;
+    scene.add(pointLight2);
+
+    const pointLight3 = new THREE.PointLight(0xffffff, 0.8, 40);
+    pointLight3.position.set(0, 3, 8);
+    pointLight3.castShadow = true;
+    scene.add(pointLight3);
+
+    const pointLight4 = new THREE.PointLight(0xffffff, 0.8, 40);
+    pointLight4.position.set(0, 3, -8);
+    pointLight4.castShadow = true;
+    scene.add(pointLight4);
+
+    const pointLight5 = new THREE.PointLight(0xffffff, 0.8, 40);
+    pointLight5.position.set(8, 3, 8);
+    pointLight5.castShadow = true;
+    scene.add(pointLight5);
+
+    const pointLight6 = new THREE.PointLight(0xffffff, 0.8, 40);
+    pointLight6.position.set(-8, 3, -8);
+    pointLight6.castShadow = true;
+    scene.add(pointLight6);
+
+    const pointLight7 = new THREE.PointLight(0xffffff, 0.8, 40);
+    pointLight7.position.set(0, 3, -11);
+    pointLight7.castShadow = true;
+    scene.add(pointLight7);
+
     // Soft shadows
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
