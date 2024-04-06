@@ -132,7 +132,18 @@ function loadText(scene, text, position) {
         const lines = wrapText(text, maxCharsPerLine);
 
         lines.forEach((line, index) => {
-            // Text geometry setup remains unchanged
+            const textGeometry = new TextGeometry(line, {
+                font: font,
+                size: 0.1,
+                height: 0.01,
+                depth: 0,
+                curveSegments: 4,
+                bevelEnabled: false,
+            });
+
+            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+            
             // Adjust position based on the passed position argument
             textMesh.position.set(position.x, position.y - (index * lineHeight), position.z);
             scene.add(textMesh);
