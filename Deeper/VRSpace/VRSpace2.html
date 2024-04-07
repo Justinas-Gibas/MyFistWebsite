@@ -3,7 +3,6 @@
 <head>
     <title>Three.js AR/XR - Enhanced Virtual Art Gallery</title>
     <meta charset="UTF-8">
-    
     <meta name="author" content="Justinas Gibas" />
     <meta name="description" content="Three.js AR/XR - Enhanced Virtual Art Gallery">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -30,6 +29,8 @@
 import * as THREE from 'three';
 import { FontLoader } from '../lib/loaders/FontLoader.js';
 import { TextGeometry } from '../lib/utils/TextGeometry.js';
+import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
+import { RGBELoader } from '../lib/loaders/RGBELoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
 import Stats from '../lib/libs/stats.module.js'
@@ -48,14 +49,15 @@ function initGallery() {
 
     setupLighting();
     setupControls();
+    loadGalleryModel();
     setupGallery();
     setupEventListeners();
     animate();
 }
 
 function setupCamera() {
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-    camera.position.set(0, 1.6, 3);
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(16, 2, 3);
     return camera;
 }
 
@@ -70,12 +72,55 @@ function setupRenderer() {
 }
 
 function setupLighting() {
-    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.1);
     scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.1);
     directionalLight.position.set(5, 10, 7.5);
     directionalLight.castShadow = true;
-    scene.add(directionalLight);
+    //scene.add(directionalLight);
+
+    // Point lights
+    const pointLight1 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
+    pointLight1.position.set(0, 2, 8);
+    pointLight1.castShadow = false;
+    scene.add(pointLight1);
+    
+    const pointLight2 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
+    pointLight2.position.set(0, 2, -8);
+    pointLight2.castShadow = false;
+    scene.add(pointLight2);
+//
+    //const pointLight3 = new THREE.PointLight(0xffffff, 0.5, 30);
+    //pointLight3.position.set(-8, 2, 10);
+    //pointLight3.castShadow = false;
+    //scene.add(pointLight3);
+//
+    //const pointLight4 = new THREE.PointLight(0xffffff, 0.5, 30);
+    //pointLight4.position.set(-8, 2, -10);
+    //pointLight4.castShadow = false;
+    //scene.add(pointLight4);
+//
+    //const pointLight5 = new THREE.PointLight(0xffffff, 0.5, 30);
+    //pointLight5.position.set(8, 2, 10);
+    //pointLight5.castShadow = false;
+    //scene.add(pointLight5);
+//
+    //const pointLight6 = new THREE.PointLight(0xffffff, 0.5, 30);
+    //pointLight6.position.set(8, 2, -10);
+    //pointLight6.castShadow = false;
+    //scene.add(pointLight6);
+//
+    const pointLight7 = new THREE.PointLight(0xb5b5b5, 0.5, 10);
+    pointLight7.position.set(15, 2, 0);
+    pointLight7.castShadow = false;
+    scene.add(pointLight7);
+    
+    // Soft shadows
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+    directionalLight.shadow.mapSize.width = 512; // Adjust for better shadow resolution
+    directionalLight.shadow.mapSize.height = 512;
 }
 
 function setupControls() {
@@ -84,99 +129,38 @@ function setupControls() {
     controls.update();
 }
 
-function setupGallery() {
-    createGalleryBoundaries(scene);
-    createCheckerboardFloor(scene);
-    loadArtPieces(scene);
-}
-
-function createGalleryBoundaries(scene) {
-    // Two materials for alternating colors
-    const whiteMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
-    const grayMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
-
-    const boundaryHeight = 2; // Two units tall
-    const boundaryWidth = 1; // One unit wide
-    const roomSize = 10; // Room size to cover with walls
-
-    const wallPositions = createWallPositions(boundaryWidth, boundaryHeight, roomSize);
-
-    // Create and position walls based on the modular design with alternating colors
-    wallPositions.forEach((wallData, index) => {
-        const geometry = new THREE.PlaneGeometry(boundaryWidth, boundaryHeight);
-        // Alternate materials based on row and column indices
-        const material = (wallData.rowIndex + wallData.colIndex) % 2 === 0 ? whiteMaterial : grayMaterial;
-        const wall = new THREE.Mesh(geometry, material);
-        wall.position.set(...wallData.position);
-        wall.rotation.y = wallData.rotation;
-        scene.add(wall);
+function loadGalleryModel() {
+    // Load the gallery GLTF model
+    const loader = new GLTFLoader();
+    loader.load('../lib/models/Galer01.glb', function(gltf) {
+        scene.add(gltf.scene);
+    }, undefined, function(error) {
+        console.error(error);
     });
 }
 
-function createWallPositions(width, height, size) {
-    // Number of planes needed for the length of the room
-    const planesPerWall = Math.ceil(size / width);
-    const halfSize = size / 2;
-    const wallPositions = [];
-
-    // Front and Back walls
-    for (let i = 0; i < planesPerWall; i++) {
-        wallPositions.push({
-            position: [-halfSize + i * width + width / 2, height / 2, -halfSize],
-            rotation: 0,
-            rowIndex: 0, // Front and Back walls have rowIndex 0
-            colIndex: i // Column index for horizontal alternation
-        });
-        wallPositions.push({
-            position: [-halfSize + i * width + width / 2, height / 2, halfSize],
-            rotation: Math.PI,
-            rowIndex: 0, // Front and Back walls have rowIndex 0
-            colIndex: i // Column index for horizontal alternation
-        });
-    }
-
-    // Left and Right walls
-    for (let i = 0; i < planesPerWall; i++) {
-        wallPositions.push({
-            position: [-halfSize, height / 2, -halfSize + i * width + width / 2],
-            rotation: Math.PI / 2,
-            rowIndex: i, // Row index for vertical alternation
-            colIndex: 0 // Left and Right walls have colIndex 0
-        });
-        wallPositions.push({
-            position: [halfSize, height / 2, -halfSize + i * width + width / 2],
-            rotation: -Math.PI / 2,
-            rowIndex: i, // Row index for vertical alternation
-            colIndex: 0 // Left and Right walls have colIndex 0
-        });
-    }
-
-    return wallPositions;
-}
-
-function createCheckerboardFloor(scene) {    
-    // Checkerboard Floor with PBR
-    const tileSize = 1;
-    const tilesPerSide = 10;
-    const checkerboardGroup = new THREE.Group();
-    for (let x = 0; x < tilesPerSide; x++) {
-        for (let z = 0; z < tilesPerSide; z++) {
-            const geometry = new THREE.PlaneGeometry(tileSize, tileSize);
-            const material = new THREE.MeshStandardMaterial({
-                color: (x + z) % 2 === 0 ? 0x000000 : 0xffffff,
-                side: THREE.DoubleSide
-            });
-            const tile = new THREE.Mesh(geometry, material);
-            tile.castShadow = true;
-            tile.receiveShadow = true;
-            tile.position.x = (x - tilesPerSide / 2) * tileSize + tileSize / 2;
-            tile.position.z = (z - tilesPerSide / 2) * tileSize + tileSize / 2;
-            tile.rotation.x = -Math.PI / 2;
-            checkerboardGroup.add(tile);
-        }
-    }
-    checkerboardGroup.position.y = -0.01;
-    scene.add(checkerboardGroup);
+function setupGallery() {
+    const artworks = [
+        { 
+          texture: '../lib/images/BackWater.png', 
+          text: 'Description for BackWater.', 
+          position: { x: -9.9, y: 2, z: 0 },
+          rotation: { x: 0, y: Math.PI / 2, z: 0 }
+        },
+        { 
+          texture: '../lib/images/Forest.png', 
+          text: 'Description for Forest.', 
+          position: { x: -9.9, y: 2, z: -10 },
+          rotation: { x: 0, y: Math.PI / 2, z: 0 }
+        },
+        { 
+          texture: '../lib/images/BackWater.png', 
+          text: 'Long Description for BackWater. very looonnnggg tex xxxtt tttt ttthhhhaa aatttt nnnn eeee ddddd tttooo oobbbeeee wwwwrrr raapppt', 
+          position: { x: 0, y: 2, z: -19.9 },
+          rotation: { x: 0, y: Math.PI / 180, z: 0 }
+        },
+    ];
+    loadArtPieces(scene, artworks);
 }
 
 function wrapText(text, maxCharsPerLine) {
@@ -197,53 +181,56 @@ function wrapText(text, maxCharsPerLine) {
     return lines;
 }
 
-function loadText(scene) {
+function loadText(scene, text, position, rotation) {
     const loader = new FontLoader();
-    loader.load('../lib/styles/helvetiker_regular.typeface.json', function (font) {
+    loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         const maxCharsPerLine = 30;
         const lineHeight = 0.15;
-
-        const lines = wrapText('Our long text that needs to be wrapped goes here. . .      AA             AA           ą  č  ę  ė  į  š  ų  ū  9  0  -  ž ||,                   Autorai: JK, AK, JG', maxCharsPerLine);
+        const lines = wrapText(text, maxCharsPerLine);
 
         lines.forEach((line, index) => {
             const textGeometry = new TextGeometry(line, {
                 font: font,
                 size: 0.1,
-                height: 0.01,
-                depth: 0,
+                height: 0,
                 curveSegments: 4,
                 bevelEnabled: false,
             });
 
-            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+            const textMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-            // Adjust Y position based on the line index
-            textMesh.position.set(1.2, 2.5 - (index * lineHeight), -4.01); // Adjust X and Z as needed
-            //textMesh.rotation.y = -Math.PI; // Rotate to face the opposite direction
+            // Adjust text position relative to the artwork's rotation
+            const xOffset = 1.1 // Distance from the artwork to the right
+            const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
+            const rightDirection = new THREE.Vector3(1, 0, 0); // Right direction in local space
+            rightDirection.applyEuler(new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ')); // Apply artwork rotation
+
+            // Calculate final position
+            const finalPosition = new THREE.Vector3().copy(position).add(rightDirection.multiplyScalar(xOffset));
+            textMesh.position.set(finalPosition.x, position.y + yOffset, finalPosition.z);
+
+            // Apply the artwork's rotation to the text
+            textMesh.rotation.set(rotation.x, rotation.y, rotation.z);
 
             scene.add(textMesh);
         });
     });
 }
 
-function loadArtPieces(scene) {
+function loadArtPieces(scene, artworks) {
     const textureLoader = new THREE.TextureLoader();
     const artGeometry = new THREE.PlaneGeometry(2, 2);
-    textureLoader.load('../lib/images/BackWater.png', function(texture) {
-        const artMaterial = new THREE.MeshStandardMaterial({map: texture});
-        const art = new THREE.Mesh(artGeometry, artMaterial);
-        art.castShadow = true;
-        art.position.set(0, 2, -4);
-        art.userData = { clickable: true }; // Mark art as clickable
-        scene.add(art);
-
-        loadText(scene);
-
-        // Event listener for double click/tap
-        art.addEventListener('dblclick', function(event) {
-            translateCameraToArt(art.position);
-        }, false);
+    artworks.forEach((artwork) => {
+        textureLoader.load(artwork.texture, function(texture) {
+            const artMaterial = new THREE.MeshStandardMaterial({map: texture});
+            const art = new THREE.Mesh(artGeometry, artMaterial);
+            art.position.set(artwork.position.x, artwork.position.y, artwork.position.z);
+            art.rotation.set(artwork.rotation.x, artwork.rotation.y, artwork.rotation.z);
+            art.userData = { clickable: true };
+            scene.add(art);
+            loadText(scene, artwork.text, { x: art.position.x, y: art.position.y, z: art.position.z }, artwork.rotation); // Pass rotation to text positioning
+        });
     });
 }
 
@@ -256,30 +243,29 @@ function onDoubleClick(event) {
     checkForIntersections();
 }
 
-function translateCameraToArt(targetPosition) {
-    const startPosition = camera.position.clone();
-    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust to position in front of the artwork
+function translateCameraToArt(targetPosition, targetRotation) {
+    const endPosition = new THREE.Vector3();
+    const direction = new THREE.Vector3(0, 0, 1); // Assuming the artwork faces along negative z-axis
+    direction.applyEuler(new THREE.Euler(0, targetRotation.y, 0, 'XYZ'));
 
+    // Calculate endPosition in front of the artwork
+    endPosition.copy(targetPosition).add(direction.multiplyScalar(4)); // Adjust multiplier to control distance
+
+    const startPosition = camera.position.clone();
     let alpha = 0.0;
 
     function animate() {
         if (alpha < 1.0) {
             alpha += 0.01; // Incrementally increase alpha towards 1
 
-            // Lerp the camera's position towards the end position
             camera.position.lerpVectors(startPosition, endPosition, alpha);
-            
-            // Dynamically calculate the direction vector from the camera to the target
-            const direction = new THREE.Vector3().subVectors(targetPosition, camera.position).normalize();
-            // Create a quaternion that represents the orientation needed to look at the target
-            const targetQuaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, -1), direction);
-            
-            // Slerp the camera's quaternion towards the dynamically calculated target quaternion
-            camera.quaternion.slerp(targetQuaternion, Math.min(alpha * 2, 1)); // Accelerate rotation if needed
+
+            // Rotate camera to face the artwork
+            camera.lookAt(targetPosition);
 
             requestAnimationFrame(animate);
         } else {
-            // Optional: Update orbit controls target after animation completes
+            // Adjust orbit controls target for smooth interaction
             updateOrbitControlsTarget(targetPosition);
         }
     }
@@ -297,7 +283,8 @@ function checkForIntersections() {
 
     for (let i = 0; i < intersects.length; i++) {
         if (intersects[i].object.userData.clickable) {
-            translateCameraToArt(intersects[i].object.position);
+            const artworkRotation = intersects[i].object.rotation;
+            translateCameraToArt(intersects[i].object.position, artworkRotation);
             break; // Assuming you want to interact with the first object the ray hits that is clickable
         }
     }
