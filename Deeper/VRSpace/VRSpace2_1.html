@@ -30,6 +30,7 @@ import * as THREE from 'three';
 import { FontLoader } from '../lib/loaders/FontLoader.js';
 import { TextGeometry } from '../lib/utils/TextGeometry.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
+import { RGBELoader } from '../lib/loaders/RGBELoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
 import Stats from '../lib/libs/stats.module.js'
@@ -49,14 +50,14 @@ function initGallery() {
     setupLighting();
     setupControls();
     loadGalleryModel();
-    setupGallery();//we need to update this function
+    setupGallery();
     setupEventListeners();
     animate();
 }
 
 function setupCamera() {
     const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 50);
-    camera.position.set(0, 1.6, 3);
+    camera.position.set(16, 2, 3);
     return camera;
 }
 
@@ -71,23 +72,23 @@ function setupRenderer() {
 }
 
 function setupLighting() {
-    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
-    //scene.add(ambientLight);
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.1);
+    scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
-    directionalLight.position.set(5, 10, 7.5);
-    directionalLight.castShadow = true;
+    //const directionalLight = new THREE.DirectionalLight(0xffffff, 0.1);
+    //directionalLight.position.set(5, 10, 7.5);
+    //directionalLight.castShadow = true;
     //scene.add(directionalLight);
 
     // Point lights
-    const pointLight1 = new THREE.PointLight(0xffffff, 0.5, 50);
+    const pointLight1 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
     pointLight1.position.set(0, 2, 8);
     pointLight1.castShadow = false;
     scene.add(pointLight1);
     
-    const pointLight2 = new THREE.PointLight(0xffffff, 0.5, 50);
+    const pointLight2 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
     pointLight2.position.set(0, 2, -8);
-    pointLight2.castShadow = true;
+    pointLight2.castShadow = false;
     scene.add(pointLight2);
 //
     //const pointLight3 = new THREE.PointLight(0xffffff, 0.5, 30);
@@ -110,7 +111,7 @@ function setupLighting() {
     //pointLight6.castShadow = false;
     //scene.add(pointLight6);
 //
-    const pointLight7 = new THREE.PointLight(0xffffff, 0.5, 10);
+    const pointLight7 = new THREE.PointLight(0xb5b5b5, 0.5, 10);
     pointLight7.position.set(15, 2, 0);
     pointLight7.castShadow = false;
     scene.add(pointLight7);
