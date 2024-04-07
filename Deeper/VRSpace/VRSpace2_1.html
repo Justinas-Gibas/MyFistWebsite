@@ -72,12 +72,12 @@ function setupRenderer() {
 }
 
 function setupLighting() {
-    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.1);
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.5);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.1);
-    directionalLight.position.set(5, 10, 7.5);
-    directionalLight.castShadow = true;
+    //const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    //directionalLight.position.set(5, 10, 7.5);
+    //directionalLight.castShadow = true;
     //scene.add(directionalLight);
 
     // Point lights
@@ -119,8 +119,8 @@ function setupLighting() {
     // Soft shadows
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
-    directionalLight.shadow.mapSize.width = 512; // Adjust for better shadow resolution
-    directionalLight.shadow.mapSize.height = 512;
+    //directionalLight.shadow.mapSize.width = 512; // Adjust for better shadow resolution
+    //directionalLight.shadow.mapSize.height = 512;
 }
 
 function setupControls() {
