@@ -133,6 +133,12 @@ function loadGalleryModel() {
     // Load the gallery GLTF model
     const loader = new GLTFLoader();
     loader.load('../lib/models/Galer01.glb', function(gltf) {
+        gltf.scene.traverse(function(child) {
+            if (child.isMesh) {
+                // Ensure only the front faces are rendered
+                child.material.side = THREE.FrontSide;
+            }
+        });
         scene.add(gltf.scene);
     }, undefined, function(error) {
         console.error(error);
