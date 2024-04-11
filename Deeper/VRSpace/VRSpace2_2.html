@@ -148,14 +148,6 @@ function loadGalleryModel() {
     console.error('An error happened in the GLTFLoader:', error);    });
 }
 
-//we need to re work this of how we aproach this function below 'setupGallery'
-//we need:
-// 1.easy edfiting if  scene gets more dinamic. curent apreocach is ok
-// 2.we might have much more of these in the future
-// 3.we will want to have next and previous artwork buttons 
-// we might want to have a id for every artwork
-// to get at wich artwork we are looking and where to moove when next or previous buttons are presed
-
 function setupGallery() {
     artworks = [
         { 
@@ -183,6 +175,27 @@ function setupGallery() {
           rotation: new THREE.Euler(0, Math.PI, 0)
         }
     ];
+}
+
+function initArtworks() {
+    loadArtPieces(scene, artworks);
+    setupNavigationButtons();
+}
+
+function loadArtPieces(scene, artworks) {
+    const textureLoader = new THREE.TextureLoader();
+    const artGeometry = new THREE.PlaneGeometry(2, 2);
+    artworks.forEach((artwork, index) => {
+        textureLoader.load(artwork.texture, function(texture) {
+            const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
+            const artMesh = new THREE.Mesh(artGeometry, artMaterial);
+            artMesh.position.copy(artwork.position);
+            artMesh.rotation.copy(artwork.rotation);
+            artMesh.userData = { index: index, clickable: true };
+            scene.add(artMesh);
+            loadText(scene, artwork.text, artwork.position, artwork.rotation);
+        });
+    });
 }
 
 function wrapText(text, maxCharsPerLine) {
@@ -222,9 +235,9 @@ function loadText(scene, text, position, rotation) {
             const textMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-            const offsetDistance = 1.2; // Distance offset from the artwork
+            const offsetDistance = 1.1; // Distance offset from the artwork
             const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
-            const directionVector = new THREE.Vector3(0, 1, 0); // Direction to move text in local space
+            const directionVector = new THREE.Vector3(0, -1, 0); // Direction to move text in local space
             const euler = new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ'); // Rotation in Euler angles
             
             // Adjust direction vector by rotation
@@ -243,30 +256,6 @@ function loadText(scene, text, position, rotation) {
     });
 }
 
-function initArtworks() {
-    loadArtPieces(scene, artworks);
-    setupNavigationButtons();
-}
-
-//creating next and previous buttons
-//creating linear side movment to nest art work
-
-function loadArtPieces(scene, artworks) {
-    const textureLoader = new THREE.TextureLoader();
-    const artGeometry = new THREE.PlaneGeometry(2, 2);
-    artworks.forEach((artwork, index) => {
-        textureLoader.load(artwork.texture, function(texture) {
-            const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
-            const artMesh = new THREE.Mesh(artGeometry, artMaterial);
-            artMesh.position.copy(artwork.position);
-            artMesh.rotation.copy(artwork.rotation);
-            artMesh.userData = { index: index, clickable: true };
-            scene.add(artMesh);
-            loadText(scene, artwork.text, artwork.position, artwork.rotation);
-        });
-    });
-}
-
 function onDoubleClick(event) {
     // Calculate mouse position in normalized device coordinates
     // (-1 to +1) for both components
@@ -276,9 +265,34 @@ function onDoubleClick(event) {
     checkForIntersections();
 }
 
+function stylizeElement(element) {
+    element.style.position = 'absolute';
+    element.style.bottom = '20px';
+    element.style.padding = '12px 6px';
+    element.style.border = '1px solid #fff';
+    element.style.borderRadius = '4px';
+    element.style.background = 'rgba(0,0,0,0.1)';
+    element.style.color = '#fff';
+    element.style.font = 'normal 13px sans-serif';
+    element.style.textAlign = 'center';
+    element.style.opacity = '0.5';
+    element.style.outline = 'none';
+    element.style.zIndex = '999';
+}
+
 function setupNavigationButtons() {
-    const prevButton = document.getElementById('prevButton');
-    const nextButton = document.getElementById('nextButton');
+    const prevButton = document.createElement('button');
+    prevButton.innerText = 'Previous';
+    prevButton.id = 'prevButton';
+    stylizeElement(prevButton);
+
+    const nextButton = document.createElement('button');
+    nextButton.innerText = 'Next';
+    nextButton.id = 'nextButton';
+    stylizeElement(nextButton);
+
+    document.body.appendChild(prevButton);
+    document.body.appendChild(nextButton);
 
     prevButton.addEventListener('click', function() {
         currentArtIndex = (currentArtIndex - 1 + artworks.length) % artworks.length;
