@@ -330,25 +330,27 @@ function translateCameraToArt(targetPosition, targetRotation) {
     const endPosition = new THREE.Vector3();
     const direction = new THREE.Vector3(0, 0, 1); // Assuming the artwork faces along negative z-axis
     direction.applyEuler(new THREE.Euler(0, targetRotation.y, 0, 'XYZ'));
-
-    // Calculate endPosition in front of the artwork
     endPosition.copy(targetPosition).add(direction.multiplyScalar(4)); // Adjust multiplier to control distance
 
     const startPosition = camera.position.clone();
+    const startQuaternion = camera.quaternion.clone();
+    const endQuaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(targetRotation.x, targetRotation.y, targetRotation.z, 'XYZ'));
+
     let alpha = 0.0;
 
     function animate() {
         if (alpha < 1.0) {
-            alpha += 0.01; // Incrementally increase alpha towards 1
+            alpha += 0.02; // Incrementally increase alpha towards 1
+            alpha = alpha > 1 ? 1 : alpha; // Clamp alpha to maximum of 1
 
-            camera.position.lerpVectors(startPosition, endPosition, alpha);
+            // Easing function - easeInOutQuad: acceleration until halfway, then deceleration
+            const easeAlpha = alpha < 0.5 ? 2 * alpha * alpha : -1 + (4 - 2 * alpha) * alpha;
 
-            // Rotate camera to face the artwork
-            camera.lookAt(targetPosition);
+            camera.position.lerpVectors(startPosition, endPosition, easeAlpha);
+            THREE.Quaternion.slerp(startQuaternion, endQuaternion, camera.quaternion, easeAlpha);
 
             requestAnimationFrame(animate);
         } else {
-            // Adjust orbit controls target for smooth interaction
             updateOrbitControlsTarget(targetPosition);
         }
     }
