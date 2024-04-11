@@ -262,8 +262,25 @@ function onDoubleClick(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    checkForIntersections();
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children);
+
+    for (let i = 0; i < intersects.length; i++) {
+        if (intersects[i].object.userData.clickable) {
+            const artwork = intersects[i].object;
+            currentArtIndex = artwork.userData.index; // Update currentArtIndex based on clicked artwork
+            translateCameraToArt(artwork.position, artwork.rotation);
+            break; // Exit after the first clickable object is found
+        }
+    }
 }
+
+
+   // for (let i = 0; i < intersects.length; i++) {
+   //     if (intersects[i].object.userData.clickable) {
+   //         const artworkRotation = intersects[i].object.rotation;
+   //         translateCameraToArt(intersects[i].object.position, artworkRotation);
+   //         break; // Assuming you want to interact with the first object the ray hits that is clickable
 
 function stylizeElement(element, alignment) {
     element.style.position = 'absolute';
@@ -348,19 +365,6 @@ function translateCameraToArt(targetPosition, targetRotation) {
 function updateOrbitControlsTarget(newTarget) {
     controls.target.set(newTarget.x, newTarget.y, newTarget.z); // Update 'controls' directly
     controls.update();
-}
-
-function checkForIntersections() {
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(scene.children);
-
-    for (let i = 0; i < intersects.length; i++) {
-        if (intersects[i].object.userData.clickable) {
-            const artworkRotation = intersects[i].object.rotation;
-            translateCameraToArt(intersects[i].object.position, artworkRotation);
-            break; // Assuming you want to interact with the first object the ray hits that is clickable
-        }
-    }
 }
 
 function onWindowResize(camera, renderer) {

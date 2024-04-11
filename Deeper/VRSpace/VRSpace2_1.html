@@ -42,6 +42,10 @@ const mouse = new THREE.Vector2();
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 
+// Artworks array for easy management and dynamic updates
+let artworks = [];
+let currentArtIndex = 0;
+
 function initGallery() {
     scene = new THREE.Scene();
     camera = setupCamera();
@@ -51,6 +55,7 @@ function initGallery() {
     setupControls();
     loadGalleryModel();
     setupGallery();
+    initArtworks();
     setupEventListeners();
     animate();
 }
@@ -130,7 +135,6 @@ function setupControls() {
 }
 
 function loadGalleryModel() {
-    // Load the gallery GLTF model
     const loader = new GLTFLoader();
     loader.load('../lib/models/Galer01.glb', function(gltf) {
         gltf.scene.traverse(function(child) {
@@ -141,47 +145,57 @@ function loadGalleryModel() {
         });
         scene.add(gltf.scene);
     }, undefined, function(error) {
-        console.error(error);
-    });
+    console.error('An error happened in the GLTFLoader:', error);    });
 }
 
-//we need to re work this of how we aproach this function below 'setupGallery'
-//we need:
-// 1.easy edfiting if  scene gets more dinamic. curent apreocach is ok
-// 2.we might have much more of these in the future
-// 3.we will want to have next and previous artwork buttons 
-// we might want to have a id for every artwork
-// to get at wich artwork we are looking and where to moove when next or previous buttons are presed
-
 function setupGallery() {
-    const artworks = [
+    artworks = [
         { 
           texture: '../lib/images/BackWater.png', 
           text: 'Description for BackWater.', 
-          position: { x: -9.9, y: 2.5, z: 0 },
-          rotation: { x: 0, y: Math.PI / 2, z: 0 }
+          position: new THREE.Vector3(-9.9, 2.5, 0),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
         },
         { 
           texture: '../lib/images/Forest.png', 
           text: 'Description for Forest.', 
-          position: { x: -9.9, y: 2.5, z: -10 },
-          rotation: { x: 0, y: Math.PI / 2, z: 0 }
+          position: new THREE.Vector3(-9.9, 2.5, -10),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
         },
         { 
           texture: '../lib/images/BackWater.png', 
-          text: 'Long Description for BackWater. very looonnnggg tex xxxtt tttt ttthhhhaa aatttt nnnn eeee ddddd tttooo oobbbeeee wwwwrrr raapppt', 
-          position: { x: 0, y: 2.5, z: -19.9 },
-          rotation: { x: 0, y: Math.PI / 180, z: 0 }
+          text: 'Long Description for BackWater.', 
+          position: new THREE.Vector3(0, 2.5, -19.9),
+          rotation: new THREE.Euler(0, 0, 0)
         },
         { 
           texture: 'img/EV_00040.jpg', 
-          text: '11111111111111111 11111111 111111111111 111111111111 1111111111 1111111 11111111 11111111111 11111 1111', 
-          position: { x: 0, y: 2.5, z: 19.9 },
-          rotation: { x: 0, y: Math.PI / 180, z: 0 } // we need to rotate this art work 180 but i cant find the right value.
-        },
-        //many many more images to load...
+          text: 'Description for EV_00040.', 
+          position: new THREE.Vector3(0, 2.5, 19.9),
+          rotation: new THREE.Euler(0, Math.PI, 0)
+        }
     ];
+}
+
+function initArtworks() {
     loadArtPieces(scene, artworks);
+    setupNavigationButtons();
+}
+
+function loadArtPieces(scene, artworks) {
+    const textureLoader = new THREE.TextureLoader();
+    const artGeometry = new THREE.PlaneGeometry(2, 2);
+    artworks.forEach((artwork, index) => {
+        textureLoader.load(artwork.texture, function(texture) {
+            const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
+            const artMesh = new THREE.Mesh(artGeometry, artMaterial);
+            artMesh.position.copy(artwork.position);
+            artMesh.rotation.copy(artwork.rotation);
+            artMesh.userData = { index: index, clickable: true };
+            scene.add(artMesh);
+            loadText(scene, artwork.text, artwork.position, artwork.rotation);
+        });
+    });
 }
 
 function wrapText(text, maxCharsPerLine) {
@@ -221,41 +235,23 @@ function loadText(scene, text, position, rotation) {
             const textMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-            // i cant figure out how to make it allso lower then the artwork. plese help.
-            // Adjust text position relative to the artwork's rotation
-            const Offset = 1.2 // Offset from the artwork
+            const offsetDistance = 1.1; // Distance offset from the artwork
             const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
-            const Direction = new THREE.Vector3(1, -1, 0); // Direction in local space
-            Direction.applyEuler(new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ')); // Apply artwork rotation
+            const directionVector = new THREE.Vector3(0, -1, 0); // Direction to move text in local space
+            const euler = new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ'); // Rotation in Euler angles
+            
+            // Adjust direction vector by rotation
+            directionVector.applyEuler(euler); 
+            directionVector.multiplyScalar(offsetDistance); // Scale direction by offset
 
-            // Calculate final position
-            const finalPosition = new THREE.Vector3().copy(position).add(Direction.multiplyScalar(Offset));
-            textMesh.position.set(finalPosition.x, position.y + yOffset, finalPosition.z);
+            // Calculate final position for text
+            const finalPosition = new THREE.Vector3().copy(position).add(directionVector);
+            textMesh.position.set(finalPosition.x, finalPosition.y + yOffset, finalPosition.z);
 
             // Apply the artwork's rotation to the text
             textMesh.rotation.set(rotation.x, rotation.y, rotation.z);
 
             scene.add(textMesh);
-        });
-    });
-}
-
-//creating next and previous buttons
-//creating linear side movment to nest art work
-
-function loadArtPieces(scene, artworks) {
-    const textureLoader = new THREE.TextureLoader();
-    const artGeometry = new THREE.PlaneGeometry(2, 2);
-    artworks.forEach((artwork) => {
-        textureLoader.load(artwork.texture, function(texture) {
-            const artMaterial = new THREE.MeshStandardMaterial({map: texture});
-            const art = new THREE.Mesh(artGeometry, artMaterial);
-            art.position.set(artwork.position.x, artwork.position.y, artwork.position.z);
-            art.rotation.set(artwork.rotation.x, artwork.rotation.y, artwork.rotation.z);
-            art.userData = { clickable: true };
-            scene.add(art);
-            loadText(scene, artwork.text, { x: art.position.x, y: art.position.y, z: art.position.z }, artwork.rotation); // Pass rotation to text positioning
-            //mabe load next and previous artwork buttons here, maybe
         });
     });
 }
@@ -267,6 +263,57 @@ function onDoubleClick(event) {
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
     checkForIntersections();
+}
+
+function stylizeElement(element, alignment) {
+    element.style.position = 'absolute';
+    element.style.bottom = '20px';
+    element.style.padding = '12px 6px';
+    element.style.border = '1px solid #fff';
+    element.style.borderRadius = '4px';
+    element.style.background = 'rgba(0,0,0,0.1)';
+    element.style.color = '#fff';
+    element.style.font = 'normal 13px sans-serif';
+    element.style.textAlign = 'center';
+    element.style.opacity = '0.5';
+    element.style.outline = 'none';
+    element.style.zIndex = '999';
+
+    if (alignment === 'left') {
+        element.style.left = '20px';
+    } else if (alignment === 'right') {
+        element.style.right = '20px';
+    }
+}
+
+function setupNavigationButtons() {
+    const prevButton = document.createElement('button');
+    prevButton.innerText = 'Previous';
+    prevButton.id = 'prevButton';
+    stylizeElement(prevButton, 'left');
+
+    const nextButton = document.createElement('button');
+    nextButton.innerText = 'Next';
+    nextButton.id = 'nextButton';
+    stylizeElement(nextButton, 'right');
+
+    document.body.appendChild(prevButton);
+    document.body.appendChild(nextButton);
+
+    prevButton.addEventListener('click', function() {
+        currentArtIndex = (currentArtIndex - 1 + artworks.length) % artworks.length;
+        updateViewToCurrentArt();
+    });
+
+    nextButton.addEventListener('click', function() {
+        currentArtIndex = (currentArtIndex + 1) % artworks.length;
+        updateViewToCurrentArt();
+    });
+}
+
+function updateViewToCurrentArt() {
+    const artwork = artworks[currentArtIndex];
+    translateCameraToArt(artwork.position, artwork.rotation);
 }
 
 function translateCameraToArt(targetPosition, targetRotation) {
@@ -339,9 +386,6 @@ function render() {
 
 initGallery();
 </script>
-
-<button id="prevButton">Previous</button>
-<button id="nextButton">Next</button>
 
 </body>
 </html>
