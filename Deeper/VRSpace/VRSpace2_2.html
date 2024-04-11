@@ -134,7 +134,6 @@ function setupControls() {
 }
 
 function loadGalleryModel() {
-    // Load the gallery GLTF model
     const loader = new GLTFLoader();
     loader.load('../lib/models/Galer01.glb', function(gltf) {
         gltf.scene.traverse(function(child) {
@@ -145,8 +144,7 @@ function loadGalleryModel() {
         });
         scene.add(gltf.scene);
     }, undefined, function(error) {
-        console.error(error);
-    });
+    console.error('An error happened in the GLTFLoader:', error);    });
 }
 
 //we need to re work this of how we aproach this function below 'setupGallery'
@@ -158,32 +156,28 @@ function loadGalleryModel() {
 // to get at wich artwork we are looking and where to moove when next or previous buttons are presed
 
 function setupGallery() {
-    const artworks = [
+    artworks = [
         { 
           texture: '../lib/images/BackWater.png', 
           text: 'Description for BackWater.', 
-          position: { x: -9.9, y: 2.5, z: 0 },
-          rotation: { x: 0, y: Math.PI / 2, z: 0 }
+          position: new THREE.Vector3(-9.9, 2.5, 0),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
         },
         { 
           texture: '../lib/images/Forest.png', 
           text: 'Description for Forest.', 
-          position: { x: -9.9, y: 2.5, z: -10 },
-          rotation: { x: 0, y: Math.PI / 2, z: 0 }
+          position: new THREE.Vector3(-9.9, 2.5, -10),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
         },
         { 
           texture: '../lib/images/BackWater.png', 
-          text: 'Long Description for BackWater. very looonnnggg tex xxxtt tttt ttthhhhaa aatttt nnnn eeee ddddd tttooo oobbbeeee wwwwrrr raapppt', 
-          position: { x: 0, y: 2.5, z: -19.9 },
-          rotation: { x: 0, y: Math.PI / 180, z: 0 }
+          text: 'Long Description for BackWater.', 
+          position: new THREE.Vector3(0, 2.5, -19.9),
+          rotation: new THREE.Euler(0, 0, 0)
         },
         { 
           texture: 'img/EV_00040.jpg', 
-          text: '11111111111111111 11111111 111111111111 111111111111 1111111111 1111111 11111111 11111111111 11111 1111', 
-          position: { x: 0, y: 2.5, z: 19.9 },
-          rotation: { x: 0, y: Math.PI / 180, z: 0 } // we need to rotate this art work 180 but i cant find the right value.
-        },
-        //many many more images to load...
+          text: 'Description for EV_00040.', 
           position: new THREE.Vector3(0, 2.5, 19.9),
           rotation: new THREE.Euler(0, Math.PI, 0)
         }
@@ -227,19 +221,18 @@ function loadText(scene, text, position, rotation) {
             const textMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-            // i cant figure out how to make it allso lower then the artwork. plese help.
-            // Adjust text position relative to the artwork's rotation
-            const Offset = 1.2 // Offset from the artwork
+            const offsetDistance = 1.2; // Distance offset from the artwork
             const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
             const directionVector = new THREE.Vector3(0, 1, 0); // Direction to move text in local space
             const euler = new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ'); // Rotation in Euler angles
             
             // Adjust direction vector by rotation
             directionVector.applyEuler(euler); 
+            directionVector.multiplyScalar(offsetDistance); // Scale direction by offset
 
-            // Calculate final position
-            const finalPosition = new THREE.Vector3().copy(position).add(Direction.multiplyScalar(Offset));
-            textMesh.position.set(finalPosition.x, position.y + yOffset, finalPosition.z);
+            // Calculate final position for text
+            const finalPosition = new THREE.Vector3().copy(position).add(directionVector);
+            textMesh.position.set(finalPosition.x, finalPosition.y + yOffset, finalPosition.z);
 
             // Apply the artwork's rotation to the text
             textMesh.rotation.set(rotation.x, rotation.y, rotation.z);
@@ -263,6 +256,12 @@ function loadArtPieces(scene, artworks) {
     artworks.forEach((artwork, index) => {
         textureLoader.load(artwork.texture, function(texture) {
             const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
+            const artMesh = new THREE.Mesh(artGeometry, artMaterial);
+            artMesh.position.copy(artwork.position);
+            artMesh.rotation.copy(artwork.rotation);
+            artMesh.userData = { index: index, clickable: true };
+            scene.add(artMesh);
+            loadText(scene, artwork.text, artwork.position, artwork.rotation);
         });
     });
 }
@@ -276,6 +275,13 @@ function onDoubleClick(event) {
     checkForIntersections();
 }
 
+function setupNavigationButtons() {
+    const prevButton = document.getElementById('prevButton');
+    const nextButton = document.getElementById('nextButton');
+
+    prevButton.addEventListener('click', function() {
+        currentArtIndex = (currentArtIndex - 1 + artworks.length) % artworks.length;
+        updateViewToCurrentArt();
     });
 
     nextButton.addEventListener('click', function() {
