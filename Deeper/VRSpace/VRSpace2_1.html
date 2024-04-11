@@ -145,6 +145,14 @@ function loadGalleryModel() {
     });
 }
 
+//we need to re work this of how we aproach this function below 'setupGallery'
+//we need:
+// 1.easy edfiting if  scene gets more dinamic. curent apreocach is ok
+// 2.we might have much more of these in the future
+// 3.we will want to have next and previous artwork buttons 
+// we might want to have a id for every artwork
+// to get at wich artwork we are looking and where to moove when next or previous buttons are presed
+
 function setupGallery() {
     const artworks = [
         { 
@@ -165,6 +173,7 @@ function setupGallery() {
           position: { x: 0, y: 2, z: -19.9 },
           rotation: { x: 0, y: Math.PI / 180, z: 0 }
         },
+        //many many more images to load...
     ];
     loadArtPieces(scene, artworks);
 }
@@ -197,9 +206,9 @@ function loadText(scene, text, position, rotation) {
         lines.forEach((line, index) => {
             const textGeometry = new TextGeometry(line, {
                 font: font,
-                size: 0.1,
+                size: 0.08,
                 height: 0,
-                curveSegments: 4,
+                curveSegments: 3,
                 bevelEnabled: false,
             });
 
@@ -207,9 +216,9 @@ function loadText(scene, text, position, rotation) {
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
             // Adjust text position relative to the artwork's rotation
-            const xOffset = 1.1 // Distance from the artwork to the right
+            const xOffset = 1.1 // Offset from the artwork
             const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
-            const rightDirection = new THREE.Vector3(1, 0, 0); // Right direction in local space
+            const rightDirection = new THREE.Vector3(0, -1, 0); // Direction in local space
             rightDirection.applyEuler(new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ')); // Apply artwork rotation
 
             // Calculate final position
@@ -224,6 +233,9 @@ function loadText(scene, text, position, rotation) {
     });
 }
 
+//creating next and previous buttons
+//creating linear side movment to nest art work
+
 function loadArtPieces(scene, artworks) {
     const textureLoader = new THREE.TextureLoader();
     const artGeometry = new THREE.PlaneGeometry(2, 2);
@@ -236,6 +248,7 @@ function loadArtPieces(scene, artworks) {
             art.userData = { clickable: true };
             scene.add(art);
             loadText(scene, artwork.text, { x: art.position.x, y: art.position.y, z: art.position.z }, artwork.rotation); // Pass rotation to text positioning
+            //mabe load next and previous artwork buttons here, maybe
         });
     });
 }
