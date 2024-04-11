@@ -199,14 +199,14 @@ function wrapText(text, maxCharsPerLine) {
 function loadText(scene, text, position, rotation) {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
-        const maxCharsPerLine = 30;
-        const lineHeight = 0.15;
+        const maxCharsPerLine = 35;
+        const lineHeight = 0.13;
         const lines = wrapText(text, maxCharsPerLine);
 
         lines.forEach((line, index) => {
             const textGeometry = new TextGeometry(line, {
                 font: font,
-                size: 0.08,
+                size: 0.04,
                 height: 0,
                 curveSegments: 3,
                 bevelEnabled: false,
@@ -216,9 +216,9 @@ function loadText(scene, text, position, rotation) {
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
             // Adjust text position relative to the artwork's rotation
-            const xOffset = 1.1 // Offset from the artwork
+            const xOffset = 1.2 // Offset from the artwork
             const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
-            const Direction = new THREE.Vector3(1, 0, 1); // Direction in local space
+            const Direction = new THREE.Vector3(0, 1, 0); // Direction in local space
             Direction.applyEuler(new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ')); // Apply artwork rotation
 
             // Calculate final position
