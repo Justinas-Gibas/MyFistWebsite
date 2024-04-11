@@ -265,7 +265,7 @@ function onDoubleClick(event) {
     checkForIntersections();
 }
 
-function stylizeElement(element) {
+function stylizeElement(element, alignment) {
     element.style.position = 'absolute';
     element.style.bottom = '20px';
     element.style.padding = '12px 6px';
@@ -278,18 +278,24 @@ function stylizeElement(element) {
     element.style.opacity = '0.5';
     element.style.outline = 'none';
     element.style.zIndex = '999';
+
+    if (alignment === 'left') {
+        element.style.left = '20px';
+    } else if (alignment === 'right') {
+        element.style.right = '20px';
+    }
 }
 
 function setupNavigationButtons() {
     const prevButton = document.createElement('button');
     prevButton.innerText = 'Previous';
     prevButton.id = 'prevButton';
-    stylizeElement(prevButton);
+    stylizeElement(prevButton, 'left');
 
     const nextButton = document.createElement('button');
     nextButton.innerText = 'Next';
     nextButton.id = 'nextButton';
-    stylizeElement(nextButton);
+    stylizeElement(nextButton, 'right');
 
     document.body.appendChild(prevButton);
     document.body.appendChild(nextButton);
