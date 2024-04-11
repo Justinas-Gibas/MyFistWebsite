@@ -158,19 +158,19 @@ function setupGallery() {
         { 
           texture: '../lib/images/BackWater.png', 
           text: 'Description for BackWater.', 
-          position: { x: -9.9, y: 2, z: 0 },
+          position: { x: -9.9, y: 2.5, z: 0 },
           rotation: { x: 0, y: Math.PI / 2, z: 0 }
         },
         { 
           texture: '../lib/images/Forest.png', 
           text: 'Description for Forest.', 
-          position: { x: -9.9, y: 2, z: -10 },
+          position: { x: -9.9, y: 2.5, z: -10 },
           rotation: { x: 0, y: Math.PI / 2, z: 0 }
         },
         { 
           texture: '../lib/images/BackWater.png', 
           text: 'Long Description for BackWater. very looonnnggg tex xxxtt tttt ttthhhhaa aatttt nnnn eeee ddddd tttooo oobbbeeee wwwwrrr raapppt', 
-          position: { x: 0, y: 2, z: -19.9 },
+          position: { x: 0, y: 2.5, z: -19.9 },
           rotation: { x: 0, y: Math.PI / 180, z: 0 }
         },
         //many many more images to load...
@@ -218,8 +218,8 @@ function loadText(scene, text, position, rotation) {
             // Adjust text position relative to the artwork's rotation
             const xOffset = 1.1 // Offset from the artwork
             const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
-            const rightDirection = new THREE.Vector3(0, -1, 0); // Direction in local space
-            rightDirection.applyEuler(new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ')); // Apply artwork rotation
+            const Direction = new THREE.Vector3(1, 0, 1); // Direction in local space
+            Direction.applyEuler(new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ')); // Apply artwork rotation
 
             // Calculate final position
             const finalPosition = new THREE.Vector3().copy(position).add(rightDirection.multiplyScalar(xOffset));
