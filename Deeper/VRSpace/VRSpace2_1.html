@@ -222,13 +222,13 @@ function loadText(scene, text, position, rotation) {
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
             // Adjust text position relative to the artwork's rotation
-            const xOffset = 1.2 // Offset from the artwork
+            const Offset = 1.2 // Offset from the artwork
             const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
-            const Direction = new THREE.Vector3(0, 1, 0); // Direction in local space
+            const Direction = new THREE.Vector3(1, -1, 0); // Direction in local space
             Direction.applyEuler(new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ')); // Apply artwork rotation
 
             // Calculate final position
-            const finalPosition = new THREE.Vector3().copy(position).add(Direction.multiplyScalar(xOffset));
+            const finalPosition = new THREE.Vector3().copy(position).add(Direction.multiplyScalar(Offset));
             textMesh.position.set(finalPosition.x, position.y + yOffset, finalPosition.z);
 
             // Apply the artwork's rotation to the text
