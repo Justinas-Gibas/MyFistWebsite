@@ -231,7 +231,7 @@ function TitleText() {
         const minSize = 0.5; // This represents the smallest size you want your text to be
 
         // Adjust these factors to scale the size based on the viewport dimensions
-        const viewportFactor = 0.005; // How much the viewport dimensions should affect the size
+        const viewportFactor = -0.05; // How much the viewport dimensions should affect the size
         const responsiveSize = window.innerWidth * viewportFactor + window.innerHeight * viewportFactor;
 
         // Set a higher maxSize if necessary to maintain legibility
@@ -359,7 +359,7 @@ function stylizeElement(element, alignment) {
             element.style.bottom = '20px';
             break;
         case 'center':
-            element.style.top = '70%';
+            element.style.top = '40%';
             element.style.left = '50%';
             element.style.transform = 'translate(-50%, -50%)';
             element.style.font = 'normal 20px sans-serif';
