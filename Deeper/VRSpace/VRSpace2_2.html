@@ -229,9 +229,9 @@ function TitleText() {
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         // Dynamic scaling of text size based on viewport dimensions
         // Mimicking clamp functionality: clamp(minSize, sizeBasedOnViewport, maxSize)
-        const minSize = 0.2; // Minimum font size in pixels
-        const maxSize = window.innerWidth * 0.8; // Maximum size as 10% of viewport width
-        const responsiveSize = window.innerWidth * 0.005 + window.innerHeight * 0.002; // Size based on both width and height
+        const minSize = 0.8; // Minimum font size in pixels
+        const maxSize = window.innerWidth * 0.01; // Maximum size as 10% of viewport width
+        const responsiveSize = window.innerWidth * 0.002 + window.innerHeight * 0.006; // Size based on both width and height
         const size = Math.max(minSize, Math.min(responsiveSize, maxSize)); // Clamping the size
 
         const text = 'Virtual Art Gallery';
