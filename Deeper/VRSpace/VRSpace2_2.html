@@ -228,7 +228,7 @@ function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         // Calculate size based on window width, making the text larger on wider screens
-        const size = Math.max(window.innerWidth * 0.0005, 0.1);
+        const size = Math.max(window.innerWidth * 0.0005, 0.000001);
         const height = size * 0.4; // Height is a proportion of the size
 
         const text = 'Virtual Art Gallery';
@@ -250,7 +250,7 @@ function TitleText() {
         const offset = textGeometry.boundingBox.getCenter(new THREE.Vector3()).negate();
 
         // Set position to be centered on the specified coordinate and adjusted for size
-        textMesh.position.set(15 + offset.x, 2.5 - size * 0.0005 + offset.y, 3 + offset.z); // Adjust all axes based on bounding box center
+        textMesh.position.set(15 + offset.x, 2.5 - size * 0.0005 + offset.y, 0 + offset.z); // Adjust all axes based on bounding box center
         textMesh.rotation.y = Math.PI / 2; // Set rotation
 
         scene.add(textMesh);
