@@ -228,7 +228,7 @@ function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         // Calculate size based on window width, making the text larger on wider screens
-        const size = Math.max(window.innerWidth * 0.01, 10); // Minimum size of 10
+        const size = Math.max(window.innerWidth * 0.01, 0.1); // Minimum size of 10
         const height = size * 0.4; // Height is a proportion of the size
 
         const text = 'Virtual Art Gallery';
