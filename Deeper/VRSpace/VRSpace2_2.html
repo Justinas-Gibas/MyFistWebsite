@@ -261,7 +261,7 @@ function TitleText(scene) {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         const text = 'Virtual Art Gallery'; // Text to be displayed as the title
-        const textGeometry = new TextGeometry(text, {
+        const textGeometry = new textGeometry(text, {
             font: font,
             size: 0.3, // Scale of the text
             height: 0.1, // Thickness of the text
