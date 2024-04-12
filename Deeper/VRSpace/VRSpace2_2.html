@@ -228,30 +228,33 @@ function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         // Calculate size based on window width, making the text larger on wider screens
-        const size = Math.max(window.innerWidth * 0.0005, 0.000001);
-        const height = size * 0.4; // Height is a proportion of the size
+        const size = window.innerWidth * 0.02; // Adjust this value as needed
+        const height = 0.1; // Keep this fixed or base it on another factor if desired
 
         const text = 'Virtual Art Gallery';
         const textGeometry = new TextGeometry(text, {
             font: font,
             size: size,
             height: height,
-            curveSegments: 3,
+            curveSegments: 12,
             bevelEnabled: false
         });
 
         const textMaterial = new THREE.MeshBasicMaterial({ color: 0xd4d4d4 });
         const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-        // Update the geometry to compute bounding box
+        // Compute the bounding box of the text geometry
         textGeometry.computeBoundingBox();
 
-        // Calculate the offset needed to center the text
-        const offset = textGeometry.boundingBox.getCenter(new THREE.Vector3()).negate();
+        // Get the center of the bounding box
+        const centerOffset = -0.5 * (textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x);
 
-        // Set position to be centered on the specified coordinate and adjusted for size
-        textMesh.position.set(15 + offset.x, 2.5 - size * 0.0005 + offset.y, 0 + offset.z); // Adjust all axes based on bounding box center
-        textMesh.rotation.y = Math.PI / 2; // Set rotation
+        // Position the text in the center of the screen
+        textMesh.position.x = centerOffset; // This centers the text mesh
+        textMesh.position.y = 2.5; // Adjust this value as needed to move the text up or down
+        textMesh.position.z = 0; // Adjust this if you want to move the text forward/backward in the scene
+
+        textMesh.rotation.y = Math.PI / 2; // Rotate the text to face forwards
 
         scene.add(textMesh);
     });
