@@ -62,7 +62,7 @@ function initGallery() {
 
 function setupCamera() {
     const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(16, 2, 3);
+    camera.position.set(25, 2, 0);
     return camera;
 }
 
@@ -117,7 +117,7 @@ function setupLighting() {
     //scene.add(pointLight6);
 //
     const pointLight7 = new THREE.PointLight(0xb5b5b5, 0.5, 10);
-    pointLight7.position.set(15, 2, 0);
+    pointLight7.position.set(20, 2, 0);
     pointLight7.castShadow = false;
     scene.add(pointLight7);
     
@@ -253,6 +253,28 @@ function loadText(scene, text, position, rotation) {
 
             scene.add(textMesh);
         });
+    });
+}
+
+function TitleText(scene) {
+    const loader = new FontLoader();
+    loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
+        const text = 'Virtual Art Gallery'; // Text to be displayed as the title
+        const textGeometry = new TextGeometry(text, {
+            font: font,
+            size: 0.3, // Scale of the text
+            height: 0.1, // Thickness of the text
+            curveSegments: 3, // Number of segments for curves
+            bevelEnabled: false // Bevel settings
+        });
+
+        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa }); // Color of the text
+        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+
+        textMesh.position.set(20, 2.5, 0); // Position of the text in the scene
+        textMesh.rotation.y = Math.PI / 2; // Rotate to face forward or adjust as needed
+
+        scene.add(textMesh); // Adding the text to the scene
     });
 }
 
