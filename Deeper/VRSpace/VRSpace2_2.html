@@ -231,7 +231,7 @@ function TitleText() {
         const minSize = 0.1; // This represents the smallest size you want your text to be
 
         // Adjust these factors to scale the size based on the viewport dimensions
-        const viewportFactor = 0.01; // How much the viewport dimensions should affect the size
+        const viewportFactor = -0.01; // How much the viewport dimensions should affect the size
         const responsiveSize = window.innerWidth * viewportFactor;  // + window.innerHeight * viewportFactor;
 
         // Set a higher maxSize if necessary to maintain legibility
