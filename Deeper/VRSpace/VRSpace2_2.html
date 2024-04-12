@@ -228,10 +228,10 @@ function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         // Increase minSize for better minimum legibility
-        const minSize = 0.5; // This represents the smallest size you want your text to be
+        const minSize = 0.1; // This represents the smallest size you want your text to be
 
         // Adjust these factors to scale the size based on the viewport dimensions
-        const viewportFactor = -0.05; // How much the viewport dimensions should affect the size
+        const viewportFactor = -0.1; // How much the viewport dimensions should affect the size
         const responsiveSize = window.innerWidth * viewportFactor + window.innerHeight * viewportFactor;
 
         // Set a higher maxSize if necessary to maintain legibility
