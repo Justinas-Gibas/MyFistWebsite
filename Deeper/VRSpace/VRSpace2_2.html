@@ -257,27 +257,76 @@ function loadText(scene, text, position, rotation) {
     });
 }
 
-function TitleText(scene) {
+function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
-        const text = 'Virtual Art Gallery'; // Text to be displayed as the title
-        const textGeometry = new textGeometry(text, {
+        const text = 'Virtual Art Gallery';
+        const textGeometry = new TextGeometry(text, {  // Fixed typo here
             font: font,
-            size: 0.3, // Scale of the text
-            height: 0.1, // Thickness of the text
-            curveSegments: 3, // Number of segments for curves
-            bevelEnabled: false // Bevel settings
+            size: 1,
+            height: 0.5,
+            depth: 0.5,
+            curveSegments: 3,
+            bevelEnabled: false
         });
 
-        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa }); // Color of the text
+        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
         const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-        textMesh.position.set(20, 2.5, 0); // Position of the text in the scene
-        textMesh.rotation.y = Math.PI / 2; // Rotate to face forward or adjust as needed
+        textMesh.position.set(15, 2.5, 0);
+        textMesh.rotation.y = Math.PI / 2;
 
-        scene.add(textMesh); // Adding the text to the scene
+        scene.add(textMesh);
     });
 }
+
+
+
+// Helper function to interpolate between two keyframes
+function interpolateKeyframes(kf1, kf2, currentTime) {
+    const t = (currentTime - kf1.time) / (kf2.time - kf1.time);
+    const position = new THREE.Vector3().lerpVectors(kf1.position, kf2.position, t);
+    const quaternion = new THREE.Quaternion().slerpQuaternions(kf1.quaternion, kf2.quaternion, t);
+    return { position, quaternion };
+}
+
+// Main function to animate the camera through keyframes
+function animateCameraThroughKeyframes(keyframes) {
+    return new Promise(resolve => {
+        let currentKeyframeIndex = 0;
+
+        const updateAnimation = () => {
+            const now = performance.now();
+            while (now > keyframes[currentKeyframeIndex + 1].time && currentKeyframeIndex < keyframes.length - 2) {
+                currentKeyframeIndex++;
+            }
+
+            if (currentKeyframeIndex < keyframes.length - 1) {
+                const kf1 = keyframes[currentKeyframeIndex];
+                const kf2 = keyframes[currentKeyframeIndex + 1];
+                const { position, quaternion } = interpolateKeyframes(kf1, kf2, now);
+                camera.position.copy(position);
+                camera.quaternion.copy(quaternion);
+                requestAnimationFrame(updateAnimation);
+            } else {
+                resolve(); // End of animation
+            }
+        };
+
+        updateAnimation();
+    });
+}
+
+// Example usage
+const keyframes = [
+    { position: new THREE.Vector3(0, 2, 5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), time: performance.now() + 1000 },
+    { position: new THREE.Vector3(5, 2, 0), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), time: performance.now() + 2000 },
+    { position: new THREE.Vector3(0, 2, -5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)), time: performance.now() + 3000 }
+];
+
+document.getElementById('startButton').addEventListener('click', () => {
+    animateCameraThroughKeyframes(keyframes).then(() => console.log("Animation Complete"));
+});
 
 function onDoubleClick(event) {
     // Calculate mouse position in normalized device coordinates
@@ -300,7 +349,6 @@ function onDoubleClick(event) {
 
 function stylizeElement(element, alignment) {
     element.style.position = 'absolute';
-    element.style.bottom = '20px';
     element.style.padding = '12px 6px';
     element.style.border = '1px solid #fff';
     element.style.borderRadius = '4px';
@@ -312,10 +360,20 @@ function stylizeElement(element, alignment) {
     element.style.outline = 'none';
     element.style.zIndex = '999';
 
-    if (alignment === 'left') {
-        element.style.left = '20px';
-    } else if (alignment === 'right') {
-        element.style.right = '20px';
+    switch (alignment) {
+        case 'left':
+            element.style.left = '20px';
+            element.style.bottom = '20px';
+            break;
+        case 'right':
+            element.style.right = '20px';
+            element.style.bottom = '20px';
+            break;
+        case 'center':
+            element.style.top = '50%';
+            element.style.left = '50%';
+            element.style.transform = 'translate(-50%, -50%)';
+            break;
     }
 }
 
@@ -329,6 +387,16 @@ function setupNavigationButtons() {
     nextButton.innerText = 'Next';
     nextButton.id = 'nextButton';
     stylizeElement(nextButton, 'right');
+
+    // need toi fix this here it has to be in center and we need to add this buttoin
+    const startButton = document.getElementById('startButton');
+    if (startButton) {
+        startButton.addEventListener('click', () => {
+            animateCameraThroughKeyframes(keyframes).then(() => console.log("Animation Complete"));
+        });
+    } else {
+        console.error('Start Tour button not found');
+    }
 
     document.body.appendChild(prevButton);
     document.body.appendChild(nextButton);
