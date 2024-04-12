@@ -10,7 +10,7 @@
     <style>
         body, html { margin: 0; height: 100%; overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; }
-        #prevButton, #nextButton { display: none; } /* Initially hide the navigation buttons */
+        /*#prevButton, #nextButton { display: none; } /* Initially hide the navigation buttons */
     </style>
 </head>
 <body>
@@ -227,24 +227,18 @@ function loadText(scene, text, position, rotation) {
 function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
-        // Increase minSize for better minimum legibility
-        const minSize = 0.1; // This represents the smallest size you want your text to be
 
-        // Adjust these factors to scale the size based on the viewport dimensions
-        const viewportFactor = 0.0005; // How much the viewport dimensions should affect the size
+        //responsive text sizing
+        const minSize = 0.1;
+        const viewportFactor = 0.0005;
         const responsiveSize = window.innerWidth * viewportFactor;  // + window.innerHeight * viewportFactor;
-
-        // Set a higher maxSize if necessary to maintain legibility
-        const maxSize = 0.6; // This represents the largest size you want your text to be
-
-        // we want not clamp but maybe remap values?
-        // Clamping the size between minSize and maxSize
+        const maxSize = 0.6;
         const size = Math.max(minSize, Math.min(responsiveSize, maxSize));
 
         const text = 'Virtual Art Gallery';
         const textGeometry = new TextGeometry(text, {
             font: font,
-            size: size, // Use size directly since it's already in a suitable range
+            size: size,
             depth: 0.1,
             curveSegments: 3,
             bevelEnabled: false
@@ -257,9 +251,9 @@ function TitleText() {
         textGeometry.computeBoundingBox();
         const centerOffset = -0.5 * (textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x);
 
-        // Set position to roughly center of screen, adjust if needed
-        textMesh.position.set(15, 2.5, 0 - centerOffset); // Adjusted manually
-        textMesh.rotation.y = Math.PI / 2; // Rotate to face the correct direction
+        // Set position to roughly center of screen
+        textMesh.position.set(15, 2.5, 0 - centerOffset);
+        textMesh.rotation.y = Math.PI / 2;
 
         scene.add(textMesh);
     });
