@@ -231,12 +231,13 @@ function TitleText() {
         const minSize = 0.1; // This represents the smallest size you want your text to be
 
         // Adjust these factors to scale the size based on the viewport dimensions
-        const viewportFactor = -0.01; // How much the viewport dimensions should affect the size
+        const viewportFactor = 0.002; // How much the viewport dimensions should affect the size
         const responsiveSize = window.innerWidth * viewportFactor;  // + window.innerHeight * viewportFactor;
 
         // Set a higher maxSize if necessary to maintain legibility
         const maxSize = 1; // This represents the largest size you want your text to be
 
+        // we want not clamo buy maybe remap values?
         // Clamping the size between minSize and maxSize
         const size = Math.max(minSize, Math.min(responsiveSize, maxSize));
 
