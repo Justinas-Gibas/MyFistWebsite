@@ -235,10 +235,10 @@ function TitleText() {
             bevelEnabled: false
         });
 
-        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xd4d4d4 });
         const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-        textMesh.position.set(15, 2.5, 0);
+        textMesh.position.set(15, 2.5, 3);
         textMesh.rotation.y = Math.PI / 2;
 
         scene.add(textMesh);
