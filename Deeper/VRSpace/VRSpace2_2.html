@@ -228,7 +228,7 @@ function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         // Calculate size based on window width, making the text larger on wider screens
-        const size = window.innerWidth * 0.02; // Adjust this value as needed
+        const size = window.innerWidth * 0.0002; // Adjust this value as needed
         const height = 0.1; // Keep this fixed or base it on another factor if desired
 
         const text = 'Virtual Art Gallery';
@@ -259,7 +259,6 @@ function TitleText() {
         scene.add(textMesh);
     });
 }
-
 
 // Helper function to interpolate between two keyframes
 function interpolateKeyframes(kf1, kf2, currentTime) {
