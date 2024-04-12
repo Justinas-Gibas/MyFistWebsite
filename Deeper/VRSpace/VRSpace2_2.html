@@ -284,9 +284,9 @@ function animateCameraThroughKeyframes(keyframes) {
 
 // Ensure quaternions are properly initialized
 const keyframes = [
-    { position: new THREE.Vector3(0, 2, 5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), time: performance.now() + 1000 },
-    { position: new THREE.Vector3(5, 2, 0), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), time: performance.now() + 2000 },
-    { position: new THREE.Vector3(0, 2, -5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)), time: performance.now() + 3000 }
+    { position: new THREE.Vector3(0, 2, 5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), time: performance.now() + 100 },
+    { position: new THREE.Vector3(5, 2, 0), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), time: performance.now() + 200 },
+    { position: new THREE.Vector3(0, 2, -5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)), time: performance.now() + 300 }
 ];
 
 function onDoubleClick(event) {
