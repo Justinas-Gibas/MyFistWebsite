@@ -295,9 +295,9 @@ function animateCameraThroughKeyframes(keyframes) {
 
 // Ensure quaternions are properly initialized
 const keyframes = [
-    { position: new THREE.Vector3(0, 2, 5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), time: performance.now() + 100 },
-    { position: new THREE.Vector3(5, 2, 0), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), time: performance.now() + 200 },
-    { position: new THREE.Vector3(0, 2, -5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)), time: performance.now() + 300 }
+    { position: new THREE.Vector3(0, 2, 1), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), time: performance.now() + 10 },
+    { position: new THREE.Vector3(5, 2, 0), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), time: performance.now() + 20 },
+    { position: new THREE.Vector3(0, 2, -1), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)), time: performance.now() + 30 }
 ];
 
 function onDoubleClick(event) {
@@ -386,7 +386,12 @@ function setupNavigationButtons() {
     });
 
     startButton.addEventListener('click', function() {
-        // Animation logic, then:
+        
+        //animateCameraThroughKeyframes()
+
+        currentArtIndex = (currentArtIndex + 1) % artworks.length;
+        updateViewToCurrentArt();
+
         prevButton.style.display = 'block'; // Show the Previous button
         nextButton.style.display = 'block'; // Show the Next button
         startButton.style.display = 'none'; // Hide the Start button
