@@ -258,6 +258,8 @@ function interpolateKeyframes(kf1, kf2, currentTime) {
 function animateCameraThroughKeyframes(keyframes) {
     return new Promise(resolve => {
         let currentKeyframeIndex = 0;
+        let initialPosition = camera.position.clone(); // Store initial camera position
+        let initialQuaternion = camera.quaternion.clone(); // Store initial camera rotation
 
         const updateAnimation = () => {
             const now = performance.now();
@@ -269,8 +271,15 @@ function animateCameraThroughKeyframes(keyframes) {
                 const kf1 = keyframes[currentKeyframeIndex];
                 const kf2 = keyframes[currentKeyframeIndex + 1];
                 const { position, quaternion } = interpolateKeyframes(kf1, kf2, now);
-                camera.position.copy(position);
-                camera.quaternion.copy(quaternion);
+
+                // Reset camera to initial state before applying new transformation
+                camera.position.copy(initialPosition);
+                camera.quaternion.copy(initialQuaternion);
+
+                // Apply interpolated transformation
+                camera.position.lerpVectors(initialPosition, position, (now - kf1.time) / (kf2.time - kf1.time));
+                camera.quaternion.slerpQuaternions(initialQuaternion, quaternion, (now - kf1.time) / (kf2.time - kf1.time));
+
                 requestAnimationFrame(updateAnimation);
             } else {
                 console.log("Animation Complete");
