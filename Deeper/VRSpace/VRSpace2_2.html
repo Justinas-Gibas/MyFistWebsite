@@ -75,7 +75,7 @@ function setupRenderer() {
 }
 
 function setupLighting() {
-    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.5);
     scene.add(ambientLight);
 
     const pointLight1 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
@@ -282,9 +282,9 @@ function animateCameraThroughKeyframes(keyframes) {
 
 // Example usage
 const keyframes = [
-    { position: new THREE.Vector3(0, 2, 5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), time: performance.now() + 1000 },
+    { position: new THREE.Vector3(0, 2, 5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI , 0)), time: performance.now() + 1000 },
     { position: new THREE.Vector3(5, 2, 0), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), time: performance.now() + 2000 },
-    { position: new THREE.Vector3(0, 2, -5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)), time: performance.now() + 3000 }
+    { position: new THREE.Vector3(0, 2, -5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI , 0)), time: performance.now() + 3000 }
 ];
 
 
@@ -313,11 +313,11 @@ function stylizeElement(element, alignment) {
     element.style.padding = '12px 6px';
     element.style.border = '1px solid #fff';
     element.style.borderRadius = '4px';
-    element.style.background = 'rgba(0,0,0,0.7)'; // Make sure the button is visible
+    element.style.background = 'rgba(0,0,0,0.1)'; 
     element.style.color = '#fff';
     element.style.font = 'normal 13px sans-serif';
     element.style.textAlign = 'center';
-    element.style.opacity = '1'; // Ensure opacity is 1 for visibility
+    element.style.opacity = '0.5';
     element.style.outline = 'none';
     element.style.zIndex = '999';
 

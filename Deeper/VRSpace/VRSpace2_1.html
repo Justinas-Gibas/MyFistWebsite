@@ -257,7 +257,6 @@ function loadText(scene, text, position, rotation) {
     });
 }
 
-//text dont seem to e appering i the scene
 function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
@@ -374,7 +373,6 @@ function stylizeElement(element, alignment) {
     }
 }
 
-//might need fixing
 function setupNavigationButtons() {
     const prevButton = document.createElement('button');
     prevButton.innerText = 'Previous';
@@ -406,7 +404,6 @@ function setupNavigationButtons() {
         updateViewToCurrentArt();
     });
 
-    // might need fixing
     startButton.addEventListener('click', function() {
         animateCameraThroughKeyframes(keyframes).then(() => console.log("Animation Complete"));
     });
