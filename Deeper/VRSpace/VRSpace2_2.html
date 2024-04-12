@@ -326,6 +326,26 @@ function updateViewToCurrentArt() {
     translateCameraToArt(artwork.position, artwork.rotation);
 }
 
+function quaternionSlerp(q1, q2, t) {
+    const cosTheta = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+    const angle = Math.acos(cosTheta);
+
+    let sinTheta = Math.sqrt(1.0 - cosTheta * cosTheta);
+    if (Math.abs(sinTheta) < 0.001) { // If the angle is small, use linear interpolation
+        sinTheta = 1;
+    }
+
+    const ratioA = Math.sin((1 - t) * angle) / sinTheta;
+    const ratioB = Math.sin(t * angle) / sinTheta;
+
+    return new THREE.Quaternion(
+        q1.x * ratioA + q2.x * ratioB,
+        q1.y * ratioA + q2.y * ratioB,
+        q1.z * ratioA + q2.z * ratioB,
+        q1.w * ratioA + q2.w * ratioB
+    );
+}
+
 function translateCameraToArt(targetPosition, targetRotation) {
     const endPosition = new THREE.Vector3();
     const direction = new THREE.Vector3(0, 0, 1); // Assuming the artwork faces along negative z-axis
@@ -347,8 +367,8 @@ function translateCameraToArt(targetPosition, targetRotation) {
             // Interpolate position
             camera.position.lerpVectors(startPosition, endPosition, alpha);
 
-            // Interpolate rotation
-            THREE.Quaternion.slerp(startRotation, endRotation, camera.quaternion, alpha);
+            // Interpolate rotation using the custom slerp function
+            camera.quaternion.copy(quaternionSlerp(startRotation, endRotation, alpha));
 
             requestAnimationFrame(animate);
         } else {
