@@ -56,13 +56,14 @@ function initGallery() {
     loadGalleryModel();
     setupGallery();
     initArtworks();
+    TitleText();
     setupEventListeners();
     animate();
 }
 
 function setupCamera() {
     const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(16, 2, 3);
+    camera.position.set(20, 1.6, 0);
     return camera;
 }
 
@@ -117,7 +118,7 @@ function setupLighting() {
     //scene.add(pointLight6);
 //
     const pointLight7 = new THREE.PointLight(0xb5b5b5, 0.5, 10);
-    pointLight7.position.set(15, 2, 0);
+    pointLight7.position.set(20, 2, 0);
     pointLight7.castShadow = false;
     scene.add(pointLight7);
     
@@ -256,6 +257,74 @@ function loadText(scene, text, position, rotation) {
     });
 }
 
+//text dont seem to e appering i the scene
+function TitleText() {
+    const loader = new FontLoader();
+    loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
+        const text = 'Virtual Art Gallery';
+        const textGeometry = new TextGeometry(text, {  // Fixed typo here
+            font: font,
+            size: 0.5,
+            height: 0.5,
+            depth: 0.5,
+            curveSegments: 3,
+            bevelEnabled: false
+        });
+
+        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+
+        textMesh.position.set(15, 2.5, 3);
+        textMesh.rotation.y = Math.PI / 2;
+
+        scene.add(textMesh);
+    });
+}
+
+// Helper function to interpolate between two keyframes
+function interpolateKeyframes(kf1, kf2, currentTime) {
+    const t = (currentTime - kf1.time) / (kf2.time - kf1.time);
+    const position = new THREE.Vector3().lerpVectors(kf1.position, kf2.position, t);
+    const quaternion = new THREE.Quaternion().slerpQuaternions(kf1.quaternion, kf2.quaternion, t);
+    return { position, quaternion };
+}
+
+// Main function to animate the camera through keyframes
+function animateCameraThroughKeyframes(keyframes) {
+    return new Promise(resolve => {
+        let currentKeyframeIndex = 0;
+
+        const updateAnimation = () => {
+            const now = performance.now();
+            while (now > keyframes[currentKeyframeIndex + 1].time && currentKeyframeIndex < keyframes.length - 2) {
+                currentKeyframeIndex++;
+            }
+
+            if (currentKeyframeIndex < keyframes.length - 1) {
+                const kf1 = keyframes[currentKeyframeIndex];
+                const kf2 = keyframes[currentKeyframeIndex + 1];
+                const { position, quaternion } = interpolateKeyframes(kf1, kf2, now);
+                camera.position.copy(position);
+                camera.quaternion.copy(quaternion);
+                requestAnimationFrame(updateAnimation);
+            } else {
+                resolve(); // End of animation
+            }
+        };
+
+        updateAnimation();
+    });
+}
+
+// Example usage
+const keyframes = [
+    { position: new THREE.Vector3(0, 2, 5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), time: performance.now() + 1000 },
+    { position: new THREE.Vector3(5, 2, 0), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), time: performance.now() + 2000 },
+    { position: new THREE.Vector3(0, 2, -5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)), time: performance.now() + 3000 }
+];
+
+
+
 function onDoubleClick(event) {
     // Calculate mouse position in normalized device coordinates
     // (-1 to +1) for both components
@@ -277,7 +346,6 @@ function onDoubleClick(event) {
 
 function stylizeElement(element, alignment) {
     element.style.position = 'absolute';
-    element.style.bottom = '20px';
     element.style.padding = '12px 6px';
     element.style.border = '1px solid #fff';
     element.style.borderRadius = '4px';
@@ -289,13 +357,24 @@ function stylizeElement(element, alignment) {
     element.style.outline = 'none';
     element.style.zIndex = '999';
 
-    if (alignment === 'left') {
-        element.style.left = '20px';
-    } else if (alignment === 'right') {
-        element.style.right = '20px';
+    switch (alignment) {
+        case 'left':
+            element.style.left = '20px';
+            element.style.bottom = '20px';
+            break;
+        case 'right':
+            element.style.right = '20px';
+            element.style.bottom = '20px';
+            break;
+        case 'center':
+            element.style.top = '50%';
+            element.style.left = '50%';
+            element.style.transform = 'translate(-50%, -50%)';
+            break;
     }
 }
 
+//might need fixing
 function setupNavigationButtons() {
     const prevButton = document.createElement('button');
     prevButton.innerText = 'Previous';
@@ -307,8 +386,15 @@ function setupNavigationButtons() {
     nextButton.id = 'nextButton';
     stylizeElement(nextButton, 'right');
 
+    const startButton = document.createElement('button');
+    startButton.innerText = 'Start';
+    startButton.id = 'startButton';
+    stylizeElement(nextButton, 'center');
+
+
     document.body.appendChild(prevButton);
     document.body.appendChild(nextButton);
+    document.body.appendChild(startButton);
 
     prevButton.addEventListener('click', function() {
         currentArtIndex = (currentArtIndex - 1 + artworks.length) % artworks.length;
@@ -318,6 +404,11 @@ function setupNavigationButtons() {
     nextButton.addEventListener('click', function() {
         currentArtIndex = (currentArtIndex + 1) % artworks.length;
         updateViewToCurrentArt();
+    });
+
+    // might need fixing
+    startButton.addEventListener('click', function() {
+        animateCameraThroughKeyframes(keyframes).then(() => console.log("Animation Complete"));
     });
 }
 

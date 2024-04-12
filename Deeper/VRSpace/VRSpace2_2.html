@@ -3,11 +3,10 @@
 <head>
     <title>Three.js AR/XR - Enhanced Virtual Art Gallery</title>
     <meta charset="UTF-8">
-    <meta name="author" content="Justinas Gibas" />
+    <meta name="author" content="Justinas Gibas">
     <meta name="description" content="Three.js AR/XR - Enhanced Virtual Art Gallery">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#ffffff">
-
     <style>
         body, html { margin: 0; height: 100%; overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; }
@@ -38,7 +37,6 @@ import Stats from '../lib/libs/stats.module.js'
 let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 
@@ -50,7 +48,6 @@ function initGallery() {
     scene = new THREE.Scene();
     camera = setupCamera();
     renderer = setupRenderer();
-
     setupLighting();
     setupControls();
     loadGalleryModel();
@@ -78,55 +75,23 @@ function setupRenderer() {
 }
 
 function setupLighting() {
-    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.5);
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 0.5);
     scene.add(ambientLight);
 
-    //const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    //directionalLight.position.set(5, 10, 7.5);
-    //directionalLight.castShadow = true;
-    //scene.add(directionalLight);
-
-    // Point lights
     const pointLight1 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
     pointLight1.position.set(0, 2, 8);
-    pointLight1.castShadow = false;
     scene.add(pointLight1);
     
     const pointLight2 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
     pointLight2.position.set(0, 2, -8);
-    pointLight2.castShadow = false;
     scene.add(pointLight2);
-//
-    //const pointLight3 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight3.position.set(-8, 2, 10);
-    //pointLight3.castShadow = false;
-    //scene.add(pointLight3);
-//
-    //const pointLight4 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight4.position.set(-8, 2, -10);
-    //pointLight4.castShadow = false;
-    //scene.add(pointLight4);
-//
-    //const pointLight5 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight5.position.set(8, 2, 10);
-    //pointLight5.castShadow = false;
-    //scene.add(pointLight5);
-//
-    //const pointLight6 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight6.position.set(8, 2, -10);
-    //pointLight6.castShadow = false;
-    //scene.add(pointLight6);
-//
+
     const pointLight7 = new THREE.PointLight(0xb5b5b5, 0.5, 10);
     pointLight7.position.set(20, 2, 0);
-    pointLight7.castShadow = false;
     scene.add(pointLight7);
-    
-    // Soft shadows
+
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
-    //directionalLight.shadow.mapSize.width = 512; // Adjust for better shadow resolution
-    //directionalLight.shadow.mapSize.height = 512;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 }
 
 function setupControls() {
@@ -140,13 +105,13 @@ function loadGalleryModel() {
     loader.load('../lib/models/Galer01.glb', function(gltf) {
         gltf.scene.traverse(function(child) {
             if (child.isMesh) {
-                // Ensure only the front faces are rendered
                 child.material.side = THREE.FrontSide;
             }
         });
         scene.add(gltf.scene);
     }, undefined, function(error) {
-    console.error('An error happened in the GLTFLoader:', error);    });
+        console.error('An error happened in the GLTFLoader:', error);
+    });
 }
 
 function setupGallery() {
@@ -257,12 +222,12 @@ function loadText(scene, text, position, rotation) {
     });
 }
 
-//text dont seem to e appering i the scene
+//text don't seem to appearing in the scene
 function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         const text = 'Virtual Art Gallery';
-        const textGeometry = new TextGeometry(text, {  // Fixed typo here
+        const textGeometry = new TextGeometry(text, {
             font: font,
             size: 1,
             height: 0.5,
@@ -403,7 +368,7 @@ function setupNavigationButtons() {
 
     nextButton.addEventListener('click', function() {
         currentArtIndex = (currentArtIndex + 1) % artworks.length;
-        updateViewToCurrentArt();
+        updateViewToCurrent Art();
     });
 
     // might need fixing
