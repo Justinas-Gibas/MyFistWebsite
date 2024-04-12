@@ -249,7 +249,8 @@ function TitleText() {
 function interpolateKeyframes(kf1, kf2, currentTime) {
     const t = (currentTime - kf1.time) / (kf2.time - kf1.time);
     const position = new THREE.Vector3().lerpVectors(kf1.position, kf2.position, t);
-    const quaternion = new THREE.Quaternion().slerpQuaternions(kf1.quaternion, kf2.quaternion, t);
+    const quaternion = new THREE.Quaternion().slerpQuaternions(kf1.quaternion.clone().normalize(), kf2.quaternion.clone().normalize(), t);
+    console.log("Interpolating quaternions", quaternion); // Debug: Log quaternion values
     return { position, quaternion };
 }
 
@@ -272,6 +273,7 @@ function animateCameraThroughKeyframes(keyframes) {
                 camera.quaternion.copy(quaternion);
                 requestAnimationFrame(updateAnimation);
             } else {
+                console.log("Animation Complete");
                 resolve(); // End of animation
             }
         };
@@ -280,14 +282,12 @@ function animateCameraThroughKeyframes(keyframes) {
     });
 }
 
-// Example usage
+// Ensure quaternions are properly initialized
 const keyframes = [
-    { position: new THREE.Vector3(0, 2, 5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI , 0)), time: performance.now() + 1000 },
+    { position: new THREE.Vector3(0, 2, 5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), time: performance.now() + 1000 },
     { position: new THREE.Vector3(5, 2, 0), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), time: performance.now() + 2000 },
-    { position: new THREE.Vector3(0, 2, -5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI , 0)), time: performance.now() + 3000 }
+    { position: new THREE.Vector3(0, 2, -5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)), time: performance.now() + 3000 }
 ];
-
-
 
 function onDoubleClick(event) {
     // Calculate mouse position in normalized device coordinates
