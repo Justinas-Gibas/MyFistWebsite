@@ -10,6 +10,7 @@
     <style>
         body, html { margin: 0; height: 100%; overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; }
+        #prevButton, #nextButton { display: none; } /* Initially hide the navigation buttons */
     </style>
 </head>
 <body>
@@ -97,6 +98,7 @@ function setupLighting() {
 function setupControls() {
     controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.6, 0);
+    controls.enabled = false; // Initially disable controls
     controls.update();
 }
 
@@ -343,6 +345,9 @@ function stylizeElement(element, alignment) {
             element.style.top = '50%';
             element.style.left = '50%';
             element.style.transform = 'translate(-50%, -50%)';
+            element.style.font = 'normal 20px sans-serif';
+            element.style.background = 'rgba(0,0,0,0.4)';
+            element.style.opacity = '1';
             break;
     }
 }
@@ -367,6 +372,9 @@ function setupNavigationButtons() {
     document.body.appendChild(nextButton);
     document.body.appendChild(startButton);
 
+    prevButton.style.display = 'none'; // Ensure button is not visible
+    nextButton.style.display = 'none'; // Ensure button is not visible
+
     prevButton.addEventListener('click', function() {
         currentArtIndex = (currentArtIndex - 1 + artworks.length) % artworks.length;
         updateViewToCurrentArt();
@@ -377,9 +385,12 @@ function setupNavigationButtons() {
         updateViewToCurrentArt();
     });
 
-    // might need fixing
     startButton.addEventListener('click', function() {
-        animateCameraThroughKeyframes(keyframes).then(() => console.log("Animation Complete"));
+        // Animation logic, then:
+        prevButton.style.display = 'block'; // Show the Previous button
+        nextButton.style.display = 'block'; // Show the Next button
+        startButton.style.display = 'none'; // Hide the Start button
+        controls.enabled = true; // Enable orbit controls
     });
 }
 
