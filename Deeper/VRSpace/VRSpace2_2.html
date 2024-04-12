@@ -387,9 +387,7 @@ function setupNavigationButtons() {
 
     startButton.addEventListener('click', function() {
         
-        //animateCameraThroughKeyframes()
-
-        currentArtIndex = (currentArtIndex + 1) % artworks.length;
+        //animateCameraThroughKeyframes();
         updateViewToCurrentArt();
 
         prevButton.style.display = 'block'; // Show the Previous button
