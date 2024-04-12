@@ -85,7 +85,7 @@ function setupLighting() {
     
     const pointLight2 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
     pointLight2.position.set(0, 2, -8);
-    scene.add(pointLight2);
+    scene.add(pointLight2); 
 
     const pointLight7 = new THREE.PointLight(0xb5b5b5, 0.5, 10);
     pointLight7.position.set(15, 2, 0);
@@ -342,12 +342,12 @@ function stylizeElement(element, alignment) {
             element.style.bottom = '20px';
             break;
         case 'center':
-            element.style.top = '50%';
+            element.style.top = '75%';
             element.style.left = '50%';
-            element.style.transform = 'translate(-50%, -50%)';
+            element.style.transform = 'translate(-75%, -25%)';
             element.style.font = 'normal 20px sans-serif';
             element.style.background = 'rgba(0,0,0,0.4)';
-            element.style.opacity = '1';
+            element.style.opacity = '0.7';
             break;
     }
 }
