@@ -3,14 +3,14 @@
 <head>
     <title>Three.js AR/XR - Enhanced Virtual Art Gallery</title>
     <meta charset="UTF-8">
-    <meta name="author" content="Justinas Gibas" />
+    <meta name="author" content="Justinas Gibas">
     <meta name="description" content="Three.js AR/XR - Enhanced Virtual Art Gallery">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#ffffff">
-
     <style>
         body, html { margin: 0; height: 100%; overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; }
+        #prevButton, #nextButton { display: none; } /* Initially hide the navigation buttons */
     </style>
 </head>
 <body>
@@ -38,7 +38,6 @@ import Stats from '../lib/libs/stats.module.js'
 let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 
@@ -50,7 +49,6 @@ function initGallery() {
     scene = new THREE.Scene();
     camera = setupCamera();
     renderer = setupRenderer();
-
     setupLighting();
     setupControls();
     loadGalleryModel();
@@ -81,57 +79,26 @@ function setupLighting() {
     const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.5);
     scene.add(ambientLight);
 
-    //const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    //directionalLight.position.set(5, 10, 7.5);
-    //directionalLight.castShadow = true;
-    //scene.add(directionalLight);
-
-    // Point lights
     const pointLight1 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
     pointLight1.position.set(0, 2, 8);
-    pointLight1.castShadow = false;
     scene.add(pointLight1);
     
     const pointLight2 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
     pointLight2.position.set(0, 2, -8);
-    pointLight2.castShadow = false;
-    scene.add(pointLight2);
-//
-    //const pointLight3 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight3.position.set(-8, 2, 10);
-    //pointLight3.castShadow = false;
-    //scene.add(pointLight3);
-//
-    //const pointLight4 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight4.position.set(-8, 2, -10);
-    //pointLight4.castShadow = false;
-    //scene.add(pointLight4);
-//
-    //const pointLight5 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight5.position.set(8, 2, 10);
-    //pointLight5.castShadow = false;
-    //scene.add(pointLight5);
-//
-    //const pointLight6 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight6.position.set(8, 2, -10);
-    //pointLight6.castShadow = false;
-    //scene.add(pointLight6);
-//
+    scene.add(pointLight2); 
+
     const pointLight7 = new THREE.PointLight(0xb5b5b5, 0.5, 10);
-    pointLight7.position.set(20, 2, 0);
-    pointLight7.castShadow = false;
+    pointLight7.position.set(15, 2, 0);
     scene.add(pointLight7);
-    
-    // Soft shadows
+
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
-    //directionalLight.shadow.mapSize.width = 512; // Adjust for better shadow resolution
-    //directionalLight.shadow.mapSize.height = 512;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 }
 
 function setupControls() {
     controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.6, 0);
+    controls.enabled = false; // Initially disable controls
     controls.update();
 }
 
@@ -140,13 +107,13 @@ function loadGalleryModel() {
     loader.load('../lib/models/Galer01.glb', function(gltf) {
         gltf.scene.traverse(function(child) {
             if (child.isMesh) {
-                // Ensure only the front faces are rendered
                 child.material.side = THREE.FrontSide;
             }
         });
         scene.add(gltf.scene);
     }, undefined, function(error) {
-    console.error('An error happened in the GLTFLoader:', error);    });
+        console.error('An error happened in the GLTFLoader:', error);
+    });
 }
 
 function setupGallery() {
@@ -261,16 +228,16 @@ function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         const text = 'Virtual Art Gallery';
-        const textGeometry = new TextGeometry(text, {  // Fixed typo here
+        const textGeometry = new TextGeometry(text, {
             font: font,
             size: 0.5,
-            height: 0.5,
-            depth: 0.5,
+            height: 0.2,
+            depth: 0.1,
             curveSegments: 3,
             bevelEnabled: false
         });
 
-        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xd4d4d4 });
         const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
         textMesh.position.set(15, 2.5, 3);
@@ -284,7 +251,8 @@ function TitleText() {
 function interpolateKeyframes(kf1, kf2, currentTime) {
     const t = (currentTime - kf1.time) / (kf2.time - kf1.time);
     const position = new THREE.Vector3().lerpVectors(kf1.position, kf2.position, t);
-    const quaternion = new THREE.Quaternion().slerpQuaternions(kf1.quaternion, kf2.quaternion, t);
+    const quaternion = new THREE.Quaternion().slerpQuaternions(kf1.quaternion.clone().normalize(), kf2.quaternion.clone().normalize(), t);
+    console.log("Interpolating quaternions", quaternion); // Debug: Log quaternion values
     return { position, quaternion };
 }
 
@@ -292,6 +260,8 @@ function interpolateKeyframes(kf1, kf2, currentTime) {
 function animateCameraThroughKeyframes(keyframes) {
     return new Promise(resolve => {
         let currentKeyframeIndex = 0;
+        let initialPosition = camera.position.clone(); // Store initial camera position
+        let initialQuaternion = camera.quaternion.clone(); // Store initial camera rotation
 
         const updateAnimation = () => {
             const now = performance.now();
@@ -303,10 +273,18 @@ function animateCameraThroughKeyframes(keyframes) {
                 const kf1 = keyframes[currentKeyframeIndex];
                 const kf2 = keyframes[currentKeyframeIndex + 1];
                 const { position, quaternion } = interpolateKeyframes(kf1, kf2, now);
-                camera.position.copy(position);
-                camera.quaternion.copy(quaternion);
+
+                // Reset camera to initial state before applying new transformation
+                camera.position.copy(initialPosition);
+                camera.quaternion.copy(initialQuaternion);
+
+                // Apply interpolated transformation
+                camera.position.lerpVectors(initialPosition, position, (now - kf1.time) / (kf2.time - kf1.time));
+                camera.quaternion.slerpQuaternions(initialQuaternion, quaternion, (now - kf1.time) / (kf2.time - kf1.time));
+
                 requestAnimationFrame(updateAnimation);
             } else {
+                console.log("Animation Complete");
                 resolve(); // End of animation
             }
         };
@@ -315,14 +293,12 @@ function animateCameraThroughKeyframes(keyframes) {
     });
 }
 
-// Example usage
+// Ensure quaternions are properly initialized
 const keyframes = [
-    { position: new THREE.Vector3(0, 2, 5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), time: performance.now() + 1000 },
-    { position: new THREE.Vector3(5, 2, 0), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), time: performance.now() + 2000 },
-    { position: new THREE.Vector3(0, 2, -5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)), time: performance.now() + 3000 }
+    { position: new THREE.Vector3(0, 2, 1), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), time: performance.now() + 10 },
+    { position: new THREE.Vector3(5, 2, 0), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), time: performance.now() + 20 },
+    { position: new THREE.Vector3(0, 2, -1), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)), time: performance.now() + 30 }
 ];
-
-
 
 function onDoubleClick(event) {
     // Calculate mouse position in normalized device coordinates
@@ -348,7 +324,7 @@ function stylizeElement(element, alignment) {
     element.style.padding = '12px 6px';
     element.style.border = '1px solid #fff';
     element.style.borderRadius = '4px';
-    element.style.background = 'rgba(0,0,0,0.1)';
+    element.style.background = 'rgba(0,0,0,0.1)'; 
     element.style.color = '#fff';
     element.style.font = 'normal 13px sans-serif';
     element.style.textAlign = 'center';
@@ -366,9 +342,12 @@ function stylizeElement(element, alignment) {
             element.style.bottom = '20px';
             break;
         case 'center':
-            element.style.top = '50%';
+            element.style.top = '75%';
             element.style.left = '50%';
-            element.style.transform = 'translate(-50%, -50%)';
+            element.style.transform = 'translate(-75%, -25%)';
+            element.style.font = 'normal 20px sans-serif';
+            element.style.background = 'rgba(0,0,0,0.4)';
+            element.style.opacity = '0.7';
             break;
     }
 }
@@ -387,12 +366,14 @@ function setupNavigationButtons() {
     const startButton = document.createElement('button');
     startButton.innerText = 'Start';
     startButton.id = 'startButton';
-    stylizeElement(nextButton, 'center');
-
+    stylizeElement(startButton, 'center');
 
     document.body.appendChild(prevButton);
     document.body.appendChild(nextButton);
     document.body.appendChild(startButton);
+
+    prevButton.style.display = 'none'; // Ensure button is not visible
+    nextButton.style.display = 'none'; // Ensure button is not visible
 
     prevButton.addEventListener('click', function() {
         currentArtIndex = (currentArtIndex - 1 + artworks.length) % artworks.length;
@@ -405,7 +386,14 @@ function setupNavigationButtons() {
     });
 
     startButton.addEventListener('click', function() {
-        animateCameraThroughKeyframes(keyframes).then(() => console.log("Animation Complete"));
+        
+        //animateCameraThroughKeyframes();
+        updateViewToCurrentArt();
+
+        prevButton.style.display = 'block'; // Show the Previous button
+        nextButton.style.display = 'block'; // Show the Next button
+        startButton.style.display = 'none'; // Hide the Start button
+        controls.enabled = true; // Enable orbit controls
     });
 }
 

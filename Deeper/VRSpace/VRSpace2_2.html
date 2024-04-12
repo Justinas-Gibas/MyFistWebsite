@@ -227,12 +227,15 @@ function loadText(scene, text, position, rotation) {
 function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
+        // Calculate size based on window width, making the text larger on wider screens
+        const size = Math.max(window.innerWidth * 0.01, 10); // Minimum size of 10
+        const height = size * 0.4; // Height is a proportion of the size
+
         const text = 'Virtual Art Gallery';
         const textGeometry = new TextGeometry(text, {
             font: font,
-            size: 0.5,
-            height: 0.2,
-            depth: 0.1,
+            size: size,
+            height: height,
             curveSegments: 3,
             bevelEnabled: false
         });
@@ -240,7 +243,8 @@ function TitleText() {
         const textMaterial = new THREE.MeshBasicMaterial({ color: 0xd4d4d4 });
         const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
-        textMesh.position.set(15, 2.5, 3);
+        // Adjust the position to be more central and scale according to size
+        textMesh.position.set(15, 2.5 + size * 0.05, 3); // Adjust Y position based on size
         textMesh.rotation.y = Math.PI / 2;
 
         scene.add(textMesh);
@@ -324,11 +328,11 @@ function stylizeElement(element, alignment) {
     element.style.padding = '12px 6px';
     element.style.border = '1px solid #fff';
     element.style.borderRadius = '4px';
-    element.style.background = 'rgba(0,0,0,0.1)'; 
+    element.style.background = 'rgba(0,0,0,0.3)'; 
     element.style.color = '#fff';
     element.style.font = 'normal 13px sans-serif';
     element.style.textAlign = 'center';
-    element.style.opacity = '0.5';
+    element.style.opacity = '0.6';
     element.style.outline = 'none';
     element.style.zIndex = '999';
 
@@ -342,9 +346,9 @@ function stylizeElement(element, alignment) {
             element.style.bottom = '20px';
             break;
         case 'center':
-            element.style.top = '75%';
+            element.style.top = '70%';
             element.style.left = '50%';
-            element.style.transform = 'translate(-75%, -25%)';
+            element.style.transform = 'translate(-50%, -50%)';
             element.style.font = 'normal 20px sans-serif';
             element.style.background = 'rgba(0,0,0,0.4)';
             element.style.opacity = '0.7';
