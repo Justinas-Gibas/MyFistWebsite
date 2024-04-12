@@ -227,14 +227,18 @@ function loadText(scene, text, position, rotation) {
 function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
-        // Calculate size based on window width, making the text larger on wider screens
-        const size = window.innerWidth * 0.0002; // Adjust this value as needed
+        // Dynamic scaling of text size based on viewport dimensions
+        // Mimicking clamp functionality: clamp(minSize, sizeBasedOnViewport, maxSize)
+        const minSize = 0.5; // Minimum font size in pixels
+        const maxSize = window.innerWidth * 0.5; // Maximum size as 10% of viewport width
+        const responsiveSize = window.innerWidth * 0.002 + window.innerHeight * 0.002; // Size based on both width and height
+        const size = Math.max(minSize, Math.min(responsiveSize, maxSize)); // Clamping the size
 
         const text = 'Virtual Art Gallery';
         const textGeometry = new TextGeometry(text, {
             font: font,
-            size: size,
-            depth:0.1,
+            size: size / 100, // Convert pixels to Three.js units
+            depth: 0.1,
             curveSegments: 3,
             bevelEnabled: false
         });
@@ -242,15 +246,13 @@ function TitleText() {
         const textMaterial = new THREE.MeshBasicMaterial({ color: 0xd4d4d4 });
         const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
+        // Calculate position to center the text
         textGeometry.computeBoundingBox();
         const centerOffset = -0.5 * (textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x);
 
-        // Position the text in the center of the screen
-        textMesh.position.x = 15; // + centerOffset;
-        textMesh.position.y = 2.5;
-        textMesh.position.z = 0 - centerOffset;
-
-        textMesh.rotation.y = Math.PI / 2; // Rotate the text to face forwards
+        // Set position to roughly center of screen, adjust if needed
+        textMesh.position.set(15, 2.5, 0 - centerOffset); // Adjusted manually
+        textMesh.rotation.y = Math.PI / 2; // Rotate to face the correct direction
 
         scene.add(textMesh);
     });
