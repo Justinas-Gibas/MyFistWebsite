@@ -257,6 +257,7 @@ function loadText(scene, text, position, rotation) {
     });
 }
 
+//text dont seem to e appering i the scene
 function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
@@ -279,8 +280,6 @@ function TitleText() {
         scene.add(textMesh);
     });
 }
-
-
 
 // Helper function to interpolate between two keyframes
 function interpolateKeyframes(kf1, kf2, currentTime) {
@@ -324,9 +323,7 @@ const keyframes = [
     { position: new THREE.Vector3(0, 2, -5), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)), time: performance.now() + 3000 }
 ];
 
-document.getElementById('startButton').addEventListener('click', () => {
-    animateCameraThroughKeyframes(keyframes).then(() => console.log("Animation Complete"));
-});
+
 
 function onDoubleClick(event) {
     // Calculate mouse position in normalized device coordinates
@@ -377,6 +374,7 @@ function stylizeElement(element, alignment) {
     }
 }
 
+//might need fixing
 function setupNavigationButtons() {
     const prevButton = document.createElement('button');
     prevButton.innerText = 'Previous';
@@ -388,18 +386,15 @@ function setupNavigationButtons() {
     nextButton.id = 'nextButton';
     stylizeElement(nextButton, 'right');
 
-    // need toi fix this here it has to be in center and we need to add this buttoin
-    const startButton = document.getElementById('startButton');
-    if (startButton) {
-        startButton.addEventListener('click', () => {
-            animateCameraThroughKeyframes(keyframes).then(() => console.log("Animation Complete"));
-        });
-    } else {
-        console.error('Start Tour button not found');
-    }
+    const startButton = document.createElement('button');
+    startButton.innerText = 'Start';
+    startButton.id = 'startButton';
+    stylizeElement(nextButton, 'center');
+
 
     document.body.appendChild(prevButton);
     document.body.appendChild(nextButton);
+    document.body.appendChild(startButton);
 
     prevButton.addEventListener('click', function() {
         currentArtIndex = (currentArtIndex - 1 + artworks.length) % artworks.length;
@@ -409,6 +404,11 @@ function setupNavigationButtons() {
     nextButton.addEventListener('click', function() {
         currentArtIndex = (currentArtIndex + 1) % artworks.length;
         updateViewToCurrentArt();
+    });
+
+    // might need fixing
+    startButton.addEventListener('click', function() {
+        animateCameraThroughKeyframes(keyframes).then(() => console.log("Animation Complete"));
     });
 }
 
