@@ -227,17 +227,23 @@ function loadText(scene, text, position, rotation) {
 function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
-        // Dynamic scaling of text size based on viewport dimensions
-        // Mimicking clamp functionality: clamp(minSize, sizeBasedOnViewport, maxSize)
-        const minSize = 0.8; // Minimum font size in pixels
-        const maxSize = window.innerWidth * 0.01; // Maximum size as 10% of viewport width
-        const responsiveSize = window.innerWidth * 0.002 + window.innerHeight * 0.006; // Size based on both width and height
-        const size = Math.max(minSize, Math.min(responsiveSize, maxSize)); // Clamping the size
+        // Increase minSize for better minimum legibility
+        const minSize = 5; // This represents the smallest size you want your text to be
+
+        // Adjust these factors to scale the size based on the viewport dimensions
+        const viewportFactor = 0.005; // How much the viewport dimensions should affect the size
+        const responsiveSize = window.innerWidth * viewportFactor + window.innerHeight * viewportFactor;
+
+        // Set a higher maxSize if necessary to maintain legibility
+        const maxSize = 20; // This represents the largest size you want your text to be
+
+        // Clamping the size between minSize and maxSize
+        const size = Math.max(minSize, Math.min(responsiveSize, maxSize));
 
         const text = 'Virtual Art Gallery';
         const textGeometry = new TextGeometry(text, {
             font: font,
-            size: size / 100, // Convert pixels to Three.js units
+            size: size, // Use size directly since it's already in a suitable range
             depth: 0.1,
             curveSegments: 3,
             bevelEnabled: false
