@@ -222,21 +222,20 @@ function loadText(scene, text, position, rotation) {
     });
 }
 
-//text don't seem to appearing in the scene
 function TitleText() {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         const text = 'Virtual Art Gallery';
         const textGeometry = new TextGeometry(text, {
             font: font,
-            size: 1,
-            height: 0.5,
-            depth: 0.5,
+            size: 0.5,
+            height: 0.2,
+            depth: 0.1,
             curveSegments: 3,
             bevelEnabled: false
         });
 
-        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xrrrrrr });
         const textMesh = new THREE.Mesh(textGeometry, textMaterial);
 
         textMesh.position.set(15, 2.5, 0);
@@ -314,11 +313,11 @@ function stylizeElement(element, alignment) {
     element.style.padding = '12px 6px';
     element.style.border = '1px solid #fff';
     element.style.borderRadius = '4px';
-    element.style.background = 'rgba(0,0,0,0.1)';
+    element.style.background = 'rgba(0,0,0,0.7)'; // Make sure the button is visible
     element.style.color = '#fff';
     element.style.font = 'normal 13px sans-serif';
     element.style.textAlign = 'center';
-    element.style.opacity = '0.5';
+    element.style.opacity = '1'; // Ensure opacity is 1 for visibility
     element.style.outline = 'none';
     element.style.zIndex = '999';
 
@@ -339,7 +338,6 @@ function stylizeElement(element, alignment) {
     }
 }
 
-//might need fixing
 function setupNavigationButtons() {
     const prevButton = document.createElement('button');
     prevButton.innerText = 'Previous';
@@ -354,8 +352,7 @@ function setupNavigationButtons() {
     const startButton = document.createElement('button');
     startButton.innerText = 'Start';
     startButton.id = 'startButton';
-    stylizeElement(nextButton, 'center');
-
+    stylizeElement(startButton, 'center');
 
     document.body.appendChild(prevButton);
     document.body.appendChild(nextButton);
