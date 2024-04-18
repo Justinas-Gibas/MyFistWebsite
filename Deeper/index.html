@@ -63,7 +63,7 @@
     .slides {
         display: flex;
         width: calc(100% * var(--slide-count)); /* --slide-count is a CSS variable representing the number of slides */
-        transform: translate3d(var(--slide-translate), 0, 0); /* --slide-translate is a CSS variable for the translate value */
+        transition: transform 0.5s ease-out;
     }
     .slide {
         width: calc(100% / var(--slide-count)); /* Divide by the number of slides */
