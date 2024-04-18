@@ -233,22 +233,36 @@
         </div>
     </footer>
     <script>
+
+        document.addEventListener('DOMContentLoaded', (event) => {
         let slideIndex = 0;
         const slides = document.querySelectorAll('.slide');
         const totalSlides = slides.length;
 
-       // Set initial CSS variable for translate
-    document.documentElement.style.setProperty('--slide-translate', '0%');
-        
-    document.querySelector('.left').addEventListener('click', () => moveSlide(-1));
-    document.querySelector('.right').addEventListener('click', () => moveSlide(1));
-        
-    function moveSlide(step) {
-        slideIndex = (slideIndex + step + totalSlides) % totalSlides;
-        const translateValue = -(100 / totalSlides) * slideIndex;
-        // Use CSS variable for translate
-        document.documentElement.style.setProperty('--slide-translate', `${translateValue}%`);
-    }
+        // Initial setting of CSS variables
+        document.documentElement.style.setProperty('--slide-count', totalSlides.toString());
+        document.documentElement.style.setProperty('--slide-translate', '0%');
+
+        document.querySelector('.left').addEventListener('click', () => {
+            moveSlide(-1);
+        });
+
+        document.querySelector('.right').addEventListener('click', () => {
+            moveSlide(1);
+        });
+
+        function moveSlide(step) {
+            slideIndex = (slideIndex + step + totalSlides) % totalSlides;
+            const translateValue = -(100 / totalSlides) * slideIndex;
+            console.log(`Moving to slide index: ${slideIndex}, translate value: ${translateValue}%`);
+
+            // Update the CSS variable for translate
+            document.documentElement.style.setProperty('--slide-translate', `${translateValue}%`);
+        }
+    });
+
+
+
     </script>
 </body>
 </html>
