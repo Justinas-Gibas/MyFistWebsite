@@ -18,6 +18,7 @@
         padding: 0;
         width: 100%;
         height: 100%;
+        max-height: 100vh;
         font-family: Arial, sans-serif;
         background: #f0f0f0;
         color: #333;
@@ -30,10 +31,19 @@
         text-align: center;
         padding: 1rem;
     }
+
+    .footer {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+    }
+
     .main {
         flex: 1;
         display: flex;
         flex-direction: column;
+        overflow: auto; /* Allows scrolling within the main content area if needed */
+        padding-bottom: 50px
     }
 
     /* Make sure the container does not exceed the width of the viewport */
@@ -47,6 +57,7 @@
     .carousel {
         position: relative;
         width: 100%;
+        max-height: 50vh;
         overflow: hidden;
     }
     .slides {
@@ -62,6 +73,7 @@
     /* Media and captions within slides */
     .slide img, .slide video {
         max-width: 100%;
+        max-height: 100%;
         height: auto;
     }
     figcaption {
@@ -225,23 +237,18 @@
         const slides = document.querySelectorAll('.slide');
         const totalSlides = slides.length;
 
-        document.querySelector('.left').addEventListener('click', function() {
-            moveSlide(-1);
-            // Assume totalSlides is the number of slides you have
-        document.documentElement.style.setProperty('--slide-count', totalSlides);
-        });
-
-        document.querySelector('.right').addEventListener('click', function() {
-            moveSlide(1);
-            document.documentElement.style.setProperty('--slide-translate', `-${(100/totalSlides) * currentSlideIndex}%`);
-        });
-
-        function moveSlide(step) {
-            slideIndex = (slideIndex + step + totalSlides) % totalSlides;
-            const slideWidth = slides[0].clientWidth;
-            const newTranslate = -slideWidth * slideIndex;
-            document.querySelector('.slides').style.transform = `translateX(${newTranslate}px)`;
-        }
+       // Set initial CSS variable for translate
+    document.documentElement.style.setProperty('--slide-translate', '0%');
+        
+    document.querySelector('.left').addEventListener('click', () => moveSlide(-1));
+    document.querySelector('.right').addEventListener('click', () => moveSlide(1));
+        
+    function moveSlide(step) {
+        slideIndex = (slideIndex + step + totalSlides) % totalSlides;
+        const translateValue = -(100 / totalSlides) * slideIndex;
+        // Use CSS variable for translate
+        document.documentElement.style.setProperty('--slide-translate', `${translateValue}%`);
+    }
     </script>
 </body>
 </html>
