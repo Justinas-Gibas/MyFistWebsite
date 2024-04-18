@@ -10,6 +10,8 @@
     <link rel="stylesheet" href="lib/styles/reset.css">
     <style>
         body, html {
+            height: auto;
+            min-height: 100%;
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
@@ -71,11 +73,10 @@
         }
 
         .slide img, .slide video {
-            max-width: 100%;
             width: 100%;        /* This ensures the image is as wide as its container */
             height: auto;       /* This makes the image's height scale proportionally */
-            max-width: 100%;    /* This prevents the image from stretching beyond its original width */
-            max-height: 80vh;  /* Optional: This restricts the image's height to the viewport height */
+            max-width: 80%;    /* This prevents the image from stretching beyond its original width */
+            max-height: 80%;  /* Optional: This restricts the image's height to the viewport height */
             border-radius: 8px;
         }
 
