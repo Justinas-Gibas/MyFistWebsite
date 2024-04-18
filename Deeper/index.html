@@ -9,93 +9,93 @@
     <title>Justinas Gibas - Portfolio</title>
     <link rel="stylesheet" href="lib/styles/reset.css">
     <style>
-        /* Reset padding and margins for all elements */
+       /* Base styles */
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box; /* This makes sure padding doesn't affect overall width */
-}
-
-/* Set basic styles for body */
-body, html {
-    font-family: Arial, sans-serif;
-    background: #f0f0f0;
-    color: #333;
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-}
-
-/* Header and Footer */
-.header, .footer {
-    background-color: #333;
-    color: #fff;
-    text-align: center;
-    padding: 1rem;
-}
-
-/* Main content area */
-.main {
-    flex: 1;
-    width: 90%;
-    max-width: 1200px;
-    margin: auto;
-}
-
-/* Sections within main */
-.section {
-    margin-bottom: 1rem; /* Adjust as necessary */
-}
-
-/* Carousel */
-.carousel {
-    position: relative;
-    width: 100%;
-}
-
-.slides {
-    display: flex;
-}
-
-.slide {
-    width: 100%;
-}
-
-.slide img, .slide video {
-    width: 100%; /* Makes the image responsive */
-    max-height: 50vh; /* Adjust based on your needs and test */
-    border-radius: 8px;
-}
-
-/* Carousel controls */
-.carousel-control {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: rgba(0, 0, 0, 0.5);
-    border: none;
-    color: #fff;
-    padding: 10px;
-}
-
-.left {
-    left: 10px;
-}
-
-.right {
-    right: 10px;
-}
-
-/* Adjust the above styles with media queries for finer control on mobile devices */
-@media (max-width: 768px) {
+        box-sizing: border-box;
+    }
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        font-family: Arial, sans-serif;
+        background: #f0f0f0;
+        color: #333;
+        display: flex;
+        flex-direction: column;
+    }
+    .header, .footer {
+        background-color: #333;
+        color: #fff;
+        text-align: center;
+        padding: 1rem;
+    }
     .main {
-        width: 95%; /* More width on mobile for better use of space */
+        flex: 1;
+        display: flex;
+        flex-direction: column;
     }
 
+    /* Make sure the container does not exceed the width of the viewport */
+    .container {
+        width: 90%;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    /* Carousel styles */
+    .carousel {
+        position: relative;
+        width: 100%;
+        overflow: hidden;
+    }
+    .slides {
+        display: flex;
+        width: calc(100% * var(--slide-count)); /* --slide-count is a CSS variable representing the number of slides */
+        transform: translate3d(var(--slide-translate), 0, 0); /* --slide-translate is a CSS variable for the translate value */
+    }
+    .slide {
+        width: calc(100% / var(--slide-count)); /* Divide by the number of slides */
+        flex-shrink: 0; /* Prevents the slide from shrinking */
+    }
+
+    /* Media and captions within slides */
     .slide img, .slide video {
-        max-height: 40vh; /* Maybe smaller on mobile */
+        max-width: 100%;
+        height: auto;
+    }
+    figcaption {
+        text-align: center;
+    }
+
+    /* Carousel controls */
+    .carousel-control {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(0, 0, 0, 0.5);
+        color: #fff;
+        border: none;
+        padding: 10px;
+        cursor: pointer;
+    }
+    .left {
+        left: 10px;
+    }
+    .right {
+        right: 10px;
+    }
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        width: 95%; /* Allow more space on smaller screens */
+    }
+    .slide img, .slide video {
+        max-height: 200px; /* Limit the height on small screens */
     }
 }
+
     </style>
 </head>
 <body>
@@ -227,10 +227,13 @@ body, html {
 
         document.querySelector('.left').addEventListener('click', function() {
             moveSlide(-1);
+            // Assume totalSlides is the number of slides you have
+        document.documentElement.style.setProperty('--slide-count', totalSlides);
         });
 
         document.querySelector('.right').addEventListener('click', function() {
             moveSlide(1);
+            document.documentElement.style.setProperty('--slide-translate', `-${(100/totalSlides) * currentSlideIndex}%`);
         });
 
         function moveSlide(step) {
