@@ -9,127 +9,93 @@
     <title>Justinas Gibas - Portfolio</title>
     <link rel="stylesheet" href="lib/styles/reset.css">
     <style>
-        body, html {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            height: 100%; /* Make sure it is the full height of the viewport */
-            display: flex;
-            background: #f0f0f0;
-            color: #333;
-        }
+        /* Reset padding and margins for all elements */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box; /* This makes sure padding doesn't affect overall width */
+}
 
-        body, .wrapper { /* .wrapper is a hypothetical wrapper around all body content except for the footer */
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
-        }
+/* Set basic styles for body */
+body, html {
+    font-family: Arial, sans-serif;
+    background: #f0f0f0;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
 
-        .main {
-            flex-grow: 1;
-            display: flex; /* Flex container */
-            flex-direction: column; /* Stack children vertically */
-            overflow: hidden; /* Prevent any type of scrolling within the main content */
-        }
+/* Header and Footer */
+.header, .footer {
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    padding: 1rem;
+}
 
-        .header, .footer {
-            background-color: #333;
-            color: #fff;
-            text-align: center;
-            padding: 1rem;
-        }
+/* Main content area */
+.main {
+    flex: 1;
+    width: 90%;
+    max-width: 1200px;
+    margin: auto;
+}
 
-        .container {
-            width: 90%;
-            margin: auto;
-            overflow: hidden;
-        }
+/* Sections within main */
+.section {
+    margin-bottom: 1rem; /* Adjust as necessary */
+}
 
-        .nav-list {
-            list-style: none;
-            padding: 0;
-        }
+/* Carousel */
+.carousel {
+    position: relative;
+    width: 100%;
+}
 
-        .nav-list li {
-            display: inline;
-            margin-right: 10px;
-        }
+.slides {
+    display: flex;
+}
 
-        .nav-link {
-            text-decoration: none;
-            color: #fff;
-        }
+.slide {
+    width: 100%;
+}
 
-        .section {
-            margin-top: 20px;
-        }
+.slide img, .slide video {
+    width: 100%; /* Makes the image responsive */
+    max-height: 50vh; /* Adjust based on your needs and test */
+    border-radius: 8px;
+}
 
-        .section.container {
-            flex-grow: 1;
-            display: flex; /* Flex container */
-            flex-direction: column; /* Stack children vertically */
-        }
+/* Carousel controls */
+.carousel-control {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    color: #fff;
+    padding: 10px;
+}
 
+.left {
+    left: 10px;
+}
 
-        .section.container > * {
-           /* This ensures that all direct children of the section with a container class */
-           /* take up only as much space as needed */
-           flex-shrink: 0;
-        }
+.right {
+    right: 10px;
+}
 
-        .carousel {
-            position: relative;
-            width: 100%;
-            overflow: hidden;
-            max-height: 70vh; /* Example value, adjust based on your content */
-            margin-top: 20px; /* Adjust as necessary */
-            margin-bottom: 20px;
-        }
+/* Adjust the above styles with media queries for finer control on mobile devices */
+@media (max-width: 768px) {
+    .main {
+        width: 95%; /* More width on mobile for better use of space */
+    }
 
-        .slides {
-            display: flex;
-            transition: transform 0.5s ease;
-            width: 300%; /* Adjusted for 3 slides */
-        }
-
-        .slide {
-            min-width: 33.3333%; /* Adjusted for 3 slides */
-            transition: transform 0.5s ease;
-            box-sizing: border-box;
-            padding: 20px;
-            text-align: center;
-            max-height: 70vh; /* Example value, adjust based on your content */
-            margin-top: 20px; /* Adjust as necessary */
-            margin-bottom: 20px;
-        }
-
-        .slide img, .slide video {
-            width: 80%;
-            height: 80%;
-            border-radius: 8px;
-            max-height: 100%;
-        }
-
-        .carousel-control {
-            z-index: 1000;
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            cursor: pointer;
-            font-size: 24px;
-            color: #fff;
-            background: rgba(0, 0, 0, 0.5);
-            border: none;
-            padding: 10px;
-        }
-
-        .left {
-            left: 10px;
-        }
-
-        .right {
-            right: 10px;
-        }
+    .slide img, .slide video {
+        max-height: 40vh; /* Maybe smaller on mobile */
+    }
+}
     </style>
 </head>
 <body>
