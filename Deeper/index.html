@@ -10,13 +10,22 @@
     <link rel="stylesheet" href="lib/styles/reset.css">
     <style>
         body, html {
-            height: auto;
-            min-height: 100%;
             font-family: Arial, sans-serif;
+            height: 100%;
             margin: 0;
             padding: 0;
             background: #f0f0f0;
             color: #333;
+        }
+
+        body, .wrapper { /* .wrapper is a hypothetical wrapper around all body content except for the footer */
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .main {
+            flex-grow: 1;
         }
 
         .header, .footer {
@@ -28,8 +37,6 @@
 
         .container {
             width: 90%;
-            max-height: 90vh;
-            max-width: 1200px; /* Prevents the container from being too wide on larger screens */
             margin: auto;
             overflow: hidden;
             overflow-y: auto;
