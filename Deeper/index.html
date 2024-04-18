@@ -58,18 +58,18 @@
         .slides {
             display: flex;
             transition: transform 0.5s ease;
-            width: 100%;
+            width: 300%; /* Adjusted for 3 slides */
         }
 
         .slide {
-            min-width: 100%;
+            min-width: 33.3333%; /* Adjusted for 3 slides */
             transition: transform 0.5s ease;
             box-sizing: border-box;
             padding: 20px;
             text-align: center;
         }
 
-        .slide img {
+        .slide img, .slide video {
             max-width: 100%;
             border-radius: 8px;
         }
@@ -117,11 +117,24 @@
             <h2>My Work</h2>
             <div class="carousel">
                 <div class="slides">
+                    <!-- Existing Slide from the first website -->
                     <figure class="slide">
                         <img src="./Deeper/lib/images/potw2046a.jpg" alt="Project Description">
                         <figcaption>Project Description Here</figcaption>
                     </figure>
-                    <!-- More slides -->
+                    <!-- Inserted Work Items from the second website -->
+                    <figure class="slide">
+                        <img src="./Deeper/lib/images/Forest.png" alt="Deep Forest Project">
+                        <figcaption>Deep forest project</figcaption>
+                    </figure>
+                    <figure class="slide">
+                        <video controls poster="./Deeper/lib/images/potw2046a.jpg">
+                            <source src="./Deeper/lib/images/potw2046a.mp4" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                        <figcaption>Creating music with electronic devices</figcaption>
+                    </figure>
+                    <!-- You can add more projects here following the same structure -->
                 </div>
                 <button class="carousel-control left">&#10094;</button>
                 <button class="carousel-control right">&#10095;</button>
