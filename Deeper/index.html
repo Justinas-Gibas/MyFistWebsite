@@ -26,6 +26,7 @@
 
         .container {
             width: 90%;
+            max-width: 1200px; /* Prevents the container from being too wide on larger screens */
             margin: auto;
             overflow: hidden;
         }
@@ -75,6 +76,7 @@
         }
 
         .carousel-control {
+            z-index: 1000;
             position: absolute;
             top: 50%;
             transform: translateY(-50%);
