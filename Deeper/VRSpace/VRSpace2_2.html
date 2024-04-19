@@ -131,48 +131,48 @@ function setupGallery() {
           text: 'Description for Forest.', 
           position: new THREE.Vector3(-9.9, 2.5, -10),
           rotation: new THREE.Euler(0, Math.PI / 2, 0)
-          //width: 2.5, // Optional
-          //height: 3   // Optional
+          //width: 2.5,  
+          //height: 3  
         },
         { // center of gallery right side
           texture: '../lib/images/EV_00041.png',  
           text: 'Long Description for BackWater.', 
           position: new THREE.Vector3(0, 2.5, -19.9),
           rotation: new THREE.Euler(0, 0, 0),
-          width: 2.5, // Optional
-          height: 3   // Optional
+          width: 2.5,  
+          height: 3    
         },
         { // center of gallery left side
           texture: 'img/EV_00040.jpg', 
           text: 'Description for EV_00040.', 
           position: new THREE.Vector3(0, 2.5, 19.9),
           rotation: new THREE.Euler(0, Math.PI, 0),
-          width: 1, // Optional
-          height: 1   // Optional
+          width: 1, 
+          height: 1    
         },
         { 
           texture: 'img/EV_00040.jpg', 
           text: 'Description for EV_00040.', 
           position: new THREE.Vector3(9.9, 2.5, -4),
           rotation: new THREE.Euler(0, Math.PI / -2, 0),
-          width: 1, // Optional
-          height: 1   // Optional
+          width: 1,  
+          height: 1    
         },
         { //end position of gallery right side
           texture: 'img/EV_00040.jpg', 
           text: 'Description for EV_00040.', 
           position: new THREE.Vector3(9.9, 2.5, 4),
           rotation: new THREE.Euler(0, Math.PI / -2, 0)
-          //width: 1, // Optional
-          //height: 1   // Optional
+          //width: 1,  
+          //height: 1    
         },
         { 
           texture: 'img/EV_00042.jpg', 
           text: 'Description for EV_00042.', 
           position: new THREE.Vector3(9.9, 2.5, 7),
           rotation: new THREE.Euler(0, Math.PI / -2, 0)
-          //width: 1, // Optional
-          //height: 1   // Optional
+          //width: 1,
+          //height: 1 
         }
     ];
 }
@@ -187,8 +187,8 @@ function loadArtPieces(scene, artworks) {
     artworks.forEach((artwork, index) => {
         textureLoader.load(artwork.texture, function(texture) {
             const aspectRatio = texture.image.width / texture.image.height;
-            const width = artwork.width || 1; // Default width if not specified
-            const height = artwork.height || width / aspectRatio; // Calculate height based on aspect ratio if not specified
+            const width = artwork.width || 1;
+            const height = artwork.height || width / aspectRatio;
             const artGeometry = new THREE.PlaneGeometry(width, height);
             const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
             const artMesh = new THREE.Mesh(artGeometry, artMaterial);
@@ -196,7 +196,7 @@ function loadArtPieces(scene, artworks) {
             artMesh.rotation.copy(artwork.rotation);
             artMesh.userData = { index: index, clickable: true };
             scene.add(artMesh);
-            loadText(scene, artwork.text, artwork.position, artwork.rotation);
+            loadText(scene, artwork.text, artwork.position, artwork.rotation, width, height);
         });
     });
 }
@@ -219,7 +219,7 @@ function wrapText(text, maxCharsPerLine) {
     return lines;
 }
 
-function loadText(scene, text, position, rotation) {
+function loadText(scene, text, position, rotation, width, height) {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         const maxCharsPerLine = 35;
@@ -237,15 +237,17 @@ function loadText(scene, text, position, rotation) {
 
             const textMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+            
+            // Calculate vertical offset based on artwork height
+            const offsetDistance = height / 2 + 0.2;
+            const yOffset = -index * lineHeight;
 
-            const offsetDistance = 1.1; // Distance offset from the artwork
-            const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
             const directionVector = new THREE.Vector3(0, -1, 0); // Direction to move text in local space
-            const euler = new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ'); // Rotation in Euler angles
+            const euler = new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ');
             
             // Adjust direction vector by rotation
             directionVector.applyEuler(euler); 
-            directionVector.multiplyScalar(offsetDistance); // Scale direction by offset
+            directionVector.multiplyScalar(offsetDistance);
 
             // Calculate final position for text
             const finalPosition = new THREE.Vector3().copy(position).add(directionVector);
