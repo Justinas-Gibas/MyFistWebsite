@@ -27,6 +27,7 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { Sky } from '../path/to/Sky.js';
 import { FontLoader } from '../lib/loaders/FontLoader.js';
 import { TextGeometry } from '../lib/utils/TextGeometry.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
@@ -50,6 +51,7 @@ function initGallery() {
     camera = setupCamera();
     renderer = setupRenderer();
     setupLighting();
+    initSky();
     setupControls();
     loadGalleryModel();
     setupGallery();
@@ -93,6 +95,38 @@ function setupLighting() {
 
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+}
+
+function initSky() {
+    // Add Sky
+    const sky = new Sky();
+    sky.scale.setScalar(450000);
+    scene.add(sky);
+
+    const sun = new THREE.Vector3();
+
+    // Set up and configure the sky parameters
+    const effectController = {
+        turbidity: 10,
+        rayleigh: 3,
+        mieCoefficient: 0.005,
+        mieDirectionalG: 0.7,
+        elevation: 2,
+        azimuth: 180,
+        exposure: renderer.toneMappingExposure
+    };
+
+    // Update sun function to reposition it according to the current time of day
+    function updateSun() {
+        const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
+        const theta = THREE.MathUtils.degToRad(effectController.azimuth);
+        sun.setFromSphericalCoords(1, phi, theta);
+
+        sky.material.uniforms['sunPosition'].value.copy(sun);
+        renderer.toneMappingExposure = effectController.exposure;
+    }
+
+    updateSun();  // Set the initial position of the sun
 }
 
 function setupControls() {
@@ -173,7 +207,7 @@ function setupGallery() {
         },
 
         { // center of gallery right side
-          texture: '../lib/images/EV_00041.jpg',  
+          texture: 'img/EV_00041.jpg',  
           text: 'Long Description for BackWater.', 
           position: new THREE.Vector3(0, 2.5, -19.9),
           rotation: new THREE.Euler(0, 0, 0),
