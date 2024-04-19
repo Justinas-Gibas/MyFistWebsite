@@ -116,7 +116,6 @@ function loadGalleryModel() {
     });
 }
 
-// we need to add painting size controls
 function setupGallery() {
     artworks = [
         { //center of gallery
@@ -124,36 +123,56 @@ function setupGallery() {
           text: 'Description for BackWater.', 
           position: new THREE.Vector3(-9.9, 2.5, 0),
           rotation: new THREE.Euler(0, Math.PI / 2, 0)
+          width: 2.5, // Optional
+          height: 3   // Optional
         },
         { 
           texture: '../lib/images/Forest.png', 
           text: 'Description for Forest.', 
           position: new THREE.Vector3(-9.9, 2.5, -10),
-          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+          rotation: new THREE.Euler(0, Math.PI / 2, 0),
+          //width: 2.5, // Optional
+          //height: 3   // Optional
         },
         { // center of gallery right side
-          texture: '../lib/images/BackWater.png', 
+          texture: '../lib/images/EV_00041.png',  
           text: 'Long Description for BackWater.', 
           position: new THREE.Vector3(0, 2.5, -19.9),
-          rotation: new THREE.Euler(0, 0, 0)
+          rotation: new THREE.Euler(0, 0, 0),
+          width: 2.5, // Optional
+          height: 3   // Optional
         },
         { // center of gallery left side
           texture: 'img/EV_00040.jpg', 
           text: 'Description for EV_00040.', 
           position: new THREE.Vector3(0, 2.5, 19.9),
-          rotation: new THREE.Euler(0, Math.PI, 0)
+          rotation: new THREE.Euler(0, Math.PI, 0),
+          width: 1, // Optional
+          height: 1   // Optional
         },
         { 
           texture: 'img/EV_00040.jpg', 
-          text: 'Description for EV_00034.', 
+          text: 'Description for EV_00040.', 
           position: new THREE.Vector3(9.9, 2.5, -4),
-          rotation: new THREE.Euler(0, Math.PI, 0)
+          rotation: new THREE.Euler(0, Math.PI / -2, 0),
+          width: 1, // Optional
+          height: 1   // Optional
         },
-        { 
+        { //end position of gallery right side
           texture: 'img/EV_00040.jpg', 
-          text: 'Description for EV_00035.', 
-          position: new THREE.Vector3(0, 2.5, 4),
-          rotation: new THREE.Euler(0, Math.PI, 0)
+          text: 'Description for EV_00040.', 
+          position: new THREE.Vector3(9.9, 2.5, 4),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0),
+          //width: 1, // Optional
+          //height: 1   // Optional
+        }
+        { 
+          texture: 'img/EV_00042.jpg', 
+          text: 'Description for EV_00042.', 
+          position: new THREE.Vector3(9.9, 2.5, 7),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0),
+          //width: 1, // Optional
+          //height: 1   // Optional
         }
     ];
 }
@@ -165,9 +184,12 @@ function initArtworks() {
 
 function loadArtPieces(scene, artworks) {
     const textureLoader = new THREE.TextureLoader();
-    const artGeometry = new THREE.PlaneGeometry(2, 2);//we want to modify this value in art wirl array
     artworks.forEach((artwork, index) => {
         textureLoader.load(artwork.texture, function(texture) {
+            const aspectRatio = texture.image.width / texture.image.height;
+            const width = artwork.width || 1; // Default width if not specified
+            const height = artwork.height || width / aspectRatio; // Calculate height based on aspect ratio if not specified
+            const artGeometry = new THREE.PlaneGeometry(width, height);
             const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
             const artMesh = new THREE.Mesh(artGeometry, artMaterial);
             artMesh.position.copy(artwork.position);
