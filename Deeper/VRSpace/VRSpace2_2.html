@@ -116,6 +116,7 @@ function loadGalleryModel() {
     });
 }
 
+// we need to add painting size controls
 function setupGallery() {
     artworks = [
         { //center of gallery
@@ -144,14 +145,14 @@ function setupGallery() {
         },
         { 
           texture: 'img/EV_00040.jpg', 
-          text: 'Description for EV_00040.', 
-          position: new THREE.Vector3(0, 2.5, 19.9),
+          text: 'Description for EV_00034.', 
+          position: new THREE.Vector3(9.9, 2.5, -4),
           rotation: new THREE.Euler(0, Math.PI, 0)
         },
         { 
           texture: 'img/EV_00040.jpg', 
-          text: 'Description for EV_00040.', 
-          position: new THREE.Vector3(0, 2.5, 19.9),
+          text: 'Description for EV_00035.', 
+          position: new THREE.Vector3(0, 2.5, 4),
           rotation: new THREE.Euler(0, Math.PI, 0)
         }
     ];
@@ -164,7 +165,7 @@ function initArtworks() {
 
 function loadArtPieces(scene, artworks) {
     const textureLoader = new THREE.TextureLoader();
-    const artGeometry = new THREE.PlaneGeometry(2, 2);
+    const artGeometry = new THREE.PlaneGeometry(2, 2);//we want to modify this value in art wirl array
     artworks.forEach((artwork, index) => {
         textureLoader.load(artwork.texture, function(texture) {
             const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
