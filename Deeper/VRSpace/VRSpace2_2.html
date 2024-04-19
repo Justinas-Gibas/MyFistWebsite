@@ -120,28 +120,31 @@ function setupGallery() {
     artworks = [
         { //center of gallery
           texture: '../lib/images/BackWater.png', 
-          text: 'Description for BackWater.', 
+          text: 'Test versija VR Galerija.', 
           position: new THREE.Vector3(-9.9, 2.5, 0),
           rotation: new THREE.Euler(0, Math.PI / 2, 0),
-          width: 2.5, // Optional
-          height: 3   // Optional
+          width: 0.2, // Optional
+          height: 0.2   // Optional
         },
+
+        { //start of the gallery
+          texture: 'img/EV_00040.jpg', 
+          text: 'Description for EV_00040.', 
+          position: new THREE.Vector3(10, 2.5, 4),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+          //width: 1,  
+          //height: 1    
+        },
+
         { 
-          texture: '../lib/images/Forest.png', 
-          text: 'Description for Forest.', 
-          position: new THREE.Vector3(-9.9, 2.5, -10),
-          rotation: new THREE.Euler(0, Math.PI / 2, 0)
-          //width: 2.5,  
-          //height: 3  
+          texture: 'img/EV_00042.jpg', 
+          text: 'Description for EV_00042.', 
+          position: new THREE.Vector3(10, 2.5, 7),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+          //width: 1,
+          //height: 1 
         },
-        { // center of gallery right side
-          texture: '../lib/images/EV_00041.png',  
-          text: 'Long Description for BackWater.', 
-          position: new THREE.Vector3(0, 2.5, -19.9),
-          rotation: new THREE.Euler(0, 0, 0),
-          width: 2.5,  
-          height: 3    
-        },
+
         { // center of gallery left side
           texture: 'img/EV_00040.jpg', 
           text: 'Description for EV_00040.', 
@@ -150,29 +153,32 @@ function setupGallery() {
           width: 1, 
           height: 1    
         },
+
         { 
-          texture: 'img/EV_00040.jpg', 
-          text: 'Description for EV_00040.', 
-          position: new THREE.Vector3(9.9, 2.5, -4),
-          rotation: new THREE.Euler(0, Math.PI / -2, 0),
-          width: 1,  
-          height: 1    
+          texture: '../lib/images/Forest.png', 
+          text: 'Description for Forest.', 
+          position: new THREE.Vector3(-9.9, 2.5, -10),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+          //width: 2.5,  
+          //height: 3  
         },
+        
+        { // center of gallery right side
+          texture: '../lib/images/EV_00041.jpg',  
+          text: 'Long Description for BackWater.', 
+          position: new THREE.Vector3(0, 2.5, -19.9),
+          rotation: new THREE.Euler(0, 0, 0),
+          width: 2.5,  
+          height: 3    
+        },
+        
         { //end position of gallery right side
           texture: 'img/EV_00040.jpg', 
           text: 'Description for EV_00040.', 
-          position: new THREE.Vector3(9.9, 2.5, 4),
-          rotation: new THREE.Euler(0, Math.PI / -2, 0)
-          //width: 1,  
-          //height: 1    
-        },
-        { 
-          texture: 'img/EV_00042.jpg', 
-          text: 'Description for EV_00042.', 
-          position: new THREE.Vector3(9.9, 2.5, 7),
-          rotation: new THREE.Euler(0, Math.PI / -2, 0)
-          //width: 1,
-          //height: 1 
+          position: new THREE.Vector3(10, 2.5, -4),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0),
+          width: 1,  
+          height: 1    
         }
     ];
 }
