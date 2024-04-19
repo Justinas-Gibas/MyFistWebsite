@@ -27,7 +27,7 @@
 
 <script type="module">
 import * as THREE from 'three';
-import { Sky } from '../path/to/Sky.js';
+import { Sky } from '../lib/utils/Sky.js';
 import { FontLoader } from '../lib/loaders/FontLoader.js';
 import { TextGeometry } from '../lib/utils/TextGeometry.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
@@ -112,7 +112,7 @@ function initSky() {
         mieCoefficient: 0.005,
         mieDirectionalG: 0.7,
         elevation: 2,
-        azimuth: 180,
+        azimuth: 0,
         exposure: renderer.toneMappingExposure
     };
 
