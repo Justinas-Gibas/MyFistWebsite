@@ -51,7 +51,7 @@ function initGallery() {
     camera = setupCamera();
     renderer = setupRenderer();
     setupLighting();
-    //initSky();
+    initSky();
     setupControls();
     loadGalleryModel();
     setupGallery();
@@ -126,7 +126,7 @@ function initSky() {
         renderer.toneMappingExposure = effectController.exposure;
     }
 
-    updateSun();  // Set the initial position of the sun
+    //updateSun();  // Set the initial position of the sun
 }
 
 function setupControls() {
