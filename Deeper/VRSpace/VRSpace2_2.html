@@ -101,17 +101,17 @@ function setupLighting() {
 function initSky() {
     // Add Sky
     const sky = new Sky();
-    sky.scale.setScalar(450000);
+    sky.scale.setScalar(4500);
     scene.add(sky);
 
     const sun = new THREE.Vector3();
 
     // Set up and configure the sky parameters
     const effectController = {
-        turbidity: 1,
-        rayleigh: 0.2,
+        turbidity: 0.1,
+        rayleigh: 0.1,
         mieCoefficient: 0.005,
-        mieDirectionalG: 0.9995,
+        mieDirectionalG: 0.999,
         elevation: 2,
         azimuth: 90,
         exposure: renderer.toneMappingExposure
