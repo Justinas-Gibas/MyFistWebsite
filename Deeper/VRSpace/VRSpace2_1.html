@@ -76,18 +76,18 @@ function setupRenderer() {
 }
 
 function setupLighting() {
-    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.5);
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 1);
     scene.add(ambientLight);
 
-    const pointLight1 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
+    const pointLight1 = new THREE.PointLight(0xb5b5b5, 1, 40);
     pointLight1.position.set(0, 2, 8);
     scene.add(pointLight1);
     
-    const pointLight2 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
+    const pointLight2 = new THREE.PointLight(0xb5b5b5, 1, 40);
     pointLight2.position.set(0, 2, -8);
     scene.add(pointLight2); 
 
-    const pointLight7 = new THREE.PointLight(0xb5b5b5, 0.5, 10);
+    const pointLight7 = new THREE.PointLight(0xb5b5b5, 01, 10);
     pointLight7.position.set(15, 2, 0);
     scene.add(pointLight7);
 
