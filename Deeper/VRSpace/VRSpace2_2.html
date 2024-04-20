@@ -27,12 +27,12 @@
 
 <script type="module">
 import * as THREE from 'three';
-import { Sky } from '../lib/utils/Sky.js';
 import { FontLoader } from '../lib/loaders/FontLoader.js';
 import { TextGeometry } from '../lib/utils/TextGeometry.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 import { RGBELoader } from '../lib/loaders/RGBELoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
+import { Sky } from '../lib/utils/Sky.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
 import Stats from '../lib/libs/stats.module.js'
 
@@ -51,13 +51,13 @@ function initGallery() {
     camera = setupCamera();
     renderer = setupRenderer();
     setupLighting();
-    initSky();
     setupControls();
     loadGalleryModel();
     setupGallery();
     initArtworks();
     TitleText();
     setupEventListeners();
+    initSky();
     animate();
 }
 
@@ -184,8 +184,8 @@ function setupGallery() {
           text: 'Description for EV_00040.jpg', 
           position: new THREE.Vector3(0, 2.5, 19.99),
           rotation: new THREE.Euler(0, Math.PI, 0),
-          width: 1, 
-          height: 1    
+          //width: 1, 
+          //height: 1    
         },
 
         { //left side of front wall
@@ -211,8 +211,8 @@ function setupGallery() {
           text: 'Long Description for BackWater.', 
           position: new THREE.Vector3(0, 2.5, -19.9),
           rotation: new THREE.Euler(0, 0, 0),
-          width: 2.5,  
-          height: 3    
+          //width: 2.5,  
+          //height: 3    
         },
         
         { //end position of gallery right side
@@ -220,8 +220,8 @@ function setupGallery() {
           text: 'Description for EV_00040.jpg', 
           position: new THREE.Vector3(9.99, 2.5, -4),
           rotation: new THREE.Euler(0, Math.PI / -2, 0),
-          width: 1,  
-          height: 1    
+          //width: 1,  
+          //height: 1    
         }
     ];
 }
