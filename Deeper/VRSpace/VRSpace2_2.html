@@ -82,11 +82,11 @@ function setupLighting() {
     const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 2);
     scene.add(ambientLight);
 
-    const pointLight1 = new THREE.PointLight(0xb5b5b5, 5, 40);
+    const pointLight1 = new THREE.PointLight(0xb5b5b5, 3, 40);
     pointLight1.position.set(0, 2, 8);
     scene.add(pointLight1);
     
-    const pointLight2 = new THREE.PointLight(0xb5b5b5, 5, 40);
+    const pointLight2 = new THREE.PointLight(0xb5b5b5, 3, 40);
     pointLight2.position.set(0, 2, -8);
     scene.add(pointLight2); 
 
