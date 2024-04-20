@@ -37,21 +37,6 @@ import { Sky } from '../lib/utils/Sky.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
 import Stats from '../lib/libs/stats.module.js'
 
-const myShader = `
-uniform vec3 color;
-#include <colorspace_fragment>
-void main() {
-    gl_FragColor = vec4(color, 1.0);
-}
-`;
-
-const material = new THREE.ShaderMaterial({
-//     fragmentShader: ShaderChunk.replaceInclude(myShader),
-//     uniforms: {
-//         color: { value: new THREE.Color(0xffffff) }
-//     }
- });
-
 let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
