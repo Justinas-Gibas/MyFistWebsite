@@ -27,13 +27,14 @@
 
 <script type="module">
 import * as THREE from 'three';
+
 import { FontLoader } from '../lib/loaders/FontLoader.js';
 import { TextGeometry } from '../lib/utils/TextGeometry.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 import { RGBELoader } from '../lib/loaders/RGBELoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
-import { Sky } from '../lib/utils/Sky.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
+import { Sky } from '../lib/utils/Sky.js';
 import Stats from '../lib/libs/stats.module.js'
 
 let camera, scene, renderer, controls;
@@ -78,18 +79,18 @@ function setupRenderer() {
 }
 
 function setupLighting() {
-    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.5);
-    scene.add(ambientLight);
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 1);
+    //scene.add(ambientLight);
 
-    const pointLight1 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
+    const pointLight1 = new THREE.PointLight(0xb5b5b5, 1, 40);
     pointLight1.position.set(0, 2, 8);
     scene.add(pointLight1);
     
-    const pointLight2 = new THREE.PointLight(0xb5b5b5, 0.3, 40);
+    const pointLight2 = new THREE.PointLight(0xb5b5b5, 1, 40);
     pointLight2.position.set(0, 2, -8);
     scene.add(pointLight2); 
 
-    const pointLight7 = new THREE.PointLight(0xb5b5b5, 0.5, 10);
+    const pointLight7 = new THREE.PointLight(0xb5b5b5, 1, 10);
     pointLight7.position.set(15, 2, 0);
     scene.add(pointLight7);
 
@@ -107,12 +108,12 @@ function initSky() {
 
     // Set up and configure the sky parameters
     const effectController = {
-        turbidity: 10,
+        turbidity: 3,
         rayleigh: 3,
         mieCoefficient: 0.005,
-        mieDirectionalG: 0.7,
-        elevation: 2,
-        azimuth: 0,
+        mieDirectionalG: 0.995,
+        elevation: 20,
+        azimuth: 90,
         exposure: renderer.toneMappingExposure
     };
 
