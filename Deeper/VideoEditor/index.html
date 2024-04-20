@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Video Editor</title>
+
+    <!-- Inline CSS for basic styling -->
+    <style>
+        /* Styling for the timeline section */
+        #timeline {
+            border: 1px solid #ddd;
+            padding: 10px;
+            display: flex;  /* Ensures timeline items are arranged horizontally */
+            flex-direction: row;
+        }
+
+        /* Style for individual timeline items */
+        .timeline-item {
+            border: 1px solid gray;
+            padding: 5px;
+            margin: 5px;  /* Spacing between timeline items */
+        }
+
+        /* Styling for the overlay section */
+        #overlay {
+            border: 1px solid #ddd;
+            padding: 10px;  /* Ensures there's padding within the overlay area */
+        }
+
+        /* Style for individual overlay items (like text or graphics) */
+        .overlay-item {
+            padding: 5px;
+            margin: 5px;
+            background-color: #f0f0f0;
+            border: 1px solid gray;  /* Borders for visual cues */
+        }
+
+        /* General styling for the page */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        header {
+            background-color: #f5f5f5;
+            padding: 10px;  /* Header padding for spacing */
+        }
+
+        h1, h2 {
+            margin: 0;  /* Avoid extra spacing around header texts */
+        }
+    </style>
+</head>
+<body>
+    <!-- Header section with a title -->
+    <header>
+        <h1>Simple Video Editor</h1>
+    </header>
+
+    <!-- Section for importing media files -->
+    <section>
+        <h2>Import Media</h2>
+        <input type="file" id="media-upload" multiple> <!-- Allows multiple media uploads -->
+    </section>
+
+    <!-- Section for displaying the timeline -->
+    <section>
+        <h2>Timeline</h2>
+        <div id="timeline">
+            <!-- This is where timeline items will be added -->
+        </div>
+    </section>
+
+    <!-- Section for adding overlays (like text or graphics) -->
+    <section>
+        <h2>Overlay Layer</h2>
+        <div id="overlay" style="height: 200px;">
+            <!-- Clickable area for adding new overlays -->
+        </div>
+    </section>
+
+    <!-- JavaScript for interactions and event handling -->
+    <script>
+        // Event listener for handling media file uploads
+        document.getElementById("media-upload").addEventListener("change", function (event) {
+            const files = event.target.files;  /* Get the uploaded files */
+            const timeline = document.getElementById("timeline");
+
+            // Loop through each uploaded file and add it to the timeline
+            for (let i = 0; i < files.length; i++) {
+                const mediaFile = files[i];
+                const element = document.createElement("div");
+                element.className = "timeline-item";  /* Define the class for styling */
+                element.textContent = mediaFile.name;  /* Display the file name */
+                timeline.appendChild(element);  /* Add the item to the timeline */
+            }
+        });
+
+        // Event listener for adding editable overlays when the overlay area is clicked
+        document.getElementById("overlay").addEventListener("click", function () {
+            const newText = document.createElement("div");
+            newText.contentEditable = true;  /* Makes the new overlay item editable */
+            newText.className = "overlay-item";  /* Define the class for styling */
+            newText.style.border = "1px solid gray";  /* Visual border for editing */
+            document.getElementById("overlay").appendChild(newText);  /* Add the new overlay item */
+        });
+    </script>
+</body>
+</html>
