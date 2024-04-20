@@ -27,7 +27,7 @@
 
 <script type="module">
 import * as THREE from 'three';
-import { ShaderChunk } from 'three';
+//import { ShaderChunk } from 'three';
 import { FontLoader } from '../lib/loaders/FontLoader.js';
 import { TextGeometry } from '../lib/utils/TextGeometry.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
@@ -127,7 +127,7 @@ function initSky() {
         renderer.toneMappingExposure = effectController.exposure;
     }
 
-    //updateSun();  // Set the initial position of the sun
+    updateSun();  // Set the initial position of the sun
 }
 
 function setupControls() {
