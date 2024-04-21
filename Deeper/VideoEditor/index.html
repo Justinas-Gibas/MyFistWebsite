@@ -2,38 +2,37 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Video Editing Website</title>
-    <!-- Inline CSS for basic styling and layout -->
+    <title>Video Editing Website with WebGL Canvas</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
             height: 100vh;
-            overflow: hidden; 
+            overflow: hidden;
         }
 
         header {
             background-color: #f5f5f5;
             padding: 10px;
-            text-align: center; 
+            text-align: center;
         }
 
         #container {
             display: flex;
             flex-direction: column;
-            height: 100vh; 
+            height: 100vh;
         }
 
         #preview {
-            flex: 3; 
+            flex: 3;
             border: 2px solid black;
-            text-align: center; 
-            position: relative; 
+            text-align: center;
+            position: relative;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            overflow: hidden; /* Prevent overflowing content */
+            overflow: hidden;
         }
 
         #controls {
@@ -47,27 +46,27 @@
         #data-load {
             border: 2px solid black;
             padding: 10px;
-            text-align: center; 
+            text-align: center;
             background-color: #f0f0f0;
         }
 
         #timeline {
-            flex: 1; 
+            flex: 1;
             border: 2px solid black;
             display: flex;
-            flex-direction: row; 
-            justify-content: flex-start; 
+            flex-direction: row;
+            justify-content: flex-start;
             padding: 10px;
-            overflow-x: auto; 
+            overflow-x: auto;
         }
 
         .timeline-item {
             border: 1px solid gray;
             padding: 5px;
             background-color: #f0f0f0;
-            text-align: center; 
-            margin-right: 5px; 
-            cursor: pointer; /* Indicate that it's draggable */
+            text-align: center;
+            margin-right: 5px;
+            cursor: pointer;
         }
 
         #overlay {
@@ -77,7 +76,7 @@
             right: 0;
             bottom: 0;
             background: rgba(255, 255, 255, 0.5);
-            display: none; /* Start with overlay hidden */
+            display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
@@ -88,12 +87,11 @@
             padding: 5px;
             margin: 5px;
             background-color: white;
-            border: 1px solid gray;  
+            border: 1px solid gray;
         }
 
-        /* Smooth drag and drop effects */
         .dragging {
-            opacity: 0.5; /* Make dragged item semi-transparent */
+            opacity: 0.5;
         }
     </style>
 </head>
@@ -103,76 +101,70 @@
     </header>
 
     <div id="container">
-        <!-- Preview section for displaying the video and overlays -->
         <div id="preview">
-            <video id="video-element" width="640" height="480" controls>
-                <source id="video-source" src="" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
+            <!-- Add a WebGL canvas to the preview section -->
+            <canvas id="webgl-canvas" width="640" height="480"></canvas>
 
-            <!-- Controls section with play/stop buttons and a time slider -->
             <div id="controls">
                 <button id="play-button">Play</button>
                 <button id="stop-button">Stop</button>
-                <input type="range" id="time-slider" min="0" max="100" value="0" step="1"> <!-- Time slider for scrubbing -->
+                <input type="range" id="time-slider" min="0" max="100" value="0" step="1">
             </div>
         </div>
 
-        <!-- Data load section for importing media files -->
         <div id="data-load">
             <p>Data Load Section</p>
-            <input type="file" id="media-upload" multiple> <!-- Allow multiple file uploads -->
+            <input type="file" id="media-upload" multiple>
         </div>
 
-        <!-- Timeline section for editing and arranging media -->
         <div id="timeline">
-            <p>Timeline Section</p> 
+            <p>Timeline Section</p>
         </div>
     </div>
 
-    <!-- Overlay for additional controls or information -->
     <div id="overlay">
-        <div class="overlay-item">Overlay Text or Controls</div> 
+        <div class="overlay-item">Overlay Text or Controls</div>
         <button class="overlay-item" onclick="toggleOverlay()">Close</button>
     </div>
 
-    <!-- JavaScript for interactions and event handling -->
     <script>
         const timeline = document.getElementById("timeline");
+        const canvas = document.getElementById("webgl-canvas");
+        const gl = canvas.getContext("webgl"); // or 'webgpu'
         const videoElement = document.getElementById("video-element");
         const timeSlider = document.getElementById("time-slider");
 
-        // Handle media file uploads
+        // Initialize WebGL context
+        if (!gl) {
+            console.error("WebGL not supported.");
+        }
+
         document.getElementById("media-upload").addEventListener("change", function (event) {
             const files = event.target.files;
 
-            // Function to add media to the timeline and set as video source
             function addMediaToTimeline(files) {
                 for (let i = 0; i < files.length; i++) {
                     const mediaFile = files[i];
                     const timelineItem = document.createElement("div");
                     timelineItem.className = "timeline-item";
-                    timelineItem.textContent = mediaFile.name;  // Display file name on the timeline
+                    timelineItem.textContent = mediaFile.name;
                     timeline.appendChild(timelineItem);
 
-                    // Set the first video file as the video source for preview
                     if (i === 0 && mediaFile.type.startsWith("video/")) {
                         const videoSource = document.getElementById("video-source");
                         videoSource.src = URL.createObjectURL(mediaFile);
-                        videoElement.load(); // Reload the video element to reflect the new source
+                        videoElement.load();
                     }
 
-                    // Enable drag-and-drop within the timeline
                     timelineItem.draggable = true;
 
-                    // Define drag-and-drop behavior for reordering timeline items
                     timelineItem.addEventListener("dragstart", (e) => {
                         timelineItem.classList.add("dragging");
                         e.dataTransfer.setData("text/plain", i.toString());
                     });
 
                     timeline.addEventListener("dragover", (e) => {
-                        e.preventDefault(); // Allow dropping
+                        e.preventDefault();
                     });
 
                     timeline.addEventListener("drop", (e) => {
@@ -193,27 +185,24 @@
             addMediaToTimeline(files);
         });
 
-        // Control video playback with start and stop buttons
         document.getElementById("play-button").addEventListener("click", () => {
             videoElement.play();
         });
 
         document.getElementById("stop-button").addEventListener("click", () => {
             videoElement.pause();
-            videoElement.currentTime = 0; // Reset to the beginning
+            videoElement.currentTime = 0;
         });
 
-        // Update time slider as the video plays
         videoElement.addEventListener("timeupdate", () => {
-            timeSlider.max = videoElement.duration; // Set the slider max to the video's total duration
-            timeSlider.value = videoElement.currentTime; // Update the slider based on the current time
+            timeSlider.max = videoElement.duration;
+            timeSlider.value = videoElement.currentTime;
         });
 
         timeSlider.addEventListener("input", () => {
-            videoElement.currentTime = timeSlider.value; // Seek the video to the selected time
+            videoElement.currentTime = timeSlider.value;
         });
 
-        // Toggle the visibility of the overlay
         function toggleOverlay() {
             const overlay = document.getElementById("overlay");
             overlay.style.display = overlay.style.display === "none" ? "flex" : "none";
@@ -221,24 +210,25 @@
 
         document.getElementById("preview").addEventListener("click", toggleOverlay);
 
-        // Simulate video export
         function exportVideo() {
             alert("Video exported! This is a prototype, so no actual rendering occurs.");
         }
 
-        // Button to trigger video export
         const exportButton = document.createElement("button");
         exportButton.textContent = "Export Video";
         exportButton.onclick = exportVideo;
         document.body.appendChild(exportButton);
 
-        // Roadmap and To-Do List
-        // 1. Implement actual video rendering and exporting.
-        // 2. Add sophisticated timeline controls (e.g., trimming, splitting).
-        // 3. Integrate audio tracks and synchronize with video.
-        // 4. Enhance UI for better usability.
-        // 5. Add undo/redo functionality for editing.
-        // 6. Provide additional overlay customization options (e.g., font style, size, color).
+        // Additional To-Do List
+        // 1. Implement zoom and translation functionalities for WebGL.
+        // 2. Handle 3D transformations in WebGL.
+        // 3. Add more advanced editing features, like trimming and splitting.
+        // 4. Improve performance for complex projects.
+        // 5. Integrate with WebGPU when available.
+        // 6. Explore support for additional media formats.
+        // 7. Add comprehensive error handling.
+        // 8. Include a detailed UI for better user experience.
+        // 9. Implement collaborative editing features.
     </script>
 </body>
 </html>
