@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Video Editing Website</title>
-
-    <!-- Inline CSS for basic styling -->
+    
+    <!-- Inline CSS for basic styling and layout -->
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -15,60 +15,64 @@
         header {
             background-color: #f5f5f5;
             padding: 10px;
-            text-align: center; /* Center align header text */
+            text-align: center; 
         }
 
-        /* Container for the main sections */
         #container {
             display: flex;
             flex-direction: column;
-            height: 100vh; /* Full viewport height */
+            height: 100vh; 
         }
 
-        /* Preview section for video playback */
         #preview {
-            flex: 2; /* Takes most of the space */
+            flex: 2; 
             border: 2px solid black;
-            text-align: center; /* Center align content */
+            text-align: center; 
+            position: relative; 
         }
 
-        /* Data load section for media imports */
         #data-load {
             border: 2px solid black;
             padding: 10px;
-            text-align: center; /* Center align content */
+            text-align: center; 
         }
 
-        /* Timeline section for editing media */
         #timeline {
-            flex: 1; /* Takes the remaining space */
+            flex: 1; 
             border: 2px solid black;
             display: flex;
-            flex-direction: row; /* Arrange timeline items in a row */
-            justify-content: space-evenly; /* Even spacing between items */
+            flex-direction: row; 
+            justify-content: flex-start; 
             padding: 10px;
+            overflow-x: auto; 
         }
 
-        /* Styling for timeline items */
         .timeline-item {
             border: 1px solid gray;
             padding: 5px;
             background-color: #f0f0f0;
-            text-align: center; /* Center align text */
+            text-align: center; 
+            margin-right: 5px; 
         }
 
-        /* Overlay section styling */
         #overlay {
-            border: 2px solid black;
-            padding: 10px;  /* Ensure padding within the overlay area */
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.5);
+            display: none; 
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
 
-        /* Styling for individual overlay items (like text or graphics) */
         .overlay-item {
             padding: 5px;
             margin: 5px;
-            background-color: #f0f0f0;
-            border: 1px solid gray;  /* Borders for visual cues */
+            background-color: white;
+            border: 1px solid gray;  
         }
     </style>
 </head>
@@ -78,70 +82,115 @@
     </header>
 
     <div id="container">
-        <!-- Preview section -->
+        <!-- Preview section: used to display the video timeline or overlay -->
         <div id="preview">
-            <p>Preview Section</p> <!-- Placeholder for video playback -->
+            <p>Preview Section</p>
+            <!-- Overlay for text and graphical elements; starts hidden, toggleable -->
+            <div id="overlay">
+                <div class="overlay-item" contenteditable="true">Editable Overlay Text</div>
+            </div>
         </div>
 
         <!-- Data load section for media imports -->
         <div id="data-load">
             <p>Data Load Section</p>
-            <input type="file" id="media-upload" multiple> <!-- Allow multiple media files -->
+            <!-- Allow multiple media files to be uploaded -->
+            <input type="file" id="media-upload" multiple> 
         </div>
 
         <!-- Timeline section for editing media -->
         <div id="timeline">
-            <p>Timeline Section</p> <!-- Placeholder for timeline items -->
+            <p>Timeline Section</p> 
         </div>
-    </div>
 
     <!-- JavaScript for interactions and event handling -->
     <script>
+        const timeline = document.getElementById("timeline");
+
         // Event listener for handling media file uploads
         document.getElementById("media-upload").addEventListener("change", function (event) {
-            const files = event.target.files;  /* Get the uploaded files */
-            
-            // Function to store media files for use in the timeline
-            function storeMediaFiles(files) {
-                // Store or process the files here
-            }
+            const files = event.target.files;
 
             // Function to add media files to the timeline
             function addMediaToTimeline(files) {
-                const timeline = document.getElementById("timeline");
-                
                 for (let i = 0; i < files.length; i++) {
                     const mediaFile = files[i];
                     const element = document.createElement("div");
-                    element.className = "timeline-item";  /* Define the class for styling */
-                    element.textContent = mediaFile.name;  /* Display the file name */
-                    timeline.appendChild(element);  /* Add the item to the timeline */
+                    element.className = "timeline-item";
+                    element.textContent = mediaFile.name;  // Display file name on the timeline
+                    timeline.appendChild(element);
+
+                    // Enable drag-and-drop within the timeline
+                    element.draggable = true;
+
+                    // Define drag-and-drop behavior for timeline reorganization
+                    element.addEventListener("dragstart", (e) => {
+                        e.dataTransfer.setData("text/plain", i);
+                    });
+
+                    timeline.addEventListener("dragover", (e) => {
+                        e.preventDefault();  // Allow drop action
+                    });
+
+                    timeline.addEventListener("drop", (e) => {
+                        const draggedIndex = e.dataTransfer.getData("text/plain");
+                        const draggedElement = timeline.children[draggedIndex];
+                        const dropIndex = [...timeline.children].indexOf(e.target);
+                        if (dropIndex >= 0 && draggedIndex !== dropIndex) {
+                            timeline.insertBefore(draggedElement, timeline.children[dropIndex]);
+                        }
+                    });
                 }
             }
-            
-            // Store and add media files to the timeline
-            storeMediaFiles(files);
+
+            // Add uploaded media files to the timeline
             addMediaToTimeline(files);
         });
 
-        // Function to handle timeline changes and update the preview
-        function updatePreview() {
-            // Code to update the preview based on the timeline
+        // Event listener for toggling the overlay section on the preview
+        document.getElementById("overlay").addEventListener("click", function () {
+            const newOverlay = document.createElement("div");
+            newOverlay.contentEditable = true;  // Allows editing of text or graphics
+            newOverlay.className = "overlay-item"; 
+            document.getElementById("overlay").appendChild(newOverlay); 
+        });
+
+        // Function to toggle overlay visibility
+        function toggleOverlay() {
+            const overlay = document.getElementById("overlay");
+            overlay.style.display = overlay.style.display === "none" ? "flex" : "none";
         }
 
-        // Event listener for managing text or graphical overlays
-        document.getElementById("overlay").addEventListener("click", function () {
-            // Function to add a new editable overlay to the timeline
-            function addOverlay() {
-                const newText = document.createElement("div");
-                newText.contentEditable = true;  /* Makes the new overlay item editable */
-                newText.className = "overlay-item";  /* Define the class for styling */
-                newText.style.border = "1px solid gray";  /* Visual border for editing */
-                document.getElementById("overlay").appendChild(newText);  /* Add the new overlay item */
-            }
-            
-            addOverlay();  /* Add a new overlay on click */
-        });
+        document.getElementById("preview").addEventListener("click", toggleOverlay);
+
+        // Function to simulate rendering and exporting the video
+        function exportVideo() {
+            alert("Video exported! This is a prototype, so no actual rendering occurs.");
+        }
+
+        // Button to trigger video export (for demo purposes)
+        const exportButton = document.createateElement("button");
+        exportButton.textContent = "Export Video";
+        exportButton.onclick = exportVideo;
+        document.body.appendChild(exportButton);
     </script>
+
+    // Roadmap and To-Do List
+    // 1. Purpose: This code is designed as a simple video editing website prototype allowing users to import media files, edit them on a timeline, add overlays, and simulate video export.
+    // 2. Existing Features:
+    //    - Media upload and timeline management.
+    //    - Draggable timeline items for reordering.
+    //    - Overlay section for text and graphical elements.
+    //    - Simulated video export.
+    // 3. To-Do List:
+    //    - Implement actual video rendering and exporting.
+    //    - Add more sophisticated timeline controls (e.g., trimming, splitting).
+    //    - Integrate audio tracks and synchronize with video.
+    //    - Enhance the user interface for better usability and design.
+    //    - Add functionality to support transitions and effects.
+    //    - Implement undo/redo functionality for editing.
+    //    - Add the ability to save and load projects.
+    //    - Provide additional overlay customization options (e.g., font style, size, color).
+
 </body>
 </html>
