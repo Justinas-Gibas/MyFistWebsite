@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Video Editing Website with WebGL</title>
+    <!-- Stylesheet with responsive design -->
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -44,7 +45,6 @@
         #controls {
             display: flex;
             justify-content: center;
-            margin-top: 10px;
             padding: 10px;
             background-color: #f5f5f5;
         }
@@ -73,140 +73,174 @@
             text-align: center;
             margin-right: 5px;
             cursor: pointer;
+            transition: all 0.2s;
         }
 
         .dragging {
             opacity: 0.5;
         }
+
+        .overlay-item {
+            padding: 5px;
+            border: 1px solid gray;
+            background-color: #f0f0f0;
+            cursor: pointer;
+        }
+
+        #overlay {
+            display: none;
+            position: absolute;
+            top: 10%;
+            left: 10%;
+            right: 10%;
+            bottom: 10%;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
+    <!-- Header with title -->
     <header>
-        <h1>Video Editing Website with Strips and Layers</h1>
+        <h1>Video Editing Website with WebGL</h1>
     </header>
 
     <div id="container">
         <div id="main">
+            <!-- Preview area with WebGL canvas -->
             <div id="preview">
-                <!-- WebGL canvas for rendering video and data -->
                 <canvas id="webgl-canvas" width="640" height="480"></canvas>
 
-                <!-- Controls for interacting with the content -->
+                <!-- Controls for playback and interaction -->
                 <div id="controls">
                     <button id="play-button">Play</button>
                     <button id="stop-button">Stop</button>
                     <input type="range" id="time-slider" min="0" max="100" value="0" step="1">
                 </div>
 
-                <!-- Additional content overlay -->
+                <!-- Overlay for additional interactions -->
                 <div id="overlay">
                     <div class="overlay-item">Overlay Text or Controls</div>
                     <button class="overlay-item" onclick="toggleOverlay()">Close</button>
                 </div>
             </div>
 
-            <!-- Sidebar for additional controls -->
+            <!-- Sidebar with additional controls -->
             <div id="sidebar">
-                <p>Everything Else</p>
+                <p>Additional Controls</p>
                 <button id="add-layer-button">Add Layer</button>
                 <button id="remove-layer-button">Remove Layer</button>
                 <button id="export-video">Export Video</button>
             </div>
         </div>
 
-        <!-- Timeline for managing strips and layers -->
+        <!-- Timeline for managing video strips and layers -->
         <div id="timeline">
-            <p>Timeline Strips as Layers</p>
+            <p>Timeline Strips and Layers</p>
         </div>
     </div>
 
+    <!-- JavaScript for interactivity and WebGL logic -->
     <script>
         const timeline = document.getElementById("timeline");
         const canvas = document.getElementById("webgl-canvas");
-        const gl = canvas.getContext("webgl"); // or 'webgpu'
+        const gl = canvas.getContext("webgl"); // Fallback to WebGL2 if possible
         const playButton = document.getElementById("play-button");
         const stopButton = document.getElementById("stop-button");
         const timeSlider = document.getElementById("time-slider");
 
         if (!gl) {
-            console.error("WebGL not supported.");
+            console.error("WebGL not supported or failed to initialize.");
+            alert("WebGL not supported. Please try another browser.");
         }
 
-        // File upload for adding content to the timeline
-        document.getElementById("media-upload").addEventListener("change", (event) => {
+        // File upload and drag-and-drop logic for adding content to the timeline
+        const mediaUpload = document.createElement("input");
+        mediaUpload.type = "file";
+        mediaUpload.multiple = true;
+        mediaUpload.accept = "video/*,image/*,audio/*";
+
+        mediaUpload.addEventListener("change", (event) => {
             const files = event.target.files;
-
-            function addMediaToTimeline(files) {
-                for (let i = 0; i < files.length; i++) {
-                    const mediaFile = files[i];
-                    const timelineItem = document.createElement("div");
-                    timelineItem.className = "timeline-item";
-                    timelineItem.textContent = mediaFile.name;
-                    timeline.appendChild(timelineItem);
-
-                    if (i === 0 && mediaFile.type.startsWith("video/")) {
-                        const videoSource = document.getElementById("video-source");
-                        videoSource.src = URL.createObjectURL(mediaFile);
-                    }
-
-                    timelineItem.draggable = true;
-
-                    timelineItem.addEventListener("dragstart", (e) => {
-                        timelineItem.classList.add("dragging");
-                        e.dataTransfer.setData("text/plain", i.toString());
-                    });
-
-                    timeline.addEventListener("dragover", (e) => {
-                        e.preventDefault();
-                    });
-
-                    timeline.addEventListener("drop", (e) => {
-                        const draggedIndex = e.dataTransfer.getData("text/plain");
-                        const draggedElement = timeline.children[draggedIndex];
-                        const dropIndex = [...timeline.children].indexOf(e.target);
-                        if (dropIndex >= 0 && draggedIndex !== dropIndex) {
-                            timeline.insertBefore(draggedElement, timeline.children[dropIndex]);
-                        }
-                    });
-
-                    timelineItem.addEventListener("dragend", () => {
-                        timelineItem.classList.remove("dragging");
-                    });
-                }
-            }
-
             addMediaToTimeline(files);
-        });
-
-        playButton.addEventListener("click", () => {
-            // Handle video playback or WebGL rendering logic
-            console.log("Play button clicked");
-        });
-
-        stopButton.addEventListener("click", () => {
-            // Handle video stop or WebGL rendering logic
-            console.log("Stop button clicked");
-        });
-
-        timeSlider.addEventListener("input", () => {
-            // Handle slider input for scrubbing
-            console.log("Slider adjusted");
-        });
-
-        document.getElementById("add-layer-button").addEventListener("click", () => {
-            // Handle adding a new layer
-            console.log("Add Layer button clicked");
-        });
-
-        document.getElementById("remove-layer-button").addEventListener("click", () => {
-            // Handle removing a layer
-            console.log("Remove Layer button clicked");
         });
 
         document.getElementById("export-video").addEventListener("click", () => {
             alert("Video exported! This is a prototype, so no actual rendering occurs.");
         });
 
+        function addMediaToTimeline(files) {
+            for (let i = 0; i < files.length; i++) {
+                const mediaFile = files[i];
+                const timelineItem = document.createElement("div");
+                timelineItem.className = "timeline-item";
+                timelineItem.textContent = mediaFile.name;
+
+                // Handling drag-and-drop for reordering timeline items
+                timelineItem.draggable = true;
+
+                timelineItem.addEventListener("dragstart", (e) => {
+                    timelineItem.classList.add("dragging");
+                    e.dataTransfer.setData("text/plain", i.toString());
+                });
+
+                timeline.addEventListener("dragover", (e) => {
+                    e.preventDefault();
+                });
+
+                timeline.addEventListener("drop", (e) => {
+                    const draggedIndex = e.dataTransfer.getData("text/plain");
+                    const draggedElement = timeline.children[draggedIndex];
+                    const dropIndex = [...timeline.children].indexOf(e.target);
+                    if (dropIndex >= 0 && draggedIndex !== dropIndex) {
+                        timeline.insertBefore(draggedElement, timeline.children[dropIndex]);
+                    }
+                });
+
+                timelineItem.addEventListener("dragend", () => {
+                    timelineItem.classList.remove("dragging");
+                });
+
+                timeline.appendChild(timelineItem);
+
+                if (i === 0 && mediaFile.type.startsWith("video/")) {
+                    const videoSource = document.createElement("source");
+                    videoSource.src = URL.createObjectURL(mediaFile);
+                    videoSource.type = mediaFile.type;
+                }
+            }
+        }
+
+        // Event handling for control buttons
+        playButton.addEventListener("click", () => {
+            // Implement play functionality
+            console.log("Play button clicked");
+        });
+
+        stopButton.addEventListener("click", () => {
+            // Implement stop functionality
+            console.log("Stop button clicked");
+        });
+
+        timeSlider.addEventListener("input", () => {
+            // Implement slider functionality for scrubbing
+            console.log("Slider adjusted");
+        });
+
+        document.getElementById("add-layer-button").addEventListener("click", () => {
+            console.log("Add Layer button clicked");
+        });
+
+        document.getElementById("remove-layer-button").addEventListener("click", () => {
+            console.log("Remove Layer button clicked");
+        });
+
+        // Function to toggle overlay visibility
         function toggleOverlay() {
             const overlay = document.getElementById("overlay");
             overlay.style.display = overlay.style.display === "none" ? "flex" : "none";
@@ -214,13 +248,14 @@
 
         document.getElementById("preview").addEventListener("click", toggleOverlay);
 
-        // Detailed To-Do List
-        // 1. Implement WebGL-based rendering logic for content.
-        // 2. Handle detailed timeline management for strips and layers.
-        // 3. Add more advanced timeline controls (trimming, splitting, etc.).
-        // 4. Provide dynamic zoom and translation in WebGL.
-        // 5. Add additional media formats and advanced video editing features.
-        // 6. Improve user interaction and error handling.
+        // To-Do List for further improvements and iterations:
+        // 1. Implement WebGL-based rendering logic for video and 3D content.
+        // 2. Develop advanced timeline controls, including trimming, splitting, and moving media strips.
+        // 3. Introduce dynamic zoom and translation in WebGL for enhanced interactivity.
+        // 4. Add additional media formats and support for various video editing features.
+        // 5. Improve error handling and provide meaningful feedback to users.
+        // 6. Test with various browser configurations for compatibility.
+        // 7. Integrate with agents for automation and advanced video editing tasks.
     </script>
 </body>
 </html>
