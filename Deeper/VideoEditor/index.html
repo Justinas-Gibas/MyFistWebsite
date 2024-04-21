@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Video Editing Website with WebGL Canvas</title>
+    <title>Video Editing Website with WebGL</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -24,8 +24,14 @@
             height: 100vh;
         }
 
+        #main {
+            display: flex;
+            flex-direction: row;
+            height: 80%;
+        }
+
         #preview {
-            flex: 3;
+            flex: 4;
             border: 2px solid black;
             text-align: center;
             position: relative;
@@ -43,15 +49,15 @@
             background-color: #f5f5f5;
         }
 
-        #data-load {
+        #sidebar {
+            flex: 1;
             border: 2px solid black;
-            padding: 10px;
             text-align: center;
-            background-color: #f0f0f0;
+            background-color: #f5f5f5;
         }
 
         #timeline {
-            flex: 1;
+            height: 20%;
             border: 2px solid black;
             display: flex;
             flex-direction: row;
@@ -69,27 +75,6 @@
             cursor: pointer;
         }
 
-        #overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(255, 255, 255, 0.5);
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-        }
-
-        .overlay-item {
-            padding: 5px;
-            margin: 5px;
-            background-color: white;
-            border: 1px solid gray;
-        }
-
         .dragging {
             opacity: 0.5;
         }
@@ -97,49 +82,58 @@
 </head>
 <body>
     <header>
-        <h1>Video Editing Website</h1>
+        <h1>Video Editing Website with Strips and Layers</h1>
     </header>
 
     <div id="container">
-        <div id="preview">
-            <!-- Add a WebGL canvas to the preview section -->
-            <canvas id="webgl-canvas" width="640" height="480"></canvas>
+        <div id="main">
+            <div id="preview">
+                <!-- WebGL canvas for rendering video and data -->
+                <canvas id="webgl-canvas" width="640" height="480"></canvas>
 
-            <div id="controls">
-                <button id="play-button">Play</button>
-                <button id="stop-button">Stop</button>
-                <input type="range" id="time-slider" min="0" max="100" value="0" step="1">
+                <!-- Controls for interacting with the content -->
+                <div id="controls">
+                    <button id="play-button">Play</button>
+                    <button id="stop-button">Stop</button>
+                    <input type="range" id="time-slider" min="0" max="100" value="0" step="1">
+                </div>
+
+                <!-- Additional content overlay -->
+                <div id="overlay">
+                    <div class="overlay-item">Overlay Text or Controls</div>
+                    <button class="overlay-item" onclick="toggleOverlay()">Close</button>
+                </div>
+            </div>
+
+            <!-- Sidebar for additional controls -->
+            <div id="sidebar">
+                <p>Everything Else</p>
+                <button id="add-layer-button">Add Layer</button>
+                <button id="remove-layer-button">Remove Layer</button>
+                <button id="export-video">Export Video</button>
             </div>
         </div>
 
-        <div id="data-load">
-            <p>Data Load Section</p>
-            <input type="file" id="media-upload" multiple>
-        </div>
-
+        <!-- Timeline for managing strips and layers -->
         <div id="timeline">
-            <p>Timeline Section</p>
+            <p>Timeline Strips as Layers</p>
         </div>
-    </div>
-
-    <div id="overlay">
-        <div class="overlay-item">Overlay Text or Controls</div>
-        <button class="overlay-item" onclick="toggleOverlay()">Close</button>
     </div>
 
     <script>
         const timeline = document.getElementById("timeline");
         const canvas = document.getElementById("webgl-canvas");
         const gl = canvas.getContext("webgl"); // or 'webgpu'
-        const videoElement = document.getElementById("video-element");
+        const playButton = document.getElementById("play-button");
+        const stopButton = document.getElementById("stop-button");
         const timeSlider = document.getElementById("time-slider");
 
-        // Initialize WebGL context
         if (!gl) {
             console.error("WebGL not supported.");
         }
 
-        document.getElementById("media-upload").addEventListener("change", function (event) {
+        // File upload for adding content to the timeline
+        document.getElementById("media-upload").addEventListener("change", (event) => {
             const files = event.target.files;
 
             function addMediaToTimeline(files) {
@@ -153,7 +147,6 @@
                     if (i === 0 && mediaFile.type.startsWith("video/")) {
                         const videoSource = document.getElementById("video-source");
                         videoSource.src = URL.createObjectURL(mediaFile);
-                        videoElement.load();
                     }
 
                     timelineItem.draggable = true;
@@ -185,22 +178,33 @@
             addMediaToTimeline(files);
         });
 
-        document.getElementById("play-button").addEventListener("click", () => {
-            videoElement.play();
+        playButton.addEventListener("click", () => {
+            // Handle video playback or WebGL rendering logic
+            console.log("Play button clicked");
         });
 
-        document.getElementById("stop-button").addEventListener("click", () => {
-            videoElement.pause();
-            videoElement.currentTime = 0;
-        });
-
-        videoElement.addEventListener("timeupdate", () => {
-            timeSlider.max = videoElement.duration;
-            timeSlider.value = videoElement.currentTime;
+        stopButton.addEventListener("click", () => {
+            // Handle video stop or WebGL rendering logic
+            console.log("Stop button clicked");
         });
 
         timeSlider.addEventListener("input", () => {
-            videoElement.currentTime = timeSlider.value;
+            // Handle slider input for scrubbing
+            console.log("Slider adjusted");
+        });
+
+        document.getElementById("add-layer-button").addEventListener("click", () => {
+            // Handle adding a new layer
+            console.log("Add Layer button clicked");
+        });
+
+        document.getElementById("remove-layer-button").addEventListener("click", () => {
+            // Handle removing a layer
+            console.log("Remove Layer button clicked");
+        });
+
+        document.getElementById("export-video").addEventListener("click", () => {
+            alert("Video exported! This is a prototype, so no actual rendering occurs.");
         });
 
         function toggleOverlay() {
@@ -210,25 +214,13 @@
 
         document.getElementById("preview").addEventListener("click", toggleOverlay);
 
-        function exportVideo() {
-            alert("Video exported! This is a prototype, so no actual rendering occurs.");
-        }
-
-        const exportButton = document.createElement("button");
-        exportButton.textContent = "Export Video";
-        exportButton.onclick = exportVideo;
-        document.body.appendChild(exportButton);
-
-        // Additional To-Do List
-        // 1. Implement zoom and translation functionalities for WebGL.
-        // 2. Handle 3D transformations in WebGL.
-        // 3. Add more advanced editing features, like trimming and splitting.
-        // 4. Improve performance for complex projects.
-        // 5. Integrate with WebGPU when available.
-        // 6. Explore support for additional media formats.
-        // 7. Add comprehensive error handling.
-        // 8. Include a detailed UI for better user experience.
-        // 9. Implement collaborative editing features.
+        // Detailed To-Do List
+        // 1. Implement WebGL-based rendering logic for content.
+        // 2. Handle detailed timeline management for strips and layers.
+        // 3. Add more advanced timeline controls (trimming, splitting, etc.).
+        // 4. Provide dynamic zoom and translation in WebGL.
+        // 5. Add additional media formats and advanced video editing features.
+        // 6. Improve user interaction and error handling.
     </script>
 </body>
 </html>
