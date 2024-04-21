@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <title>Video Editing Website</title>
-    
     <!-- Inline CSS for basic styling and layout -->
     <style>
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
+            height: 100vh;
+            overflow: hidden; 
         }
 
         header {
@@ -25,16 +26,29 @@
         }
 
         #preview {
-            flex: 2; 
+            flex: 3; 
             border: 2px solid black;
             text-align: center; 
             position: relative; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            overflow: hidden; /* Prevent overflowing content */
+        }
+
+        #controls {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f5f5f5;
         }
 
         #data-load {
             border: 2px solid black;
             padding: 10px;
             text-align: center; 
+            background-color: #f0f0f0;
         }
 
         #timeline {
@@ -53,6 +67,7 @@
             background-color: #f0f0f0;
             text-align: center; 
             margin-right: 5px; 
+            cursor: pointer; /* Indicate that it's draggable */
         }
 
         #overlay {
@@ -62,10 +77,11 @@
             right: 0;
             bottom: 0;
             background: rgba(255, 255, 255, 0.5);
-            display: none; 
+            display: none; /* Start with overlay hidden */
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            text-align: center;
         }
 
         .overlay-item {
@@ -73,6 +89,11 @@
             margin: 5px;
             background-color: white;
             border: 1px solid gray;  
+        }
+
+        /* Smooth drag and drop effects */
+        .dragging {
+            opacity: 0.5; /* Make dragged item semi-transparent */
         }
     </style>
 </head>
@@ -82,54 +103,76 @@
     </header>
 
     <div id="container">
-        <!-- Preview section: used to display the video timeline or overlay -->
+        <!-- Preview section for displaying the video and overlays -->
         <div id="preview">
-            <p>Preview Section</p>
-            <!-- Overlay for text and graphical elements; starts hidden, toggleable -->
-            <div id="overlay">
-                <div class="overlay-item" contenteditable="true">Editable Overlay Text</div>
+            <video id="video-element" width="640" height="480" controls>
+                <source id="video-source" src="" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+
+            <!-- Controls section with play/stop buttons and a time slider -->
+            <div id="controls">
+                <button id="play-button">Play</button>
+                <button id="stop-button">Stop</button>
+                <input type="range" id="time-slider" min="0" max="100" value="0" step="1"> <!-- Time slider for scrubbing -->
             </div>
         </div>
 
-        <!-- Data load section for media imports -->
+        <!-- Data load section for importing media files -->
         <div id="data-load">
             <p>Data Load Section</p>
-            <!-- Allow multiple media files to be uploaded -->
-            <input type="file" id="media-upload" multiple> 
+            <input type="file" id="media-upload" multiple> <!-- Allow multiple file uploads -->
         </div>
 
-        <!-- Timeline section for editing media -->
+        <!-- Timeline section for editing and arranging media -->
         <div id="timeline">
             <p>Timeline Section</p> 
         </div>
+    </div>
+
+    <!-- Overlay for additional controls or information -->
+    <div id="overlay">
+        <div class="overlay-item">Overlay Text or Controls</div> 
+        <button class="overlay-item" onclick="toggleOverlay()">Close</button>
+    </div>
 
     <!-- JavaScript for interactions and event handling -->
     <script>
         const timeline = document.getElementById("timeline");
+        const videoElement = document.getElementById("video-element");
+        const timeSlider = document.getElementById("time-slider");
 
-        // Event listener for handling media file uploads
+        // Handle media file uploads
         document.getElementById("media-upload").addEventListener("change", function (event) {
             const files = event.target.files;
 
-            // Function to add media files to the timeline
+            // Function to add media to the timeline and set as video source
             function addMediaToTimeline(files) {
                 for (let i = 0; i < files.length; i++) {
                     const mediaFile = files[i];
-                    const element = document.createElement("div");
-                    element.className = "timeline-item";
-                    element.textContent = mediaFile.name;  // Display file name on the timeline
-                    timeline.appendChild(element);
+                    const timelineItem = document.createElement("div");
+                    timelineItem.className = "timeline-item";
+                    timelineItem.textContent = mediaFile.name;  // Display file name on the timeline
+                    timeline.appendChild(timelineItem);
+
+                    // Set the first video file as the video source for preview
+                    if (i === 0 && mediaFile.type.startsWith("video/")) {
+                        const videoSource = document.getElementById("video-source");
+                        videoSource.src = URL.createObjectURL(mediaFile);
+                        videoElement.load(); // Reload the video element to reflect the new source
+                    }
 
                     // Enable drag-and-drop within the timeline
-                    element.draggable = true;
+                    timelineItem.draggable = true;
 
-                    // Define drag-and-drop behavior for timeline reorganization
-                    element.addEventListener("dragstart", (e) => {
-                        e.dataTransfer.setData("text/plain", i);
+                    // Define drag-and-drop behavior for reordering timeline items
+                    timelineItem.addEventListener("dragstart", (e) => {
+                        timelineItem.classList.add("dragging");
+                        e.dataTransfer.setData("text/plain", i.toString());
                     });
 
                     timeline.addEventListener("dragover", (e) => {
-                        e.preventDefault();  // Allow drop action
+                        e.preventDefault(); // Allow dropping
                     });
 
                     timeline.addEventListener("drop", (e) => {
@@ -140,22 +183,37 @@
                             timeline.insertBefore(draggedElement, timeline.children[dropIndex]);
                         }
                     });
+
+                    timelineItem.addEventListener("dragend", () => {
+                        timelineItem.classList.remove("dragging");
+                    });
                 }
             }
 
-            // Add uploaded media files to the timeline
             addMediaToTimeline(files);
         });
 
-        // Event listener for toggling the overlay section on the preview
-        document.getElementById("overlay").addEventListener("click", function () {
-            const newOverlay = document.createElement("div");
-            newOverlay.contentEditable = true;  // Allows editing of text or graphics
-            newOverlay.className = "overlay-item"; 
-            document.getElementById("overlay").appendChild(newOverlay); 
+        // Control video playback with start and stop buttons
+        document.getElementById("play-button").addEventListener("click", () => {
+            videoElement.play();
         });
 
-        // Function to toggle overlay visibility
+        document.getElementById("stop-button").addEventListener("click", () => {
+            videoElement.pause();
+            videoElement.currentTime = 0; // Reset to the beginning
+        });
+
+        // Update time slider as the video plays
+        videoElement.addEventListener("timeupdate", () => {
+            timeSlider.max = videoElement.duration; // Set the slider max to the video's total duration
+            timeSlider.value = videoElement.currentTime; // Update the slider based on the current time
+        });
+
+        timeSlider.addEventListener("input", () => {
+            videoElement.currentTime = timeSlider.value; // Seek the video to the selected time
+        });
+
+        // Toggle the visibility of the overlay
         function toggleOverlay() {
             const overlay = document.getElementById("overlay");
             overlay.style.display = overlay.style.display === "none" ? "flex" : "none";
@@ -163,34 +221,24 @@
 
         document.getElementById("preview").addEventListener("click", toggleOverlay);
 
-        // Function to simulate rendering and exporting the video
+        // Simulate video export
         function exportVideo() {
             alert("Video exported! This is a prototype, so no actual rendering occurs.");
         }
 
-        // Button to trigger video export (for demo purposes)
-        const exportButton = document.createateElement("button");
+        // Button to trigger video export
+        const exportButton = document.createElement("button");
         exportButton.textContent = "Export Video";
         exportButton.onclick = exportVideo;
         document.body.appendChild(exportButton);
+
+        // Roadmap and To-Do List
+        // 1. Implement actual video rendering and exporting.
+        // 2. Add sophisticated timeline controls (e.g., trimming, splitting).
+        // 3. Integrate audio tracks and synchronize with video.
+        // 4. Enhance UI for better usability.
+        // 5. Add undo/redo functionality for editing.
+        // 6. Provide additional overlay customization options (e.g., font style, size, color).
     </script>
-
-    // Roadmap and To-Do List
-    // 1. Purpose: This code is designed as a simple video editing website prototype allowing users to import media files, edit them on a timeline, add overlays, and simulate video export.
-    // 2. Existing Features:
-    //    - Media upload and timeline management.
-    //    - Draggable timeline items for reordering.
-    //    - Overlay section for text and graphical elements.
-    //    - Simulated video export.
-    // 3. To-Do List:
-    //    - Implement actual video rendering and exporting.
-    //    - Add more sophisticated timeline controls (e.g., trimming, splitting).
-    //    - Integrate audio tracks and synchronize with video.
-    //    - Enhance the user interface for better usability and design.
-    //    - Add functionality to support transitions and effects.
-    //    - Implement undo/redo functionality for editing.
-    //    - Add the ability to save and load projects.
-    //    - Provide additional overlay customization options (e.g., font style, size, color).
-
 </body>
 </html>
