@@ -127,7 +127,7 @@ function initSky() {
         renderer.toneMappingExposure = effectController.exposure;
     }
 
-    //updateSun();  // Set the initial position of the sun
+    updateSun();  // Set the initial position of the sun
 }
 
 function setupControls() {
@@ -139,7 +139,7 @@ function setupControls() {
 
 function loadGalleryModel() {
     const loader = new GLTFLoader();
-    loader.load('../lib/models/Galer02.glb', function(gltf) {
+    loader.load('../lib/models/GalerAll.glb', function(gltf) {
         gltf.scene.traverse(function(child) {
             if (child.isMesh) {
                 child.material.side = THREE.FrontSide;
