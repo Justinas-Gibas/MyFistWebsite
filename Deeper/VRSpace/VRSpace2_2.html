@@ -78,7 +78,7 @@ function setupRenderer() {
 
 function setupLighting() {
     const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 1);
-    //scene.add(ambientLight);
+    scene.add(ambientLight);
 
     const pointLight1 = new THREE.PointLight(0xb5b5b5, 3, 40);
     pointLight1.position.set(0, 2, 8);
@@ -109,15 +109,15 @@ function setupLighting() {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Use PCFSoftShadowMap for smooth shadows
 
     // HDR
-    const envLoader = new RGBELoader();
-    envLoader.load('../lib/images/Galer.hdr', (texture) => {
-      texture.mapping = THREE.EquirectangularReflectionMapping;  // Set mapping
-      scene.environment = texture;  // Apply HDR environment map
-    });
+    //const envLoader = new RGBELoader();
+    //envLoader.load('../lib/images/Galer.hdr', (texture) => {
+    //  texture.mapping = THREE.EquirectangularReflectionMapping;  // Set mapping
+    //  scene.environment = texture;  // Apply HDR environment map
+    //});
 
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;  // Use a tone mapping suitable for HDR
-    renderer.toneMappingExposure = 1;  // Set exposure
-    renderer.outputEncoding = THREE.sRGBEncoding;  // Correct output encoding for HDR content
+    //renderer.toneMapping = THREE.ACESFilmicToneMapping;  // Use a tone mapping suitable for HDR
+    //renderer.toneMappingExposure = 1;  // Set exposure
+    //renderer.outputEncoding = THREE.sRGBEncoding;  // Correct output encoding for HDR content
 
 }
 
