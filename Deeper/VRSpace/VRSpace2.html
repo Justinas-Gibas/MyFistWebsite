@@ -1,13 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Three.js AR/XR - Enhanced Virtual Art Gallery</title>
+    <title>Virtual Art Gallery</title>
     <meta charset="UTF-8">
-    <meta name="author" content="Justinas Gibas" />
+    <meta name="author" content="Justinas Gibas">
     <meta name="description" content="Three.js AR/XR - Enhanced Virtual Art Gallery">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#ffffff">
-
     <style>
         body, html { margin: 0; height: 100%; overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; }
@@ -33,12 +32,12 @@ import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 import { RGBELoader } from '../lib/loaders/RGBELoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
+import { Sky } from '../lib/utils/Sky.js';
 import Stats from '../lib/libs/stats.module.js'
 
 let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 
@@ -50,19 +49,20 @@ function initGallery() {
     scene = new THREE.Scene();
     camera = setupCamera();
     renderer = setupRenderer();
-
     setupLighting();
     setupControls();
     loadGalleryModel();
     setupGallery();
     initArtworks();
+    TitleText();
     setupEventListeners();
+    initSky();
     animate();
 }
 
 function setupCamera() {
     const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(16, 2, 3);
+    camera.position.set(20, 1.6, 0);
     return camera;
 }
 
@@ -80,57 +80,62 @@ function setupLighting() {
     const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 1);
     scene.add(ambientLight);
 
-    //const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    //directionalLight.position.set(5, 10, 7.5);
-    //directionalLight.castShadow = true;
-    //scene.add(directionalLight);
-
-    // Point lights
-    const pointLight1 = new THREE.PointLight(0xb5b5b5, 1, 40);
+    const pointLight1 = new THREE.PointLight(0xb5b5b5, 3, 40);
     pointLight1.position.set(0, 2, 8);
-    pointLight1.castShadow = false;
+    pointLight1.castShadow = true; // Enable shadows
     scene.add(pointLight1);
-    
-    const pointLight2 = new THREE.PointLight(0xb5b5b5, 1, 40);
+
+    const pointLight2 = new THREE.PointLight(0xb5b5b5, 3, 40);
     pointLight2.position.set(0, 2, -8);
-    pointLight2.castShadow = false;
+    pointLight2.castShadow = true; // Enable shadows
     scene.add(pointLight2);
-//
-    //const pointLight3 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight3.position.set(-8, 2, 10);
-    //pointLight3.castShadow = false;
-    //scene.add(pointLight3);
-//
-    //const pointLight4 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight4.position.set(-8, 2, -10);
-    //pointLight4.castShadow = false;
-    //scene.add(pointLight4);
-//
-    //const pointLight5 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight5.position.set(8, 2, 10);
-    //pointLight5.castShadow = false;
-    //scene.add(pointLight5);
-//
-    //const pointLight6 = new THREE.PointLight(0xffffff, 0.5, 30);
-    //pointLight6.position.set(8, 2, -10);
-    //pointLight6.castShadow = false;
-    //scene.add(pointLight6);
-//
-    const pointLight7 = new THREE.PointLight(0xb5b5b5, 1, 10);
+
+    const pointLight7 = new THREE.PointLight(0xb5b5b5, 5, 10);
     pointLight7.position.set(15, 2, 0);
-    pointLight7.castShadow = false;
+    pointLight7.castShadow = true; // Enable shadows
     scene.add(pointLight7);
-    
-    // Soft shadows
+
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
-    //directionalLight.shadow.mapSize.width = 512; // Adjust for better shadow resolution
-    //directionalLight.shadow.mapSize.height = 512;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Use PCFSoftShadowMap for smooth shadows
+
+}
+
+function initSky() {
+    // Add Sky
+    const sky = new Sky();
+    sky.scale.setScalar(4500);
+    scene.add(sky);
+
+    const sun = new THREE.Vector3();
+
+    // Set up and configure the sky parameters
+    const effectController = {
+        turbidity: 0.01,
+        rayleigh: 0.01,
+        mieCoefficient: 0.005,
+        mieDirectionalG: 0.999,
+        elevation: 2,
+        azimuth: 90,
+        exposure: renderer.toneMappingExposure
+    };
+
+    // Update sun function to reposition it according to the current time of day
+    function updateSun() {
+        const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
+        const theta = THREE.MathUtils.degToRad(effectController.azimuth);
+        sun.setFromSphericalCoords(1, phi, theta);
+
+        sky.material.uniforms['sunPosition'].value.copy(sun);
+        renderer.toneMappingExposure = effectController.exposure;
+    }
+
+    updateSun();  // Set the initial position of the sun
 }
 
 function setupControls() {
     controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.6, 0);
+    controls.enabled = false; // Initially disable controls
     controls.update();
 }
 
@@ -139,40 +144,138 @@ function loadGalleryModel() {
     loader.load('../lib/models/Galer01.glb', function(gltf) {
         gltf.scene.traverse(function(child) {
             if (child.isMesh) {
-                // Ensure only the front faces are rendered
+                child.castShadow = true; // Ensure the mesh casts shadows
+                child.receiveShadow = true; // Ensure the mesh receives shadows
                 child.material.side = THREE.FrontSide;
             }
         });
         scene.add(gltf.scene);
     }, undefined, function(error) {
-    console.error('An error happened in the GLTFLoader:', error);    });
+        console.error('An error happened in the GLTFLoader:', error);
+    });
 }
 
 function setupGallery() {
     artworks = [
-        { 
-          texture: '../lib/images/BackWater.png', 
-          text: 'Description for BackWater.', 
-          position: new THREE.Vector3(-9.9, 2.5, 0),
-          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+        { //center of gallery
+          texture: 'img/EV_00034.jpg', 
+          text: 'Drag with one finger to turn     Drag with tow fingers to pan.', 
+          position: new THREE.Vector3(0, 3.5, 0),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0),
+          width: 0.01, // Optional
+          height: 0.01 // Optional
         },
-        { 
-          texture: '../lib/images/Forest.png', 
-          text: 'Description for Forest.', 
-          position: new THREE.Vector3(-9.9, 2.5, -10),
-          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+
+        { //start of the gallery
+          texture: 'img/EV_00034.jpg', 
+          text: 'Description for EV_00034.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, 4),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
         },
-        { 
-          texture: '../lib/images/BackWater.png', 
-          text: 'Long Description for BackWater.', 
-          position: new THREE.Vector3(0, 2.5, -19.9),
-          rotation: new THREE.Euler(0, 0, 0)
-        },
+
         { 
           texture: 'img/EV_00040.jpg', 
-          text: 'Description for EV_00040.', 
-          position: new THREE.Vector3(0, 2.5, 19.9),
-          rotation: new THREE.Euler(0, Math.PI, 0)
+          text: 'Description for EV_00040.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, 7),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { 
+          texture: 'img/EV_00041.jpg', 
+          text: 'Description for EV_00041.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, 9),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { 
+          texture: 'img/EV_00041.jpg', 
+          text: 'Description for EV_00041.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, 12),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { 
+          texture: 'img/EV_00041.jpg', 
+          text: 'Description for EV_00041.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, 15),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { // right of gallery left side
+          texture: 'img/EV_00042.jpg', 
+          text: 'Description for EV_00042.jpg', 
+          position: new THREE.Vector3(6, 2.5, 19.99),
+          rotation: new THREE.Euler(0, Math.PI, 0),
+        },
+
+        { // center of gallery left side
+          texture: 'img/EV_00042.jpg', 
+          text: 'Description for EV_00042.jpg', 
+          position: new THREE.Vector3(0, 2.5, 19.99),
+          rotation: new THREE.Euler(0, Math.PI, 0),
+        },
+
+        { // left of gallery left side
+          texture: 'img/EV_00042.jpg', 
+          text: 'Description for EV_00042.jpg', 
+          position: new THREE.Vector3(-6, 2.5, 19.99),
+          rotation: new THREE.Euler(0, Math.PI, 0),    
+        },
+
+        { //left side of front wall
+          texture: 'img/EV_00044.jpg', 
+          text: 'Description for EV_00044.jpg', 
+          position: new THREE.Vector3(-9.99, 2.5, 18),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+        },
+
+        {
+          texture: 'img/EV_00044.jpg', 
+          text: 'Description for EV_00044.jpg', 
+          position: new THREE.Vector3(-9.99, 2.5, 7),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+        },
+
+        { // right side of front wall
+          texture: 'img/EV_00045.jpg', 
+          text: 'Description for EV_00045.jpg', 
+          position: new THREE.Vector3(-9.99, 2.5, -18),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+        },
+
+        { // right of gallery right side
+          texture: 'img/EV_09965.jpg',  
+          text: 'Description for EV_09965.jpg', 
+          position: new THREE.Vector3(-6, 2.5, -19.9),
+          rotation: new THREE.Euler(0, 0, 0),
+        },
+        
+        { // center of gallery right side
+          texture: 'img/EV_09965.jpg',  
+          text: 'Description for EV_09965.jpg', 
+          position: new THREE.Vector3(0, 2.5, -19.9),
+          rotation: new THREE.Euler(0, 0, 0),
+        },
+
+        { // left of gallery right side
+          texture: 'img/EV_09965.jpg',  
+          text: 'Description for EV_09965.jpg', 
+          position: new THREE.Vector3(6, 2.5, -19.9),
+          rotation: new THREE.Euler(0, 0, 0),
+        },
+
+        {
+          texture: 'img/EV_00040.jpg', 
+          text: 'Description for EV_00040.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, -8),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0),
+        },
+        
+        { //end position of gallery right side
+          texture: 'img/EV_09990.jpg', 
+          text: 'Description for EV_09990.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, -4),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0),
         }
     ];
 }
@@ -184,16 +287,20 @@ function initArtworks() {
 
 function loadArtPieces(scene, artworks) {
     const textureLoader = new THREE.TextureLoader();
-    const artGeometry = new THREE.PlaneGeometry(2, 2);
     artworks.forEach((artwork, index) => {
         textureLoader.load(artwork.texture, function(texture) {
+            const aspectRatio = texture.image.width / texture.image.height;
+            const width = artwork.width || 1;
+            const height = artwork.height || width / aspectRatio;
+            const artGeometry = new THREE.PlaneGeometry(width, height);
             const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
             const artMesh = new THREE.Mesh(artGeometry, artMaterial);
             artMesh.position.copy(artwork.position);
             artMesh.rotation.copy(artwork.rotation);
+            artMesh.receiveShadow = true;
             artMesh.userData = { index: index, clickable: true };
             scene.add(artMesh);
-            loadText(scene, artwork.text, artwork.position, artwork.rotation);
+            loadText(scene, artwork.text, artwork.position, artwork.rotation, width, height);
         });
     });
 }
@@ -216,7 +323,7 @@ function wrapText(text, maxCharsPerLine) {
     return lines;
 }
 
-function loadText(scene, text, position, rotation) {
+function loadText(scene, text, position, rotation, width, height) {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         const maxCharsPerLine = 35;
@@ -227,22 +334,24 @@ function loadText(scene, text, position, rotation) {
             const textGeometry = new TextGeometry(line, {
                 font: font,
                 size: 0.04,
-                height: 0,
+                depth:0,
                 curveSegments: 3,
                 bevelEnabled: false,
             });
 
             const textMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+            
+            // Calculate vertical offset based on artwork height
+            const offsetDistance = height / 2 + 0.2;
+            const yOffset = -index * lineHeight;
 
-            const offsetDistance = 1.1; // Distance offset from the artwork
-            const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
             const directionVector = new THREE.Vector3(0, -1, 0); // Direction to move text in local space
-            const euler = new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ'); // Rotation in Euler angles
+            const euler = new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ');
             
             // Adjust direction vector by rotation
             directionVector.applyEuler(euler); 
-            directionVector.multiplyScalar(offsetDistance); // Scale direction by offset
+            directionVector.multiplyScalar(offsetDistance);
 
             // Calculate final position for text
             const finalPosition = new THREE.Vector3().copy(position).add(directionVector);
@@ -253,6 +362,41 @@ function loadText(scene, text, position, rotation) {
 
             scene.add(textMesh);
         });
+    });
+}
+
+function TitleText() {
+    const loader = new FontLoader();
+    loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
+
+        //responsive text sizing
+        const minSize = 0.1;
+        const viewportFactor = 0.0005;
+        const responsiveSize = window.innerWidth * viewportFactor;  // + window.innerHeight * viewportFactor;
+        const maxSize = 0.6;
+        const size = Math.max(minSize, Math.min(responsiveSize, maxSize));
+
+        const text = 'Virtual Art Gallery';
+        const textGeometry = new TextGeometry(text, {
+            font: font,
+            size: size,
+            depth: 0.1,
+            curveSegments: 3,
+            bevelEnabled: false
+        });
+
+        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xd4d4d4 });
+        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+
+        // Calculate position to center the text
+        textGeometry.computeBoundingBox();
+        const centerOffset = -0.5 * (textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x);
+
+        // Set position to roughly center of screen
+        textMesh.position.set(15, 2.5, 0 - centerOffset);
+        textMesh.rotation.y = Math.PI / 2;
+
+        scene.add(textMesh);
     });
 }
 
@@ -277,22 +421,34 @@ function onDoubleClick(event) {
 
 function stylizeElement(element, alignment) {
     element.style.position = 'absolute';
-    element.style.bottom = '20px';
     element.style.padding = '12px 6px';
     element.style.border = '1px solid #fff';
     element.style.borderRadius = '4px';
-    element.style.background = 'rgba(0,0,0,0.1)';
+    element.style.background = 'rgba(0,0,0,0.3)'; 
     element.style.color = '#fff';
     element.style.font = 'normal 13px sans-serif';
     element.style.textAlign = 'center';
-    element.style.opacity = '0.5';
+    element.style.opacity = '0.6';
     element.style.outline = 'none';
     element.style.zIndex = '999';
 
-    if (alignment === 'left') {
-        element.style.left = '20px';
-    } else if (alignment === 'right') {
-        element.style.right = '20px';
+    switch (alignment) {
+        case 'left':
+            element.style.left = '20px';
+            element.style.bottom = '20px';
+            break;
+        case 'right':
+            element.style.right = '20px';
+            element.style.bottom = '20px';
+            break;
+        case 'center':
+            element.style.top = '40%';
+            element.style.left = '50%';
+            element.style.transform = 'translate(-50%, -50%)';
+            element.style.font = 'normal 20px sans-serif';
+            element.style.background = 'rgba(0,0,0,0.4)';
+            element.style.opacity = '0.7';
+            break;
     }
 }
 
@@ -307,8 +463,17 @@ function setupNavigationButtons() {
     nextButton.id = 'nextButton';
     stylizeElement(nextButton, 'right');
 
+    const startButton = document.createElement('button');
+    startButton.innerText = 'Start';
+    startButton.id = 'startButton';
+    stylizeElement(startButton, 'center');
+
     document.body.appendChild(prevButton);
     document.body.appendChild(nextButton);
+    document.body.appendChild(startButton);
+
+    prevButton.style.display = 'none'; // Ensure button is not visible
+    nextButton.style.display = 'none'; // Ensure button is not visible
 
     prevButton.addEventListener('click', function() {
         currentArtIndex = (currentArtIndex - 1 + artworks.length) % artworks.length;
@@ -319,6 +484,17 @@ function setupNavigationButtons() {
         currentArtIndex = (currentArtIndex + 1) % artworks.length;
         updateViewToCurrentArt();
     });
+
+    startButton.addEventListener('click', function() {
+        
+        //animateCameraThroughKeyframes();
+        updateViewToCurrentArt();
+
+        prevButton.style.display = 'block'; // Show the Previous button
+        nextButton.style.display = 'block'; // Show the Next button
+        startButton.style.display = 'none'; // Hide the Start button
+        controls.enabled = true; // Enable orbit controls
+    });
 }
 
 function updateViewToCurrentArt() {
@@ -327,9 +503,14 @@ function updateViewToCurrentArt() {
 }
 
 function quaternionSlerp(q1, q2, t) {
-    const cosTheta = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+    var cosTheta = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+    // If cosTheta < 0, the interpolation will take the long way around the sphere.
+    if (cosTheta < 0) {
+        q1.x = -q1.x; q1.y = -q1.y; q1.z = -q1.z; q1.w = -q1.w;
+        cosTheta = -cosTheta;
+    }
 
-    // If the quaternions are very close, linearly interpolate to avoid instability
+    // Perform a linear interpolation when cosTheta is close to 1 to avoid side effect of sin(angle) becoming a zero denominator
     if (cosTheta > 0.9995) {
         return new THREE.Quaternion(
             q1.x + t * (q2.x - q1.x),
@@ -339,13 +520,9 @@ function quaternionSlerp(q1, q2, t) {
         ).normalize();
     }
 
+    // Standard case using slerp formula
     const angle = Math.acos(cosTheta);
-
-    let sinTheta = Math.sqrt(1.0 - cosTheta * cosTheta);
-    if (Math.abs(sinTheta) < 0.001) { // If the angle is small, use linear interpolation
-        sinTheta = 1;
-    }
-
+    const sinTheta = Math.sqrt(1.0 - cosTheta * cosTheta);
     const ratioA = Math.sin((1 - t) * angle) / sinTheta;
     const ratioB = Math.sin(t * angle) / sinTheta;
 
@@ -363,7 +540,7 @@ function translateCameraToArt(targetPosition, targetRotation) {
     direction.applyEuler(new THREE.Euler(0, targetRotation.y, 0, 'XYZ'));
 
     // Calculate endPosition in front of the artwork
-    endPosition.copy(targetPosition).add(direction.multiplyScalar(4)); // Adjust multiplier to control distance
+    endPosition.copy(targetPosition).add(direction.multiplyScalar(2)); // Adjust multiplier to control distance
 
     const startPosition = camera.position.clone();
     const startRotation = camera.quaternion.clone();

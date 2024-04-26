@@ -10,7 +10,6 @@
     <style>
         body, html { margin: 0; height: 100%; overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; }
-        /*#prevButton, #nextButton { display: none; } /* Initially hide the navigation buttons */
     </style>
 </head>
 <body>
@@ -33,6 +32,7 @@ import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 import { RGBELoader } from '../lib/loaders/RGBELoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
 import { ARButton } from '../lib/webxr/ARButton.js';
+import { Sky } from '../lib/utils/Sky.js';
 import Stats from '../lib/libs/stats.module.js'
 
 let camera, scene, renderer, controls;
@@ -56,6 +56,7 @@ function initGallery() {
     initArtworks();
     TitleText();
     setupEventListeners();
+    initSky();
     animate();
 }
 
@@ -79,20 +80,77 @@ function setupLighting() {
     const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 1);
     scene.add(ambientLight);
 
-    const pointLight1 = new THREE.PointLight(0xb5b5b5, 1, 40);
+    const pointLight1 = new THREE.PointLight(0xb5b5b5, 3, 40);
     pointLight1.position.set(0, 2, 8);
+    pointLight1.castShadow = true; // Enable shadows
+    pointLight1.shadow.mapSize.width = 1024; // Increase for better quality
+    pointLight1.shadow.mapSize.height = 1024;
+    pointLight1.shadow.bias = -0.0005; // Shadow bias to reduce artifacts
+    pointLight1.shadow.camera.near = 0.1; // Near clipping plane
+    pointLight1.shadow.camera.far = 40; // Far clipping plane
     scene.add(pointLight1);
-    
-    const pointLight2 = new THREE.PointLight(0xb5b5b5, 1, 40);
-    pointLight2.position.set(0, 2, -8);
-    scene.add(pointLight2); 
 
-    const pointLight7 = new THREE.PointLight(0xb5b5b5, 1, 10);
+    const pointLight2 = new THREE.PointLight(0xb5b5b5, 3, 40);
+    pointLight2.position.set(0, 2, -8);
+    pointLight2.castShadow = true; // Enable shadows
+    pointLight2.shadow.mapSize.width = 1024;
+    pointLight2.shadow.mapSize.height = 1024;
+    pointLight2.shadow.bias = -0.0005; // Shadow bias to reduce artifacts
+    scene.add(pointLight2);
+
+    const pointLight7 = new THREE.PointLight(0xb5b5b5, 5, 10);
     pointLight7.position.set(15, 2, 0);
+    pointLight7.castShadow = true; // Enable shadows
+    pointLight7.shadow.mapSize.width = 1024;
+    pointLight7.shadow.mapSize.height = 1024;
     scene.add(pointLight7);
 
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Use PCFSoftShadowMap for smooth shadows
+
+    // HDR
+    //const envLoader = new RGBELoader();
+    //envLoader.load('../lib/images/Galer.hdr', (texture) => {
+    //  texture.mapping = THREE.EquirectangularReflectionMapping;  // Set mapping
+    //  scene.environment = texture;  // Apply HDR environment map
+    //});
+
+    //renderer.toneMapping = THREE.ACESFilmicToneMapping;  // Use a tone mapping suitable for HDR
+    //renderer.toneMappingExposure = 1;  // Set exposure
+    //renderer.outputEncoding = THREE.sRGBEncoding;  // Correct output encoding for HDR content
+
+}
+
+function initSky() {
+    // Add Sky
+    const sky = new Sky();
+    sky.scale.setScalar(4500);
+    scene.add(sky);
+
+    const sun = new THREE.Vector3();
+
+    // Set up and configure the sky parameters
+    const effectController = {
+        turbidity: 0.01,
+        rayleigh: 0.01,
+        mieCoefficient: 0.005,
+        mieDirectionalG: 0.999,
+        elevation: 2,
+        azimuth: 90,
+        exposure: renderer.toneMappingExposure
+    };
+
+    // Update sun function to reposition it according to the current time of day
+    function updateSun() {
+        const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
+        const theta = THREE.MathUtils.degToRad(effectController.azimuth);
+        sun.setFromSphericalCoords(1, phi, theta);
+
+        sky.material.uniforms['sunPosition'].value.copy(sun);
+        renderer.toneMappingExposure = effectController.exposure;
+    }
+
+    updateSun();  // Set the initial position of the sun
 }
 
 function setupControls() {
@@ -104,9 +162,11 @@ function setupControls() {
 
 function loadGalleryModel() {
     const loader = new GLTFLoader();
-    loader.load('../lib/models/Galer01.glb', function(gltf) {
+    loader.load('../lib/models/Galer02.glb', function(gltf) {
         gltf.scene.traverse(function(child) {
             if (child.isMesh) {
+                child.castShadow = true; // Ensure the mesh casts shadows
+                child.receiveShadow = true; // Ensure the mesh receives shadows
                 child.material.side = THREE.FrontSide;
             }
         });
@@ -118,29 +178,125 @@ function loadGalleryModel() {
 
 function setupGallery() {
     artworks = [
-        { 
-          texture: '../lib/images/BackWater.png', 
-          text: 'Description for BackWater.', 
-          position: new THREE.Vector3(-9.9, 2.5, 0),
-          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+        { //center of gallery
+          texture: 'img/EV_00034.jpg', 
+          text: 'Drag with one finger to turn     Drag with tow fingers to pan.', 
+          position: new THREE.Vector3(0, 3.5, 0),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0),
+          width: 0.01, // Optional
+          height: 0.01 // Optional
         },
-        { 
-          texture: '../lib/images/Forest.png', 
-          text: 'Description for Forest.', 
-          position: new THREE.Vector3(-9.9, 2.5, -10),
-          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+
+        { //start of the gallery
+          texture: 'img/EV_00034.jpg', 
+          text: 'Description for EV_00034.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, 4),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
         },
-        { 
-          texture: '../lib/images/BackWater.png', 
-          text: 'Long Description for BackWater.', 
-          position: new THREE.Vector3(0, 2.5, -19.9),
-          rotation: new THREE.Euler(0, 0, 0)
-        },
+
         { 
           texture: 'img/EV_00040.jpg', 
-          text: 'Description for EV_00040.', 
-          position: new THREE.Vector3(0, 2.5, 19.9),
-          rotation: new THREE.Euler(0, Math.PI, 0)
+          text: 'Description for EV_00040.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, 7),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { 
+          texture: 'img/EV_00041.jpg', 
+          text: 'Description for EV_00041.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, 9),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { 
+          texture: 'img/EV_00041.jpg', 
+          text: 'Description for EV_00041.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, 12),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { 
+          texture: 'img/EV_00041.jpg', 
+          text: 'Description for EV_00041.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, 15),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { // right of gallery left side
+          texture: 'img/EV_00042.jpg', 
+          text: 'Description for EV_00042.jpg', 
+          position: new THREE.Vector3(6, 2.5, 19.99),
+          rotation: new THREE.Euler(0, Math.PI, 0),
+        },
+
+        { // center of gallery left side
+          texture: 'img/EV_00042.jpg', 
+          text: 'Description for EV_00042.jpg', 
+          position: new THREE.Vector3(0, 2.5, 19.99),
+          rotation: new THREE.Euler(0, Math.PI, 0),
+        },
+
+        { // left of gallery left side
+          texture: 'img/EV_00042.jpg', 
+          text: 'Description for EV_00042.jpg', 
+          position: new THREE.Vector3(-6, 2.5, 19.99),
+          rotation: new THREE.Euler(0, Math.PI, 0),    
+        },
+
+        { //left side of front wall
+          texture: 'img/EV_00044.jpg', 
+          text: 'Description for EV_00044.jpg', 
+          position: new THREE.Vector3(-9.99, 2.5, 18),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+        },
+
+        {
+          texture: 'img/EV_00044.jpg', 
+          text: 'Description for EV_00044.jpg', 
+          position: new THREE.Vector3(-9.99, 2.5, 7),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+        },
+
+        { // right side of front wall
+          texture: 'img/EV_00045.jpg', 
+          text: 'Description for EV_00045.jpg', 
+          position: new THREE.Vector3(-9.99, 2.5, -18),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+        },
+
+        { // right of gallery right side
+          texture: 'img/EV_09965.jpg',  
+          text: 'Description for EV_09965.jpg', 
+          position: new THREE.Vector3(-6, 2.5, -19.9),
+          rotation: new THREE.Euler(0, 0, 0),
+        },
+        
+        { // center of gallery right side
+          texture: 'img/EV_09965.jpg',  
+          text: 'Description for EV_09965.jpg', 
+          position: new THREE.Vector3(0, 2.5, -19.9),
+          rotation: new THREE.Euler(0, 0, 0),
+        },
+
+        { // left of gallery right side
+          texture: 'img/EV_09965.jpg',  
+          text: 'Description for EV_09965.jpg', 
+          position: new THREE.Vector3(6, 2.5, -19.9),
+          rotation: new THREE.Euler(0, 0, 0),
+        },
+
+        {
+          texture: 'img/EV_00040.jpg', 
+          text: 'Description for EV_00040.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, -8),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0),
+        },
+        
+        { //end position of gallery right side
+          texture: 'img/EV_09990.jpg', 
+          text: 'Description for EV_09990.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, -4),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0),
         }
     ];
 }
@@ -152,16 +308,20 @@ function initArtworks() {
 
 function loadArtPieces(scene, artworks) {
     const textureLoader = new THREE.TextureLoader();
-    const artGeometry = new THREE.PlaneGeometry(2, 2);
     artworks.forEach((artwork, index) => {
         textureLoader.load(artwork.texture, function(texture) {
+            const aspectRatio = texture.image.width / texture.image.height;
+            const width = artwork.width || 1;
+            const height = artwork.height || width / aspectRatio;
+            const artGeometry = new THREE.PlaneGeometry(width, height);
             const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
             const artMesh = new THREE.Mesh(artGeometry, artMaterial);
             artMesh.position.copy(artwork.position);
             artMesh.rotation.copy(artwork.rotation);
+            artMesh.receiveShadow = true;
             artMesh.userData = { index: index, clickable: true };
             scene.add(artMesh);
-            loadText(scene, artwork.text, artwork.position, artwork.rotation);
+            loadText(scene, artwork.text, artwork.position, artwork.rotation, width, height);
         });
     });
 }
@@ -184,7 +344,7 @@ function wrapText(text, maxCharsPerLine) {
     return lines;
 }
 
-function loadText(scene, text, position, rotation) {
+function loadText(scene, text, position, rotation, width, height) {
     const loader = new FontLoader();
     loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
         const maxCharsPerLine = 35;
@@ -202,15 +362,17 @@ function loadText(scene, text, position, rotation) {
 
             const textMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+            
+            // Calculate vertical offset based on artwork height
+            const offsetDistance = height / 2 + 0.2;
+            const yOffset = -index * lineHeight;
 
-            const offsetDistance = 1.1; // Distance offset from the artwork
-            const yOffset = -index * lineHeight; // Adjust vertical position based on the line index
             const directionVector = new THREE.Vector3(0, -1, 0); // Direction to move text in local space
-            const euler = new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ'); // Rotation in Euler angles
+            const euler = new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ');
             
             // Adjust direction vector by rotation
             directionVector.applyEuler(euler); 
-            directionVector.multiplyScalar(offsetDistance); // Scale direction by offset
+            directionVector.multiplyScalar(offsetDistance);
 
             // Calculate final position for text
             const finalPosition = new THREE.Vector3().copy(position).add(directionVector);
@@ -415,9 +577,14 @@ function updateViewToCurrentArt() {
 }
 
 function quaternionSlerp(q1, q2, t) {
-    const cosTheta = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+    var cosTheta = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+    // If cosTheta < 0, the interpolation will take the long way around the sphere.
+    if (cosTheta < 0) {
+        q1.x = -q1.x; q1.y = -q1.y; q1.z = -q1.z; q1.w = -q1.w;
+        cosTheta = -cosTheta;
+    }
 
-    // If the quaternions are very close, linearly interpolate to avoid instability
+    // Perform a linear interpolation when cosTheta is close to 1 to avoid side effect of sin(angle) becoming a zero denominator
     if (cosTheta > 0.9995) {
         return new THREE.Quaternion(
             q1.x + t * (q2.x - q1.x),
@@ -427,13 +594,9 @@ function quaternionSlerp(q1, q2, t) {
         ).normalize();
     }
 
+    // Standard case using slerp formula
     const angle = Math.acos(cosTheta);
-
-    let sinTheta = Math.sqrt(1.0 - cosTheta * cosTheta);
-    if (Math.abs(sinTheta) < 0.001) { // If the angle is small, use linear interpolation
-        sinTheta = 1;
-    }
-
+    const sinTheta = Math.sqrt(1.0 - cosTheta * cosTheta);
     const ratioA = Math.sin((1 - t) * angle) / sinTheta;
     const ratioB = Math.sin(t * angle) / sinTheta;
 
@@ -451,7 +614,7 @@ function translateCameraToArt(targetPosition, targetRotation) {
     direction.applyEuler(new THREE.Euler(0, targetRotation.y, 0, 'XYZ'));
 
     // Calculate endPosition in front of the artwork
-    endPosition.copy(targetPosition).add(direction.multiplyScalar(4)); // Adjust multiplier to control distance
+    endPosition.copy(targetPosition).add(direction.multiplyScalar(2)); // Adjust multiplier to control distance
 
     const startPosition = camera.position.clone();
     const startRotation = camera.quaternion.clone();
