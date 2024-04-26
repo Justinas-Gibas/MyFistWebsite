@@ -115,7 +115,7 @@ function setupLighting() {
       scene.environment = texture;  // Apply HDR environment map
     });
 
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;  // Use a tone mapping suitable for HDR
+    //renderer.toneMapping = THREE.ACESFilmicToneMapping;  // Use a tone mapping suitable for HDR
     renderer.toneMappingExposure = 0.4;  // Set exposure
     renderer.outputEncoding = THREE.sRGBEncoding;  // Correct output encoding for HDR content
 
