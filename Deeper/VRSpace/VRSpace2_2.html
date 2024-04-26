@@ -164,7 +164,7 @@ function loadGalleryModel() {
 function setupGallery() {
     artworks = [
         { //center of gallery
-          texture: '.', 
+          texture: '.png', 
           text: 'Drag with one finger to turn     Drag with tow fingers to pan.', 
           position: new THREE.Vector3(0, 2, 0),
           rotation: new THREE.Euler(0, Math.PI / 2, 0),
@@ -196,14 +196,21 @@ function setupGallery() {
         { 
           texture: 'img/EV_00041.jpg', 
           text: 'Description for EV_00041.jpg', 
-          position: new THREE.Vector3(9.99, 2.5, 9),
+          position: new THREE.Vector3(9.99, 2.5, 12),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { 
+          texture: 'img/EV_00041.jpg', 
+          text: 'Description for EV_00041.jpg', 
+          position: new THREE.Vector3(9.99, 2.5, 15),
           rotation: new THREE.Euler(0, Math.PI / -2, 0)
         },
 
         { // right of gallery left side
           texture: 'img/EV_00042.jpg', 
           text: 'Description for EV_00042.jpg', 
-          position: new THREE.Vector3(4, 2.5, 19.99),
+          position: new THREE.Vector3(6, 2.5, 19.99),
           rotation: new THREE.Euler(0, Math.PI, 0),
         },
 
@@ -217,7 +224,7 @@ function setupGallery() {
         { // left of gallery left side
           texture: 'img/EV_00042.jpg', 
           text: 'Description for EV_00042.jpg', 
-          position: new THREE.Vector3(-4, 2.5, 19.99),
+          position: new THREE.Vector3(-6, 2.5, 19.99),
           rotation: new THREE.Euler(0, Math.PI, 0),    
         },
 
@@ -225,6 +232,13 @@ function setupGallery() {
           texture: 'img/EV_00044.jpg', 
           text: 'Description for EV_00044.jpg', 
           position: new THREE.Vector3(-9.99, 2.5, 10),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+        },
+
+        {
+          texture: 'img/EV_00044.jpg', 
+          text: 'Description for EV_00044.jpg', 
+          position: new THREE.Vector3(-9.99, 2.5, 7),
           rotation: new THREE.Euler(0, Math.PI / 2, 0)
         },
 
@@ -238,7 +252,7 @@ function setupGallery() {
         { // right of gallery right side
           texture: 'img/EV_09965.jpg',  
           text: 'Description for EV_09965.jpg', 
-          position: new THREE.Vector3(-4, 2.5, -19.9),
+          position: new THREE.Vector3(-6, 2.5, -19.9),
           rotation: new THREE.Euler(0, 0, 0),
         },
         
@@ -252,14 +266,14 @@ function setupGallery() {
         { // left of gallery right side
           texture: 'img/EV_09965.jpg',  
           text: 'Description for EV_09965.jpg', 
-          position: new THREE.Vector3(4, 2.5, -19.9),
+          position: new THREE.Vector3(6, 2.5, -19.9),
           rotation: new THREE.Euler(0, 0, 0),
         },
 
         {
           texture: 'img/EV_00040.jpg', 
           text: 'Description for EV_00040.jpg', 
-          position: new THREE.Vector3(9.99, 2.5, -7),
+          position: new THREE.Vector3(9.99, 2.5, -8),
           rotation: new THREE.Euler(0, Math.PI / -2, 0),
         },
         
