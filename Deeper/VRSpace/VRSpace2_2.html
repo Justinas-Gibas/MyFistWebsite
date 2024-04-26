@@ -85,6 +85,7 @@ function setupLighting() {
     pointLight1.castShadow = true; // Enable shadows
     pointLight1.shadow.mapSize.width = 1024; // Increase for better quality
     pointLight1.shadow.mapSize.height = 1024;
+    pointLight1.shadow.bias = -0.0005; // Shadow bias to reduce artifacts
     pointLight1.shadow.camera.near = 0.1; // Near clipping plane
     pointLight1.shadow.camera.far = 40; // Far clipping plane
     scene.add(pointLight1);
@@ -94,6 +95,7 @@ function setupLighting() {
     pointLight2.castShadow = true; // Enable shadows
     pointLight2.shadow.mapSize.width = 1024;
     pointLight2.shadow.mapSize.height = 1024;
+    pointLight2.shadow.bias = -0.0005; // Shadow bias to reduce artifacts
     scene.add(pointLight2);
 
     const pointLight7 = new THREE.PointLight(0xb5b5b5, 5, 10);
@@ -105,7 +107,20 @@ function setupLighting() {
 
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Use PCFSoftShadowMap for smooth shadows
+
+    // HDR
+    const envLoader = new RGBELoader();
+    envLoader.load('../lib/images/Galer.hdr', (texture) => {
+      texture.mapping = THREE.EquirectangularReflectionMapping;  // Set mapping
+      scene.environment = texture;  // Apply HDR environment map
+    });
+
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;  // Use a tone mapping suitable for HDR
+    renderer.toneMappingExposure = 1;  // Set exposure
+    renderer.outputEncoding = THREE.sRGBEncoding;  // Correct output encoding for HDR content
+
 }
+
 function initSky() {
     // Add Sky
     const sky = new Sky();
