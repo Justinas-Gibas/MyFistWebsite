@@ -82,20 +82,30 @@ function setupLighting() {
 
     const pointLight1 = new THREE.PointLight(0xb5b5b5, 3, 40);
     pointLight1.position.set(0, 2, 8);
+    pointLight1.castShadow = true; // Enable shadows
+    pointLight1.shadow.mapSize.width = 1024; // Increase for better quality
+    pointLight1.shadow.mapSize.height = 1024;
+    pointLight1.shadow.camera.near = 0.1; // Near clipping plane
+    pointLight1.shadow.camera.far = 40; // Far clipping plane
     scene.add(pointLight1);
-    
+
     const pointLight2 = new THREE.PointLight(0xb5b5b5, 3, 40);
     pointLight2.position.set(0, 2, -8);
-    scene.add(pointLight2); 
+    pointLight2.castShadow = true; // Enable shadows
+    pointLight2.shadow.mapSize.width = 1024;
+    pointLight2.shadow.mapSize.height = 1024;
+    scene.add(pointLight2);
 
     const pointLight7 = new THREE.PointLight(0xb5b5b5, 5, 10);
     pointLight7.position.set(15, 2, 0);
+    pointLight7.castShadow = true; // Enable shadows
+    pointLight7.shadow.mapSize.width = 1024;
+    pointLight7.shadow.mapSize.height = 1024;
     scene.add(pointLight7);
 
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Use PCFSoftShadowMap for smooth shadows
 }
-
 function initSky() {
     // Add Sky
     const sky = new Sky();
@@ -140,6 +150,8 @@ function loadGalleryModel() {
     loader.load('../lib/models/GalerAll.glb', function(gltf) {
         gltf.scene.traverse(function(child) {
             if (child.isMesh) {
+                child.castShadow = true; // Ensure the mesh casts shadows
+                child.receiveShadow = true; // Ensure the mesh receives shadows
                 child.material.side = THREE.FrontSide;
             }
         });
@@ -277,6 +289,7 @@ function loadArtPieces(scene, artworks) {
             const artMesh = new THREE.Mesh(artGeometry, artMaterial);
             artMesh.position.copy(artwork.position);
             artMesh.rotation.copy(artwork.rotation);
+            artMesh.receiveShadow = true;
             artMesh.userData = { index: index, clickable: true };
             scene.add(artMesh);
             loadText(scene, artwork.text, artwork.position, artwork.rotation, width, height);
