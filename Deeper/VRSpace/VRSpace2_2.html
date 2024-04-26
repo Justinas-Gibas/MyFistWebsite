@@ -162,7 +162,7 @@ function setupControls() {
 
 function loadGalleryModel() {
     const loader = new GLTFLoader();
-    loader.load('../lib/models/Galer2.glb', function(gltf) {
+    loader.load('../lib/models/Galer02.glb', function(gltf) {
         gltf.scene.traverse(function(child) {
             if (child.isMesh) {
                 child.castShadow = true; // Ensure the mesh casts shadows
