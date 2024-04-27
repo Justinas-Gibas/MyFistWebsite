@@ -16,15 +16,13 @@
       height: 100%;
       background-color: #4caf50;
       text-align: center;
-      transition: width 0.2s;
-    }
-    #loading {
-      display: none;
+      transition: width 0.5s;
     }
     #chat-container {
       max-height: 400px;
       overflow-y: auto;
       padding: 10px;
+      border: 1px solid #ccc;
     }
     .chat-bubble {
       padding: 10px;
@@ -33,13 +31,16 @@
     }
     .chat-bubble.you {
       background-color: #e1f5fe;
+      text-align: left;
     }
     .chat-bubble.chatbot {
       background-color: #c8e6c9;
+      text-align: right;
     }
     .chat-controls {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       margin-top: 10px;
     }
   </style>
@@ -49,7 +50,7 @@
   
   <!-- Progress bar to indicate model loading status -->
   <div id="progress-container">
-    <div id="progress-bar">Load Model</div>
+    <div id="progress-bar">Loading Model</div>
   </div>
   
   <div id="chat-container">
@@ -80,7 +81,6 @@
     const chatContainer = document.getElementById("chat-container");
     const userInput = document.getElementById("user-input");
     const progressBar = document.getElementById("progress-bar");
-    const loadingIndicator = document.getElementById("loading");
     const askButton = document.getElementById("ask-button");
     const resetChatButton = document.getElementById("reset-chat");
     const loadModelButton = document.getElementById("load-model");
@@ -89,36 +89,33 @@
     let bertModel = null;
     let currentModel = "bert"; // Default model
 
+    function appendChatBubble(text, isChatbot = false) {
+      const div = document.createElement("div");
+      div.className = "chat-bubble " + (isChatbot ? "chatbot" : "you");
+      div.textContent = text;
+      chatContainer.appendChild(div);
+      chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll to bottom
+    }
+
     // Load the model based on user interaction
     async function loadModel() {
-      loadingIndicator.style.display = 'block';
+      userInput.disabled = true;
+      askButton.disabled = true;
       progressBar.style.width = '0'; // Reset progress
+      
       try {
-        switch (currentModel) {
-          case 'bert':
-            bertModel = await qna.load();
-            break;
-          case 'roberta':
-          case 'albert':
-            // Load these models from other sources
-            console.error("Model not implemented."); // Placeholder
-            break;
-          case 'gpt3':
-            // GPT-3.5 requires API integration, not TensorFlow
-            console.error("Requires external API.");
-            break;
-          default:
-            console.error("Unknown model.");
+        if (currentModel === 'bert') {
+          bertModel = await qna.load();
+          progressBar.style.width = '100%';
+          appendChatBubble("Chatbot: Model loaded.", true);
+          userInput.disabled = false;
+          askButton.disabled = false;
+        } else {
+          appendChatBubble("Chatbot: Only BERT model is supported.", true);
         }
-        progressBar.style.width = '100%';
       } catch (error) {
+        appendChatBubble("Chatbot: Model loading failed.", true);
         console.error("Error loading model:", error);
-        chatContainer.appendChild(document.createElement("div")).textContent = "Chatbot: Model loading failed.";
-      } finally {
-        loadingIndicator.style.display = 'none';
-        userInput.disabled = false; // Enable the input field after loading
-        askButton.disabled = false; // Enable the ask button
-        modelSelect.disabled = false; // Enable the model selection
       }
     }
 
@@ -126,20 +123,17 @@
       const question = userInput.value.trim();
       if (question === "") return;
 
-      const questionDiv = document.createElement("div");
-      questionDiv.className = "chat-bubble you";
-      questionDiv.textContent = "You: " + question;
-      chatContainer.appendChild(questionDiv);
+      appendChatBubble("You: " + question);
 
-      const answer = await getAnswer(question);
-
-      const answerDiv = document.createElement("div");
-      answerDiv.className = "chat-bubble chatbot";
-      answerDiv.textContent = "Chatbot: " + answer;
-      chatContainer.appendChild(answerDiv);
+      try {
+        const answer = await getAnswer(question);
+        appendChatBubble("Chatbot: " + answer, true);
+      } catch (error) {
+        appendChatBubble("Chatbot: Error answering the question.", true);
+        console.error("Error getting answer:", error);
+      }
 
       userInput.value = ""; // Clear the input field
-      chatContainer.scrollTop = chatContainer.scrollHeight; // Scroll to the bottom
     }
 
     async function getAnswer(question) {
@@ -150,21 +144,22 @@
       const context = "Your context or document for BERT to find answers."; // Modify as needed
       const answers = await bertModel.findAnswers(question, context);
 
-      const topAnswer = answers.length > 0 ? answers[0].text : "I need more information.";
-
-      return topAnswer;
+      return answers.length > 0 ? answers[0].text : "I need more information.";
     }
 
     askButton.addEventListener("click", askQuestion);
-    
+
     loadModelButton.addEventListener("click", loadModel); // Load model on button click
 
     resetChatButton.addEventListener("click", () => {
       chatContainer.innerHTML = ""; // Clear chat history
+      appendChatBubble("Chatbot: Chat reset.", true);
       userInput.disabled = true; // Disable input
       askButton.disabled = true; // Disable ask button
-      modelSelect.disabled = true; // Disable model selection
     });
+    
+    // Initialize with model load
+    loadModel();
   </script>
 </body>
 </html>
