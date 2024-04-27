@@ -82,21 +82,21 @@ function setupLighting() {
 
     const pointLight1 = new THREE.PointLight(0xb5b5b5, 3, 40);
     pointLight1.position.set(0, 2, 8);
-    pointLight1.castShadow = true; // Enable shadows
+    //pointLight1.castShadow = true; // Enable shadows
     scene.add(pointLight1);
 
     const pointLight2 = new THREE.PointLight(0xb5b5b5, 3, 40);
     pointLight2.position.set(0, 2, -8);
-    pointLight2.castShadow = true; // Enable shadows
+    //pointLight2.castShadow = true; // Enable shadows
     scene.add(pointLight2);
 
     const pointLight7 = new THREE.PointLight(0xb5b5b5, 5, 10);
     pointLight7.position.set(15, 2, 0);
-    pointLight7.castShadow = true; // Enable shadows
+    //pointLight7.castShadow = true; // Enable shadows
     scene.add(pointLight7);
 
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Use PCFSoftShadowMap for smooth shadows
+    //renderer.shadowMap.enabled = true;
+    //renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Use PCFSoftShadowMap for smooth shadows
 
 }
 
@@ -144,8 +144,8 @@ function loadGalleryModel() {
     loader.load('../lib/models/Galer01.glb', function(gltf) {
         gltf.scene.traverse(function(child) {
             if (child.isMesh) {
-                child.castShadow = true; // Ensure the mesh casts shadows
-                child.receiveShadow = true; // Ensure the mesh receives shadows
+                //child.castShadow = true; // Ensure the mesh casts shadows
+                //child.receiveShadow = true; // Ensure the mesh receives shadows
                 child.material.side = THREE.FrontSide;
             }
         });
