@@ -164,7 +164,7 @@
     // Function to simulate loading progress and invoke callback upon completion
     async function simulateLoadingProgress(duration, callback) {
       const steps = 10;
-      const step time = duration / steps;
+      const steptime = duration / steps;
       let progress = 0;
       const interval = setInterval(() => {
         progress += 10;
@@ -173,7 +173,7 @@
           clearInterval(interval); // Stop the interval
           callback(); // Callback when loading is complete
         }
-      }, step time);
+      }, steptime);
     }
 
     // Function to ask a question and get an answer
