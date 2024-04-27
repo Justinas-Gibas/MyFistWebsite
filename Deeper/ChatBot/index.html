@@ -56,7 +56,7 @@
   
   <!-- Progress bar to indicate model loading status -->
   <div id="progress-container">
-    <div id="progress-bar">Loading Model...</div>
+    <div id="progress-bar">Loading Model (0%)</div>
   </div>
   
   <div id="chat-container">
@@ -94,6 +94,7 @@
 
     let bertModel = null;
     let currentModel = "bert"; // Default model
+    let modelLoaded = false; // Flag to indicate if the model is loaded
 
     // Function to append a chat bubble
     function appendChatBubble(text, role = 'you') {
@@ -104,28 +105,55 @@
       chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll to bottom
     }
 
+    // Function to simulate loading progress
+    function simulateLoadingProgress(duration) {
+      const steps = 10;
+      const stepTime = duration / steps;
+
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        progressBar.style.width = `${progress}%`;
+        progressBar.textContent = `Loading Model (${progress}%)`;
+
+        if (progress >= 100) {
+          clearInterval(interval);
+        }
+      }, stepTime);
+    }
+
     // Load the appropriate model
     async function loadModel() {
       disableControls(true); // Disable controls during loading
-      progressBar.style.width = '0'; // Reset progress
+      progressBar.textContent = "Loading Model (0%)"; // Initialize progress bar text
+
+      simulateLoadingProgress(3000); // Simulate loading progress for 3 seconds
       
       try {
         if (currentModel === 'bert') {
           bertModel = await qna.load();
+          modelLoaded = true; // Indicate model is loaded
           progressBar.style.width = '100%';
-          appendChatBubble("Chatbot: Model loaded.", 'chatbot');
-          disableControls(false); // Re-enable controls after loading
+          progressBar.textContent = "Model Loaded (100%)";
+          appendChatBubble("Chatbot: BERT model loaded successfully.", 'chatbot');
         } else {
-          appendChatBubble("Chatbot: Only BERT model is supported.", 'chatbot');
+          appendChatBubble("Chatbot: Unsupported model.", 'chatbot');
         }
       } catch (error) {
         appendChatBubble("Chatbot: Model loading failed.", 'chatbot');
         console.error("Error loading model:", error);
+      } finally {
+        disableControls(false); // Re-enable controls after loading
       }
     }
 
     // Get an answer to the question
     async function askQuestion() {
+      if (!modelLoaded) {
+        appendChatBubble("Chatbot: The model is not yet loaded. Please wait.", 'chatbot');
+        return;
+      }
+
       const question = userInput.value.trim();
       if (question === "") return;
 
@@ -147,7 +175,7 @@
         await loadModel(); // Ensure model is loaded
       }
 
-      const context = "Your context or document for BERT to find answers."; // Modify based on actual data
+      const context = "Sample context to demonstrate BERT's question-answering capability."; // Modify as needed
       const answers = await bertModel.findAnswers(question, context);
 
       return answers.length > 0 ? answers[0].text : "I need more information.";
@@ -168,7 +196,7 @@
       disableControls(true); // Disable controls after reset
     });
 
-    // Initial model load
+    // Load model on startup
     loadModel();
   </script>
 </body>
