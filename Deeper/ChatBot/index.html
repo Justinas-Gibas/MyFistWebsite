@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BERT Question-Answering Chatbot</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/qna"></script> <!-- Import BERT for question-answering -->
+  <style>
+    #progress-container {
+      width: 100%;
+      height: 20px;
+      background-color: #ddd;
+    }
+    #progress-bar {
+      width: 0;
+      height: 100%;
+      background-color: #4caf50;
+      text-align: center;
+      color: white;
+      transition: width 0.2s;
+    }
+    #loading {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>BERT Question-Answering Chatbot</h1>
+  <div id="progress-container">
+    <div id="progress-bar">0%</div>
+  </div>
+  <div id="chat-container">
+    <!-- Chat messages will be displayed here -->
+  </div>
+  <input type="text" id="user-input" placeholder="Ask a question...">
+  <button onclick="askQuestion()">Ask</button>
+  <div id="loading">Loading...</div> <!-- Loading spinner -->
+
+  <script>
+    const chatContainer = document.getElementById("chat-container");
+    const userInput = document.getElementById("user-input");
+    const progressBar = document.getElementById("progress-bar");
+    const loadingIndicator = document.getElementById("loading");
+
+    let bertModel = null;
+
+    async function loadModel() {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', 'https://cdn.jsdelivr.net/npm/@tensorflow-models/qna', true);
+        xhr.responseType = 'arraybuffer';
+
+        xhr.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = (event.loaded / event.total) * 100;
+            progressBar.style.width = `${percentComplete.toFixed(2)}%`;
+            progressBar.textContent = `${percentComplete.toFixed(2)}%`;
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            const arrayBuffer = xhr.response;
+            resolve(); // Success
+          } else {
+            reject(new Error(`Failed to load the model. Status: ${xhr.status}`));
+          }
+        };
+
+        xhr.onerror = () => {
+          reject(new Error('Error loading the model.'));
+        };
+
+        xhr.send();
+      });
+    }
+
+    async function askQuestion() {
+      const question = userInput.value.trim();
+      if (question === "") return;
+
+      const questionDiv = document.createElement("div");
+      questionDiv.textContent = "You: " + question;
+      chatContainer.appendChild(questionDiv);
+
+      const answer = await getAnswer(question);
+
+      const answerDiv = document.createElement("div");
+      answerDiv.textContent = "Chatbot: " + answer;
+      chatContainer.appendChild(answerDiv);
+
+      userInput.value = "";
+    }
+
+    async function getAnswer(question) {
+      if (!bertModel) {
+        try {
+          await loadModel(); // Attempt to load the model
+          bertModel = await qna.load();
+        } catch (error) {
+          chatContainer.appendChild(document.createElement('div')).textContent = "Chatbot: Failed to load the model. Please try again later.";
+          return "Model loading failed.";
+        }
+      }
+
+      const context = "Your document or context for BERT to extract answers from."; 
+
+      const answers = await bertModel.findAnswers(question, context);
+
+      const topAnswer = answers.length > 0 ? answers[0].text : "Sorry, I don't know the answer to that.";
+      
+      return topAnswer; // Return the answer
+    }
+
+    window.onload = async () => {
+      loadingIndicator.style.display = 'block'; // Show loading indicator
+      try {
+        await loadModel(); 
+        bertModel = await qna.load(); 
+      } catch (error) {
+        chatContainer.appendChild(document.createElement('div')).textContent = "Chatbot: Model loading failed. Please try again later.";
+      } finally {
+        loadingIndicator.style.display = 'none'; // Hide loading indicator
+      }
+    };
+  </script>
+</body>
+</html>
