@@ -90,7 +90,7 @@
 
   <script>
     const chatContainer = document.getElementById("chat-container");
-    const userInput = document.getElementById("user-input");
+    const userInput =...
     const progressBar = document.getElementById("progress-bar");
     const askButton = document.getElementById("ask-button");
     const resetChatButton = document.getElementById("reset-chat");
@@ -101,12 +101,14 @@
     let currentModel = "bert"; // Default model
     let modelLoaded = false; // Flag to indicate if the model is loaded
     let messageQueue = []; // Message queue for handling multiple requests
+    let chatHistory = []; // Store chat history
 
     function appendChatBubble(text, role = 'you') {
       const bubble = document.createElement("div");
       bubble.className = `chat-bubble ${role}`;
       bubble.textContent = text;
       chatContainer.appendChild(bubble);
+      chatHistory.push({ text, role }); // Save to chat history
       chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll to bottom
     }
 
@@ -141,7 +143,11 @@
       simulateLoadingProgress(3000, async () => {
         try {
           if (currentModel === 'bert') {
-            bertModel = await qna.load();
+            if (bertModel) {
+              appendChatBubble("Chatbot: Using cached BERT model.", 'chatbot');
+            } else {
+              bertModel = await qna.load(); // Cache model
+            }
             modelLoaded = true; // Indicate model is loaded
             appendChatBubble("Chatbot: BERT model loaded successfully.", 'chatbot');
           } else {
@@ -189,7 +195,13 @@
         await loadModel(); // Ensure model is loaded
       }
 
-      const context = "Sample context to demonstrate BERT's question-answering capability.";
+      const contextOptions = {
+        default: "Sample context to demonstrate BERT's question-answering capability.",
+        system: "System context with specific information.",
+        user: "Context provided by the user."
+      };
+
+      const context = contextOptions.default; // Modify based on scenario
       const answers = await bertModel.findAnswers(question, context);
 
       return answers.length > 0 ? answers[0].text : "I need more information.";
@@ -197,23 +209,22 @@
 
     function disableControls(disable) {
       userInput.disabled = disable; // Disable/enable input
-      askButton.disabled = disable; // Disable/enable ask button
-      modelSelect.disabled = disable; // Disable/enable model selection
+      askButton.disabled; // Trigger question response
+      loadModelButton.addEventListener("click", loadModel); // Load model on button click
+      resetChatButton.addEventListener("click", () => {
+        chatContainer.innerHTML = ""; // Clear chat history
+        appendChatBubble("System: Chat reset.", 'system'); // System prompt
+        loadModel(); // Reload the model
+      });
+
+      modelSelect.addEventListener("change", (e) => {
+        currentModel = e.target.value;
+        modelLoaded = false; // Reset model status
+        appendChatBubble(`Chatbot: Switched to ${currentModel}.`, 'chatbot');
+      });
+
+      disableControls(false); // Re-enable controls after loading
     }
-
-    askButton.addEventListener("click", askQuestion); // Trigger question response
-    loadModelButton.addEventListener("click", loadModel); // Load model on button click
-    resetChatButton.addEventListener("click", () => {
-      chatContainer.innerHTML = ""; // Clear chat history
-      appendChatBubble("System: Chat reset.", 'system'); // System prompt
-      loadModel(); // Reload the model
-    });
-
-    modelSelect.addEventListener("change", (e) => {
-      currentModel = e.target.value;
-      appendChatBubble(`Chatbot: Switched to ${currentModel}.`, 'chatbot');
-      modelLoaded = false; // Reset model status when switching
-    });
 
     loadModel(); // Load model on startup
   </script>
