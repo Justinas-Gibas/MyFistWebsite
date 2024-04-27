@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Question-Answering Chatbot</title>
+  <title>Enhanced Question-Answering Chatbot</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/qna"></script>
   <style>
@@ -69,7 +69,7 @@
   </style>
 </head>
 <body>
-  <h1>Question-Answering Chatbot</h1>
+  <h1>Enhanced Question-Answering Chatbot</h1>
   
   <!-- System prompt text box -->
   <textarea id="system-prompt" rows="3" placeholder="Enter system prompt here..." aria-label="System prompt"></textarea>
@@ -108,74 +108,52 @@
     const userInput = document.getElementById("user-input");
     const progressBar = document.getElementById("progress-bar");
     const askButton = document.getElementById("ask-button");
-    const resetChatButton = document.getElementById("reset-chat");
+    const resetChatButton = always Display full Readme.md = document.getElementById("reset-chat");
     const loadModelButton = document.getElementById("load-model");
     const modelSelect = document.getElementById("model-select");
     const systemPrompt = document.getElementById("system-prompt");
 
-    let bertModel = null;
-    let currentModel = "bert"; // Default model
+    let currentModel = 'bert'; // Default model
     let modelLoaded = false; // Flag to indicate if the model is loaded
-    let messageQueue = []; // Message queue for handling multiple requests
     let chatHistory = []; // Store chat history
 
-    function appendChatBubble(text, role = 'you') {
-      const bubble = document.createElement("div");
-      bubble.className = `chat-bubble ${role}`;
-      bubble.textContent = text;
-      chatContainer.appendChild(bubble);
-      chatHistory.push({ text, role }); // Save to chat history
-      chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll to bottom
-    }
-
-    function updateProgressBar(progress) {
-      progressBar.style.width = `${progress}%`;
-      progressBar.textContent = `Loading Model (${progress}%)`;
-    }
-
-    async function simulateLoadingProgress(duration, callback) {
-      const steps = 10;
-      const stepTime = duration / steps;
-
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 10;
-        updateProgressBar(progress);
-
-        if (progress >= 100) {
-          clearInterval(interval);
-          callback();
-        }
-      }, stepTime);
-    }
-
     async function loadModel() {
-      if (modelLoaded) {
-        appendChatBubble("Chatbot: Model already loaded.", 'chatbot');
-        return;
-      }
-
       disableControls(true); // Disable controls during loading
-      simulateLoadingProgress(3000, async () => {
-        try {
-          if (currentModel === 'bert') {
-            if (bertModel) {
-              appendChatBubble("Chatbot: Using cached BERT model.", 'chatbot');
-            } else {
-              bertModel = await qna.load(); // Cache model
-            }
-            modelLoaded = true; // Indicate model is loaded
-            appendChatBubble("Chatbot: BERT model loaded successfully.", 'chatbot');
-          } else {
-            appendChatBubble("Chatbot: Unsupported model.", 'chatbot');
-          }
-        } catch (error) {
-          appendChatBubble("Chatbot: Model loading failed.", 'chatbot');
-          console.error("Error loading model:", error);
-        } finally {
+
+      try {
+        updateProgressBar(0);
+
+        const modelLoadPromise = getModelLoadPromise();
+        simulateLoadingProgress(3000, async () => {
+          await modelLoadPromise;
+          modelLoaded = true;
+          appendChatBubble("Chatbot: Model loaded successfully.", 'chatbot');
           disableControls(false); // Re-enable controls after loading
-        }
-      });
+        });
+
+        await modelLoadPromise;
+      } catch (error) {
+        appendChatBubble("Chatbot: Error loading model.", 'chatbot');
+        console.error("Error loading model:", error);
+        disableControls(false);
+      }
+    }
+
+    function getModelLoadPromise() {
+      if (currentModel === 'bert') {
+        return qna.load();
+      } else if (currentModel === 'roberta') {
+        // Implement RoBERTa model loading logic here
+        throw new Error("RoBERTa model loading not implemented yet.");
+      } else if (currentModel === 'albert') {
+        // Implement ALBERT model loading logic here
+        throw new Error("ALBERT model loading not implemented yet.");
+      } else if (currentModel === 'gpt3') {
+        // Implement GPT-3.5 model loading logic here
+        throw new Error("GPT-3.5 model loading not implemented yet.");
+      } else {
+        throw new Error("Unknown model: " + currentModel);
+      }
     }
 
     async function askQuestion() {
@@ -187,16 +165,15 @@
       const question = userInput.value.trim();
       if (question === "") return;
 
+      const systemText = systemPrompt.value.trim(); // Capture system prompt text
+      const context = systemText || "Default context for question-answering.";
+
       appendChatBubble("You: " + question, 'you');
 
       try {
-        if (messageQueue.length > 0) {
-          appendChatBubble("Chatbot: Processing request...", 'chatbot');
-          await Promise.all(messageQueue);
-          messageQueue = [];
-        }
+        const answers = await currentModel.findAnswers(question, context);
+        const answer = answers.length > 0 ? answers[0].text : "I need more information.";
 
-        const answer = await getAnswer(question);
         appendChatBubble("Chatbot: " + answer, 'chatbot');
       } catch (error) {
         appendChatBubble("Chatbot: Error answering the question.", 'chatbot');
@@ -206,32 +183,14 @@
       userInput.value = ""; // Clear the input field
     }
 
-    async function getAnswer(question) {
-      if (!bertModel) {
-        await loadModel(); // Ensure model is loaded
-      }
-
-      const contextOptions = {
-        default: "Sample context to demonstrate BERT's question-answering capability.",
-        system: "System context with specific information.",
-        user: "Context provided by the user."
-      };
-
-      const systemText = systemPrompt.value.trim(); // Capture system prompt text
-      const context = contextOptions.default; // Modify based on scenario
-      const answers = await bertModel.findAnswers(question, context);
-
-      return answers.length > 0 ? answers[0].text : "I need more information.";
-    }
-
     function disableControls(disable) {
-      userInput.disabled = disable; // Disable/enable input
-      askButton.disabled = disable; // Disable/enable ask button
-      modelSelect.disabled = disable; // Disable/enable model selection
+      userInput.disabled = disable;
+      askButton.disabled = disable;
+      modelSelect.disabled = disable;
     }
 
-    askButton.addEventListener("click", askQuestion); // Trigger question response
-    loadModelButton.addEventListener("click", loadModel); // Load model on button click
+    askButton.addEventListener("click", askQuestion);
+    loadModelButton.addEventListener("click", loadModel);
     resetChatButton.addEventListener("click", () => {
       chatContainer.innerHTML = ""; // Clear chat history
       appendChatBubble("System: Chat reset.", 'system'); // System prompt
@@ -244,7 +203,7 @@
       appendChatBubble(`Chatbot: Switched to ${currentModel}.`, 'chatbot');
     });
 
-    loadModel(); // Load model on startup
+    loadModel(); // Load the model on startup
   </script>
 </body>
 </html>
