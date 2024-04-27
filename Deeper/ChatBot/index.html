@@ -3,9 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <title>Enhanced Question-Answering Chatbot</title>
+  <!-- Required scripts for TensorFlow, QnA, and OpenAI -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/qna"></script>
   <script src="https://cdn.jsdelivr.net/npm/@openai/openai"></script>
+  <!-- Styling for chat bubbles and progress bar -->
   <style>
     /* Progress bar design */
     #progress-container {
@@ -61,18 +63,18 @@
 <body>
   <h1>Enhanced Question-Answering Chatbot</h1>
 
-  <!-- System prompt text box -->
+  <!-- System prompt text box for additional context -->
   <textarea id="system-prompt" rows="3" placeholder="Enter system prompt here..." aria-label="System prompt"></textarea>
 
   <!-- Progress bar to indicate model loading status -->
   <div id="progress-container">
     <div id="progress-bar">Loading Model (0%)</div>
   </div>
-  
-  <!-- Chat area -->
+
+  <!-- Chat area for displaying messages -->
   <div id="chat-container"></div>
 
-  <!-- Control panel -->
+  <!-- Control panel for user input and model selection -->
   <div class="chat-controls">
     <input type="text" id="user-input" placeholder="Ask a question..." aria-label="Question input">
     <button id="ask-button">Ask</button>
@@ -97,18 +99,19 @@
     const modelSelect = document.getElementById("model-select");
     const systemPrompt = document.getElementById("system-prompt");
 
+    let bertModel = null;
     let currentModel = 'bert'; // Default model
     let modelLoaded = false;
     let messageQueue = [];
     let chatHistory = [];
 
-    // Function to append chat bubbles
+    // Function to append chat bubbles and update chat history
     function appendChatBubble(text, role) {
       const bubble = document.createElement("div");
       bubble.className = `chat-bubble ${role}`;
       bubble.textContent = text;
       chatContainer.appendChild(bubble);
-      chatHistory.push({ text, role }); // Store chat history
+      chatHistory.push({ text, role });
       chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll to bottom
     }
 
@@ -116,6 +119,13 @@
     function updateProgressBar(progress) {
       progressBar.style.width = `${progress}%`;
       progressBar.textContent = `Loading Model (${progress}%)`;
+    }
+
+    // Function to disable or enable controls
+    function disableControls(disable) {
+      userInput.disabled = disable; // Disable/enable input
+      askButton.disabled = disable; // Disable/enable ask button
+      modelSelect.disabled = disable; // Disable/enable model selection
     }
 
     // Function to simulate loading progress
@@ -154,16 +164,8 @@
           appendChatBubble("Chatbot: Model loading failed.", 'chatbot');
           console.error("Error loading model:", error);
         } finally {
-          disableControls(false); // Re-enable controls after loading
-        }
-      });
-    }
-
-    // Function to disable or enable controls
-    function disableControls(disable) {
-      userInput.disabled = disable; // Disable/enable input
-      askButton.disabled = disable; // Disable/enable ask button
-      modelSelect.disabled = disable; // Disable/enable model selection
+          disableControls(false);
+      }
     }
 
     // Function to ask a question and get an answer
@@ -189,9 +191,9 @@
       userInput.value = ""; // Clear the input field
     }
 
-    // Function to get an answer from the selected model
+    // Function to get an answer from the model
     async function getAnswer(question) {
-      if (!modelLoaded) {
+      if (!bertModel) {
         await loadModel(); // Ensure model is loaded
       }
 
@@ -212,7 +214,7 @@
 
     // Event handlers for various buttons and actions
     askButton.addEventListener("click", askQuestion); // Ask question
-    loadModelButton.addEventListener("click", loadModel); // Load model on button click
+    loadModelButton.addEventListener("click", loadModel); // Load model
     resetChatButton.addEventListener("click", () => {
       chatContainer.innerHTML = ""; // Clear chat history
       appendChatBubble("System: Chat reset.", 'system'); // System prompt
