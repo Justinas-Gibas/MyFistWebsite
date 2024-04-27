@@ -98,9 +98,8 @@
     const modelSelect = document.getElementById("model-select");
     const systemPrompt = document.getElementById("system-prompt");
 
-    let bertModel = null; // Cache for BERT model
+    let models = {}; // Cache for loaded models
     let currentModel = 'bert'; // Default model selection
-    let modelLoaded = false;
 
     // Function to append chat bubbles and update chat history
     function appendChatBubble(text, role) {
@@ -111,10 +110,48 @@
       chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll to bottom
     }
 
-    // Function to update the progress bar
+    // Function to update the progress bar dynamically during file download
     function updateProgressBar(progress) {
       progressBar.style.width = `${progress}%`;
       progressBar.textContent = `Loading Model (${progress}%)`;
+    }
+
+    // Function to update progress bar during download
+    function updateProgressBarDuringDownload(event) {
+      if (event.lengthComputable) {
+        const progress = (event.loaded / event.total) * 100;
+        updateProgressBar(progress.toFixed(0));
+      }
+    }
+
+    // Function to load the model with a progress bar
+    async function loadModel() {
+      if (models[currentModel]) {
+        appendChatBubble(`Chatbot: Using cached ${currentModel} model.`, 'chatbot');
+        return; // Return if model is already loaded
+      }
+
+      disableControls(true); // Disable controls during loading
+
+      simulateLoadingProgress(3000, async () => {
+        try {
+          let newModel = null;
+
+          if (currentModel === 'bert') {
+            newModel = await qna.load(); // Load the BERT model
+          } else {
+            appendChatBubble("Chatbot: Unsupported model.", 'chatbot');
+          }
+
+          models[currentModel] = newModel; // Cache the loaded model
+          appendChatBubble(`Chatbot: ${currentModel} model loaded successfully.`, 'chatbot');
+        } catch (error) {
+          appendChatBubble("Chatbot: Model loading failed.", 'chatbot');
+          console.error("Error loading model:", error);
+        } finally {
+          disableControls(false); // Re-enable controls after loading
+        }
+      });
     }
 
     // Function to disable or enable controls
@@ -127,46 +164,21 @@
     // Function to simulate loading progress and invoke callback upon completion
     async function simulateLoadingProgress(duration, callback) {
       const steps = 10;
-      const stepTime = duration / steps;
+      const step time = duration / steps;
       let progress = 0;
       const interval = setInterval(() => {
         progress += 10;
-        updateProgressBar(progress);
+        updateProgressBar(progress.toFixed(0)); // Update progress
         if (progress >= 100) {
-          clearInterval(interval);
+          clearInterval(interval); // Stop the interval
           callback(); // Callback when loading is complete
         }
-      }, stepTime);
-    }
-
-    // Function to load the selected model
-    async function loadModel() {
-      disableControls(true); // Disable controls during loading
-      simulateLoadingProgress(3000, async () => {
-        try {
-          if (currentModel === 'bert') {
-            if (bertModel) {
-              appendChatBubble("Chatbot: Using cached BERT model.", 'chatbot');
-            } else {
-              bertModel = await qna.load(); // Load the BERT model
-            }
-            modelLoaded = true; // Model is loaded
-            appendChatBubble("Chatbot: BERT model loaded successfully.", 'chatbot');
-          } else {
-            appendChatBubble("Chatbot: Unsupported model.", 'chatbot');
-          }
-        } catch (error) {
-          appendChatBubble("Chatbot: Model loading failed.", 'chatbot');
-          console.error("Error loading model:", error);
-        } finally {
-          disableControls(false); // Re-enable controls after loading
-        }
-      });
+      }, step time);
     }
 
     // Function to ask a question and get an answer
     async function askQuestion() {
-      if (!modelLoaded) {
+      if (!models[currentModel]) {
         appendChatBubble("Chatbot: The model is not yet loaded. Please wait.", 'chatbot');
         return;
       }
@@ -192,15 +204,13 @@
 
     // Function to get an answer from the model based on context
     async function getAnswer(question) {
-      if (!bertModel) {
-        await loadModel(); // Ensure model is loaded
-      }
-
       const systemText = systemPrompt.value.trim(); // Get system prompt text
-      const context = systemText || "Default context for question-answering."; 
+      const context = systemText || "Default context for question-answering.";
+
+      const currentModelObject = models[currentModel]; // Get the cached model
 
       try {
-        const answers = await bertModel.findAnswers(question, context); // Get answers from the BERT model
+        const answers = await currentModelObject.findAnswers(question, context); // Get answers from the current model
         if (answers.length === 0) {
           return "No answer found. Please rephrase your question.";
         }
@@ -212,7 +222,7 @@
     }
 
     // Event handlers for various button clicks and interactions
-    askButton.addEventListener("click", askQuestion); // Ask question
+    askButton.addEventListener("click", askQuestion); // Ask a question
     loadModelButton.addEventListener("click", loadModel); // Load the model
     resetChatButton.addEventListener("click", () => {
       chatContainer.innerHTML = ""; // Clear chat history
@@ -221,12 +231,11 @@
     });
 
     modelSelect.addEventListener("change", (e) => {
-      currentModel = e.target.value; // Change model
-      modelLoaded = false; // Reset model loaded status
-      appendChatBubble(`Chatbot: Switched to ${currentModel}.`, 'chatbot');
+      currentModel = e.target.value; // Change the current model
+      appendChatBubble(`Chatbot: Switched to ${currentModel}.`, 'chatbot'); // Notify the change
     });
 
-    loadModel(); // Load model on startup
+    loadModel(); // Load the model at the start
   </script>
 </body>
 </html>
