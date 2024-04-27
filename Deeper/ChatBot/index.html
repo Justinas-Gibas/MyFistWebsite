@@ -17,26 +17,34 @@
       background-color: #4caf50;
       text-align: center;
       color: white;
-      transition: width 0.2s;
+      transition: width 0.2s; /* Smooth transition for the progress bar */
     }
     #loading {
-      display: none;
+      display: none; /* Initially hidden */
     }
   </style>
 </head>
 <body>
   <h1>BERT Question-Answering Chatbot</h1>
+  <!-- Progress bar to indicate model loading status -->
   <div id="progress-container">
     <div id="progress-bar">0%</div>
   </div>
+
+  <!-- Chat container for displaying chatbot interaction -->
   <div id="chat-container">
     <!-- Chat messages will be displayed here -->
   </div>
+
+  <!-- User input field for questions -->
   <input type="text" id="user-input" placeholder="Ask a question...">
-  <button onclick="askQuestion()">Ask</button>
-  <div id="loading">Loading...</div> <!-- Loading spinner -->
+  <button onclick="askQuestion()">Ask</button> <!-- Button to initiate a question -->
+
+  <!-- Loading spinner or text for visual feedback during loading -->
+  <div id="loading">Loading...</div>
 
   <script>
+    // Grab references to HTML elements
     const chatContainer = document.getElementById("chat-container");
     const userInput = document.getElementById("user-input");
     const progressBar = document.getElementById("progress-bar");
@@ -44,6 +52,7 @@
 
     let bertModel = null;
 
+    // Function to load the BERT model with progress updates
     async function loadModel() {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -53,6 +62,7 @@
         xhr.onprogress = (event) => {
           if (event.lengthComputable) {
             const percentComplete = (event.loaded / event.total) * 100;
+            console.log(`Progress: ${percentComplete.toFixed(2)}%`); // Logging for debugging
             progressBar.style.width = `${percentComplete.toFixed(2)}%`;
             progressBar.textContent = `${percentComplete.toFixed(2)}%`;
           }
@@ -60,14 +70,16 @@
 
         xhr.onload = () => {
           if (xhr.status === 200) {
-            const arrayBuffer = xhr.response;
-            resolve(); // Success
+            console.log("Model loaded successfully"); // Confirmation of successful load
+            resolve();
           } else {
+            console.error(`Model load failed with status: ${xhr.status}`); // Error logging
             reject(new Error(`Failed to load the model. Status: ${xhr.status}`));
           }
         };
 
         xhr.onerror = () => {
+          console.error("Model load error"); // Additional error handling
           reject(new Error('Error loading the model.'));
         };
 
@@ -75,52 +87,61 @@
       });
     }
 
+    // Function to ask a question and get an answer from the BERT model
     async function askQuestion() {
       const question = userInput.value.trim();
       if (question === "") return;
 
+      // Display the user's question
       const questionDiv = document.createElement("div");
       questionDiv.textContent = "You: " + question;
       chatContainer.appendChild(questionDiv);
 
+      // Get the answer from the BERT model
       const answer = await getAnswer(question);
 
-      const answerDiv = document.createElement("div");
+      // Display the chatbot's answer
+      const answerDiv = document.createate("div");
       answerDiv.textContent = "Chatbot: " + answer;
       chatContainer.appendChild(answerDiv);
 
+      // Clear the input field after asking a question
       userInput.value = "";
     }
 
+    // Function to get the answer from the BERT model
     async function getAnswer(question) {
-      if (!bertModel) {
+      if (!bertModel) { // Load the model if not already loaded
         try {
-          await loadModel(); // Attempt to load the model
-          bertModel = await qna.load();
+          await loadModel(); // Attempt to load the model with progress bar
+          bertModel = await qna.load(); // Load the BERT Q&A model
         } catch (error) {
+          console.error("Error during model loading: ", error);
           chatContainer.appendChild(document.createElement('div')).textContent = "Chatbot: Failed to load the model. Please try again later.";
           return "Model loading failed.";
         }
       }
 
-      const context = "Your document or context for BERT to extract answers from."; 
+      const context = "Your context or document for BERT to find answers."; // Modify as needed
 
-      const answers = await bertModel.findAnswers(question, context);
+      const answers = await bertModel.findAnswers(question, context); // Get answers from the model
 
-      const topAnswer = answers.length > 0 ? answers[0].text : "Sorry, I don't know the answer to that.";
+      const topAnswer = answers.length > 0 ? answers[0].text : "Sorry, I don't know the answer to that."; // Return the top answer
       
-      return topAnswer; // Return the answer
+      return topAnswer; // Return the best answer
     }
 
+    // Initial model load with progress indicator
     window.onload = async () => {
-      loadingIndicator.style.display = 'block'; // Show loading indicator
+      loadingIndicator.style.display = 'block'; // Show loading indicator during initialization
       try {
-        await loadModel(); 
-        bertModel = await qna.load(); 
+        await loadModel(); // Load the model with progress
+        bertModel = await qna.load(); // Initialize BERT Q&A model
       } catch (error) {
+        console.error("Error loading model on startup: ", error); // Log loading errors
         chatContainer.appendChild(document.createElement('div')).textContent = "Chatbot: Model loading failed. Please try again later.";
       } finally {
-        loadingIndicator.style.display = 'none'; // Hide loading indicator
+        loadingIndicator.style.display = 'none'; // Hide loading indicator when done
       }
     };
   </script>
