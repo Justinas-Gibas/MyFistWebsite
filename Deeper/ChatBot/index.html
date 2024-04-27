@@ -24,6 +24,7 @@
       overflow-y: auto;
       padding: 10px;
       border: 1px solid #ccc;
+      background-color: #f9f9f9;
     }
     .chat-bubble {
       padding: 10px;
@@ -48,17 +49,31 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-top: 10px;
+      padding: 10px;
+      border-top: 1px solid #ccc;
+      background-color: #f1f1f1;
     }
     /* Accessibility styles */
-    input, button {
+    input, button, select {
       font-size: 16px;
+      padding: 5px;
+    }
+    /* System prompt text box */
+    #system-prompt {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      margin-bottom: 10px;
     }
   </style>
 </head>
 <body>
   <h1>Question-Answering Chatbot</h1>
   
+  <!-- System prompt text box -->
+  <textarea id="system-prompt" rows="3" placeholder="Enter system prompt here..." aria-label="System prompt"></textarea>
+
   <!-- Progress bar to indicate model loading status -->
   <div id="progress-container">
     <div id="progress-bar">Loading Model (0%)</div>
@@ -90,12 +105,13 @@
 
   <script>
     const chatContainer = document.getElementById("chat-container");
-    const userInput =...
+    const userInput = document.getElementById("user-input");
     const progressBar = document.getElementById("progress-bar");
     const askButton = document.getElementById("ask-button");
     const resetChatButton = document.getElementById("reset-chat");
     const loadModelButton = document.getElementById("load-model");
     const modelSelect = document.getElementById("model-select");
+    const systemPrompt = document.getElementById("system-prompt");
 
     let bertModel = null;
     let currentModel = "bert"; // Default model
@@ -201,6 +217,7 @@
         user: "Context provided by the user."
       };
 
+      const systemText = systemPrompt.value.trim(); // Capture system prompt text
       const context = contextOptions.default; // Modify based on scenario
       const answers = await bertModel.findAnswers(question, context);
 
@@ -209,22 +226,23 @@
 
     function disableControls(disable) {
       userInput.disabled = disable; // Disable/enable input
-      askButton.disabled; // Trigger question response
-      loadModelButton.addEventListener("click", loadModel); // Load model on button click
-      resetChatButton.addEventListener("click", () => {
-        chatContainer.innerHTML = ""; // Clear chat history
-        appendChatBubble("System: Chat reset.", 'system'); // System prompt
-        loadModel(); // Reload the model
-      });
-
-      modelSelect.addEventListener("change", (e) => {
-        currentModel = e.target.value;
-        modelLoaded = false; // Reset model status
-        appendChatBubble(`Chatbot: Switched to ${currentModel}.`, 'chatbot');
-      });
-
-      disableControls(false); // Re-enable controls after loading
+      askButton.disabled = disable; // Disable/enable ask button
+      modelSelect.disabled = disable; // Disable/enable model selection
     }
+
+    askButton.addEventListener("click", askQuestion); // Trigger question response
+    loadModelButton.addEventListener("click", loadModel); // Load model on button click
+    resetChatButton.addEventListener("click", () => {
+      chatContainer.innerHTML = ""; // Clear chat history
+      appendChatBubble("System: Chat reset.", 'system'); // System prompt
+      loadModel(); // Reload the model
+    });
+
+    modelSelect.addEventListener("change", (e) => {
+      currentModel = e.target.value;
+      modelLoaded = false; // Reset model status
+      appendChatBubble(`Chatbot: Switched to ${currentModel}.`, 'chatbot');
+    });
 
     loadModel(); // Load model on startup
   </script>
