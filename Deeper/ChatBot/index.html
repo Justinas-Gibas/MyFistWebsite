@@ -189,22 +189,33 @@
     }
 
     async function getAnswer(question) {
-      if (!bertModel) {
-        await loadModel(); // Ensure model is loaded
-      }
+  if (!bertModel) {
+    await loadModel(); // Ensure model is loaded
+  }
 
-      const contextOptions = {
-        default: "Sample context to demonstrate BERT's question-answering capability.",
-        system: "System context with specific information.",
-        user: "Context provided by the user."
-      };
+  // Get system prompt and use as context if provided
+  const systemText = systemPrompt.value.trim();
 
-      const systemText = systemPrompt.value.trim();
-      const context = contextOptions.default;
-      const answers = await bertModel.findAnswers(question, context);
+  // Default context and user context options
+  const contextOptions = {
+    default: "Sample context to demonstrate BERT's question-answering capability.",
+    system: systemText,
+    user: question, // Use the user's question as context
+  };
 
-      return answers.length > 0 ? answers[0].text : "I need more information.";
+  const context = systemText ? contextOptions.system : contextOptions.default; // Choose appropriate context
+
+  try {
+    const answers = await bertModel.findAnswers(question, context); // Get answers from the model
+    if (answers.length === 0) {
+      return "No answer found. Please rephrase your question.";
     }
+    return answers[0].text;
+  } catch (error) {
+    console.error("Error getting answer:", error);
+    return "An error occurred while processing your request.";
+  }
+}
 
     askButton.addEventListener("click", askQuestion);
     loadModelButton.addEventListener("click", loadModel);
