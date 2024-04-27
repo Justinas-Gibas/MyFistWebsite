@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>Enhanced Question-Answering Chatbot</title>
-  <!-- Required scripts for TensorFlow, QnA, and OpenAI -->
+  <!-- Scripts for TensorFlow and QnA -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/qna"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@openai/openai"></script>
   <!-- Styling for chat bubbles and progress bar -->
   <style>
     /* Progress bar design */
@@ -49,7 +48,7 @@
       text-align: center;
       font-style: italic;
     }
-    /* Control design */
+    /* Chat controls design */
     .chat-controls {
       display: flex;
       justify-content: space-between;
@@ -63,7 +62,7 @@
 <body>
   <h1>Enhanced Question-Answering Chatbot</h1>
 
-  <!-- System prompt text box for additional context -->
+  <!-- System prompt for additional context -->
   <textarea id="system-prompt" rows="3" placeholder="Enter system prompt here..." aria-label="System prompt"></textarea>
 
   <!-- Progress bar to indicate model loading status -->
@@ -74,7 +73,7 @@
   <!-- Chat area for displaying messages -->
   <div id="chat-container"></div>
 
-  <!-- Control panel for user input and model selection -->
+  <!-- Chat controls for user input and model selection -->
   <div class="chat-controls">
     <input type="text" id="user-input" placeholder="Ask a question..." aria-label="Question input">
     <button id="ask-button">Ask</button>
@@ -99,11 +98,9 @@
     const modelSelect = document.getElementById("model-select");
     const systemPrompt = document.getElementById("system-prompt");
 
-    let bertModel = null;
-    let currentModel = 'bert'; // Default model
+    let bertModel = null; // Cache for BERT model
+    let currentModel = 'bert'; // Default model selection
     let modelLoaded = false;
-    let messageQueue = [];
-    let chatHistory = [];
 
     // Function to append chat bubbles and update chat history
     function appendChatBubble(text, role) {
@@ -111,7 +108,6 @@
       bubble.className = `chat-bubble ${role}`;
       bubble.textContent = text;
       chatContainer.appendChild(bubble);
-      chatHistory.push({ text, role });
       chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll to bottom
     }
 
@@ -123,12 +119,12 @@
 
     // Function to disable or enable controls
     function disableControls(disable) {
-      userInput.disabled = disable; // Disable/enable input
+      userInput.disabled = disable; // Disable/enable input field
       askButton.disabled = disable; // Disable/enable ask button
       modelSelect.disabled = disable; // Disable/enable model selection
     }
 
-    // Function to simulate loading progress
+    // Function to simulate loading progress and invoke callback upon completion
     async function simulateLoadingProgress(duration, callback) {
       const steps = 10;
       const stepTime = duration / steps;
@@ -138,7 +134,7 @@
         updateProgressBar(progress);
         if (progress >= 100) {
           clearInterval(interval);
-          callback();
+          callback(); // Callback when loading is complete
         }
       }, stepTime);
     }
@@ -148,14 +144,13 @@
       disableControls(true); // Disable controls during loading
       simulateLoadingProgress(3000, async () => {
         try {
-          // Load the selected model
           if (currentModel === 'bert') {
             if (bertModel) {
               appendChatBubble("Chatbot: Using cached BERT model.", 'chatbot');
             } else {
-              bertModel = await qna.load();
+              bertModel = await qna.load(); // Load the BERT model
             }
-            modelLoaded = true; // Indicate model is loaded
+            modelLoaded = true; // Model is loaded
             appendChatBubble("Chatbot: BERT model loaded successfully.", 'chatbot');
           } else {
             appendChatBubble("Chatbot: Unsupported model.", 'chatbot');
@@ -164,8 +159,9 @@
           appendChatBubble("Chatbot: Model loading failed.", 'chatbot');
           console.error("Error loading model:", error);
         } finally {
-          disableControls(false);
-      }
+          disableControls(false); // Re-enable controls after loading
+        }
+      });
     }
 
     // Function to ask a question and get an answer
@@ -176,12 +172,15 @@
       }
 
       const question = userInput.value.trim();
-      if (question === "") return;
+      if (question === "") {
+        appendChatBubble("Chatbot: No question entered.", 'chatbot');
+        return;
+      }
 
       appendChatBubble("You: " + question, 'you');
 
       try {
-        const answer = await getAnswer(question);
+        const answer = await getAnswer(question); // Get the answer from the model
         appendChatBubble("Chatbot: " + answer, 'chatbot');
       } catch (error) {
         appendChatBubble("Chatbot: Error answering the question.", 'chatbot');
@@ -191,7 +190,7 @@
       userInput.value = ""; // Clear the input field
     }
 
-    // Function to get an answer from the model
+    // Function to get an answer from the model based on context
     async function getAnswer(question) {
       if (!bertModel) {
         await loadModel(); // Ensure model is loaded
@@ -201,29 +200,29 @@
       const context = systemText || "Default context for question-answering."; 
 
       try {
-        const answers = await bertModel.findAnswers(question, context); // Get answers from the model
+        const answers = await bertModel.findAnswers(question, context); // Get answers from the BERT model
         if (answers.length === 0) {
           return "No answer found. Please rephrase your question.";
         }
-        return answers[0].text;
+        return answers[0].text; // Return the first answer
       } catch (error) {
         console.error("Error getting answer:", error);
         return "An error occurred while processing your request.";
       }
     }
 
-    // Event handlers for various buttons and actions
+    // Event handlers for various button clicks and interactions
     askButton.addEventListener("click", askQuestion); // Ask question
-    loadModelButton.addEventListener("click", loadModel); // Load model
+    loadModelButton.addEventListener("click", loadModel); // Load the model
     resetChatButton.addEventListener("click", () => {
       chatContainer.innerHTML = ""; // Clear chat history
-      appendChatBubble("System: Chat reset.", 'system'); // System prompt
+      appendChatBubble("System: Chat reset.", 'system'); // System message
       loadModel(); // Reload the model
     });
 
     modelSelect.addEventListener("change", (e) => {
-      currentModel = e.target.value;
-      modelLoaded = false; // Reset model status
+      currentModel = e.target.value; // Change model
+      modelLoaded = false; // Reset model loaded status
       appendChatBubble(`Chatbot: Switched to ${currentModel}.`, 'chatbot');
     });
 
