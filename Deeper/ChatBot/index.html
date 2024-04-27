@@ -65,9 +65,9 @@
 
   <div class="chat-controls">
     <!-- User input field for questions -->
-    <input type="text" id="user-input" placeholder="Ask a question..." disabled aria-label="Question input">
+    <input type="text" id="user-input" placeholder="Ask a question..." aria-label="Question input">
     <!-- Button to initiate a question -->
-    <button id="ask-button" disabled>Ask</button>
+    <button id="ask-button">Ask</button>
     <!-- Button to reset the chat -->
     <button id="reset-chat">Reset</button>
     <!-- Button to load the model -->
@@ -76,7 +76,7 @@
 
   <!-- Dropdown for model selection -->
   <label for="model-select">Choose Model:</label>
-  <select id="model-select" disabled>
+  <select id="model-select">
     <option value="bert">BERT</option>
     <option value="roberta">RoBERTa</option>
     <option value="albert">ALBERT</option>
@@ -96,58 +96,60 @@
     let currentModel = "bert"; // Default model
     let modelLoaded = false; // Flag to indicate if the model is loaded
 
-    // Function to append a chat bubble
     function appendChatBubble(text, role = 'you') {
-      const div = document.createElement("div");
-      div.className = `chat-bubble ${role}`;
-      div.textContent = text;
-      chatContainer.appendChild(div);
+      const bubble = document.createElement("div");
+      bubble.className = `chat-bubble ${role}`;
+      bubble.textContent = text;
+      chatContainer.appendChild(bubble);
       chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll to bottom
     }
 
-    // Function to simulate loading progress
-    function simulateLoadingProgress(duration) {
+    function updateProgressBar(progress) {
+      progressBar.style.width = `${progress}%`;
+      progressBar.textContent = `Loading Model (${progress}%)`;
+    }
+
+    async function simulateLoadingProgress(duration, callback) {
       const steps = 10;
       const stepTime = duration / steps;
 
       let progress = 0;
       const interval = setInterval(() => {
         progress += 10;
-        progressBar.style.width = `${progress}%`;
-        progressBar.textContent = `Loading Model (${progress}%)`;
+        updateProgressBar(progress);
 
         if (progress >= 100) {
           clearInterval(interval);
+          callback();
         }
       }, stepTime);
     }
 
-    // Load the appropriate model
     async function loadModel() {
-      disableControls(true); // Disable controls during loading
-      progressBar.textContent = "Loading Model (0%)"; // Initialize progress bar text
-
-      simulateLoadingProgress(3000); // Simulate loading progress for 3 seconds
-      
-      try {
-        if (currentModel === 'bert') {
-          bertModel = await qna.load();
-          modelLoaded = true; // Indicate model is loaded
-          progressBar.style.width = '100%';
-          progressBar.textContent = "Model Loaded (100%)";
-          appendChatBubble("Chatbot: BERT model loaded successfully.", 'chatbot');
-        } else {
-          appendChatBubble("Chatbot: Unsupported model.", 'chatbot');
-        }
-      } catch (error) {
-        appendChatBubble("Chatbot: Model loading failed.", 'chatbot');
-        console.error("Error loading model:", error);
-      } finally {
-        disableControls(false); // Re-enable controls after loading
+      if (modelLoaded) {
+        appendChatBubble("Chatbot: Model already loaded.", 'chatbot');
+        return;
       }
+
+      disableControls(true); // Disable controls during loading
+      simulateLoadingProgress(3000, async () => {
+        try {
+          if (currentModel === 'bert') {
+            bertModel = await qna.load();
+            modelLoaded = true; // Indicate model is loaded
+            appendChatBubble("Chatbot: BERT model loaded successfully.", 'chatbot');
+          } else {
+            appendChatBubble("Chatbot: Unsupported model.", 'chatbot');
+          }
+        } catch (error) {
+          appendChatBubble("Chatbot: Model loading failed.", 'chatbot');
+          console.error("Error loading model:", error);
+        } finally {
+          disableControls(false); // Re-enable controls after loading
+        }
+      });
     }
 
-    // Get an answer to the question
     async function askQuestion() {
       if (!modelLoaded) {
         appendChatBubble("Chatbot: The model is not yet loaded. Please wait.", 'chatbot');
@@ -157,7 +159,7 @@
       const question = userInput.value.trim();
       if (question === "") return;
 
-      appendChatBubble("You: " + question);
+      appendChatBubble("You: " + question, 'you');
 
       try {
         const answer = await getAnswer(question);
@@ -175,7 +177,7 @@
         await loadModel(); // Ensure model is loaded
       }
 
-      const context = "Sample context to demonstrate BERT's question-answering capability."; // Modify as needed
+      const context = "Sample context to demonstrate BERT's question-answering capability."; 
       const answers = await bertModel.findAnswers(question, context);
 
       return answers.length > 0 ? answers[0].text : "I need more information.";
@@ -187,17 +189,20 @@
       modelSelect.disabled = disable; // Disable/enable model selection
     }
 
-    // Event listeners
     askButton.addEventListener("click", askQuestion); // Trigger question response
     loadModelButton.addEventListener("click", loadModel); // Load model on button click
     resetChatButton.addEventListener("click", () => {
       chatContainer.innerHTML = ""; // Clear chat history
       appendChatBubble("Chatbot: Chat reset.", 'chatbot');
-      disableControls(true); // Disable controls after reset
+      loadModel(); // Reload the model
     });
 
-    // Load model on startup
-    loadModel();
+    modelSelect.addEventListener("change", (e) => {
+      currentModel = e.target.value;
+      appendChatBubble(`Chatbot: Switched to ${currentModel}.`, 'chatbot');
+    });
+
+    loadModel(); // Load model on startup
   </script>
 </body>
 </html>
