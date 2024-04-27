@@ -77,7 +77,7 @@ function setupRenderer() {
 }
 
 function setupLighting() {
-    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 1);
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.8);
     scene.add(ambientLight);
 
     const pointLight1 = new THREE.PointLight(0xb5b5b5, 3, 40);
@@ -116,7 +116,7 @@ function setupLighting() {
     });
 
     renderer.toneMapping = THREE.ACESFilmicToneMapping;  // Use a tone mapping suitable for HDR
-    renderer.toneMappingExposure = 1;  // Set exposure
+    renderer.toneMappingExposure = 0.5;  // Set exposure
     renderer.outputEncoding = THREE.sRGBEncoding;  // Correct output encoding for HDR content
 
 }
@@ -162,7 +162,7 @@ function setupControls() {
 
 function loadGalleryModel() {
     const loader = new GLTFLoader();
-    loader.load('../lib/models/Galer02.glb', function(gltf) {
+    loader.load('../lib/models/GalerAll.glb', function(gltf) {
         gltf.scene.traverse(function(child) {
             if (child.isMesh) {
                 child.castShadow = true; // Ensure the mesh casts shadows
