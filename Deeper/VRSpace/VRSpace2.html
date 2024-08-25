@@ -580,16 +580,18 @@ function onWindowResize(camera, renderer) {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
-
+//what to do on window resize and dbclick with mouse or finger
 function setupEventListeners() {
     window.addEventListener('resize', () => onWindowResize(camera, renderer), false);
     document.addEventListener('dblclick', onDoubleClick, false);
 }
 
+//makes rendering many frames 
 function animate() {
     renderer.setAnimationLoop(() => render());
 }
 
+//function to render one frame with stats monotoring.
 function render() {
     stats.begin();
     renderer.render(scene, camera);
