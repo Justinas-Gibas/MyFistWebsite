@@ -1,8 +1,6 @@
 // Import Three.js
 import * as THREE from '../../lib/three.module.js';
 
-// Other existing code...
-
 const canvas = document.getElementById('simulationCanvas');
 const renderer = new THREE.WebGLRenderer({ canvas });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -11,9 +9,8 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.z = 20;
 
-// Create atoms (nuclei) as spheres
-const atoms = [];
-const electrons = [];
+// Create a single atom and electron
+let atom, electron;
 
 let currentFlow = 1.0; // Default current flow
 document.getElementById('currentFlowSlider').addEventListener('input', function (event) {
@@ -22,24 +19,20 @@ document.getElementById('currentFlowSlider').addEventListener('input', function 
 });
 
 function init() {
-    const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    const atomMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
     const electronMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
 
-    // Atoms setup
-    for (let i = 0; i < 10; i++) {
-        const geometry = new THREE.SphereGeometry(0.2, 16, 16);
-        const atom = new THREE.Mesh(geometry, material);
-        atom.position.x = i * 2;
-        scene.add(atom);
-        atoms.push(atom);
+    // Atom setup
+    const atomGeometry = new THREE.SphereGeometry(0.5, 16, 16);  // Bigger atom size
+    atom = new THREE.Mesh(atomGeometry, atomMaterial);
+    atom.position.x = 0;
+    scene.add(atom);
 
-        // Electrons setup
-        const electronGeometry = new THREE.SphereGeometry(0.05, 16, 16);
-        const electron = new THREE.Mesh(electronGeometry, electronMaterial);
-        electron.position.x = atom.position.x;
-        scene.add(electron);
-        electrons.push(electron);
-    }
+    // Electron setup
+    const electronGeometry = new THREE.SphereGeometry(0.1, 16, 16);  // Smaller electron
+    electron = new THREE.Mesh(electronGeometry, electronMaterial);
+    electron.position.x = 0;  // Initial electron position is with the atom
+    scene.add(electron);
 
     loadWebAssembly();
 }
@@ -61,11 +54,9 @@ function animate() {
         render();
         if (wasmModule) {
             wasmModule.exports.update_electrons(currentFlow);
-            const electronPositions = new Float32Array(wasmModule.exports.memory.buffer, wasmModule.exports.get_electron_positions(), 10);
+            const electronPositions = new Float32Array(wasmModule.exports.memory.buffer, wasmModule.exports.get_electron_positions(), 1);
 
-            for (let i = 0; i < electrons.length; i++) {
-                electrons[i].position.x = electronPositions[i] * 2;
-            }
+            electron.position.x = electronPositions[0] * 10;  // Adjust scaling for visibility
         }
     });
 }
