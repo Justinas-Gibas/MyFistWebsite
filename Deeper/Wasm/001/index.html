@@ -17,27 +17,10 @@
     </div>
     <canvas id="simulationCanvas"></canvas>
 
-    <!-- Import Three.js -->
+    <!-- Import es-module-shims.js for compatibility with modules -->
     <script src="../../lib/utils/es-module-shims.js"></script>
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "../../lib/three.module.js"
-        }
-    }
-    </script>
-
-    <!-- Debug Log to ensure importmap is read -->
-    <script>
-        console.log('Import map loaded. Checking if Three.js will be available.');
-    </script>
 
     <!-- Your JavaScript -->
     <script type="module" src="simulation.js"></script>
-
-    <!-- Debug Log to ensure simulation.js script tag is processed -->
-    <script>
-        console.log('HTML loaded and simulation.js script tag has been processed.');
-    </script>
 </body>
 </html>
