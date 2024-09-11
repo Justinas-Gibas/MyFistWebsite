@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Three.js Plane with OrbitControls</title>
+  <title>Three.js with WebGPU</title>
   <style>
     body {
       margin: 0;
@@ -29,29 +29,25 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'OrbitControls';
 
-    // Scene setup
+    // Initialize Three.js scene
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // OrbitControls setup
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;  // smooth movement
+    controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.screenSpacePanning = false;
 
-    // Plane setup
     const geometry = new THREE.PlaneGeometry(5, 5, 32);
     const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide });
     const plane = new THREE.Mesh(geometry, material);
     scene.add(plane);
 
-    // Camera position
     camera.position.z = 5;
 
-    // Responsive window resize
     window.addEventListener('resize', () => {
       const width = window.innerWidth;
       const height = window.innerHeight;
@@ -60,16 +56,59 @@
       camera.updateProjectionMatrix();
     });
 
-    // Animation loop
+    // WebGPU initialization
+    async function initWebGPU() {
+      if (!navigator.gpu) {
+        console.error('WebGPU not supported on this browser.');
+        return;
+      }
+
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) {
+        console.error('Failed to get GPU adapter.');
+        return;
+      }
+
+      const device = await adapter.requestDevice();
+
+      // Create a compute shader
+      const shaderCode = `
+        @compute @workgroup_size(1) fn main() {
+          // Compute logic here
+        }
+      `;
+
+      const shaderModule = device.createShaderModule({
+        code: shaderCode,
+      });
+
+      const pipeline = device.createComputePipeline({
+        compute: {
+          module: shaderModule,
+          entryPoint: 'main',
+        },
+      });
+
+      const commandEncoder = device.createCommandEncoder();
+      const passEncoder = commandEncoder.beginComputePass();
+      passEncoder.setPipeline(pipeline);
+      passEncoder.dispatchWorkgroups(1); // Number of compute units
+      passEncoder.end();
+
+      const commandBuffer = commandEncoder.finish();
+      device.queue.submit([commandBuffer]);
+
+      console.log('WebGPU compute shader executed.');
+    }
+
+    initWebGPU();
+
     function animate() {
       requestAnimationFrame(animate);
-
-      controls.update(); // Only if damping is enabled
-
+      controls.update();
       renderer.render(scene, camera);
     }
     animate();
-
 </script>
 </body>
 </html>
