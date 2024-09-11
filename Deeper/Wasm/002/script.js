@@ -1,35 +1,98 @@
-let wasmModule; // Variable to store the WebAssembly module
+let gpuDevice, gpuContext, gpuPipeline;
 
-// Step 1: Function to load and instantiate the WebAssembly module
-async function loadWasm() {
+// Step 2: Initialize WebGPU
+async function initWebGPU() {
+    if (!navigator.gpu) {
+        console.error("WebGPU is not supported in this browser.");
+        return;
+    }
+
     try {
-        const response = await fetch('doubleSlit.wasm'); // Fetch the WASM file
-        const buffer = await response.arrayBuffer(); // Convert to ArrayBuffer
-        const wasmInstance = await WebAssembly.instantiate(buffer, {}); // Instantiate WASM
-        wasmModule = wasmInstance.instance; // Store the instance
-        console.log('WebAssembly module loaded:', wasmModule);
+        const adapter = await navigator.gpu.requestAdapter();
+        gpuDevice = await adapter.requestDevice();
+
+        const canvas = document.getElementById('simulationCanvas');
+        const gpuCanvasContext = canvas.getContext('gpupresent');
+        gpuContext = gpuCanvasContext;
+        gpuContext.configure({
+            device: gpuDevice,
+            format: gpuContext.getPreferredFormat(adapter),
+        });
+
+        // Creating a simple pipeline layout for WebGPU
+        gpuPipeline = gpuDevice.createRenderPipeline({
+            layout: 'auto',
+            vertex: {
+                module: gpuDevice.createShaderModule({
+                    code: `
+                        @stage(vertex)
+                        fn main(@builtin(vertex_index) VertexIndex: u32) -> @builtin(position) vec4<f32> {
+                            var positions = array<vec2<f32>, 3>(
+                                vec2<f32>(0.0, 0.5),
+                                vec2<f32>(-0.5, -0.5),
+                                vec2<f32>(0.5, -0.5)
+                            );
+                            return vec4<f32>(positions[VertexIndex], 0.0, 1.0);
+                        }
+                    `,
+                }),
+                entryPoint: 'main'
+            },
+            fragment: {
+                module: gpuDevice.createShaderModule({
+                    code: `
+                        @stage(fragment)
+                        fn main() -> @location(0) vec4<f32> {
+                            return vec4<f32>(1.0, 0.0, 0.0, 1.0); // Red Color
+                        }
+                    `,
+                }),
+                entryPoint: 'main',
+                targets: [{
+                    format: gpuContext.getPreferredFormat(adapter),
+                }]
+            },
+            primitive: {
+                topology: 'triangle-list',
+            },
+        });
+
+        console.log("WebGPU initialized successfully");
+
     } catch (error) {
-        console.error('Error loading WebAssembly:', error);
+        console.error("Error initializing WebGPU:", error);
     }
 }
 
-// Call the WebAssembly function (This is just to verify that WASM is working)
-function testWaveFunction() {
-    if (wasmModule) {
-        const result = wasmModule.exports._calculate_wave(1.0, 0.5); // Example call with dummy values
-        console.log('WASM Wave Function Output:', result); // Log result to verify
-    } else {
-        console.error('WebAssembly module is not loaded yet!');
+// Render a simple shape (triangle) using WebGPU
+function renderWebGPU() {
+    if (gpuDevice) {
+        const commandEncoder = gpuDevice.createCommandEncoder();
+        const renderPassDescriptor = {
+            colorAttachments: [{
+                view: gpuContext.getCurrentTexture().createView(),
+                loadValue: { r: 0, g: 0, b: 0, a: 1.0 }, // Clear to black
+                storeOp: 'store',
+            }],
+        };
+
+        const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+        passEncoder.setPipeline(gpuPipeline);
+        passEncoder.draw(3, 1, 0, 0); // Draw 1 triangle
+        passEncoder.endPass();
+
+        gpuDevice.queue.submit([commandEncoder.finish()]);
     }
 }
 
-// Initialize the simulation
+// Update the init function to include WebGPU initialization
 async function init() {
     await loadWasm(); // Load WASM first
+    await initWebGPU(); // Initialize WebGPU after
 
-    // Test the WASM function
-    testWaveFunction(); // You should see a result printed to the console
+    // Test the WebGPU rendering
+    renderWebGPU();
 }
 
-// Call the init function to start everything
+// Start the simulation
 init();
