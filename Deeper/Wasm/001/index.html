@@ -16,6 +16,10 @@
       position: absolute;
       top: 10px;
       z-index: 1;
+      cursor: move; /* Show move cursor on hover */
+      padding: 10px;
+      background-color: lightgray;
+      border: 1px solid black;
     }
     #displaceButton {
       left: 100px;
@@ -80,13 +84,18 @@
     camera.updateProjectionMatrix();
   });
 
+  // Make buttons draggable
+  makeButtonDraggable(document.getElementById('subdivideButton'));
+  makeButtonDraggable(document.getElementById('displaceButton'));
+  makeButtonDraggable(document.getElementById('unsubdivideButton'));
+
   // Subdivide button click event
   document.getElementById('subdivideButton').addEventListener('click', subdivideMesh);
 
   // Unsubdivide button click event
   document.getElementById('unsubdivideButton').addEventListener('click', unsubdivideMesh);
 
-  // Displace button click event (will call WebGPU for the computation)
+  // Displace button click event
   document.getElementById('displaceButton').addEventListener('click', displaceWithSineWave);
 
   // Subdivide the plane by adding more segments
@@ -174,21 +183,22 @@
         },
       ],
     });
+    // Placeholder for WebGPU code
+    console.log('Displace with Sine Wave via WebGPU.');
+  }
 
     const pipelineLayout = device.createPipelineLayout({
       bindGroupLayouts: [bindGroupLayout],
     });
+  // Make a button draggable
+  function makeButtonDraggable(button) {
+    let isDragging = false;
+    let offsetX, offsetY;
 
-    const bindGroup = device.createBindGroup({
-      layout: bindGroupLayout,
-      entries: [
-        {
-          binding: 0,
-          resource: {
-            buffer: positionBuffer,
-          },
-        },
-      ],
+    button.addEventListener('mousedown', (event) => {
+      isDragging = true;
+      offsetX = event.clientX - button.getBoundingClientRect().left;
+      offsetY = event.clientY - button.getBoundingClientRect().top;
     });
 
     // Create compute pipeline
@@ -198,6 +208,11 @@
         module: shaderModule,
         entryPoint: 'main',
       },
+    document.addEventListener('mousemove', (event) => {
+      if (isDragging) {
+        button.style.left = `${event.clientX - offsetX}px`;
+        button.style.top = `${event.clientY - offsetY}px`;
+      }
     });
 
     // Command encoder and pass
@@ -214,6 +229,8 @@
     const gpuReadBuffer = device.createBuffer({
       size: positions.byteLength,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
     });
 
     commandEncoder.copyBufferToBuffer(positionBuffer, 0, gpuReadBuffer, 0, positions.byteLength);
