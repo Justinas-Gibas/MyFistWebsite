@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { scene, plane, renderer, initialWidthSegments, initialHeightSegments } from './scene.js';
 
 // Make buttons draggable
@@ -125,7 +126,7 @@ async function displaceWithSineWave() {
     },
   });
 
-  // Command encoder and pass
+  // Create a new command encoder for this GPU task
   const commandEncoder = device.createCommandEncoder();
   const passEncoder = commandEncoder.beginComputePass();
   passEncoder.setPipeline(pipeline);
@@ -141,7 +142,11 @@ async function displaceWithSineWave() {
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
   });
 
-  commandEncoder.copyBufferToBuffer(positionBuffer, 0, gpuReadBuffer, 0, positions.byteLength);
+  // Create a new command encoder for copying
+  const copyEncoder = device.createCommandEncoder();
+  copyEncoder.copyBufferToBuffer(positionBuffer, 0, gpuReadBuffer, 0, positions.byteLength);
+  device.queue.submit([copyEncoder.finish()]);
+
   await gpuReadBuffer.mapAsync(GPUMapMode.READ);
   const copiedArrayBuffer = gpuReadBuffer.getMappedRange();
   const updatedPositions = new Float32Array(copiedArrayBuffer);
