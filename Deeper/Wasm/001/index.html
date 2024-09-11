@@ -62,45 +62,51 @@
         console.error('WebGPU not supported on this browser.');
         return;
       }
-
+  
       const adapter = await navigator.gpu.requestAdapter();
       if (!adapter) {
         console.error('Failed to get GPU adapter.');
         return;
       }
-
+  
       const device = await adapter.requestDevice();
-
+  
       // Create a compute shader
       const shaderCode = `
         @compute @workgroup_size(1) fn main() {
           // Compute logic here
         }
       `;
-
+  
       const shaderModule = device.createShaderModule({
         code: shaderCode,
       });
-
+  
+      // Explicitly define the pipeline layout
+      const pipelineLayout = device.createPipelineLayout({
+        bindGroupLayouts: [] // If you have bind groups, add them here; otherwise, leave it empty.
+      });
+  
       const pipeline = device.createComputePipeline({
+        layout: pipelineLayout, // Required layout added here
         compute: {
           module: shaderModule,
           entryPoint: 'main',
         },
       });
-
+  
       const commandEncoder = device.createCommandEncoder();
       const passEncoder = commandEncoder.beginComputePass();
       passEncoder.setPipeline(pipeline);
       passEncoder.dispatchWorkgroups(1); // Number of compute units
       passEncoder.end();
-
+  
       const commandBuffer = commandEncoder.finish();
       device.queue.submit([commandBuffer]);
-
+  
       console.log('WebGPU compute shader executed.');
     }
-
+    
     initWebGPU();
 
     function animate() {
