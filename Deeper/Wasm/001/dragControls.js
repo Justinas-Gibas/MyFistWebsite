@@ -3,9 +3,6 @@ import { subdivideMesh, unsubdivideMesh, displaceWithSineWave } from './buttonAc
 // Wait for the DOM to load before initializing the drag controls
 window.addEventListener('DOMContentLoaded', (event) => {
   
-  // Create an overlay to handle dragging across other elements
-  const overlay = document.getElementById('overlay');
-
   // Make buttons draggable
   makeButtonDraggable(document.getElementById('subdivideButton'), subdivideMesh);
   makeButtonDraggable(document.getElementById('displaceButton'), displaceWithSineWave);
@@ -18,6 +15,9 @@ window.addEventListener('DOMContentLoaded', (event) => {
     let offsetX, offsetY;
     let dragThreshold = 5; // Minimum movement in pixels to qualify as a drag
     let startX, startY;
+
+    // Get the overlay each time inside the function
+    const overlay = document.getElementById('overlay');
 
     // Track double-click event for future use
     button.addEventListener('dblclick', (event) => {
