@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Three.js with WebGPU</title>
+  <title>Three.js Webgpu Wasm 101</title>
   <style>
     body {
       margin: 0;
@@ -12,109 +12,117 @@
     canvas {
       display: block;
     }
+    #subdivideButton {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1;
+    }
   </style>
 </head>
 <body>
 
+<button id="subdivideButton">Subdivide</button>
+
 <script type="importmap">
-    {
-      "imports": {
-        "three": "../../lib/three.module.js",
-        "OrbitControls": "../../lib/controls/OrbitControls.js"
-      }
+  {
+    "imports": {
+      "three": "../../lib/three.module.js",
+      "WebGPURenderer": "../../lib/three.webgpu.js",
+      "OrbitControls": "../../lib/controls/OrbitControls.js"
     }
+  }
 </script>
-        
+
 <script type="module">
-    import * as THREE from 'three';
-    import { OrbitControls } from 'OrbitControls';
+  import * as THREE from 'three';
+  import { OrbitControls } from 'OrbitControls';
 
-    // Initialize Three.js scene
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+  let scene, camera, renderer, plane, controls, raycaster, mouse;
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.screenSpacePanning = false;
+  // Scene setup
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
 
-    const geometry = new THREE.PlaneGeometry(5, 5, 32);
-    const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide });
-    const plane = new THREE.Mesh(geometry, material);
-    scene.add(plane);
+  // OrbitControls setup
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+  controls.screenSpacePanning = false;
 
-    camera.position.z = 5;
+  // Create raycaster and mouse vector
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
 
-    window.addEventListener('resize', () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      renderer.setSize(width, height);
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-    });
+  // Plane setup with wireframe
+  const geometry = new THREE.PlaneGeometry(5, 5, 32, 32);
+  const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+  plane = new THREE.Mesh(geometry, material);
+  plane.rotation.x = Math.PI / 2; // Rotate plane to make it horizontal
+  scene.add(plane);
 
-    // WebGPU initialization
-    async function initWebGPU() {
-      if (!navigator.gpu) {
-        console.error('WebGPU not supported on this browser.');
-        return;
-      }
-  
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) {
-        console.error('Failed to get GPU adapter.');
-        return;
-      }
-  
-      const device = await adapter.requestDevice();
-  
-      // Create a compute shader
-      const shaderCode = `
-        @compute @workgroup_size(1) fn main() {
-          // Compute logic here
-        }
-      `;
-  
-      const shaderModule = device.createShaderModule({
-        code: shaderCode,
-      });
-  
-      // Explicitly define the pipeline layout
-      const pipelineLayout = device.createPipelineLayout({
-        bindGroupLayouts: [] // If you have bind groups, add them here; otherwise, leave it empty.
-      });
-  
-      const pipeline = device.createComputePipeline({
-        layout: pipelineLayout, // Required layout added here
-        compute: {
-          module: shaderModule,
-          entryPoint: 'main',
-        },
-      });
-  
-      const commandEncoder = device.createCommandEncoder();
-      const passEncoder = commandEncoder.beginComputePass();
-      passEncoder.setPipeline(pipeline);
-      passEncoder.dispatchWorkgroups(1); // Number of compute units
-      passEncoder.end();
-  
-      const commandBuffer = commandEncoder.finish();
-      device.queue.submit([commandBuffer]);
-  
-      console.log('WebGPU compute shader executed.');
+  // Camera position
+  camera.position.z = 5;
+
+  // Responsive window resize
+  window.addEventListener('resize', () => {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    renderer.setSize(width, height);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+  });
+
+  // Add event listener for raycast
+  window.addEventListener('click', onMouseClick);
+
+  // Subdivide button click event
+  document.getElementById('subdivideButton').addEventListener('click', subdivideMesh);
+
+  function onMouseClick(event) {
+    // Update mouse vector with normalized coordinates
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    // Update the raycaster with the current camera and mouse
+    raycaster.setFromCamera(mouse, camera);
+
+    // Check if the ray intersects with the plane
+    const intersects = raycaster.intersectObject(plane);
+    if (intersects.length > 0) {
+      subdivideMesh(); // Subdivide mesh on click
     }
-    
-    initWebGPU();
+  }
 
-    function animate() {
-      requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    }
-    animate();
+  // Subdivide the plane by adding more segments
+  function subdivideMesh() {
+    // Get the current geometry parameters (size and subdivisions)
+    const width = plane.geometry.parameters.width;
+    const height = plane.geometry.parameters.height;
+    const widthSegments = plane.geometry.parameters.widthSegments * 2; // Double the segments
+    const heightSegments = plane.geometry.parameters.heightSegments * 2; // Double the segments
+
+    // Create a new geometry with double the segments
+    const newGeometry = new THREE.PlaneGeometry(width, height, widthSegments, heightSegments);
+
+    // Update the plane's geometry to the new subdivided one
+    plane.geometry.dispose(); // Dispose of the old geometry
+    plane.geometry = newGeometry;
+
+    console.log('Plane subdivided:', widthSegments, heightSegments);
+  }
+
+  // Animation loop
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update(); // Only if damping is enabled
+    renderer.render(scene, camera);
+  }
+  animate();
+
 </script>
 </body>
 </html>
