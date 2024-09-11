@@ -15,7 +15,7 @@
     #subdivideButton, #displaceButton, #unsubdivideButton {
       position: absolute;
       top: 10px;
-      z-index: 1;
+      z-index: 2;
       cursor: move;
       padding: 10px;
       background-color: lightgray;
@@ -27,9 +27,23 @@
     #unsubdivideButton {
       left: 220px;
     }
+
+    /* Overlay to capture all mouse events during drag */
+    #overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1; /* Make sure it’s on top of everything */
+      display: none;
+      background-color: transparent;
+    }
   </style>
 </head>
 <body>
+
+<div id="overlay"></div> <!-- Overlay to handle dragging -->
 
 <button id="subdivideButton">Subdivide</button>
 <button id="displaceButton">Displace with Sine Wave</button>
@@ -47,7 +61,8 @@
 
 <!-- Link to the external JavaScript files -->
 <script type="module" src="scene.js"></script>
-<script type="module" src="controls.js"></script>
+<script type="module" src="buttonActions.js"></script>
+<script type="module" src="dragControls.js"></script>
 
 </body>
 </html>

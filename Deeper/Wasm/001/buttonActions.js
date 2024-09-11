@@ -1,13 +1,8 @@
+import * as THREE from 'three';
 import { scene, plane, renderer, initialWidthSegments, initialHeightSegments } from './scene.js';
-import * as THREE from 'three';  // Fix for THREE is not defined
-
-// Make buttons draggable
-makeButtonDraggable(document.getElementById('subdivideButton'), subdivideMesh);
-makeButtonDraggable(document.getElementById('displaceButton'), displaceWithSineWave);
-makeButtonDraggable(document.getElementById('unsubdivideButton'), unsubdivideMesh);
 
 // Subdivide the plane by adding more segments
-function subdivideMesh() {
+export function subdivideMesh() {
   const width = plane.geometry.parameters.width;
   const height = plane.geometry.parameters.height;
   const widthSegments = plane.geometry.parameters.widthSegments * 2;
@@ -21,7 +16,7 @@ function subdivideMesh() {
 }
 
 // Unsubdivide the plane by resetting to initial segments
-function unsubdivideMesh() {
+export function unsubdivideMesh() {
   const width = plane.geometry.parameters.width;
   const height = plane.geometry.parameters.height;
 
@@ -33,7 +28,7 @@ function unsubdivideMesh() {
 }
 
 // WebGPU logic for sine wave displacement
-async function displaceWithSineWave() {
+export async function displaceWithSineWave() {
   if (!navigator.gpu) {
     console.error('WebGPU not supported on this browser.');
     return;
@@ -149,53 +144,4 @@ async function displaceWithSineWave() {
   gpuReadBuffer.unmap();
 
   console.log('Applied sine wave displacement via WebGPU.');
-}
-
-// Make a button draggable and assign single click functionality
-function makeButtonDraggable(button, singleClickAction) {
-  let isDragging = false;
-  let isClicked = false;
-  let offsetX, offsetY;
-  let dragThreshold = 5; // Minimum movement in pixels to qualify as a drag
-  let startX, startY;
-
-  // Track double-click event for future use
-  button.addEventListener('dblclick', (event) => {
-    event.preventDefault();
-    console.log('Double-click detected (no action for now)');
-  });
-
-  button.addEventListener('mousedown', (event) => {
-    isDragging = false;
-    isClicked = true;
-    offsetX = event.clientX - button.getBoundingClientRect().left;
-    offsetY = event.clientY - button.getBoundingClientRect().top;
-    startX = event.clientX;
-    startY = event.clientY;
-  });
-
-  button.addEventListener('mousemove', (event) => {
-    if (isClicked) {
-      const moveX = Math.abs(event.clientX - startX);
-      const moveY = Math.abs(event.clientY - startY);
-      if (moveX > dragThreshold || moveY > dragThreshold) {
-        isDragging = true;
-        button.style.left = `${event.clientX - offsetX}px`;
-        button.style.top = `${event.clientY - offsetY}px`;
-      }
-    }
-  });
-
-  button.addEventListener('mouseup', (event) => {
-    if (!isDragging && isClicked) {
-      singleClickAction(); // Trigger single-click action if not dragged
-    }
-    isClicked = false;
-    isDragging = false;
-  });
-
-  document.addEventListener('mouseup', () => {
-    isClicked = false;
-    isDragging = false;
-  });
 }
