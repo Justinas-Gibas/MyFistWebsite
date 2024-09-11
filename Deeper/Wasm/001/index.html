@@ -16,7 +16,7 @@
       position: absolute;
       top: 10px;
       z-index: 1;
-      cursor: move; /* Show move cursor on hover */
+      cursor: move;
       padding: 10px;
       background-color: lightgray;
       border: 1px solid black;
@@ -35,6 +35,7 @@
 <button id="displaceButton">Displace with Sine Wave</button>
 <button id="unsubdivideButton">Unsubdivide</button>
 
+<!-- Import the Three.js module and our custom script -->
 <script type="importmap">
   {
     "imports": {
@@ -44,217 +45,8 @@
   }
 </script>
 
-<script type="module">
-  import * as THREE from 'three';
-  import { OrbitControls } from 'OrbitControls';
+<!-- Link to the external JavaScript file -->
+<script type="module" src="script.js"></script>
 
-  let scene, camera, renderer, plane, controls;
-  let initialWidthSegments = 32;
-  let initialHeightSegments = 32;
-
-  // Scene setup
-  scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-  renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  document.body.appendChild(renderer.domElement);
-
-  // OrbitControls setup
-  controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.05;
-  controls.screenSpacePanning = false;
-
-  // Plane setup with wireframe
-  let geometry = new THREE.PlaneGeometry(5, 5, initialWidthSegments, initialHeightSegments);
-  const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
-  plane = new THREE.Mesh(geometry, material);
-  plane.rotation.x = Math.PI / 2; // Rotate plane to make it horizontal
-  scene.add(plane);
-
-  // Camera position
-  camera.position.z = 5;
-
-  // Responsive window resize
-  window.addEventListener('resize', () => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    renderer.setSize(width, height);
-    camera.aspect = width / height;
-    camera.updateProjectionMatrix();
-  });
-
-  // Make buttons draggable
-  makeButtonDraggable(document.getElementById('subdivideButton'));
-  makeButtonDraggable(document.getElementById('displaceButton'));
-  makeButtonDraggable(document.getElementById('unsubdivideButton'));
-
-  // Subdivide button click event
-  document.getElementById('subdivideButton').addEventListener('click', subdivideMesh);
-
-  // Unsubdivide button click event
-  document.getElementById('unsubdivideButton').addEventListener('click', unsubdivideMesh);
-
-  // Displace button click event
-  document.getElementById('displaceButton').addEventListener('click', displaceWithSineWave);
-
-  // Subdivide the plane by adding more segments
-  function subdivideMesh() {
-    const width = plane.geometry.parameters.width;
-    const height = plane.geometry.parameters.height;
-    const widthSegments = plane.geometry.parameters.widthSegments * 2;
-    const heightSegments = plane.geometry.parameters.heightSegments * 2;
-
-    const newGeometry = new THREE.PlaneGeometry(width, height, widthSegments, heightSegments);
-    plane.geometry.dispose();
-    plane.geometry = newGeometry;
-
-    console.log('Plane subdivided:', widthSegments, heightSegments);
-  }
-
-  // Unsubdivide the plane by resetting to initial segments
-  function unsubdivideMesh() {
-    const width = plane.geometry.parameters.width;
-    const height = plane.geometry.parameters.height;
-
-    const newGeometry = new THREE.PlaneGeometry(width, height, initialWidthSegments, initialHeightSegments);
-    plane.geometry.dispose();
-    plane.geometry = newGeometry;
-
-    console.log('Plane unsubdivided:', initialWidthSegments, initialHeightSegments);
-  }
-
-  // WebGPU logic for sine wave displacement
-  async function displaceWithSineWave() {
-    if (!navigator.gpu) {
-      console.error('WebGPU not supported on this browser.');
-      return;
-    }
-
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) {
-      console.error('Failed to get GPU adapter.');
-      return;
-    }
-
-    const device = await adapter.requestDevice();
-
-    // Compute shader code for sine wave displacement
-    const shaderCode = `
-      @group(0) @binding(0) var<storage, read_write> positions : array<vec3<f32>>;
-
-      @compute @workgroup_size(1) fn main(@builtin(global_invocation_id) id : vec3<u32>) {
-        let index = id.x;
-        let amplitude = 0.5;
-        let frequency = 0.2;
-
-        let x = positions[index].x;
-        let y = positions[index].y;
-
-        positions[index].z = sin((x + y) * frequency) * amplitude;
-      }
-    `;
-
-    // Create shader module
-    const shaderModule = device.createShaderModule({
-      code: shaderCode,
-    });
-
-    // Get positions from geometry and create a buffer
-    const positions = plane.geometry.attributes.position.array;
-    const positionBuffer = device.createBuffer({
-      size: positions.byteLength,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
-      mappedAtCreation: true,
-    });
-
-    new Float32Array(positionBuffer.getMappedRange()).set(positions);
-    positionBuffer.unmap();
-
-    // Create bind group layout and bind group
-    const bindGroupLayout = device.createBindGroupLayout({
-      entries: [
-        {
-          binding: 0,
-          visibility: GPUShaderStage.COMPUTE,
-          buffer: {
-            type: 'storage',
-          },
-        },
-      ],
-    });
-    // Placeholder for WebGPU code
-    console.log('Displace with Sine Wave via WebGPU.');
-  }
-
-    const pipelineLayout = device.createPipelineLayout({
-      bindGroupLayouts: [bindGroupLayout],
-    });
-  // Make a button draggable
-  function makeButtonDraggable(button) {
-    let isDragging = false;
-    let offsetX, offsetY;
-
-    button.addEventListener('mousedown', (event) => {
-      isDragging = true;
-      offsetX = event.clientX - button.getBoundingClientRect().left;
-      offsetY = event.clientY - button.getBoundingClientRect().top;
-    });
-
-    // Create compute pipeline
-    const pipeline = device.createComputePipeline({
-      layout: pipelineLayout,
-      compute: {
-        module: shaderModule,
-        entryPoint: 'main',
-      },
-    document.addEventListener('mousemove', (event) => {
-      if (isDragging) {
-        button.style.left = `${event.clientX - offsetX}px`;
-        button.style.top = `${event.clientY - offsetY}px`;
-      }
-    });
-
-    // Command encoder and pass
-    const commandEncoder = device.createCommandEncoder();
-    const passEncoder = commandEncoder.beginComputePass();
-    passEncoder.setPipeline(pipeline);
-    passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.dispatchWorkgroups(plane.geometry.attributes.position.count / 3);
-    passEncoder.end();
-
-    device.queue.submit([commandEncoder.finish()]);
-
-    // Copy back updated positions
-    const gpuReadBuffer = device.createBuffer({
-      size: positions.byteLength,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-    document.addEventListener('mouseup', () => {
-      isDragging = false;
-    });
-
-    commandEncoder.copyBufferToBuffer(positionBuffer, 0, gpuReadBuffer, 0, positions.byteLength);
-    await gpuReadBuffer.mapAsync(GPUMapMode.READ);
-    const copiedArrayBuffer = gpuReadBuffer.getMappedRange();
-    const updatedPositions = new Float32Array(copiedArrayBuffer);
-
-    // Update geometry with new positions
-    plane.geometry.attributes.position.array.set(updatedPositions);
-    plane.geometry.attributes.position.needsUpdate = true;
-
-    gpuReadBuffer.unmap();
-
-    console.log('Applied sine wave displacement via WebGPU.');
-  }
-
-  // Animation loop
-  function animate() {
-    requestAnimationFrame(animate);
-    controls.update(); // Only if damping is enabled
-    renderer.render(scene, camera);
-  }
-  animate();
-
-</script>
 </body>
 </html>
