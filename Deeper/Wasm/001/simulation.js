@@ -46,8 +46,13 @@ async function initWebGPU() {
         gpuDevice = await adapter.requestDevice();
         console.log("GPU Device:", gpuDevice);
 
-        const canvasContext = canvas.getContext('gpupresent');
+        const canvasContext = canvas.getContext('webgpu');  // Change from 'gpupresent' to 'webgpu'
         console.log("Canvas Context:", canvasContext);
+
+        if (!canvasContext) {
+            console.error("WebGPU context could not be initialized.");
+            return;
+        }
 
         gpuContext = canvasContext;
         gpuContext.configure({
