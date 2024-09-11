@@ -12,7 +12,7 @@
     canvas {
       display: block;
     }
-    #subdivideButton, #displaceButton {
+    #subdivideButton, #displaceButton, #unsubdivideButton {
       position: absolute;
       top: 10px;
       z-index: 1;
@@ -20,18 +20,21 @@
     #displaceButton {
       left: 100px;
     }
+    #unsubdivideButton {
+      left: 220px;
+    }
   </style>
 </head>
 <body>
 
 <button id="subdivideButton">Subdivide</button>
 <button id="displaceButton">Displace with Sine Wave</button>
+<button id="unsubdivideButton">Unsubdivide</button>
 
 <script type="importmap">
   {
     "imports": {
       "three": "../../lib/three.module.js",
-      "WebGPURenderer": "../../lib/three.webgpu.js",
       "OrbitControls": "../../lib/controls/OrbitControls.js"
     }
   }
@@ -41,7 +44,9 @@
   import * as THREE from 'three';
   import { OrbitControls } from 'OrbitControls';
 
-  let scene, camera, renderer, plane, controls, raycaster, mouse;
+  let scene, camera, renderer, plane, controls;
+  let initialWidthSegments = 32;
+  let initialHeightSegments = 32;
 
   // Scene setup
   scene = new THREE.Scene();
@@ -56,12 +61,8 @@
   controls.dampingFactor = 0.05;
   controls.screenSpacePanning = false;
 
-  // Create raycaster and mouse vector
-  raycaster = new THREE.Raycaster();
-  mouse = new THREE.Vector2();
-
   // Plane setup with wireframe
-  const geometry = new THREE.PlaneGeometry(5, 5, 32, 32);
+  let geometry = new THREE.PlaneGeometry(5, 5, initialWidthSegments, initialHeightSegments);
   const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
   plane = new THREE.Mesh(geometry, material);
   plane.rotation.x = Math.PI / 2; // Rotate plane to make it horizontal
@@ -79,66 +80,154 @@
     camera.updateProjectionMatrix();
   });
 
-  // Add event listener for raycast
-  window.addEventListener('click', onMouseClick);
-
   // Subdivide button click event
   document.getElementById('subdivideButton').addEventListener('click', subdivideMesh);
 
-  // Displace button click event
+  // Unsubdivide button click event
+  document.getElementById('unsubdivideButton').addEventListener('click', unsubdivideMesh);
+
+  // Displace button click event (will call WebGPU for the computation)
   document.getElementById('displaceButton').addEventListener('click', displaceWithSineWave);
-
-  function onMouseClick(event) {
-    // Update mouse vector with normalized coordinates
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-    // Update the raycaster with the current camera and mouse
-    raycaster.setFromCamera(mouse, camera);
-
-    // Check if the ray intersects with the plane
-    const intersects = raycaster.intersectObject(plane);
-    if (intersects.length > 0) {
-      subdivideMesh(); // Subdivide mesh on click
-    }
-  }
 
   // Subdivide the plane by adding more segments
   function subdivideMesh() {
-    // Get the current geometry parameters (size and subdivisions)
     const width = plane.geometry.parameters.width;
     const height = plane.geometry.parameters.height;
-    const widthSegments = plane.geometry.parameters.widthSegments * 2; // Double the segments
-    const heightSegments = plane.geometry.parameters.heightSegments * 2; // Double the segments
+    const widthSegments = plane.geometry.parameters.widthSegments * 2;
+    const heightSegments = plane.geometry.parameters.heightSegments * 2;
 
-    // Create a new geometry with double the segments
     const newGeometry = new THREE.PlaneGeometry(width, height, widthSegments, heightSegments);
-
-    // Update the plane's geometry to the new subdivided one
-    plane.geometry.dispose(); // Dispose of the old geometry
+    plane.geometry.dispose();
     plane.geometry = newGeometry;
 
     console.log('Plane subdivided:', widthSegments, heightSegments);
   }
 
-  // Apply sine wave displacement to the mesh vertices
-  function displaceWithSineWave() {
-    const vertices = plane.geometry.attributes.position.array;
-    const amplitude = 0.5; // Amplitude of the sine wave
-    const frequency = 0.2; // Frequency of the sine wave
+  // Unsubdivide the plane by resetting to initial segments
+  function unsubdivideMesh() {
+    const width = plane.geometry.parameters.width;
+    const height = plane.geometry.parameters.height;
 
-    for (let i = 0; i < vertices.length; i += 3) {
-      const x = vertices[i];
-      const y = vertices[i + 1];
+    const newGeometry = new THREE.PlaneGeometry(width, height, initialWidthSegments, initialHeightSegments);
+    plane.geometry.dispose();
+    plane.geometry = newGeometry;
 
-      // Apply a sine wave to the z position of the vertices
-      vertices[i + 2] = Math.sin((x + y) * frequency) * amplitude;
+    console.log('Plane unsubdivided:', initialWidthSegments, initialHeightSegments);
+  }
+
+  // WebGPU logic for sine wave displacement
+  async function displaceWithSineWave() {
+    if (!navigator.gpu) {
+      console.error('WebGPU not supported on this browser.');
+      return;
     }
 
-    // Mark the position attribute for update
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      console.error('Failed to get GPU adapter.');
+      return;
+    }
+
+    const device = await adapter.requestDevice();
+
+    // Compute shader code for sine wave displacement
+    const shaderCode = `
+      @group(0) @binding(0) var<storage, read_write> positions : array<vec3<f32>>;
+
+      @compute @workgroup_size(1) fn main(@builtin(global_invocation_id) id : vec3<u32>) {
+        let index = id.x;
+        let amplitude = 0.5;
+        let frequency = 0.2;
+
+        let x = positions[index].x;
+        let y = positions[index].y;
+
+        positions[index].z = sin((x + y) * frequency) * amplitude;
+      }
+    `;
+
+    // Create shader module
+    const shaderModule = device.createShaderModule({
+      code: shaderCode,
+    });
+
+    // Get positions from geometry and create a buffer
+    const positions = plane.geometry.attributes.position.array;
+    const positionBuffer = device.createBuffer({
+      size: positions.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+      mappedAtCreation: true,
+    });
+
+    new Float32Array(positionBuffer.getMappedRange()).set(positions);
+    positionBuffer.unmap();
+
+    // Create bind group layout and bind group
+    const bindGroupLayout = device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: {
+            type: 'storage',
+          },
+        },
+      ],
+    });
+
+    const pipelineLayout = device.createPipelineLayout({
+      bindGroupLayouts: [bindGroupLayout],
+    });
+
+    const bindGroup = device.createBindGroup({
+      layout: bindGroupLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: {
+            buffer: positionBuffer,
+          },
+        },
+      ],
+    });
+
+    // Create compute pipeline
+    const pipeline = device.createComputePipeline({
+      layout: pipelineLayout,
+      compute: {
+        module: shaderModule,
+        entryPoint: 'main',
+      },
+    });
+
+    // Command encoder and pass
+    const commandEncoder = device.createCommandEncoder();
+    const passEncoder = commandEncoder.beginComputePass();
+    passEncoder.setPipeline(pipeline);
+    passEncoder.setBindGroup(0, bindGroup);
+    passEncoder.dispatchWorkgroups(plane.geometry.attributes.position.count / 3);
+    passEncoder.end();
+
+    device.queue.submit([commandEncoder.finish()]);
+
+    // Copy back updated positions
+    const gpuReadBuffer = device.createBuffer({
+      size: positions.byteLength,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    });
+
+    commandEncoder.copyBufferToBuffer(positionBuffer, 0, gpuReadBuffer, 0, positions.byteLength);
+    await gpuReadBuffer.mapAsync(GPUMapMode.READ);
+    const copiedArrayBuffer = gpuReadBuffer.getMappedRange();
+    const updatedPositions = new Float32Array(copiedArrayBuffer);
+
+    // Update geometry with new positions
+    plane.geometry.attributes.position.array.set(updatedPositions);
     plane.geometry.attributes.position.needsUpdate = true;
 
-    console.log('Applied sine wave displacement to the mesh.');
+    gpuReadBuffer.unmap();
+
+    console.log('Applied sine wave displacement via WebGPU.');
   }
 
   // Animation loop
