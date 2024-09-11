@@ -15,9 +15,19 @@
   </style>
 </head>
 <body>
-  <script type="module">
-    import * as THREE from '../lib/three.module.js';
-    import { OrbitControls } from '../lib/controls/OrbitControls.js';
+
+<script type="importmap">
+    {
+      "imports": {
+        "three": "../../lib/three.module.js",
+        "OrbitControls": "../../lib/controls/OrbitControls.js"
+      }
+    }
+</script>
+        
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'OrbitControls';
 
     // Scene setup
     const scene = new THREE.Scene();
@@ -60,6 +70,6 @@
     }
     animate();
 
-  </script>
+</script>
 </body>
 </html>
