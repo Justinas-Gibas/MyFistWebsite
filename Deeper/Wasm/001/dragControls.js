@@ -11,7 +11,6 @@ window.addEventListener('DOMContentLoaded', (event) => {
 
   // Make a button draggable and assign single click functionality
   function makeButtonDraggable(button, singleClickAction) {
-    console.log("Initializing draggable functionality for button:", button.id);
 
     let isDragging = false;
     let isClicked = false;
