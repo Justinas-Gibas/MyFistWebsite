@@ -2,7 +2,8 @@ import { subdivideMesh, unsubdivideMesh, displaceWithSineWave } from './buttonAc
 
 // Wait for the DOM to load before initializing the drag controls
 window.addEventListener('DOMContentLoaded', (event) => {
-  
+  console.log("DOM fully loaded and parsed");
+
   // Make buttons draggable
   makeButtonDraggable(document.getElementById('subdivideButton'), subdivideMesh);
   makeButtonDraggable(document.getElementById('displaceButton'), displaceWithSineWave);
@@ -10,6 +11,8 @@ window.addEventListener('DOMContentLoaded', (event) => {
 
   // Make a button draggable and assign single click functionality
   function makeButtonDraggable(button, singleClickAction) {
+    console.log("Initializing draggable functionality for button:", button.id);
+
     let isDragging = false;
     let isClicked = false;
     let offsetX, offsetY;
@@ -18,14 +21,21 @@ window.addEventListener('DOMContentLoaded', (event) => {
 
     // Get the overlay each time inside the function
     const overlay = document.getElementById('overlay');
+    
+    if (!overlay) {
+      console.error("Overlay element not found");
+    } else {
+      console.log("Overlay element found:", overlay);
+    }
 
     // Track double-click event for future use
     button.addEventListener('dblclick', (event) => {
       event.preventDefault();
-      console.log('Double-click detected (no action for now)');
+      console.log('Double-click detected on button:', button.id);
     });
 
     button.addEventListener('mousedown', (event) => {
+      console.log("Mouse down on button:", button.id);
       isDragging = false;
       isClicked = true;
       offsetX = event.clientX - button.getBoundingClientRect().left;
@@ -34,8 +44,11 @@ window.addEventListener('DOMContentLoaded', (event) => {
       startY = event.clientY;
 
       // Activate the overlay layer for dragging
-      overlay.style.display = 'block';
-      overlay.style.zIndex = 9999;  // Make sure it's on top of all buttons
+      if (overlay) {
+        overlay.style.display = 'block';
+        overlay.style.zIndex = 9999;  // Make sure it's on top of all buttons
+        console.log("Overlay activated for dragging.");
+      }
     });
 
     overlay.addEventListener('mousemove', (event) => {
@@ -44,6 +57,7 @@ window.addEventListener('DOMContentLoaded', (event) => {
         const moveY = Math.abs(event.clientY - startY);
         if (moveX > dragThreshold || moveY > dragThreshold) {
           isDragging = true;
+          console.log("Dragging button:", button.id);
           button.style.left = `${event.clientX - offsetX}px`;
           button.style.top = `${event.clientY - offsetY}px`;
         }
@@ -51,14 +65,19 @@ window.addEventListener('DOMContentLoaded', (event) => {
     });
 
     document.addEventListener('mouseup', (event) => {
+      console.log("Mouse up detected.");
       if (!isDragging && isClicked) {
+        console.log("Single-click action triggered for button:", button.id);
         singleClickAction(); // Trigger single-click action if not dragged
       }
 
       // Reset dragging flags and hide overlay
       isClicked = false;
       isDragging = false;
-      overlay.style.display = 'none';
+      if (overlay) {
+        overlay.style.display = 'none';
+        console.log("Overlay deactivated.");
+      }
     });
   }
 });
