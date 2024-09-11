@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Electron Flow Simulation</title>
+    <title>Electron Flow Simulation with WebGPU</title>
     <style>
         canvas { width: 100%; height: 100%; }
         body, html { margin: 0; height: 100%; overflow: hidden; }
@@ -17,10 +17,18 @@
     </div>
     <canvas id="simulationCanvas"></canvas>
 
-    <!-- Import es-module-shims.js for compatibility with modules -->
+    <!-- Import Updated Three.js Files -->
     <script src="../../lib/utils/es-module-shims.js"></script>
 
-    <!-- Your JavaScript -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "../../lib/three.module.js",
+            "three-webgpu": "../../lib/three.webgpu.js"
+        }
+    }
+    </script>
+
     <script type="module" src="simulation.js"></script>
 </body>
 </html>
