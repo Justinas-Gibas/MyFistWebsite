@@ -1,34 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Electron Flow Simulation with WebGPU</title>
-    <style>
-        canvas { width: 100%; height: 100%; }
-        body, html { margin: 0; height: 100%; overflow: hidden; }
-        #controls { position: absolute; top: 10px; left: 10px; z-index: 100; background: white; padding: 10px; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Three.js Plane with OrbitControls</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
 </head>
 <body>
-    <div id="controls">
-        <label>Current Flow: <span id="currentValue">1.0</span></label>
-        <input type="range" id="currentFlowSlider" min="0" max="5" step="0.1" value="1.0">
-    </div>
-    <canvas id="simulationCanvas"></canvas>
+  <script type="module">
+    import * as THREE from '../lib/three.module.js';
+    import { OrbitControls } from '../lib/controls/OrbitControls.js';
 
-    <!-- Import Updated Three.js Files -->
-    <script src="../../lib/utils/es-module-shims.js"></script>
+    // Scene setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "../../lib/three.module.js",
-            "three-webgpu": "../../lib/three.webgpu.js"
-        }
+    // OrbitControls setup
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;  // smooth movement
+    controls.dampingFactor = 0.05;
+    controls.screenSpacePanning = false;
+
+    // Plane setup
+    const geometry = new THREE.PlaneGeometry(5, 5, 32);
+    const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide });
+    const plane = new THREE.Mesh(geometry, material);
+    scene.add(plane);
+
+    // Camera position
+    camera.position.z = 5;
+
+    // Responsive window resize
+    window.addEventListener('resize', () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      renderer.setSize(width, height);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    });
+
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+
+      controls.update(); // Only if damping is enabled
+
+      renderer.render(scene, camera);
     }
-    </script>
+    animate();
 
-    <script type="module" src="simulation.js"></script>
+  </script>
 </body>
 </html>
