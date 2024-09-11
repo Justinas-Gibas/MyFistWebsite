@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Three.js Webgpu Wasm 101</title>
+  <title>Three.js WebGPU Wasm 101</title>
   <style>
     body {
       margin: 0;
@@ -12,17 +12,20 @@
     canvas {
       display: block;
     }
-    #subdivideButton {
+    #subdivideButton, #displaceButton {
       position: absolute;
       top: 10px;
-      left: 10px;
       z-index: 1;
+    }
+    #displaceButton {
+      left: 100px;
     }
   </style>
 </head>
 <body>
 
 <button id="subdivideButton">Subdivide</button>
+<button id="displaceButton">Displace with Sine Wave</button>
 
 <script type="importmap">
   {
@@ -82,6 +85,9 @@
   // Subdivide button click event
   document.getElementById('subdivideButton').addEventListener('click', subdivideMesh);
 
+  // Displace button click event
+  document.getElementById('displaceButton').addEventListener('click', displaceWithSineWave);
+
   function onMouseClick(event) {
     // Update mouse vector with normalized coordinates
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -113,6 +119,26 @@
     plane.geometry = newGeometry;
 
     console.log('Plane subdivided:', widthSegments, heightSegments);
+  }
+
+  // Apply sine wave displacement to the mesh vertices
+  function displaceWithSineWave() {
+    const vertices = plane.geometry.attributes.position.array;
+    const amplitude = 0.5; // Amplitude of the sine wave
+    const frequency = 0.2; // Frequency of the sine wave
+
+    for (let i = 0; i < vertices.length; i += 3) {
+      const x = vertices[i];
+      const y = vertices[i + 1];
+
+      // Apply a sine wave to the z position of the vertices
+      vertices[i + 2] = Math.sin((x + y) * frequency) * amplitude;
+    }
+
+    // Mark the position attribute for update
+    plane.geometry.attributes.position.needsUpdate = true;
+
+    console.log('Applied sine wave displacement to the mesh.');
   }
 
   // Animation loop
