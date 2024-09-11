@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Double Slit Experiment Simulation</title>
+    <style>
+        body, html { margin: 0; height: 100%; overflow: hidden; }
+        canvas { display: block; }
+        #controls { position: absolute; top: 10px; left: 10px; z-index: 100; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <label for="speed">Particle Speed:</label>
+        <input type="range" id="speed" min="0" max="5" step="0.1" value="1.0">
+    </div>
+    <canvas id="simulationCanvas"></canvas>
+    <script src="script.js" type="module"></script>
+</body>
+</html>
