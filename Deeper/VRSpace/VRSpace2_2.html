@@ -31,7 +31,7 @@ import { TextGeometry } from '../lib/utils/TextGeometry.js';
 import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
 import { RGBELoader } from '../lib/loaders/RGBELoader.js';
 import { OrbitControls } from '../lib/controls/OrbitControls.js';
-import { ARButton } from '../lib/webxr/ARButton.js';
+import { XRButton } from '../lib/webxr/XRButton.js';
 import { Sky } from '../lib/utils/Sky.js';
 import Stats from '../lib/libs/stats.module.js'
 
@@ -156,7 +156,7 @@ function initSky() {
 function setupControls() {
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.0007;
+    controls.dampingFactor = 0.7;
     controls.screenSpacePanning = false;
     controls.target.set(0, 1.6, 0);
     controls.enabled = false; // Initially disable controls
