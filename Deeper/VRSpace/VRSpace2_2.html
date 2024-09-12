@@ -49,9 +49,9 @@ function initGallery() {
     scene = new THREE.Scene();
     camera = setupCamera();
     renderer = setupRenderer();
+    loadGalleryModel();
     setupLighting();
     setupControls();
-    loadGalleryModel();
     setupGallery();
     initArtworks();
     TitleText();
@@ -155,8 +155,8 @@ function initSky() {
 
 function setupControls() {
     controls = new OrbitControls(camera, renderer.domElement);
-    //controls.enableDamping = true;
-    //controls.dampingFactor = 0.05;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.005;
     controls.screenSpacePanning = false;
     controls.target.set(0, 1.6, 0);
     controls.enabled = false; // Initially disable controls
@@ -670,6 +670,7 @@ function animate() {
 function render() {
     stats.begin();
     renderer.render(scene, camera);
+    controls.update();
     stats.end();
 }
 

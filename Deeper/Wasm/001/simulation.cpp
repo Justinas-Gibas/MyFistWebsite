@@ -1,22 +1,13 @@
-#include <emscripten/emscripten.h>
-#include <math.h>
+#include <vector>
+#include <cmath>
 
-float electron_position[3];  // 3D position of the electron
-
+// Function to displace vertex positions based on a sine wave
 extern "C" {
-    void EMSCRIPTEN_KEEPALIVE initialize_electron() {
-        electron_position[0] = 0.0f;  // x
-        electron_position[1] = 0.0f;  // y
-        electron_position[2] = 0.0f;  // z
-    }
-
-    void EMSCRIPTEN_KEEPALIVE collapse_wavefunction(float x, float y, float z) {
-        electron_position[0] = x;
-        electron_position[1] = y;
-        electron_position[2] = z;
-    }
-
-    float* EMSCRIPTEN_KEEPALIVE get_electron_position() {
-        return electron_position;
+    void displace_vertices(float* vertices, int count, float amplitude, float frequency) {
+        for (int i = 0; i < count; i += 3) {
+            float x = vertices[i];
+            float y = vertices[i + 1];
+            vertices[i + 2] = sin((x + y) * frequency) * amplitude; // Apply sine wave on Z-axis
+        }
     }
 }
