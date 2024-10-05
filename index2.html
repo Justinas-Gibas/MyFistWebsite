@@ -44,37 +44,31 @@ const projects = [
     {
         name: "L2Web",
         description: "Responsive website project",
-        texturePath: "./Deeper/lib/images/l2web_preview.jpg",
         link: "./Deeper/L2Web/L2Web.html"
     },
     {
         name: "GLTFLoader",
         description: "GLTFLoader project",
-        texturePath: "./Deeper/lib/images/gltfloader_preview.jpg",
         link: "./Deeper/GLTFLoader/GLTFLoader.html"
     },
     {
         name: "Chunks World",
         description: "GLTF chunk project",
-        texturePath: "./Deeper/lib/images/chunkworld_preview.jpg",
         link: "./Deeper/ChunkWorld/ChunkWorld.html"
     },
     {
         name: "Chunks World++",
         description: "Enhanced GLTF chunk project",
-        texturePath: "./Deeper/lib/images/chunkworldpp_preview.jpg",
         link: "./Deeper/ChunkWorld++/ChunkWorld++.html"
     },
     {
         name: "Volume Editor",
         description: "Volume Editor project",
-        texturePath: "./Deeper/lib/images/volumeeditor_preview.jpg",
         link: "./Deeper/VolumeEditor/VolumeEditor.html"
     },
     {
         name: "VRSpace",
         description: "VRSpace for art",
-        texturePath: "./Deeper/lib/images/vrspace_preview.jpg",
         link: "./Deeper/VRSpace/VRSpace.html"
     }
 ];
@@ -144,39 +138,32 @@ function setupGallery() {
 }
 
 function loadProjectPosters() {
-    const textureLoader = new THREE.TextureLoader();
+    const loader = new FontLoader();
     const planeGeometry = new THREE.PlaneGeometry(3, 2);
 
     projects.forEach((project, index) => {
-        textureLoader.load(project.texturePath, function (texture) {
-            // Create a plane for each project with the respective texture
-            const material = new THREE.MeshStandardMaterial({ map: texture });
-            const poster = new THREE.Mesh(planeGeometry, material);
-            poster.position.set((index % 3) * 4 - 4, 2, Math.floor(index / 3) * -4); // Arrange posters in a grid layout
-            poster.userData = { clickable: true, link: project.link }; // Store project link for interaction
-            scene.add(poster);
+        // Create a plane for each project
+        const material = new THREE.MeshStandardMaterial({ color: 0x888888 });
+        const poster = new THREE.Mesh(planeGeometry, material);
+        poster.position.set((index % 3) * 4 - 4, 2, Math.floor(index / 3) * -4); // Arrange posters in a grid layout
+        poster.userData = { clickable: true, link: project.link }; // Store project link for interaction
+        scene.add(poster);
 
-            // Add project title text below each poster
-            loadProjectTitle(project.name, poster.position.x, poster.position.y - 1.5, poster.position.z);
+        // Add project title text below each poster
+        loader.load('./Deeper/lib/styles/helvetiker_regular.typeface.json', function (font) {
+            const textGeometry = new TextGeometry(project.name, {
+                font: font,
+                size: 0.2,
+                height: 0.01,
+                curveSegments: 4,
+                bevelEnabled: false,
+            });
+
+            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+            textMesh.position.set(poster.position.x, poster.position.y - 1.5, poster.position.z);
+            scene.add(textMesh);
         });
-    });
-}
-
-function loadProjectTitle(title, x, y, z) {
-    const loader = new FontLoader();
-    loader.load('./Deeper/lib/styles/helvetiker_regular.typeface.json', function (font) {
-        const textGeometry = new TextGeometry(title, {
-            font: font,
-            size: 0.2,
-            height: 0.01,
-            curveSegments: 4,
-            bevelEnabled: false,
-        });
-
-        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-        textMesh.position.set(x, y, z);
-        scene.add(textMesh);
     });
 }
 
