@@ -20,18 +20,18 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "Deeper/lib/three.module.js"
+    "three": "/Deeper/lib/three.module.js"
   }
 }
 </script>
 
 <script type="module">
 import * as THREE from 'three';
-import { FontLoader } from '/Deeper/lib/loaders/FontLoader.js';
-import { TextGeometry } from '/Deeper/lib/utils/TextGeometry.js';
-import { OrbitControls } from '/Deeper/lib/controls/OrbitControls.js';
-import { ARButton } from '/Deeper/lib/webxr/ARButton.js';
-import Stats from '/Deeper/lib/libs/stats.module.js'
+import { FontLoader } from 'Deeper/lib/loaders/FontLoader.js';
+import { TextGeometry } from 'Deeper/lib/utils/TextGeometry.js';
+import { OrbitControls } from 'Deeper/lib/controls/OrbitControls.js';
+import { ARButton } from 'Deeper/lib/webxr/ARButton.js';
+import Stats from 'Deeper/lib/libs/stats.module.js'
 
 let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
@@ -124,7 +124,7 @@ function wrapText(text, maxCharsPerLine) {
 function loadText(scene) {
     // Load and display text as a 3D object in the scene
     const loader = new FontLoader();
-    loader.load('/Deeper/lib/styles/helvetiker_regular.typeface.json', function (font) {
+    loader.load('Deeper/lib/styles/helvetiker_regular.typeface.json', function (font) {
         const maxCharsPerLine = 30;
         const lineHeight = 0.15;
 
@@ -158,7 +158,7 @@ function loadArtPieces(scene) {
     // Load textures and create clickable art pieces
     const textureLoader = new THREE.TextureLoader();
     const artGeometry = new THREE.PlaneGeometry(2, 2);
-    textureLoader.load('/Deeper/lib/images/BackWater.png', function(texture) {
+    textureLoader.load('Deeper/lib/images/BackWater.png', function(texture) {
         const artMaterial = new THREE.MeshStandardMaterial({map: texture});
         const art = new THREE.Mesh(artGeometry, artMaterial);
         art.castShadow = true; // Enable casting of shadows for a more realistic effect
