@@ -40,6 +40,45 @@ const mouse = new THREE.Vector2();
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 
+const projects = [
+    {
+        name: "L2Web",
+        description: "Responsive website project",
+        texturePath: "./Deeper/lib/images/l2web_preview.jpg",
+        link: "./Deeper/L2Web/L2Web.html"
+    },
+    {
+        name: "GLTFLoader",
+        description: "GLTFLoader project",
+        texturePath: "./Deeper/lib/images/gltfloader_preview.jpg",
+        link: "./Deeper/GLTFLoader/GLTFLoader.html"
+    },
+    {
+        name: "Chunks World",
+        description: "GLTF chunk project",
+        texturePath: "./Deeper/lib/images/chunkworld_preview.jpg",
+        link: "./Deeper/ChunkWorld/ChunkWorld.html"
+    },
+    {
+        name: "Chunks World++",
+        description: "Enhanced GLTF chunk project",
+        texturePath: "./Deeper/lib/images/chunkworldpp_preview.jpg",
+        link: "./Deeper/ChunkWorld++/ChunkWorld++.html"
+    },
+    {
+        name: "Volume Editor",
+        description: "Volume Editor project",
+        texturePath: "./Deeper/lib/images/volumeeditor_preview.jpg",
+        link: "./Deeper/VolumeEditor/VolumeEditor.html"
+    },
+    {
+        name: "VRSpace",
+        description: "VRSpace for art",
+        texturePath: "./Deeper/lib/images/vrspace_preview.jpg",
+        link: "./Deeper/VRSpace/VRSpace.html"
+    }
+];
+
 function initGallery() {
     // Initialize the scene
     scene = new THREE.Scene();
@@ -63,14 +102,14 @@ function initGallery() {
 function setupCamera() {
     // Create a perspective camera with a FOV of 75, suitable for immersive experiences
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-    camera.position.set(0, 1.6, 3); // Position the camera to start at a reasonable distance from the gallery
+    camera.position.set(0, 1.6, 8); // Position the camera to start at a reasonable distance from the gallery
     return camera;
 }
 
 function setupRenderer() {
     // Create the renderer and configure it for AR
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Clamp pixel ratio to avoid performance issues on high-DPI displays
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.xr.enabled = true; // Enable WebXR for AR capabilities
     document.body.appendChild(renderer.domElement);
@@ -94,80 +133,50 @@ function setupControls() {
     // Create OrbitControls to allow the user to look around the scene
     controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.6, 0); // Set the focal point to align with the center of the gallery
+    controls.maxDistance = 20; // Limit zoom out distance
+    controls.minDistance = 3;  // Limit zoom in distance
     controls.update();
 }
 
 function setupGallery() {
-    // Load 3D art pieces and other elements into the gallery
-    loadArtPieces(scene);
+    // Load 3D project posters into the gallery
+    loadProjectPosters();
 }
 
-function wrapText(text, maxCharsPerLine) {
-    // Helper function to wrap text into multiple lines
-    const words = text.split(' ');
-    const lines = [];
-    let currentLine = words[0];
+function loadProjectPosters() {
+    const textureLoader = new THREE.TextureLoader();
+    const planeGeometry = new THREE.PlaneGeometry(3, 2);
 
-    for (let i = 1; i < words.length; i++) {
-        if ((currentLine + words[i]).length < maxCharsPerLine) {
-            currentLine += ' ' + words[i];
-        } else {
-            lines.push(currentLine);
-            currentLine = words[i];
-        }
-    }
-    lines.push(currentLine); // Add the last line
+    projects.forEach((project, index) => {
+        textureLoader.load(project.texturePath, function (texture) {
+            // Create a plane for each project with the respective texture
+            const material = new THREE.MeshStandardMaterial({ map: texture });
+            const poster = new THREE.Mesh(planeGeometry, material);
+            poster.position.set((index % 3) * 4 - 4, 2, Math.floor(index / 3) * -4); // Arrange posters in a grid layout
+            poster.userData = { clickable: true, link: project.link }; // Store project link for interaction
+            scene.add(poster);
 
-    return lines;
-}
-
-function loadText(scene) {
-    // Load and display text as a 3D object in the scene
-    const loader = new FontLoader();
-    loader.load('Deeper/lib/styles/helvetiker_regular.typeface.json', function (font) {
-        const maxCharsPerLine = 30;
-        const lineHeight = 0.15;
-
-        // Wrap long text into multiple lines
-        const lines = wrapText('Our long text that needs to be wrapped goes here. Autoriai: JK, AK, JG.', maxCharsPerLine);
-
-        lines.forEach((line, index) => {
-            // Create geometry for each line of text
-            const textGeometry = new TextGeometry(line, {
-                font: font,
-                size: 0.1,
-                height: 0.01,
-                depth: 0,
-                curveSegments: 4,
-                bevelEnabled: false,
-            });
-
-            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
-            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-
-            // Set the position of each line based on index, to stack them vertically
-            textMesh.position.set(1, 2.5 - (index * lineHeight), -0.01);
-            textMesh.rotation.y = -Math.PI; // Rotate to face the opposite direction
-
-            scene.add(textMesh); // Add the text to the scene
+            // Add project title text below each poster
+            loadProjectTitle(project.name, poster.position.x, poster.position.y - 1.5, poster.position.z);
         });
     });
 }
 
-function loadArtPieces(scene) {
-    // Load textures and create clickable art pieces
-    const textureLoader = new THREE.TextureLoader();
-    const artGeometry = new THREE.PlaneGeometry(2, 2);
-    textureLoader.load('Deeper/lib/images/BackWater.png', function(texture) {
-        const artMaterial = new THREE.MeshStandardMaterial({map: texture});
-        const art = new THREE.Mesh(artGeometry, artMaterial);
-        art.castShadow = true; // Enable casting of shadows for a more realistic effect
-        art.position.set(0, 2, 0); // Set the initial position of the art piece
-        art.userData = { clickable: true }; // Mark the art as clickable for interaction
-        scene.add(art);
+function loadProjectTitle(title, x, y, z) {
+    const loader = new FontLoader();
+    loader.load('./Deeper/lib/styles/helvetiker_regular.typeface.json', function (font) {
+        const textGeometry = new TextGeometry(title, {
+            font: font,
+            size: 0.2,
+            height: 0.01,
+            curveSegments: 4,
+            bevelEnabled: false,
+        });
 
-        // Load accompanying text for the art piece
-        loadText(scene);
+        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+        textMesh.position.set(x, y, z);
+        scene.add(textMesh);
     });
 }
 
@@ -180,31 +189,6 @@ function onDoubleClick(event) {
     checkForIntersections();
 }
 
-function translateCameraToArt(targetPosition) {
-    // Animate the camera to move towards a selected artwork
-    const startPosition = camera.position.clone();
-    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Move the camera to a position in front of the artwork
-
-    let alpha = 0.0;
-
-    function animate() {
-        if (alpha < 1.0) {
-            alpha += 0.01; // Speed of the camera movement
-            camera.position.lerpVectors(startPosition, endPosition, alpha); // Interpolate between start and end position
-            camera.lookAt(targetPosition.x, targetPosition.y, targetPosition.z); // Ensure the camera faces the target
-            requestAnimationFrame(animate);
-        }
-    }
-    animate();
-    updateOrbitControlsTarget(targetPosition); // Update the target for orbit controls to maintain focus
-}
-
-function updateOrbitControlsTarget(newTarget) {
-    // Update the controls' target to smoothly focus on the selected artwork
-    controls.target.set(newTarget.x, newTarget.y, newTarget.z);
-    controls.update();
-}
-
 function checkForIntersections() {
     // Use raycasting to determine if the mouse intersects with any clickable objects
     raycaster.setFromCamera(mouse, camera);
@@ -212,7 +196,7 @@ function checkForIntersections() {
 
     for (let i = 0; i < intersects.length; i++) {
         if (intersects[i].object.userData.clickable) {
-            translateCameraToArt(intersects[i].object.position); // Move the camera towards the clicked object
+            window.open(intersects[i].object.userData.link, '_blank'); // Open the project link in a new tab
             break; // Only interact with the first intersected clickable object
         }
     }
