@@ -32,7 +32,6 @@ import { TextGeometry } from './Deeper/lib/utils/TextGeometry.js';
 import { GLTFLoader } from './Deeper/lib/loaders/GLTFLoader.js';
 import { RGBELoader } from './Deeper/lib/loaders/RGBELoader.js';
 import { OrbitControls } from './Deeper/lib/controls/OrbitControls.js';
-import { ARButton } from './Deeper/lib/webxr/ARButton.js';
 import { Sky } from './Deeper/lib/utils/Sky.js';
 import Stats from './Deeper/lib/libs/stats.module.js'
 
@@ -99,7 +98,7 @@ function initGallery() {
 function setupCamera() {
     // Create a perspective camera with a FOV of 75, suitable for immersive experiences
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-    camera.position.set(0, 1.6, 8); // Position the camera to start at a reasonable distance from the gallery
+    camera.position.set(0, 1.6, 12); // Position the camera to start at a reasonable distance from the gallery
     return camera;
 }
 
@@ -128,8 +127,8 @@ function setupControls() {
     // Create OrbitControls to allow the user to look around the scene
     controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.6, 0); // Set the focal point to align with the center of the gallery
-    controls.maxDistance = 20; // Limit zoom out distance
-    controls.minDistance = 3;  // Limit zoom in distance
+    controls.maxDistance = 25; // Limit zoom out distance
+    controls.minDistance = 5;  // Limit zoom in distance
     controls.update();
 }
 
@@ -151,7 +150,7 @@ function loadProjectPosters() {
         const material = new THREE.MeshStandardMaterial({ color: 0x888888 });
         const poster = new THREE.Mesh(planeGeometry, material);
         const angle = (index / projects.length) * Math.PI * 2;
-        poster.position.set(Math.cos(angle) * 8, 2, Math.sin(angle) * 8); // Arrange posters in a circular layout
+        poster.position.set(Math.cos(angle) * 12, 2, Math.sin(angle) * 12); // Arrange posters in a circular layout further from center
         poster.userData = { clickable: true, link: project.link }; // Store project link for interaction
         scene.add(poster);
 
@@ -175,7 +174,7 @@ function loadProjectPosters() {
 
 function setupGroundPlane() {
     // Create a reflective ground plane using a PlaneGeometry
-    const groundGeo = new THREE.PlaneGeometry(50, 50);
+    const groundGeo = new THREE.PlaneGeometry(100, 100);
     const groundMat = new THREE.MeshStandardMaterial({
         color: 0x888888,
         metalness: 0.6,
@@ -191,13 +190,31 @@ function setupGroundPlane() {
 
 function setupSky() {
     // Create a skybox to simulate an outdoor environment
-    const skyGeo = new THREE.SphereGeometry(100, 32, 32);
-    const skyMat = new THREE.MeshBasicMaterial({
-        color: 0x87ceeb,
-        side: THREE.BackSide
-    });
-    const sky = new THREE.Mesh(skyGeo, skyMat);
+    const sky = new Sky();
+    sky.scale.setScalar(4500);
     scene.add(sky);
+
+    const sun = new THREE.Vector3();
+
+    const effectController = {
+        turbidity: 0.01,
+        rayleigh: 0.01,
+        mieCoefficient: 0.005,
+        mieDirectionalG: 0.999,
+        elevation: 2,
+        azimuth: 90,
+        exposure: renderer.toneMappingExposure
+    };
+
+    function updateSun() {
+        const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
+        const theta = THREE.MathUtils.degToRad(effectController.azimuth);
+        sun.setFromSphericalCoords(1, phi, theta);
+        sky.material.uniforms['sunPosition'].value.copy(sun);
+        renderer.toneMappingExposure = effectController.exposure;
+    }
+
+    updateSun(); // Set initial position of the sun
 }
 
 function onDoubleClick(event) {
