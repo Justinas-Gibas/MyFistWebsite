@@ -104,7 +104,7 @@ function setupCamera() {
 
 function setupRenderer() {
     // Create the renderer and configure it for AR
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Clamp pixel ratio to avoid performance issues on high-DPI displays
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
@@ -113,7 +113,7 @@ function setupRenderer() {
 
 function setupLighting() {
     // Add ambient light for even lighting across the scene
-    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 1);
+    const ambientLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 1);
     scene.add(ambientLight);
     
     // Add directional light to highlight objects from above
@@ -143,19 +143,19 @@ function setupGallery() {
 
 function loadProjectPosters() {
     const loader = new FontLoader();
-    const planeGeometry = new THREE.PlaneGeometry(3, 2);
+    loader.load('./Deeper/lib/styles/helvetiker_regular.typeface.json', function (font) {
+        const planeGeometry = new THREE.PlaneGeometry(3, 2);
 
-    projects.forEach((project, index) => {
-        // Create a plane for each project
-        const material = new THREE.MeshStandardMaterial({ color: 0x888888 });
-        const poster = new THREE.Mesh(planeGeometry, material);
-        const angle = (index / projects.length) * Math.PI * 2;
-        poster.position.set(Math.cos(angle) * 12, 2, Math.sin(angle) * 12); // Arrange posters in a circular layout further from center
-        poster.userData = { clickable: true, link: project.link }; // Store project link for interaction
-        scene.add(poster);
+        projects.forEach((project, index) => {
+            // Create a plane for each project
+            const material = new THREE.MeshStandardMaterial({ color: 0x888888 });
+            const poster = new THREE.Mesh(planeGeometry, material);
+            const angle = (index / projects.length) * Math.PI * 2;
+            poster.position.set(Math.cos(angle) * 12, 2, Math.sin(angle) * 12); // Arrange posters in a circular layout further from center
+            poster.userData = { clickable: true, link: project.link }; // Store project link for interaction
+            scene.add(poster);
 
-        // Add project title text below each poster
-        loader.load('./Deeper/lib/styles/helvetiker_regular.typeface.json', function (font) {
+            // Add project title text below each poster
             const textGeometry = new TextGeometry(project.name, {
                 font: font,
                 size: 0.2,
@@ -176,7 +176,7 @@ function setupGroundPlane() {
     // Create a reflective ground plane using a PlaneGeometry
     const groundGeo = new THREE.PlaneGeometry(100, 100);
     const groundMat = new THREE.MeshStandardMaterial({
-        color: 0x888888,
+        color: 0xffffff,
         metalness: 0.6,
         roughness: 0.4,
         envMapIntensity: 0.5
@@ -197,11 +197,11 @@ function setupSky() {
     const sun = new THREE.Vector3();
 
     const effectController = {
-        turbidity: 0.01,
-        rayleigh: 0.01,
-        mieCoefficient: 0.005,
-        mieDirectionalG: 0.999,
-        elevation: 2,
+        turbidity: 0.0,
+        rayleigh: 0.0,
+        mieCoefficient: 0.0,
+        mieDirectionalG: 1.0,
+        elevation: 90,
         azimuth: 90,
         exposure: renderer.toneMappingExposure
     };
@@ -239,7 +239,7 @@ function checkForIntersections() {
     }
 }
 
-function onWindowResize(camera, renderer) {
+function onWindowResize() {
     // Handle window resizing to maintain correct aspect ratio and renderer size
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -248,7 +248,7 @@ function onWindowResize(camera, renderer) {
 
 function setupEventListeners() {
     // Set up event listeners for window resizing and double-click events
-    window.addEventListener('resize', () => onWindowResize(camera, renderer), false);
+    window.addEventListener('resize', onWindowResize, false);
     document.addEventListener('dblclick', onDoubleClick, false);
 }
 
