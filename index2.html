@@ -135,6 +135,10 @@ function setupControls() {
 function setupGallery() {
     // Load 3D project posters into the gallery
     loadProjectPosters();
+    // Add reflective ground plane
+    setupGroundPlane();
+    // Add sky to the scene
+    setupSky();
 }
 
 function loadProjectPosters() {
@@ -165,6 +169,33 @@ function loadProjectPosters() {
             scene.add(textMesh);
         });
     });
+}
+
+function setupGroundPlane() {
+    // Create a reflective ground plane using a PlaneGeometry
+    const groundGeo = new THREE.PlaneGeometry(50, 50);
+    const groundMat = new THREE.MeshStandardMaterial({
+        color: 0x888888,
+        metalness: 0.6,
+        roughness: 0.4,
+        envMapIntensity: 0.5
+    });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2; // Rotate to make it horizontal
+    ground.position.y = 0; // Position at ground level
+    ground.receiveShadow = true;
+    scene.add(ground);
+}
+
+function setupSky() {
+    // Create a skybox to simulate an outdoor environment
+    const skyGeo = new THREE.SphereGeometry(100, 32, 32);
+    const skyMat = new THREE.MeshBasicMaterial({
+        color: 0x87ceeb,
+        side: THREE.BackSide
+    });
+    const sky = new THREE.Mesh(skyGeo, skyMat);
+    scene.add(sky);
 }
 
 function onDoubleClick(event) {
