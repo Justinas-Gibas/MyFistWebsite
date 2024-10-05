@@ -15,23 +15,23 @@
 </head>
 <body>
 
-<script async src="../lib/utils/es-module-shims.js"></script>
+<script async src="Deeper/lib/utils/es-module-shims.js"></script>
 
 <script type="importmap">
 {
   "imports": {
-    "three": "../lib/three.module.js"
+    "three": "Deeper/lib/three.module.js"
   }
 }
 </script>
 
 <script type="module">
 import * as THREE from 'three';
-import { FontLoader } from '../lib/loaders/FontLoader.js';
-import { TextGeometry } from '../lib/utils/TextGeometry.js';
-import { OrbitControls } from '../lib/controls/OrbitControls.js';
-import { ARButton } from '../lib/webxr/ARButton.js';
-import Stats from '../lib/libs/stats.module.js'
+import { FontLoader } from 'Deeper/lib/loaders/FontLoader.js';
+import { TextGeometry } from 'Deeper/lib/utils/TextGeometry.js';
+import { OrbitControls } from 'Deeper/lib/controls/OrbitControls.js';
+import { ARButton } from 'Deeper/lib/webxr/ARButton.js';
+import Stats from 'Deeper/lib/libs/stats.module.js'
 
 let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
@@ -107,7 +107,7 @@ function wrapText(text, maxCharsPerLine) {
 
 function loadText(scene) {
     const loader = new FontLoader();
-    loader.load('../lib/styles/helvetiker_regular.typeface.json', function (font) {
+    loader.load('Deeper/lib/styles/helvetiker_regular.typeface.json', function (font) {
         const maxCharsPerLine = 30;
         const lineHeight = 0.15;
 
@@ -138,7 +138,7 @@ function loadText(scene) {
 function loadArtPieces(scene) {
     const textureLoader = new THREE.TextureLoader();
     const artGeometry = new THREE.PlaneGeometry(2, 2);
-    textureLoader.load('../lib/images/BackWater.png', function(texture) {
+    textureLoader.load('Deeper/lib/images/BackWater.png', function(texture) {
         const artMaterial = new THREE.MeshStandardMaterial({map: texture});
         const art = new THREE.Mesh(artGeometry, artMaterial);
         art.castShadow = true;
