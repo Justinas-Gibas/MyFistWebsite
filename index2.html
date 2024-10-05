@@ -15,23 +15,23 @@
 </head>
 <body>
 
-<script async src="Deeper/lib/utils/es-module-shims.js"></script>
+<script async src="./Deeper/lib/utils/es-module-shims.js"></script>
 
 <script type="importmap">
 {
   "imports": {
-    "three": "/Deeper/lib/three.module.js"
+    "three": "./Deeper/lib/three.module.js"
   }
 }
 </script>
 
 <script type="module">
 import * as THREE from 'three';
-import { FontLoader } from 'Deeper/lib/loaders/FontLoader.js';
-import { TextGeometry } from 'Deeper/lib/utils/TextGeometry.js';
-import { OrbitControls } from 'Deeper/lib/controls/OrbitControls.js';
-import { ARButton } from 'Deeper/lib/webxr/ARButton.js';
-import Stats from 'Deeper/lib/libs/stats.module.js'
+import { FontLoader } from './Deeper/lib/loaders/FontLoader.js';
+import { TextGeometry } from './Deeper/lib/utils/TextGeometry.js';
+import { OrbitControls } from './Deeper/lib/controls/OrbitControls.js';
+import { ARButton } from './Deeper/lib/webxr/ARButton.js';
+import Stats from './Deeper/lib/libs/stats.module.js'
 
 let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
