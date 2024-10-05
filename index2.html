@@ -38,6 +38,8 @@ import Stats from './Deeper/lib/libs/stats.module.js'
 let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
+const targetPosition = new THREE.Vector3();
+let moveCamera = false;
 
 const stats = new Stats();
 document.body.appendChild(stats.dom);
@@ -153,6 +155,7 @@ function loadProjectPosters() {
             const angle = (index / projects.length) * Math.PI * 2;
             poster.position.set(Math.cos(angle) * 12, 2, Math.sin(angle) * 12); // Arrange posters in a circular layout further from center
             poster.userData = { clickable: true, link: project.link }; // Store project link for interaction
+            poster.name = 'projectPoster';
             scene.add(poster);
 
             // Add project title text below each poster
@@ -177,14 +180,15 @@ function setupGroundPlane() {
     const groundGeo = new THREE.PlaneGeometry(100, 100);
     const groundMat = new THREE.MeshStandardMaterial({
         color: 0xffffff,
-        metalness: 0.6,
-        roughness: 0.4,
+        metalness: 0.8,
+        roughness: 0.2,
         envMapIntensity: 0.5
     });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2; // Rotate to make it horizontal
     ground.position.y = 0; // Position at ground level
     ground.receiveShadow = true;
+    ground.name = 'groundPlane';
     scene.add(ground);
 }
 
@@ -234,7 +238,29 @@ function checkForIntersections() {
     for (let i = 0; i < intersects.length; i++) {
         if (intersects[i].object.userData.clickable) {
             window.open(intersects[i].object.userData.link, '_blank'); // Open the project link in a new tab
-            break; // Only interact with the first intersected clickable object
+            return; // Only interact with the first intersected clickable object
+        }
+        if (intersects[i].object.name === 'groundPlane') {
+            targetPosition.copy(intersects[i].point);
+            moveCamera = true;
+            return;
+        }
+    }
+}
+
+function onMouseMove(event) {
+    // Calculate mouse position in normalized device coordinates (-1 to +1) for both components
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children);
+
+    for (let i = 0; i < intersects.length; i++) {
+        if (intersects[i].object.name === 'projectPoster') {
+            intersects[i].object.material.color.set(0xaaaaaa); // Change color on hover
+        } else {
+            intersects[i].object.material.color.set(0x888888); // Revert color if not hovered
         }
     }
 }
@@ -247,13 +273,22 @@ function onWindowResize() {
 }
 
 function setupEventListeners() {
-    // Set up event listeners for window resizing and double-click events
+    // Set up event listeners for window resizing, mouse move, and double-click events
     window.addEventListener('resize', onWindowResize, false);
     document.addEventListener('dblclick', onDoubleClick, false);
+    document.addEventListener('mousemove', onMouseMove, false);
 }
 
 function animate() {
     // Continuously render the scene
+    if (moveCamera) {
+        const delta = 0.05;
+        camera.position.lerp(targetPosition, delta);
+        controls.target.lerp(targetPosition, delta);
+        if (camera.position.distanceTo(targetPosition) < 0.1) {
+            moveCamera = false;
+        }
+    }
     renderer.setAnimationLoop(() => render());
 }
 
