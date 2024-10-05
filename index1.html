@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    
+    <meta name="author" content="Justinas Gibas" />
+    <meta name="description" content="This is a description of my webpage.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#ffffff">
+    <title>Justinas Gibas - Website</title>
+    <link rel="stylesheet" href="./Deeper/lib/styles/reset.css">
+    <link rel="stylesheet" href="./Deeper/lib/styles/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);
+            color: #fff;
+            line-height: 1.6;
+        }
+        .header {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem 0;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .header__title {
+            font-size: 2.5rem;
+            text-align: center;
+            color: #00d9ff;
+        }
+        .header__nav ul {
+            display: flex;
+            justify-content: center;
+            list-style: none;
+            padding: 0;
+        }
+        .header__nav ul li {
+            margin: 0 1rem;
+        }
+        .nav-link {
+            color: #00d9ff;
+            text-decoration: none;
+            font-weight: 700;
+            transition: color 0.3s;
+        }
+        .nav-link:hover {
+            color: #ff4081;
+        }
+        .main.wrapper {
+            margin: 2rem auto;
+            max-width: 1200px;
+            padding: 0 1rem;
+        }
+        .section {
+            margin-bottom: 3rem;
+            padding: 2rem;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+        .section__title {
+            font-size: 2rem;
+            color: #00d9ff;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .section__subtitle {
+            font-size: 1.5rem;
+            color: #ff4081;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .section__text {
+            margin-bottom: 1rem;
+        }
+        .section__list {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .work-item {
+            margin-bottom: 2rem;
+        }
+        .work-item__caption {
+            text-align: center;
+            font-weight: 700;
+            margin-top: 0.5rem;
+        }
+        .contact-list {
+            list-style: none;
+            padding: 0;
+        }
+        .contact-item {
+            margin-bottom: 1rem;
+        }
+        .contact-item__link {
+            color: #00d9ff;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        .contact-item__link:hover {
+            color: #ff4081;
+        }
+        .footer {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 1rem 0;
+            text-align: center;
+        }
+        .footer__text {
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1 class="header__title">Justinas Gibas TestVerse</h1>
+            <nav class="header__nav">
+                <ul class="nav-list">
+                    <li><a class="nav-link" href="#about">About</a></li>
+                    <li><a class="nav-link" href="#work">Work</a></li>
+                    <li><a class="nav-link" href="#contact">Contact</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    <main class="main wrapper">
+        <section id="about" class="section">
+            <div class="container">
+                <h2 class="section__title">About</h2>
+                <h3 class="section__subtitle">About Me</h3>
+                <p class="section__text">Welcome to my website! My name is Justinas Gibas, a passionate 3D artist and dental technician based in Vilnius, Lithuania. With a background in dental technology and a love for creativity, I explore the exciting world of 3D, VR, and the Metaverse.</p>
+                <p class="section__text">As a dental technician, I specialize in creating lifelike dental prosthetics with precision and artistry. However, my passion extends beyond the dental field. I immerse myself in the realm of digital creation, using tools like Blender, UE5, VoxEdit, Sandbox Gamemaker, Nvidia Omniverse, GIMP, Inkscape, and Macro tools to bring virtual worlds to life.</p>
+                <p class="section__text">When I'm not crafting stunning dental restorations or working on computer-related projects, I indulge in my hobbies. I enjoy composing music using electronic devices and exploring the endless possibilities of 3D design. You can often find me basking in the sun, sipping water, and envisioning the next groundbreaking virtual experience.</p>
+                <p class="section__text">In addition to my technical expertise, I'm also a dedicated educator. I take pride in sharing my knowledge and have trained over a hundred individuals in utilizing the latest dental software and equipment. With my expanding skill set, I aspire to:</p>
+                <ul class="section__list">
+                    <li>Develop immersive games and create captivating virtual/digital spaces.</li>
+                    <li>Continuously learn new programming languages to broaden my creative capabilities.</li>
+                    <li>Embark on global adventures, exploring diverse cultures and seeking inspiration for my digital creations.</li>
+                </ul>
+                <p class="section__text">Beyond my fluency in Lithuanian and English, I actively delve into programming languages such as HTML, CSS, JavaScript, and Python to enhance my proficiency in the digital realm.</p>
+            </div>
+        </section>        
+        <section id="work" class="section">
+            <div class="container">
+                <h2 class="section__title">Work</h2>
+                <h3 class="section__subtitle">My Work</h3>
+                <figure class="work-item">
+                    <a href="./Deeper/L2Web/L2Web.html" target="_self" class="contact-item__link">Link to L2Web project</a>
+                    <figcaption class="work-item__caption">L2Web, a website that is respons frendly</figcaption>
+                </figure>
+                <figure class="work-item">
+                    <a href="./Deeper/GLTFLoader/GLTFLoader.html" target="_self" class="contact-item__link">GLTFLoader</a>
+                    <figcaption class="work-item__caption">GLTFLoader project</figcaption>
+                </figure>
+                <figure class="work-item">
+                    <a href="./Deeper/ChunkWorld/ChunkWorld.html" target="_self" class="contact-item__link">Chunks world</a>
+                    <figcaption class="work-item__caption">GLTF chunk project</figcaption>
+                </figure>
+                <figure class="work-item">
+                    <a href="./Deeper/ChunkWorld++/ChunkWorld++.html" target="_self" class="contact-item__link">Chunks world++</a>
+                    <figcaption class="work-item__caption">GLTF chunk project++</figcaption>
+                </figure>
+                <figure class="work-item">
+                    <a href="./Deeper/VolumeEditor/VolumeEditor.html" target="_self" class="contact-item__link">Volume Editor</a>
+                    <figcaption class="work-item__caption">Volume Editor project</figcaption>
+                </figure>
+                <figure class="work-item">
+                    <a href="./Deeper/VRSpace/VRSpace.html" target="_self" class="contact-item__link">VRSpace</a>
+                    <figcaption class="work-item__caption">VRSpace for art</figcaption>
+                </figure>                
+            </div>
+        </section>
+        <section id="contact" class="section">
+            <div class="container">
+                <h2 class="section__title">Contact</h2>
+                <h3 class="section__subtitle">Get in Touch</h3>
+                <p class="section__text">If you have any questions, would like to collaborate on a project, or simply want to get in touch, feel free to contact me via:</p>
+                <ul class="contact-list">
+                    <li class="contact-item">
+                        <i class="fas fa-envelope"></i>
+                        <a href="mailto:justinas.gibas@example.com" class="contact-item__link">justinas.gibas@example.com</a>
+                    </li>
+                    <li class="contact-item">
+                        <i class="fab fa-linkedin"></i>
+                        <a href="https://www.linkedin.com/in/justinas-gibas" target="_blank" rel="noopener noreferrer" class="contact-item__link">LinkedIn</a>
+                    </li>
+                    <li class="contact-item">
+                        <i class="fab fa-github"></i>
+                        <a href="https://github.com/justinasgibas" target="_blank" rel="noopener noreferrer" class="contact-item__link">GitHub</a>
+                    </li>
+                    <li class="contact-item">
+                        <i class="fab fa-twitter"></i>
+                        <a href="https://twitter.com/justinasgibas" target="_blank" rel="noopener noreferrer" class="contact-item__link">Twitter</a>
+                    </li>
+                </ul>
+            </div>
+        </section>
+    </main>
+    <footer class="footer">
+        <div class="container">
+            <p class="footer__text">&copy; 2023 Justinas Gibas. All rights reserved.</p>
+        </div>
+    </footer>
+    <div class="author-name"></div>
+    <script type="module" src="script.js"></script>
+</body>
+</html>
