@@ -100,7 +100,7 @@ function initGallery() {
 function setupCamera() {
     // Create a perspective camera with a FOV of 75, suitable for immersive experiences
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-    camera.position.set(0, 1.6, 12); // Position the camera to start at a reasonable distance from the gallery
+    camera.position.set(0, 1.6, 18); // Position the camera to start further away from the gallery
     return camera;
 }
 
@@ -153,7 +153,8 @@ function loadProjectPosters() {
             const material = new THREE.MeshStandardMaterial({ color: 0x888888 });
             const poster = new THREE.Mesh(planeGeometry, material);
             const angle = (index / projects.length) * Math.PI * 2;
-            poster.position.set(Math.cos(angle) * 12, 2, Math.sin(angle) * 12); // Arrange posters in a circular layout further from center
+            poster.position.set(Math.cos(angle) * 15, 2, Math.sin(angle) * 15); // Arrange posters in a circular layout further from center
+            poster.lookAt(camera.position); // Ensure the posters always face the camera
             poster.userData = { clickable: true, link: project.link }; // Store project link for interaction
             poster.name = 'projectPoster';
             scene.add(poster);
@@ -170,19 +171,21 @@ function loadProjectPosters() {
             const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
             textMesh.position.set(poster.position.x, poster.position.y - 1.5, poster.position.z);
+            textMesh.lookAt(camera.position); // Ensure the text always faces the camera
             scene.add(textMesh);
         });
     });
 }
 
 function setupGroundPlane() {
-    // Create a reflective ground plane using a PlaneGeometry
+    // Create a ground plane using a PlaneGeometry
     const groundGeo = new THREE.PlaneGeometry(100, 100);
-    const groundMat = new THREE.MeshStandardMaterial({
+    const groundMat = new THREE.MeshPhysicalMaterial({
         color: 0xffffff,
-        metalness: 0.8,
-        roughness: 0.2,
-        envMapIntensity: 0.5
+        roughness: 0.9,
+        metalness: 0.0,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1
     });
     const ground = new THREE.Mesh(groundGeo, groundMat);
     ground.rotation.x = -Math.PI / 2; // Rotate to make it horizontal
