@@ -40,6 +40,7 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 const targetPosition = new THREE.Vector3();
 let moveCamera = false;
+let carouselGroup;
 
 const stats = new Stats();
 document.body.appendChild(stats.dom);
@@ -100,7 +101,7 @@ function initGallery() {
 function setupCamera() {
     // Create a perspective camera with a FOV of 75, suitable for immersive experiences
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-    camera.position.set(0, 1.6, 18); // Position the camera to start further away from the gallery
+    camera.position.set(0, 1.6, 20); // Position the camera to start further away from the gallery
     return camera;
 }
 
@@ -129,12 +130,16 @@ function setupControls() {
     // Create OrbitControls to allow the user to look around the scene
     controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.6, 0); // Set the focal point to align with the center of the gallery
-    controls.maxDistance = 25; // Limit zoom out distance
+    controls.maxDistance = 30; // Limit zoom out distance
     controls.minDistance = 5;  // Limit zoom in distance
     controls.update();
 }
 
 function setupGallery() {
+    // Create a group to hold all posters and rotate them
+    carouselGroup = new THREE.Group();
+    scene.add(carouselGroup);
+
     // Load 3D project posters into the gallery
     loadProjectPosters();
     // Add reflective ground plane
@@ -153,11 +158,12 @@ function loadProjectPosters() {
             const material = new THREE.MeshStandardMaterial({ color: 0x888888 });
             const poster = new THREE.Mesh(planeGeometry, material);
             const angle = (index / projects.length) * Math.PI * 2;
-            poster.position.set(Math.cos(angle) * 15, 2, Math.sin(angle) * 15); // Arrange posters in a circular layout further from center
+            const radius = 18;
+            poster.position.set(Math.cos(angle) * radius, 2, Math.sin(angle) * radius); // Arrange posters in a circular layout further from center
             poster.lookAt(camera.position); // Ensure the posters always face the camera
             poster.userData = { clickable: true, link: project.link }; // Store project link for interaction
             poster.name = 'projectPoster';
-            scene.add(poster);
+            carouselGroup.add(poster);
 
             // Add project title text below each poster
             const textGeometry = new TextGeometry(project.name, {
@@ -172,7 +178,7 @@ function loadProjectPosters() {
             const textMesh = new THREE.Mesh(textGeometry, textMaterial);
             textMesh.position.set(poster.position.x, poster.position.y - 1.5, poster.position.z);
             textMesh.lookAt(camera.position); // Ensure the text always faces the camera
-            scene.add(textMesh);
+            carouselGroup.add(textMesh);
         });
     });
 }
@@ -298,6 +304,8 @@ function animate() {
             child.lookAt(camera.position);
         }
     });
+    // Rotate the carousel group
+    carouselGroup.rotation.y += 0.002;
     renderer.setAnimationLoop(() => render());
 }
 
