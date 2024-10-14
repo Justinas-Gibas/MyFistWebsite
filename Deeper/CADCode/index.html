@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Motor Design Example with Sliders</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #controls { position: absolute; top: 10px; left: 10px; background: rgba(255, 255, 255, 0.8); padding: 10px; border-radius: 8px; }
+    </style>
+    <script async src="../lib/utils/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "../lib/three.module.js"
+      }
+    }
+    </script>
+    <script type="module" src="./js/main.js"></script>
+</head>
+<body>
+    <div id="controls"></div>
+</body>
+</html>
