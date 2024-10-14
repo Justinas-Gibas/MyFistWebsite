@@ -17,8 +17,9 @@ export function setupEnvironment() {
     const scene = new THREE.Scene();
 
     // Set up the camera
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1.6, 3);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+    camera.position.set(0, 1.6, 500);
+    camera.lookAt(scene.position);
 
     // Set up the renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -31,6 +32,10 @@ export function setupEnvironment() {
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.6, 0);
     controls.update();
+
+    // Add ambient light
+    const light = new THREE.AmbientLight(0xffffff);
+    scene.add(light);
 
     return { scene, camera, renderer, controls };
 }
@@ -90,7 +95,7 @@ function createStator() {
         scene.remove(stator);
     }
     const statorGeometry = new THREE.CylinderGeometry(params.outerRadius, params.outerRadius, params.statorHeight, params.segments);
-    const statorMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+    const statorMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
     stator = new THREE.Mesh(statorGeometry, statorMaterial);
     scene.add(stator);
 }
