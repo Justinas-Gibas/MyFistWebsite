@@ -8,8 +8,6 @@ import { XRButton } from '../lib/webxr/XRButton.js';
 import { Sky } from '../lib/utils/Sky.js';
 import Stats from '../lib/libs/stats.module.js';
 
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 
@@ -46,9 +44,59 @@ export function setupEventHandlers(camera, renderer) {
     });
 }
 
+// Add sliders for parameter controls
+function addSliders(params, onUpdate) {
+    const controlsDiv = document.getElementById('controls');
+
+    function createSlider(id, label, min, max, value) {
+        const wrapper = document.createElement('div');
+        const sliderLabel = document.createElement('label');
+        sliderLabel.textContent = `${label}:`;
+        const slider = document.createElement('input');
+        slider.id = id;
+        slider.type = 'range';
+        slider.min = min;
+        slider.max = max;
+        slider.value = value;
+        wrapper.appendChild(sliderLabel);
+        wrapper.appendChild(slider);
+        controlsDiv.appendChild(wrapper);
+
+        slider.addEventListener('input', (event) => {
+            params[id] = parseFloat(event.target.value);
+            onUpdate();
+        });
+    }
+
+    createSlider('outerRadius', 'Outer Radius', 100, 300, params.outerRadius);
+    createSlider('statorHeight', 'Stator Height', 5, 50, params.statorHeight);
+    createSlider('segments', 'Segments', 16, 128, params.segments);
+}
+
 // Initialize the environment and set up event handlers
 const { scene, camera, renderer, controls } = setupEnvironment();
 setupEventHandlers(camera, renderer);
+
+// Parameters for the stator
+let params = {
+    outerRadius: 180,
+    statorHeight: 10,
+    segments: 64
+};
+let stator;
+
+function createStator() {
+    if (stator) {
+        scene.remove(stator);
+    }
+    const statorGeometry = new THREE.CylinderGeometry(params.outerRadius, params.outerRadius, params.statorHeight, params.segments);
+    const statorMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
+    stator = new THREE.Mesh(statorGeometry, statorMaterial);
+    scene.add(stator);
+}
+
+createStator();
+addSliders(params, createStator);
 
 // Animation loop
 function animate() {
