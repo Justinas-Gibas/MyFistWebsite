@@ -6,12 +6,12 @@ export async function loadUserProfile() {
         setTimeout(() => {
             // Mock user preferences
             resolve({
-                wantsVRModule: true,
-                needsThreeJS: true,
+                wantsVRModule: false,
+                needsThreeJS: false,
                 needsAdvancedPhysics: false,
-                enableAnalytics: true,
+                enableAnalytics: false,
                 // Add more preferences as needed
             });
-        }, 500); // Simulate network latency
+        }, 100); // Simulate network latency
     });
 }

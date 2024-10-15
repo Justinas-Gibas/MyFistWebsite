@@ -22,40 +22,36 @@ async function bootstrap() {
 
     // Load modules based on user preferences
     await loadPreferenceModules(preferences);
+
 }
 
 // Function to load environment-specific modules
 async function loadEnvironmentModules(environment) {
     const moduleLoader = new ModuleLoader();
 
-    if (environment === 'VR') {
+    if (environment === 'vr') {
         await moduleLoader.load('vrModule');
         await moduleLoader.load('threeJSModule');
-    } else if (environment === 'WEB') {
+    } else if (environment === 'web') {
         await moduleLoader.load('base');  // The base module or any web-specific modules
     }
     // Handle other environments (e.g., AR) if needed
 }
 
-// Function to load modules based on user preferences
+// Placeholder function for user preferences handling
 async function loadPreferenceModules(preferences) {
-    const moduleLoader = new ModuleLoader();
 
-    if (preferences.wantsVRModule) {
-        await moduleLoader.load('vrModule');
+    // Currently no preference-based modules are being loaded.
+    if (preferences.needsAdvancedPhysics) {
+        await moduleLoader.load('physicsModule');
     }
 
     if (preferences.needsAdvancedPhysics) {
         await moduleLoader.load('physicsModule');
     }
-
-    if (preferences.enableAnalytics) {
-        await moduleLoader.load('analyticsModule');
-    }
-
-    if (preferences.enableThreeJS) {
-        await moduleLoader.load('threeJSModule');
-    }
+    
+    // Add logic here if preferences-based modules need to be loaded in the future.
+    console.log('No user preferences loaded for now.');
 }
 
 bootstrap();
