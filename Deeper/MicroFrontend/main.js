@@ -1,11 +1,12 @@
-// main.js
-
 import { loadUserProfile } from './userProfile.js';
 import { ModuleLoader } from './moduleLoader.js';
 import { store } from './store.js';
 import { environmentManager } from './EnvironmentManager.js';
 
 async function bootstrap() {
+    // Detect the environment (web, VR, AR, etc.)
+    environmentManager.detectEnvironment();
+
     // Load user preferences
     const userProfile = await loadUserProfile();
 
@@ -37,7 +38,7 @@ async function bootstrap() {
 
     if (preferences.enableThreeJS) {
         await moduleLoader.load('threeJSModule');
-    }    
+    }
 
     moduleLoader.initializeUI();
 }
