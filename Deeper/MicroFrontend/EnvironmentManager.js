@@ -36,5 +36,5 @@ class EnvironmentManager {
     }
 }
 
-export const EnvironmentManager = new environmentManager();
+export const environmentManager = new EnvironmentManager();
 EnvironmentManager.detectEnvironment();  // Initialize environment detection
