@@ -1,7 +1,7 @@
 import { loadUserProfile } from './userProfile.js';
 import { ModuleLoader } from './moduleLoader.js';
 import { store } from './store.js';
-import { environmentManager } from './EnvironmentManager.js';
+import { EnvironmentManager } from './EnvironmentManager.js';
 
 async function bootstrap() {
     // Detect the environment (web, VR, AR, etc.)
