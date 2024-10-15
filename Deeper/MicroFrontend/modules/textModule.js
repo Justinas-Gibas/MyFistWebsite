@@ -1,7 +1,7 @@
 
 // textModule.js
-import { eventBus } from './eventBus.js';
-import { store } from './store.js';
+import { eventBus } from '../eventBus.js';
+import { store } from '../store.js';
 
 export async function init() {
     console.log('Initializing Text Module...');

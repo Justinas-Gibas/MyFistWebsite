@@ -1,5 +1,5 @@
 // webModule.js
-import { eventBus } from './eventBus.js';
+import { eventBus } from '../eventBus.js';
 
 export async function init() {
     console.log('Initializing Web Module...');
