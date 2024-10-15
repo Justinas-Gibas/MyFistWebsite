@@ -1,4 +1,4 @@
-import * as THREE from '../../lib/three.module.js';  // Path to three.js
+import * as THREE from '../../lib/three.module.js';
 import { FontLoader } from '../../lib/loaders/FontLoader.js';
 import { TextGeometry } from '../../lib/utils/TextGeometry.js';
 import { GLTFLoader } from '../../lib/loaders/GLTFLoader.js';

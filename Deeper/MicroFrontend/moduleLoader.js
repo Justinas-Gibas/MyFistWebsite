@@ -9,6 +9,7 @@ export class ModuleLoader {
             threeJSModule: './modules/threeJSModule.js',
             webModule: './modules/webModule.js',
             textModule: './modules/textModule.js',
+            physicsModule: './modules/physicsModule.js',
             // Additional modules
         };
         this.loadedModules = {};
