@@ -1,8 +1,7 @@
 // store.js
 
 class Store {
-    constructor(initialState) {
-        // Initialize the state and listeners
+    constructor(initialState = {}) {
         this.state = initialState;
         this.listeners = [];
     }
@@ -15,21 +14,48 @@ class Store {
     // Subscribe to state changes
     subscribe(listener) {
         this.listeners.push(listener);
+        // Return an unsubscribe function
+        return () => {
+            this.listeners = this.listeners.filter((l) => l !== listener);
+        };
     }
 
-    // Update the state and notify listeners
-    update(updater) {
-        // 'updater' is a function that receives the previous state and returns the new state
-        this.state = updater(this.state);
+    // Dispatch an action to update the state
+    dispatch(action) {
+        // Use a reducer to get the new state
+        this.state = this.reducer(this.state, action);
+        // Notify all listeners
+        this.listeners.forEach((listener) => listener());
+    }
 
-        // Notify all listeners about the state change
-        this.listeners.forEach((listener) => listener(this.state));
+    // Reducer function to handle state updates
+    reducer(state, action) {
+        switch (action.type) {
+            case 'SET_PREFERENCES':
+                return {
+                    ...state,
+                    userPreferences: {
+                        ...state.userPreferences,
+                        ...action.payload,
+                    },
+                };
+            case 'MODULE_LOADED':
+                return {
+                    ...state,
+                    moduleStatus: {
+                        ...state.moduleStatus,
+                        [action.payload.moduleName]: 'loaded',
+                    },
+                };
+            // Add more cases as needed
+            default:
+                return state;
+        }
     }
 }
 
-// Create and export an instance of the store with initial state
+// Initialize and export the store with initial state
 export const store = new Store({
     userPreferences: {},
     moduleStatus: {},
-    // Add more global state variables as needed
 });

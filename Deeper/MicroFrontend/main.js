@@ -1,37 +1,40 @@
 // main.js
 
-// Import the user profile loader and module loader
 import { loadUserProfile } from './userProfile.js';
 import { ModuleLoader } from './moduleLoader.js';
+import { store } from './store.js';
 
-// Bootstrap function to start the application
 async function bootstrap() {
-    // Load user preferences (could be from an API or localStorage)
+    // Load user preferences
     const userProfile = await loadUserProfile();
 
-    // Initialize the module loader with the user profile
-    const moduleLoader = new ModuleLoader(userProfile);
+    // Dispatch action to set user preferences
+    store.dispatch({ type: 'SET_PREFERENCES', payload: userProfile });
 
-    // Load the base module (essential for all users)
+    // Create the module loader
+    const moduleLoader = new ModuleLoader();
+
+    // Load the base module
     await moduleLoader.load('base');
 
-    // Load modules based on user preferences
-    if (userProfile.wantsVRModule) {
+    // Get updated preferences from the store
+    const state = store.getState();
+    const preferences = state.userPreferences;
+
+    // Load modules based on preferences
+    if (preferences.wantsVRModule) {
         await moduleLoader.load('vrModule');
     }
 
-    if (userProfile.needsAdvancedPhysics) {
+    if (preferences.needsAdvancedPhysics) {
         await moduleLoader.load('physicsModule');
     }
 
-    // Example: Load an analytics module
-    if (userProfile.enableAnalytics) {
+    if (preferences.enableAnalytics) {
         await moduleLoader.load('analyticsModule');
     }
 
-    // Initialize the UI or any final setup
     moduleLoader.initializeUI();
 }
 
-// Start the application
 bootstrap();
