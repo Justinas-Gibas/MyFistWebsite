@@ -18,13 +18,12 @@ export async function init() {
     `;
 
     // Update the store to indicate the base module is loaded
-    store.update((prevState) => ({
-        ...prevState,
-        moduleStatus: {
-            ...prevState.moduleStatus,
-            base: 'loaded',
-        },
-    }));
+    store.dispatch({
+        type: 'MODULE_LOADED',
+        payload: {
+            moduleName: 'base'
+        }
+    });
 
     // Emit an event indicating the base module has been initialized
     eventBus.emit('MODULE_LOADED', { moduleName: 'base' });
