@@ -46,8 +46,8 @@ async function loadPreferenceModules(preferences) {
         await moduleLoader.load('physicsModule');
     }
 
-    if (preferences.needsAdvancedPhysics) {
-        await moduleLoader.load('physicsModule');
+    if (preferences.enableAnalytics) {
+        await moduleLoader.load('analyticsModule');
     }
     
     // Add logic here if preferences-based modules need to be loaded in the future.

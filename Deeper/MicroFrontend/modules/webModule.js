@@ -6,8 +6,11 @@ export async function init() {
 
     eventBus.on('RENDER_TEXT_HTML', (text) => {
         const appDiv = document.getElementById('app');
-        const textDiv = document.createElement('div');
-        textDiv.innerHTML = `<p>${text}</p>`;
-        appDiv.appendChild(textDiv);
-    });
+        const vrDiv = document.createElement('div');
+        vrDiv.innerHTML = `
+            <h2>VR Module</h2>
+            <p>${text}</p>
+        `;
+        appDiv.appendChild(vrDiv);
+    });    
 }
