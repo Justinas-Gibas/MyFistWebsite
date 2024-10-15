@@ -1,14 +1,14 @@
 import { loadUserProfile } from './userProfile.js';
 import { ModuleLoader } from './moduleLoader.js';
 import { store } from './store.js';
-import { environmentManager } from './environmentManager.js';
+import { environmentManager } from './EnvironmentManager.js';
 
 async function bootstrap() {
     // Detect the environment (web, VR, AR, etc.)
     const environment = environmentManager.detectEnvironment();
 
     // Load environment-specific modules
-    await loadEnvironmentModules(environment);
+    await loadenvironmentModules(environment);
 
     // Load user preferences
     const userProfile = await loadUserProfile();
