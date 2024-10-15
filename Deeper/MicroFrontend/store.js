@@ -23,10 +23,10 @@ class Store {
 
     reducer(state, action) {
         switch (action.type) {
-            case 'SET_PREFERENCES':
-                return { ...state, userPreferences: { ...state.userPreferences, ...action.payload }};
             case 'MODULE_LOADED':
                 return { ...state, moduleStatus: { ...state.moduleStatus, [action.payload.moduleName]: 'loaded' }};
+            case 'SET_PREFERENCES':
+                return { ...state, userPreferences: { ...state.userPreferences, ...action.payload }};
             default:
                 return state;
         }

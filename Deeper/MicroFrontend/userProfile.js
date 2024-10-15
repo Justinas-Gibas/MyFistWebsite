@@ -6,7 +6,7 @@ export async function loadUserProfile() {
         setTimeout(() => {
             // Mock user preferences
             resolve({
-                wantsVRModule: false,
+                wantsVRModule: true,
                 needsThreeJS: false,
                 needsAdvancedPhysics: false,
                 enableAnalytics: false,
