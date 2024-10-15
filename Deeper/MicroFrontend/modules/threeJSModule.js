@@ -1,6 +1,6 @@
 // threeJSModule.js
 import * as THREE from 'three';
-import { eventBus } from './eventBus.js';
+import { eventBus } from '../eventBus.js';
 
 let scene, camera, renderer;
 
