@@ -17,7 +17,7 @@ export async function init() {
         console.log('Analytics tracking disabled.');
     }
 
-    // Update the UI if necessary
+    // Update the UI if necessary this code need to be dinamicly transferd to html or 3d scene iof we able to lounh one. 
     const appDiv = document.getElementById('app');
     const analyticsDiv = document.createElement('div');
     analyticsDiv.innerHTML = `

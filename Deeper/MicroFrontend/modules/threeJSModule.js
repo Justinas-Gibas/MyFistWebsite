@@ -8,6 +8,7 @@ export async function init() {
     console.log('Initializing Three.js Module...');
 
     scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xffffff);
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 5;
 
@@ -31,7 +32,7 @@ function renderTextInVR(text) {
             height: 0.2,
         });
 
-        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const textMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
         const textMesh = new THREE.Mesh(textGeometry, textMaterial);
         textMesh.position.set(0, 2, 0);  // Adjust the position in the scene
         scene.add(textMesh);

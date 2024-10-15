@@ -3,7 +3,7 @@
 export async function init() {
     console.log('Initializing Physics Module...');
 
-    // Simulate loading a physics engine (e.g., Ammo.js or wasm from C++)
+    // Simulate loading a physics engine (e.g., Ammo.js or wasm from C++ better to make our own very fast and optimized C++ code)
     // Initialize physics calculations here
 
     // Optionally, update the UI to reflect that the physics module is active
