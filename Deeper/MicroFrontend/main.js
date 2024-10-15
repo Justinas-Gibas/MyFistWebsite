@@ -34,6 +34,10 @@ async function bootstrap() {
         await moduleLoader.load('analyticsModule');
     }
 
+    if (preferences.enableThreeJS) {
+        await moduleLoader.load('threeJSModule');
+    }    
+
     moduleLoader.initializeUI();
 }
 

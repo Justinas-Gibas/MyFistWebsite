@@ -10,6 +10,7 @@ export class ModuleLoader {
             vrModule: './modules/vrModule.js',
             physicsModule: './modules/physicsModule.js',
             analyticsModule: './modules/analyticsModule.js',
+            threeJSModule: './modules/threeJSModule.js',
         };
 
         // Keep track of loaded modules
