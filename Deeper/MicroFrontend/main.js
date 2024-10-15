@@ -8,7 +8,7 @@ async function bootstrap() {
     const environment = environmentManager.detectEnvironment();
 
     // Load environment-specific modules
-    await loadenvironmentModules(environment);
+    await loadEnvironmentModules(environment);
 
     // Load user preferences
     const userProfile = await loadUserProfile();
