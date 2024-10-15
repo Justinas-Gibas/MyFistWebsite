@@ -1,11 +1,14 @@
 import { loadUserProfile } from './userProfile.js';
 import { ModuleLoader } from './moduleLoader.js';
 import { store } from './store.js';
-import { environmentManager } from './EnvironmentManager.js';
+import { environmentManager } from './environmentManager.js';
 
 async function bootstrap() {
     // Detect the environment (web, VR, AR, etc.)
-    environmentManager.detectEnvironment();
+    const environment = environmentManager.detectEnvironment();
+
+    // Load environment-specific modules
+    await loadEnvironmentModules(environment);
 
     // Load user preferences
     const userProfile = await loadUserProfile();
@@ -13,17 +16,31 @@ async function bootstrap() {
     // Dispatch action to set user preferences
     store.dispatch({ type: 'SET_PREFERENCES', payload: userProfile });
 
-    // Create the module loader
-    const moduleLoader = new ModuleLoader();
-
-    // Load the base module
-    await moduleLoader.load('base');
-
     // Get updated preferences from the store
     const state = store.getState();
     const preferences = state.userPreferences;
 
-    // Load modules based on preferences
+    // Load modules based on user preferences
+    await loadPreferenceModules(preferences);
+}
+
+// Function to load environment-specific modules
+async function loadEnvironmentModules(environment) {
+    const moduleLoader = new ModuleLoader();
+
+    if (environment === 'VR') {
+        await moduleLoader.load('vrModule');
+        await moduleLoader.load('threeJSModule');  // Since VR typically requires Three.js
+    } else if (environment === 'WEB') {
+        await moduleLoader.load('base');  // The base module or any web-specific modules
+    }
+    // Handle other environments (e.g., AR) if needed
+}
+
+// Function to load modules based on user preferences
+async function loadPreferenceModules(preferences) {
+    const moduleLoader = new ModuleLoader();
+
     if (preferences.wantsVRModule) {
         await moduleLoader.load('vrModule');
     }
@@ -39,8 +56,6 @@ async function bootstrap() {
     if (preferences.enableThreeJS) {
         await moduleLoader.load('threeJSModule');
     }
-
-    moduleLoader.initializeUI();
 }
 
 bootstrap();

@@ -1,8 +1,6 @@
 // eventBus.js
-
 class EventBus {
     constructor() {
-        // Object to hold event names and their listeners
         this.events = {};
     }
 
@@ -20,7 +18,7 @@ class EventBus {
         this.events[eventName] = this.events[eventName].filter((l) => l !== listener);
     }
 
-    // Emit an event to all registered listeners
+    // Emit an event
     emit(eventName, data) {
         if (!this.events[eventName]) return;
         this.events[eventName].forEach((listener) => listener(data));
