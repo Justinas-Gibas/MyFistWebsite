@@ -16,8 +16,6 @@ class EnvironmentManager {
                     this.setEnvironment('ar');
                 }
             });
-        } else if (/* some streaming detection logic */) {
-            this.setEnvironment('streaming');
         } else {
             this.setEnvironment('web');
         }
