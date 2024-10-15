@@ -7,6 +7,7 @@ export async function loadUserProfile() {
             // Mock user preferences
             resolve({
                 wantsVRModule: true,
+                needsThreeJS: true,
                 needsAdvancedPhysics: false,
                 enableAnalytics: true,
                 // Add more preferences as needed
