@@ -47,6 +47,11 @@ class Store {
                         [action.payload.moduleName]: 'loaded',
                     },
                 };
+            case 'SET_ENVIRONMENT':
+                return {
+                    ...state,
+                    environment: action.payload.environment,
+                };
             // Add more cases as needed
             default:
                 return state;
@@ -58,4 +63,5 @@ class Store {
 export const store = new Store({
     userPreferences: {},
     moduleStatus: {},
+    environment: 'web',  // default state for environment
 });
