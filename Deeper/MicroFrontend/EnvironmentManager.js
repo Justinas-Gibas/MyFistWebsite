@@ -37,4 +37,4 @@ class EnvironmentManager {
 }
 
 export const environmentManager = new EnvironmentManager();
-EnvironmentManager.detectEnvironment();  // Initialize environment detection
+environmentManager.detectEnvironment();  // Initialize environment detection
