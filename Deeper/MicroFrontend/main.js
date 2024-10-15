@@ -5,7 +5,7 @@ import { environmentManager } from './EnvironmentManager.js';
 
 async function bootstrap() {
     // Detect the environment (web, VR, AR, etc.)
-    const environment = environmentManager.detectEnvironment();
+    const environment = EnvironmentManager.detectEnvironment();
 
     // Load environment-specific modules
     await loadenvironmentModules(environment);
