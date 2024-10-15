@@ -30,7 +30,7 @@ async function loadEnvironmentModules(environment) {
 
     if (environment === 'VR') {
         await moduleLoader.load('vrModule');
-        await moduleLoader.load('threeJSModule');  // Since VR typically requires Three.js
+        await moduleLoader.load('threeJSModule');
     } else if (environment === 'WEB') {
         await moduleLoader.load('base');  // The base module or any web-specific modules
     }

@@ -6,6 +6,7 @@ export class ModuleLoader {
     constructor() {
         this.modules = {
             vrModule: './modules/vrModule.js',
+            threeJSModule: './modules/threeJSModule.js',
             webModule: './modules/webModule.js',
             textModule: './modules/textModule.js',
             // Additional modules
