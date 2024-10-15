@@ -1,19 +1,21 @@
-// Import the module loader class
-import { loadUserProfile } from './modules/userProfile.js';
-import { ModuleLoader } from './modules/moduleLoader.js';
+// main.js
 
-// Bootstrap function to start loading micro frontends
+// Import the user profile loader and module loader
+import { loadUserProfile } from './userProfile.js';
+import { ModuleLoader } from './moduleLoader.js';
+
+// Bootstrap function to start the application
 async function bootstrap() {
-    // Load user profile to determine which modules to load
+    // Load user preferences (could be from an API or localStorage)
     const userProfile = await loadUserProfile();
 
-    // Create an instance of ModuleLoader to handle dynamic loading of micro frontends
+    // Initialize the module loader with the user profile
     const moduleLoader = new ModuleLoader(userProfile);
 
-    // Load essential base modules
+    // Load the base module (essential for all users)
     await moduleLoader.load('base');
 
-    // Load additional modules based on user preferences
+    // Load modules based on user preferences
     if (userProfile.wantsVRModule) {
         await moduleLoader.load('vrModule');
     }
@@ -22,9 +24,14 @@ async function bootstrap() {
         await moduleLoader.load('physicsModule');
     }
 
-    // Initialize the user interface for interaction
+    // Example: Load an analytics module
+    if (userProfile.enableAnalytics) {
+        await moduleLoader.load('analyticsModule');
+    }
+
+    // Initialize the UI or any final setup
     moduleLoader.initializeUI();
 }
 
-// Execute bootstrap function to kickstart the app
+// Start the application
 bootstrap();
