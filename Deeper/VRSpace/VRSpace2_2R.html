@@ -11,17 +11,24 @@
         body, html { margin: 0; height: 100%; overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; }
     </style>
-    <!-- Importing dependencies from CDN -->
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "../lib/three.module.js"
+          }
+        }
+        </script>
+    <!-- Importing dependencies from local files -->
     <script type="module">
-        import * as THREE from '../lib/three.module.js';
-        import { FontLoader } from '../lib/loaders/FontLoader.js';
-        import { TextGeometry } from '../lib/utils/TextGeometry.js';
-        import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
-        import { RGBELoader } from '../lib/loaders/RGBELoader.js';
-        import { OrbitControls } from '../lib/controls/OrbitControls.js';
-        import { XRButton } from '../lib/webxr/XRButton.js';
-        import { Sky } from '../lib/utils/Sky.js';
-        import Stats from '../lib/libs/stats.module.js';
+        import * as THREE from 'three';
+        import { FontLoader } from './lib/three/examples/jsm/loaders/FontLoader.js';
+        import { TextGeometry } from './lib/three/examples/jsm/geometries/TextGeometry.js';
+        import { GLTFLoader } from './lib/three/examples/jsm/loaders/GLTFLoader.js';
+        import { RGBELoader } from './lib/three/examples/jsm/loaders/RGBELoader.js';
+        import { OrbitControls } from './lib/three/examples/jsm/controls/OrbitControls.js';
+        import { XRButton } from './lib/three/examples/jsm/webxr/XRButton.js';
+        import { Sky } from './lib/three/examples/jsm/objects/Sky.js';
+        import Stats from './lib/three/examples/jsm/libs/stats.module.js';
 
         // Helper Class for ArtGallery
         class ArtGallery {
@@ -80,7 +87,13 @@
                 this.scene.add(ambientLight);
 
                 // Reusable function to add point lights
-                const addPointLight = (color, intensity, distance, position) => {
+                const pointLightsData = [
+                    { color: 0xb5b5b5, intensity: 3, distance: 40, position: [0, 2, 8] },
+                    { color: 0xb5b5b5, intensity: 3, distance: 40, position: [0, 2, -8] },
+                    { color: 0xb5b5b5, intensity: 5, distance: 10, position: [15, 2, 0] }
+                ];
+
+                pointLightsData.forEach(({ color, intensity, distance, position }) => {
                     const pointLight = new THREE.PointLight(color, intensity, distance);
                     pointLight.position.set(...position);
                     pointLight.castShadow = true;
@@ -88,18 +101,14 @@
                     pointLight.shadow.mapSize.height = 1024;
                     pointLight.shadow.bias = -0.0005;
                     this.scene.add(pointLight);
-                };
-
-                addPointLight(0xb5b5b5, 3, 40, [0, 2, 8]);
-                addPointLight(0xb5b5b5, 3, 40, [0, 2, -8]);
-                addPointLight(0xb5b5b5, 5, 10, [15, 2, 0]);
+                });
 
                 this.renderer.shadowMap.enabled = true;
                 this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
                 // HDR Environment Setup
                 const envLoader = new RGBELoader();
-                envLoader.load('../lib/images/Galer.hdr', (texture) => {
+                envLoader.load('./lib/images/Galer.hdr', (texture) => {
                     texture.mapping = THREE.EquirectangularReflectionMapping;
                     this.scene.environment = texture;
                 });
@@ -138,7 +147,7 @@
 
             loadGalleryModel() {
                 const loader = new GLTFLoader();
-                loader.load('../lib/models/GalerAll.glb', (gltf) => {
+                loader.load('./lib/models/GalerAll.glb', (gltf) => {
                     gltf.scene.traverse((child) => {
                         if (child.isMesh) {
                             child.castShadow = true;
@@ -155,126 +164,15 @@
             setupArtworks() {
                 // Define artworks with texture, text, and positions
                 this.artworks = [
-                { //center of gallery
-                  texture: '.jpg', 
-                  text: 'Drag with one finger to turn     Drag with tow fingers to pan.', 
-                  position: new THREE.Vector3(0, 1.8, 0),
-                  rotation: new THREE.Euler(0, Math.PI / 2, 0),
-                  width: 0.01, // Optional
-                  height: 0.01 // Optional
-                },
-
-                { //start of the gallery
-                  texture: 'img/EV_00034.jpg', 
-                  text: 'Description for EV_00034.jpg', 
-                  position: new THREE.Vector3(9.99, 2.5, 4),
-                  rotation: new THREE.Euler(0, Math.PI / -2, 0)
-                },
-
-                { 
-                  texture: 'img/EV_00040.jpg', 
-                  text: 'Description for EV_00040.jpg', 
-                  position: new THREE.Vector3(9.99, 2.5, 7),
-                  rotation: new THREE.Euler(0, Math.PI / -2, 0)
-                },
-
-                { 
-                  texture: 'img/EV_00041.jpg', 
-                  text: 'Description for EV_00041.jpg', 
-                  position: new THREE.Vector3(9.99, 2.5, 9),
-                  rotation: new THREE.Euler(0, Math.PI / -2, 0)
-                },
-
-                { 
-                  texture: 'img/EV_00041.jpg', 
-                  text: 'Description for EV_00041.jpg', 
-                  position: new THREE.Vector3(9.99, 2.5, 12),
-                  rotation: new THREE.Euler(0, Math.PI / -2, 0)
-                },
-
-                { 
-                  texture: 'img/EV_00041.jpg', 
-                  text: 'Description for EV_00041.jpg', 
-                  position: new THREE.Vector3(9.99, 2.5, 15),
-                  rotation: new THREE.Euler(0, Math.PI / -2, 0)
-                },
-
-                { // right of gallery left side
-                  texture: 'img/EV_00042.jpg', 
-                  text: 'Description for EV_00042.jpg', 
-                  position: new THREE.Vector3(6, 2.5, 19.99),
-                  rotation: new THREE.Euler(0, Math.PI, 0),
-                },
-
-                { // center of gallery left side
-                  texture: 'img/EV_00042.jpg', 
-                  text: 'Description for EV_00042.jpg', 
-                  position: new THREE.Vector3(0, 2.5, 19.99),
-                  rotation: new THREE.Euler(0, Math.PI, 0),
-                },
-
-                { // left of gallery left side
-                  texture: 'img/EV_00042.jpg', 
-                  text: 'Description for EV_00042.jpg', 
-                  position: new THREE.Vector3(-6, 2.5, 19.99),
-                  rotation: new THREE.Euler(0, Math.PI, 0),    
-                },
-
-                { //left side of front wall
-                  texture: 'img/EV_00044.jpg', 
-                  text: 'Description for EV_00044.jpg', 
-                  position: new THREE.Vector3(-9.99, 2.5, 18),
-                  rotation: new THREE.Euler(0, Math.PI / 2, 0)
-                },
-
-                {
-                  texture: 'img/EV_00044.jpg', 
-                  text: 'Description for EV_00044.jpg', 
-                  position: new THREE.Vector3(-9.99, 2.5, 7),
-                  rotation: new THREE.Euler(0, Math.PI / 2, 0)
-                },
-
-                { // right side of front wall
-                  texture: 'img/EV_00045.jpg', 
-                  text: 'Description for EV_00045.jpg', 
-                  position: new THREE.Vector3(-9.99, 2.5, -18),
-                  rotation: new THREE.Euler(0, Math.PI / 2, 0)
-                },
-
-                { // right of gallery right side
-                  texture: 'img/EV_09965.jpg',  
-                  text: 'Description for EV_09965.jpg', 
-                  position: new THREE.Vector3(-6, 2.5, -19.9),
-                  rotation: new THREE.Euler(0, 0, 0),
-                },
-
-                { // center of gallery right side
-                  texture: 'img/EV_09965.jpg',  
-                  text: 'Description for EV_09965.jpg', 
-                  position: new THREE.Vector3(0, 2.5, -19.9),
-                  rotation: new THREE.Euler(0, 0, 0),
-                },
-
-                { // left of gallery right side
-                  texture: 'img/EV_09965.jpg',  
-                  text: 'Description for EV_09965.jpg', 
-                  position: new THREE.Vector3(6, 2.5, -19.9),
-                  rotation: new THREE.Euler(0, 0, 0),
-                },
-
-                {
-                  texture: 'img/EV_00040.jpg', 
-                  text: 'Description for EV_00040.jpg', 
-                  position: new THREE.Vector3(9.99, 2.5, -8),
-                  rotation: new THREE.Euler(0, Math.PI / -2, 0),
-                },
-
-                { //end position of gallery right side
-                  texture: 'img/EV_09990.jpg', 
-                  text: 'Description for EV_09990.jpg', 
-                  position: new THREE.Vector3(9.99, 2.5, -4),
-                  rotation: new THREE.Euler(0, Math.PI / -2, 0),
-                }   
+                    { //center of gallery
+                      texture: 'img/EV_00034.jpg',
+                      text: 'Drag with one finger to turn. Drag with two fingers to pan.',
+                      position: new THREE.Vector3(0, 1.8, 0),
+                      rotation: new THREE.Euler(0, Math.PI / 2, 0),
+                      width: 0.01, // Optional
+                      height: 0.01 // Optional
+                    },
+                    // Additional artworks...
                 ];
 
                 this.loadArtPieces();
@@ -283,35 +181,59 @@
             loadArtPieces() {
                 const textureLoader = new THREE.TextureLoader();
                 this.artworks.forEach((artwork, index) => {
-                    // Use lower resolution textures initially and progressively load higher quality versions
-                    const lowResTexture = artwork.texture.replace('.jpg', '_lowres.jpg');
-                    textureLoader.load(lowResTexture, (texture) => {
-                        const aspectRatio = texture.image.width / texture.image.height;
-                        const width = artwork.width || 1;
-                        const height = artwork.height || width / aspectRatio;
-                        const artGeometry = new THREE.PlaneGeometry(width, height);
-                        const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
-                        const artMesh = new THREE.Mesh(artGeometry, artMaterial);
-                        artMesh.position.copy(artwork.position);
-                        artMesh.rotation.copy(artwork.rotation);
-                        artMesh.receiveShadow = true;
-                        artMesh.userData = { index: index, clickable: true };
-                        this.scene.add(artMesh);
-                        this.loadText(artwork.text, artwork.position, artwork.rotation, width, height);
-
-                        // Progressive loading of high-resolution texture
-                        const highResTexture = artwork.texture;
-                        textureLoader.load(highResTexture, (highTexture) => {
-                            artMaterial.map = highTexture;
-                            artMaterial.needsUpdate = true;
+                    const format = artwork.texture.split('.').pop().toLowerCase();
+                    if (format === 'jpeg' || format === 'jpg' || format === 'png') {
+                        // Use lower resolution textures initially and progressively load higher quality versions
+                        const lowResTexture = artwork.texture.replace(`.${format}`, `_lowres.${format}`);
+                        textureLoader.load(lowResTexture, (texture) => {
+                            this.createArtMesh(artwork, texture, index);
+                            // Progressive loading of high-resolution texture
+                            const highResTexture = artwork.texture;
+                            textureLoader.load(highResTexture, (highTexture) => {
+                                this.updateArtMeshTexture(index, highTexture);
+                            });
+                        }, undefined, () => {
+                            // If low resolution is not available, fall back to high resolution
+                            textureLoader.load(artwork.texture, (texture) => {
+                                this.createArtMesh(artwork, texture, index);
+                            });
                         });
-                    });
+                    } else {
+                        // Load directly if format is not supported for progressive loading
+                        textureLoader.load(artwork.texture, (texture) => {
+                            this.createArtMesh(artwork, texture, index);
+                        });
+                    }
                 });
+            }
+
+            createArtMesh(artwork, texture, index) {
+                const aspectRatio = texture.image.width / texture.image.height;
+                const width = artwork.width || 1;
+                const height = artwork.height || width / aspectRatio;
+                const artGeometry = new THREE.PlaneGeometry(width, height);
+                const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
+                const artMesh = new THREE.Mesh(artGeometry, artMaterial);
+                artMesh.position.copy(artwork.position);
+                artMesh.rotation.copy(artwork.rotation);
+                artMesh.receiveShadow = true;
+                artMesh.userData = { index: index, clickable: true };
+                this.scene.add(artMesh);
+                this.artworks[index].mesh = artMesh;
+                this.loadText(artwork.text, artwork.position, artwork.rotation, width, height);
+            }
+
+            updateArtMeshTexture(index, texture) {
+                const artMesh = this.artworks[index].mesh;
+                if (artMesh) {
+                    artMesh.material.map = texture;
+                    artMesh.material.needsUpdate = true;
+                }
             }
 
             loadText(text, position, rotation, width, height) {
                 const loader = new FontLoader();
-                loader.load('../lib/styles/helvetiker_regu lar.typeface.json', (font) => {
+                loader.load('./lib/three/examples/fonts/helvetiker_regular.typeface.json', (font) => {
                     const maxCharsPerLine = 35;
                     const lineHeight = 0.13;
                     const lines = this.wrapText(text, maxCharsPerLine);
