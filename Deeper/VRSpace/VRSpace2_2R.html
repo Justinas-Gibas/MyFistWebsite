@@ -11,18 +11,28 @@
         body, html { margin: 0; height: 100%; overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; }
     </style>
-    <script src="../lib/three.module.js"></script>
-    <script src="../lib/loaders/FontLoader.js"></script>
-    <script src="../lib/utils/TextGeometry.js"></script>
-    <script src="../lib/loaders/GLTFLoader.js"></script>
-    <script src="../lib/loaders/RGBELoader.js"></script>
-    <script src="../lib/controls/OrbitControls.js"></script>
-    <script src="../lib/webxr/XRButton.js"></script>
-    <script src="../lib/utils/Sky.js"></script>
-    <script src="../lib/libs/stats.module.js"></script>
+    <script type="module" src="../lib/three.module.js"></script>
+    <script type="module" src="../lib/loaders/FontLoader.js"></script>
+    <script type="module" src="../lib/utils/TextGeometry.js"></script>
+    <script type="module" src="../lib/loaders/GLTFLoader.js"></script>
+    <script type="module" src="../lib/loaders/RGBELoader.js"></script>
+    <script type="module" src="../lib/controls/OrbitControls.js"></script>
+    <script type="module" src="../lib/webxr/XRButton.js"></script>
+    <script type="module" src="../lib/utils/Sky.js"></script>
+    <script type="module" src="../lib/libs/stats.module.js"></script>
 </head>
 <body>
-<script>
+<script type="module">
+import * as THREE from '../lib/three.module.js';
+import { FontLoader } from '../lib/loaders/FontLoader.js';
+import { TextGeometry } from '../lib/utils/TextGeometry.js';
+import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
+import { RGBELoader } from '../lib/loaders/RGBELoader.js';
+import { OrbitControls } from '../lib/controls/OrbitControls.js';
+import { XRButton } from '../lib/webxr/XRButton.js';
+import { Sky } from '../lib/utils/Sky.js';
+import Stats from '../lib/libs/stats.module.js';
+
 // Helper Class for ArtGallery
 class ArtGallery {
     constructor() {
