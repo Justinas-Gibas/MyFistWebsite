@@ -13,15 +13,15 @@
     </style>
     <!-- Importing dependencies from CDN -->
     <script type="module">
-        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.module.js';
-        import { FontLoader } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/loaders/FontLoader.js';
-        import { TextGeometry } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/geometries/TextGeometry.js';
-        import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/loaders/GLTFLoader.js';
-        import { RGBELoader } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/loaders/RGBELoader.js';
-        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/controls/OrbitControls.js';
-        import { XRButton } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/webxr/XRButton.js';
-        import { Sky } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/objects/Sky.js';
-        import Stats from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/libs/stats.module.js';
+        import * as THREE from '../lib/three.module.js';
+        import { FontLoader } from '../lib/loaders/FontLoader.js';
+        import { TextGeometry } from '../lib/utils/TextGeometry.js';
+        import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
+        import { RGBELoader } from '../lib/loaders/RGBELoader.js';
+        import { OrbitControls } from '../lib/controls/OrbitControls.js';
+        import { XRButton } from '../lib/webxr/XRButton.js';
+        import { Sky } from '../lib/utils/Sky.js';
+        import Stats from '../lib/libs/stats.module.js';
 
         // Helper Class for ArtGallery
         class ArtGallery {
@@ -99,7 +99,7 @@
 
                 // HDR Environment Setup
                 const envLoader = new RGBELoader();
-                envLoader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r153/examples/textures/equirectangular/royal_esplanade_1k.hdr', (texture) => {
+                envLoader.load('../lib/images/Galer.hdr', (texture) => {
                     texture.mapping = THREE.EquirectangularReflectionMapping;
                     this.scene.environment = texture;
                 });
@@ -138,7 +138,7 @@
 
             loadGalleryModel() {
                 const loader = new GLTFLoader();
-                loader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r153/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf', (gltf) => {
+                loader.load('../lib/models/GalerAll.glb', (gltf) => {
                     gltf.scene.traverse((child) => {
                         if (child.isMesh) {
                             child.castShadow = true;
@@ -155,8 +155,126 @@
             setupArtworks() {
                 // Define artworks with texture, text, and positions
                 this.artworks = [
-                    { texture: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r153/examples/textures/uv_grid_opengl.jpg', text: 'Description for UV Grid Texture', position: new THREE.Vector3(9.99, 2.5, 4), rotation: new THREE.Euler(0, Math.PI / -2, 0) },
-                    // Add more artworks here
+                { //center of gallery
+                  texture: '.jpg', 
+                  text: 'Drag with one finger to turn     Drag with tow fingers to pan.', 
+                  position: new THREE.Vector3(0, 1.8, 0),
+                  rotation: new THREE.Euler(0, Math.PI / 2, 0),
+                  width: 0.01, // Optional
+                  height: 0.01 // Optional
+                },
+
+                { //start of the gallery
+                  texture: 'img/EV_00034.jpg', 
+                  text: 'Description for EV_00034.jpg', 
+                  position: new THREE.Vector3(9.99, 2.5, 4),
+                  rotation: new THREE.Euler(0, Math.PI / -2, 0)
+                },
+
+                { 
+                  texture: 'img/EV_00040.jpg', 
+                  text: 'Description for EV_00040.jpg', 
+                  position: new THREE.Vector3(9.99, 2.5, 7),
+                  rotation: new THREE.Euler(0, Math.PI / -2, 0)
+                },
+
+                { 
+                  texture: 'img/EV_00041.jpg', 
+                  text: 'Description for EV_00041.jpg', 
+                  position: new THREE.Vector3(9.99, 2.5, 9),
+                  rotation: new THREE.Euler(0, Math.PI / -2, 0)
+                },
+
+                { 
+                  texture: 'img/EV_00041.jpg', 
+                  text: 'Description for EV_00041.jpg', 
+                  position: new THREE.Vector3(9.99, 2.5, 12),
+                  rotation: new THREE.Euler(0, Math.PI / -2, 0)
+                },
+
+                { 
+                  texture: 'img/EV_00041.jpg', 
+                  text: 'Description for EV_00041.jpg', 
+                  position: new THREE.Vector3(9.99, 2.5, 15),
+                  rotation: new THREE.Euler(0, Math.PI / -2, 0)
+                },
+
+                { // right of gallery left side
+                  texture: 'img/EV_00042.jpg', 
+                  text: 'Description for EV_00042.jpg', 
+                  position: new THREE.Vector3(6, 2.5, 19.99),
+                  rotation: new THREE.Euler(0, Math.PI, 0),
+                },
+
+                { // center of gallery left side
+                  texture: 'img/EV_00042.jpg', 
+                  text: 'Description for EV_00042.jpg', 
+                  position: new THREE.Vector3(0, 2.5, 19.99),
+                  rotation: new THREE.Euler(0, Math.PI, 0),
+                },
+
+                { // left of gallery left side
+                  texture: 'img/EV_00042.jpg', 
+                  text: 'Description for EV_00042.jpg', 
+                  position: new THREE.Vector3(-6, 2.5, 19.99),
+                  rotation: new THREE.Euler(0, Math.PI, 0),    
+                },
+
+                { //left side of front wall
+                  texture: 'img/EV_00044.jpg', 
+                  text: 'Description for EV_00044.jpg', 
+                  position: new THREE.Vector3(-9.99, 2.5, 18),
+                  rotation: new THREE.Euler(0, Math.PI / 2, 0)
+                },
+
+                {
+                  texture: 'img/EV_00044.jpg', 
+                  text: 'Description for EV_00044.jpg', 
+                  position: new THREE.Vector3(-9.99, 2.5, 7),
+                  rotation: new THREE.Euler(0, Math.PI / 2, 0)
+                },
+
+                { // right side of front wall
+                  texture: 'img/EV_00045.jpg', 
+                  text: 'Description for EV_00045.jpg', 
+                  position: new THREE.Vector3(-9.99, 2.5, -18),
+                  rotation: new THREE.Euler(0, Math.PI / 2, 0)
+                },
+
+                { // right of gallery right side
+                  texture: 'img/EV_09965.jpg',  
+                  text: 'Description for EV_09965.jpg', 
+                  position: new THREE.Vector3(-6, 2.5, -19.9),
+                  rotation: new THREE.Euler(0, 0, 0),
+                },
+
+                { // center of gallery right side
+                  texture: 'img/EV_09965.jpg',  
+                  text: 'Description for EV_09965.jpg', 
+                  position: new THREE.Vector3(0, 2.5, -19.9),
+                  rotation: new THREE.Euler(0, 0, 0),
+                },
+
+                { // left of gallery right side
+                  texture: 'img/EV_09965.jpg',  
+                  text: 'Description for EV_09965.jpg', 
+                  position: new THREE.Vector3(6, 2.5, -19.9),
+                  rotation: new THREE.Euler(0, 0, 0),
+                },
+
+                {
+                  texture: 'img/EV_00040.jpg', 
+                  text: 'Description for EV_00040.jpg', 
+                  position: new THREE.Vector3(9.99, 2.5, -8),
+                  rotation: new THREE.Euler(0, Math.PI / -2, 0),
+                },
+
+                { //end position of gallery right side
+                  texture: 'img/EV_09990.jpg', 
+                  text: 'Description for EV_09990.jpg', 
+                  position: new THREE.Vector3(9.99, 2.5, -4),
+                  rotation: new THREE.Euler(0, Math.PI / -2, 0),
+                }   
                 ];
 
                 this.loadArtPieces();
@@ -193,7 +311,7 @@
 
             loadText(text, position, rotation, width, height) {
                 const loader = new FontLoader();
-                loader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r153/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+                loader.load('../lib/styles/helvetiker_regu lar.typeface.json', (font) => {
                     const maxCharsPerLine = 35;
                     const lineHeight = 0.13;
                     const lines = this.wrapText(text, maxCharsPerLine);
