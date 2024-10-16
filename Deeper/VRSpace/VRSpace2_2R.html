@@ -11,295 +11,285 @@
         body, html { margin: 0; height: 100%; overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; }
     </style>
-    <script type="module" src="../lib/three.module.js"></script>
-    <script type="module" src="../lib/loaders/FontLoader.js"></script>
-    <script type="module" src="../lib/utils/TextGeometry.js"></script>
-    <script type="module" src="../lib/loaders/GLTFLoader.js"></script>
-    <script type="module" src="../lib/loaders/RGBELoader.js"></script>
-    <script type="module" src="../lib/controls/OrbitControls.js"></script>
-    <script type="module" src="../lib/webxr/XRButton.js"></script>
-    <script type="module" src="../lib/utils/Sky.js"></script>
-    <script type="module" src="../lib/libs/stats.module.js"></script>
-</head>
-<body>
-<script type="module">
-import * as THREE from '../lib/three.module.js';
-import { FontLoader } from '../lib/loaders/FontLoader.js';
-import { TextGeometry } from '../lib/utils/TextGeometry.js';
-import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
-import { RGBELoader } from '../lib/loaders/RGBELoader.js';
-import { OrbitControls } from '../lib/controls/OrbitControls.js';
-import { XRButton } from '../lib/webxr/XRButton.js';
-import { Sky } from '../lib/utils/Sky.js';
-import Stats from '../lib/libs/stats.module.js';
+    <!-- Importing dependencies from CDN -->
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.module.js';
+        import { FontLoader } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/loaders/FontLoader.js';
+        import { TextGeometry } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/geometries/TextGeometry.js';
+        import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/loaders/GLTFLoader.js';
+        import { RGBELoader } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/loaders/RGBELoader.js';
+        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/controls/OrbitControls.js';
+        import { XRButton } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/webxr/XRButton.js';
+        import { Sky } from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/objects/Sky.js';
+        import Stats from 'https://cdn.jsdelivr.net/npm/three@0.153.0/examples/jsm/libs/stats.module.js';
 
-// Helper Class for ArtGallery
-class ArtGallery {
-    constructor() {
-        this.scene = new THREE.Scene();
-        this.camera = this.setupCamera();
-        this.renderer = this.setupRenderer();
-        this.controls = this.setupControls();
-        this.artworks = [];
-        this.currentArtIndex = 0;
-        this.stats = new Stats();
-        document.body.appendChild(this.stats.dom);
+        // Helper Class for ArtGallery
+        class ArtGallery {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.camera = this.setupCamera();
+                this.renderer = this.setupRenderer();
+                this.controls = this.setupControls();
+                this.artworks = [];
+                this.currentArtIndex = 0;
+                this.stats = new Stats();
+                document.body.appendChild(this.stats.dom);
 
-        this.lowFrameRate = false;
-        this.initGallery();
-    }
+                this.lowFrameRate = false;
+                this.initGallery();
+            }
 
-    setupCamera() {
-        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.01, 100);
-        camera.position.set(20, 1.6, 0);
-        return camera;
-    }
+            setupCamera() {
+                const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.01, 100);
+                camera.position.set(20, 1.6, 0);
+                return camera;
+            }
 
-    setupRenderer() {
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.xr.enabled = true;
-        document.body.appendChild(renderer.domElement);
-        document.body.appendChild(XRButton.createButton(renderer));
-        return renderer;
-    }
+            setupRenderer() {
+                const renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setPixelRatio(window.devicePixelRatio);
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.xr.enabled = true;
+                document.body.appendChild(renderer.domElement);
+                document.body.appendChild(XRButton.createButton(renderer));
+                return renderer;
+            }
 
-    setupControls() {
-        const controls = new OrbitControls(this.camera, this.renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.7;
-        controls.screenSpacePanning = false;
-        controls.target.set(0, 1.6, 0);
-        controls.enabled = false; // Initially disable controls
-        controls.update();
-        return controls;
-    }
+            setupControls() {
+                const controls = new OrbitControls(this.camera, this.renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.7;
+                controls.screenSpacePanning = false;
+                controls.target.set(0, 1.6, 0);
+                controls.enabled = false; // Initially disable controls
+                controls.update();
+                return controls;
+            }
 
-    initGallery() {
-        this.setupLighting();
-        this.loadGalleryModel();
-        this.initSky();
-        this.setupArtworks();
-        this.setupEventListeners();
-        this.animate();
-    }
+            initGallery() {
+                this.setupLighting();
+                this.loadGalleryModel();
+                this.initSky();
+                this.setupArtworks();
+                this.setupEventListeners();
+                this.animate();
+            }
 
-    setupLighting() {
-        const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.8);
-        this.scene.add(ambientLight);
+            setupLighting() {
+                const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.8);
+                this.scene.add(ambientLight);
 
-        // Reusable function to add point lights
-        const addPointLight = (color, intensity, distance, position) => {
-            const pointLight = new THREE.PointLight(color, intensity, distance);
-            pointLight.position.set(...position);
-            pointLight.castShadow = true;
-            pointLight.shadow.mapSize.width = 1024;
-            pointLight.shadow.mapSize.height = 1024;
-            pointLight.shadow.bias = -0.0005;
-            this.scene.add(pointLight);
-        };
+                // Reusable function to add point lights
+                const addPointLight = (color, intensity, distance, position) => {
+                    const pointLight = new THREE.PointLight(color, intensity, distance);
+                    pointLight.position.set(...position);
+                    pointLight.castShadow = true;
+                    pointLight.shadow.mapSize.width = 1024;
+                    pointLight.shadow.mapSize.height = 1024;
+                    pointLight.shadow.bias = -0.0005;
+                    this.scene.add(pointLight);
+                };
 
-        addPointLight(0xb5b5b5, 3, 40, [0, 2, 8]);
-        addPointLight(0xb5b5b5, 3, 40, [0, 2, -8]);
-        addPointLight(0xb5b5b5, 5, 10, [15, 2, 0]);
+                addPointLight(0xb5b5b5, 3, 40, [0, 2, 8]);
+                addPointLight(0xb5b5b5, 3, 40, [0, 2, -8]);
+                addPointLight(0xb5b5b5, 5, 10, [15, 2, 0]);
 
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-        // HDR Environment Setup
-        const envLoader = new RGBELoader();
-        envLoader.load('../lib/images/Galer.hdr', (texture) => {
-            texture.mapping = THREE.EquirectangularReflectionMapping;
-            this.scene.environment = texture;
-        });
+                // HDR Environment Setup
+                const envLoader = new RGBELoader();
+                envLoader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r153/examples/textures/equirectangular/royal_esplanade_1k.hdr', (texture) => {
+                    texture.mapping = THREE.EquirectangularReflectionMapping;
+                    this.scene.environment = texture;
+                });
 
-        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 0.9;
-        this.renderer.outputEncoding = THREE.sRGBEncoding;
-    }
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 0.9;
+                this.renderer.outputEncoding = THREE.sRGBEncoding;
+            }
 
-    initSky() {
-        const sky = new Sky();
-        sky.scale.setScalar(4500);
-        this.scene.add(sky);
+            initSky() {
+                const sky = new Sky();
+                sky.scale.setScalar(4500);
+                this.scene.add(sky);
 
-        const sun = new THREE.Vector3();
-        const effectController = {
-            turbidity: 0.01,
-            rayleigh: 0.01,
-            mieCoefficient: 0.005,
-            mieDirectionalG: 0.999,
-            elevation: 2,
-            azimuth: 90,
-            exposure: this.renderer.toneMappingExposure
-        };
+                const sun = new THREE.Vector3();
+                const effectController = {
+                    turbidity: 0.01,
+                    rayleigh: 0.01,
+                    mieCoefficient: 0.005,
+                    mieDirectionalG: 0.999,
+                    elevation: 2,
+                    azimuth: 90,
+                    exposure: this.renderer.toneMappingExposure
+                };
 
-        const updateSun = () => {
-            const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
-            const theta = THREE.MathUtils.degToRad(effectController.azimuth);
-            sun.setFromSphericalCoords(1, phi, theta);
-            sky.material.uniforms['sunPosition'].value.copy(sun);
-            this.renderer.toneMappingExposure = effectController.exposure;
-        };
+                const updateSun = () => {
+                    const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
+                    const theta = THREE.MathUtils.degToRad(effectController.azimuth);
+                    sun.setFromSphericalCoords(1, phi, theta);
+                    sky.material.uniforms['sunPosition'].value.copy(sun);
+                    this.renderer.toneMappingExposure = effectController.exposure;
+                };
 
-        updateSun();
-    }
+                updateSun();
+            }
 
-    loadGalleryModel() {
-        const loader = new GLTFLoader();
-        loader.load('../lib/models/GalerAll.glb', (gltf) => {
-            gltf.scene.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                    child.material.side = THREE.FrontSide;
+            loadGalleryModel() {
+                const loader = new GLTFLoader();
+                loader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r153/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf', (gltf) => {
+                    gltf.scene.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            child.material.side = THREE.FrontSide;
+                        }
+                    });
+                    this.scene.add(gltf.scene);
+                }, undefined, (error) => {
+                    console.error('An error happened in the GLTFLoader:', error);
+                });
+            }
+
+            setupArtworks() {
+                // Define artworks with texture, text, and positions
+                this.artworks = [
+                    { texture: 'https://cdn.jsdelivr.net/gh/mrdoob/three.js@r153/examples/textures/uv_grid_opengl.jpg', text: 'Description for UV Grid Texture', position: new THREE.Vector3(9.99, 2.5, 4), rotation: new THREE.Euler(0, Math.PI / -2, 0) },
+                    // Add more artworks here
+                ];
+
+                this.loadArtPieces();
+            }
+
+            loadArtPieces() {
+                const textureLoader = new THREE.TextureLoader();
+                this.artworks.forEach((artwork, index) => {
+                    // Use lower resolution textures initially and progressively load higher quality versions
+                    const lowResTexture = artwork.texture.replace('.jpg', '_lowres.jpg');
+                    textureLoader.load(lowResTexture, (texture) => {
+                        const aspectRatio = texture.image.width / texture.image.height;
+                        const width = artwork.width || 1;
+                        const height = artwork.height || width / aspectRatio;
+                        const artGeometry = new THREE.PlaneGeometry(width, height);
+                        const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
+                        const artMesh = new THREE.Mesh(artGeometry, artMaterial);
+                        artMesh.position.copy(artwork.position);
+                        artMesh.rotation.copy(artwork.rotation);
+                        artMesh.receiveShadow = true;
+                        artMesh.userData = { index: index, clickable: true };
+                        this.scene.add(artMesh);
+                        this.loadText(artwork.text, artwork.position, artwork.rotation, width, height);
+
+                        // Progressive loading of high-resolution texture
+                        const highResTexture = artwork.texture;
+                        textureLoader.load(highResTexture, (highTexture) => {
+                            artMaterial.map = highTexture;
+                            artMaterial.needsUpdate = true;
+                        });
+                    });
+                });
+            }
+
+            loadText(text, position, rotation, width, height) {
+                const loader = new FontLoader();
+                loader.load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r153/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+                    const maxCharsPerLine = 35;
+                    const lineHeight = 0.13;
+                    const lines = this.wrapText(text, maxCharsPerLine);
+
+                    lines.forEach((line, index) => {
+                        const textGeometry = new TextGeometry(line, {
+                            font: font,
+                            size: 0.04,
+                            depth: 0,
+                            curveSegments: 3,
+                            bevelEnabled: false,
+                        });
+
+                        const textMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
+                        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+
+                        const offsetDistance = height / 2 + 0.2;
+                        const yOffset = -index * lineHeight;
+
+                        const directionVector = new THREE.Vector3(0, -1, 0);
+                        directionVector.applyEuler(rotation);
+                        directionVector.multiplyScalar(offsetDistance);
+
+                        const finalPosition = new THREE.Vector3().copy(position).add(directionVector);
+                        textMesh.position.set(finalPosition.x, finalPosition.y + yOffset, finalPosition.z);
+                        textMesh.rotation.copy(rotation);
+
+                        this.scene.add(textMesh);
+                    });
+                });
+            }
+
+            wrapText(text, maxCharsPerLine) {
+                const words = text.split(' ');
+                const lines = [];
+                let currentLine = words[0];
+
+                for (let i = 1; i < words.length; i++) {
+                    if ((currentLine + words[i]).length < maxCharsPerLine) {
+                        currentLine += ' ' + words[i];
+                    } else {
+                        lines.push(currentLine);
+                        currentLine = words[i];
+                    }
                 }
-            });
-            this.scene.add(gltf.scene);
-        }, undefined, (error) => {
-            console.error('An error happened in the GLTFLoader:', error);
-        });
-    }
-
-    setupArtworks() {
-        // Define artworks with texture, text, and positions
-        this.artworks = [
-            { texture: 'img/EV_00034.jpg', text: 'Description for EV_00034.jpg', position: new THREE.Vector3(9.99, 2.5, 4), rotation: new THREE.Euler(0, Math.PI / -2, 0) },
-            // Add more artworks here
-        ];
-
-        this.loadArtPieces();
-    }
-
-    loadArtPieces() {
-        const textureLoader = new THREE.TextureLoader();
-        this.artworks.forEach((artwork, index) => {
-            // Use lower resolution textures initially and progressively load higher quality versions
-            const lowResTexture = artwork.texture.replace('.jpg', '_lowres.jpg');
-            textureLoader.load(lowResTexture, (texture) => {
-                const aspectRatio = texture.image.width / texture.image.height;
-                const width = artwork.width || 1;
-                const height = artwork.height || width / aspectRatio;
-                const artGeometry = new THREE.PlaneGeometry(width, height);
-                const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
-                const artMesh = new THREE.Mesh(artGeometry, artMaterial);
-                artMesh.position.copy(artwork.position);
-                artMesh.rotation.copy(artwork.rotation);
-                artMesh.receiveShadow = true;
-                artMesh.userData = { index: index, clickable: true };
-                this.scene.add(artMesh);
-                this.loadText(artwork.text, artwork.position, artwork.rotation, width, height);
-
-                // Progressive loading of high-resolution texture
-                const highResTexture = artwork.texture;
-                textureLoader.load(highResTexture, (highTexture) => {
-                    artMaterial.map = highTexture;
-                    artMaterial.needsUpdate = true;
-                });
-            });
-        });
-    }
-
-    loadText(text, position, rotation, width, height) {
-        const loader = new FontLoader();
-        loader.load('../lib/styles/helvetiker_regular.typeface.json', (font) => {
-            const maxCharsPerLine = 35;
-            const lineHeight = 0.13;
-            const lines = this.wrapText(text, maxCharsPerLine);
-
-            lines.forEach((line, index) => {
-                const textGeometry = new TextGeometry(line, {
-                    font: font,
-                    size: 0.04,
-                    depth: 0,
-                    curveSegments: 3,
-                    bevelEnabled: false,
-                });
-
-                const textMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
-                const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-
-                const offsetDistance = height / 2 + 0.2;
-                const yOffset = -index * lineHeight;
-
-                const directionVector = new THREE.Vector3(0, -1, 0);
-                directionVector.applyEuler(rotation);
-                directionVector.multiplyScalar(offsetDistance);
-
-                const finalPosition = new THREE.Vector3().copy(position).add(directionVector);
-                textMesh.position.set(finalPosition.x, finalPosition.y + yOffset, finalPosition.z);
-                textMesh.rotation.copy(rotation);
-
-                this.scene.add(textMesh);
-            });
-        });
-    }
-
-    wrapText(text, maxCharsPerLine) {
-        const words = text.split(' ');
-        const lines = [];
-        let currentLine = words[0];
-
-        for (let i = 1; i < words.length; i++) {
-            if ((currentLine + words[i]).length < maxCharsPerLine) {
-                currentLine += ' ' + words[i];
-            } else {
                 lines.push(currentLine);
-                currentLine = words[i];
+                return lines;
+            }
+
+            setupEventListeners() {
+                window.addEventListener('resize', () => this.onWindowResize(), false);
+                document.addEventListener('dblclick', (event) => this.onDoubleClick(event), false);
+            }
+
+            onWindowResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            animate() {
+                this.renderer.setAnimationLoop(() => this.render());
+            }
+
+            render() {
+                this.stats.begin();
+                this.checkFrameRate();
+                this.renderer.render(this.scene, this.camera);
+                this.controls.update();
+                this.stats.end();
+            }
+
+            checkFrameRate() {
+                const currentFPS = this.stats.getFPS();
+                if (currentFPS < 30 && !this.lowFrameRate) {
+                    this.lowFrameRate = true;
+                    this.reduceGraphicsQuality();
+                } else if (currentFPS >= 30 && this.lowFrameRate) {
+                    this.lowFrameRate = false;
+                    this.restoreGraphicsQuality();
+                }
+            }
+
+            reduceGraphicsQuality() {
+                console.warn('Reducing graphics quality due to low FPS');
+                this.renderer.setPixelRatio(0.5);
+            }
+
+            restoreGraphicsQuality() {
+                console.info('Restoring graphics quality');
+                this.renderer.setPixelRatio(window.devicePixelRatio);
             }
         }
-        lines.push(currentLine);
-        return lines;
-    }
 
-    setupEventListeners() {
-        window.addEventListener('resize', () => this.onWindowResize(), false);
-        document.addEventListener('dblclick', (event) => this.onDoubleClick(event), false);
-    }
-
-    onWindowResize() {
-        this.camera.aspect = window.innerWidth / window.innerHeight;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    animate() {
-        this.renderer.setAnimationLoop(() => this.render());
-    }
-
-    render() {
-        this.stats.begin();
-        this.checkFrameRate();
-        this.renderer.render(this.scene, this.camera);
-        this.controls.update();
-        this.stats.end();
-    }
-
-    checkFrameRate() {
-        const currentFPS = this.stats.getFPS();
-        if (currentFPS < 30 && !this.lowFrameRate) {
-            this.lowFrameRate = true;
-            this.reduceGraphicsQuality();
-        } else if (currentFPS >= 30 && this.lowFrameRate) {
-            this.lowFrameRate = false;
-            this.restoreGraphicsQuality();
-        }
-    }
-
-    reduceGraphicsQuality() {
-        console.warn('Reducing graphics quality due to low FPS');
-        this.renderer.setPixelRatio(0.5);
-    }
-
-    restoreGraphicsQuality() {
-        console.info('Restoring graphics quality');
-        this.renderer.setPixelRatio(window.devicePixelRatio);
-    }
-}
-
-// Initialize the gallery
-const gallery = new ArtGallery();
-</script>
+        // Initialize the gallery
+        const gallery = new ArtGallery();
+    </script>
 </body>
 </html>
