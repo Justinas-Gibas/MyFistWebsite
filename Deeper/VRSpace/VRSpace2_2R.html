@@ -43,7 +43,7 @@
                 document.body.appendChild(this.stats.dom);
 
                 this.lowFrameRate = false;
-                this.frameCounter = 0; // Counter to control frame rate checks
+                this.frameCounter = 0;
                 this.initGallery();
             }
 
@@ -109,7 +109,7 @@
 
                 // HDR Environment Setup
                 const envLoader = new RGBELoader();
-                envLoader.load('../lib/images/Galer.hdr', (texture) => {
+                envLoader.load('./lib/images/Galer.hdr', (texture) => {
                     texture.mapping = THREE.EquirectangularReflectionMapping;
                     this.scene.environment = texture;
                 });
@@ -148,7 +148,7 @@
 
             loadGalleryModel() {
                 const loader = new GLTFLoader();
-                loader.load('../lib/models/GalerAll.glb', (gltf) => {
+                loader.load('./lib/models/GalerAll.glb', (gltf) => {
                     gltf.scene.traverse((child) => {
                         if (child.isMesh) {
                             child.castShadow = true;
@@ -178,106 +178,91 @@
                       text: 'Description for EV_00034.jpg', 
                       position: new THREE.Vector3(9.99, 2.5, 4),
                       rotation: new THREE.Euler(0, Math.PI / -2, 0)
-                    },
-                
+                    },                
                     { 
                       texture: 'img/EV_00040.jpg', 
                       text: 'Description for EV_00040.jpg', 
                       position: new THREE.Vector3(9.99, 2.5, 7),
                       rotation: new THREE.Euler(0, Math.PI / -2, 0)
                     },
-                
                     { 
                       texture: 'img/EV_00041.jpg', 
                       text: 'Description for EV_00041.jpg', 
                       position: new THREE.Vector3(9.99, 2.5, 9),
                       rotation: new THREE.Euler(0, Math.PI / -2, 0)
                     },
-                
                     { 
                       texture: 'img/EV_00041.jpg', 
                       text: 'Description for EV_00041.jpg', 
                       position: new THREE.Vector3(9.99, 2.5, 12),
                       rotation: new THREE.Euler(0, Math.PI / -2, 0)
                     },
-                
                     { 
                       texture: 'img/EV_00041.jpg', 
                       text: 'Description for EV_00041.jpg', 
                       position: new THREE.Vector3(9.99, 2.5, 15),
                       rotation: new THREE.Euler(0, Math.PI / -2, 0)
                     },
-                
                     { // right of gallery left side
                       texture: 'img/EV_00042.jpg', 
                       text: 'Description for EV_00042.jpg', 
                       position: new THREE.Vector3(6, 2.5, 19.99),
                       rotation: new THREE.Euler(0, Math.PI, 0),
                     },
-                
                     { // center of gallery left side
                       texture: 'img/EV_00042.jpg', 
                       text: 'Description for EV_00042.jpg', 
                       position: new THREE.Vector3(0, 2.5, 19.99),
                       rotation: new THREE.Euler(0, Math.PI, 0),
                     },
-                
                     { // left of gallery left side
                       texture: 'img/EV_00042.jpg', 
                       text: 'Description for EV_00042.jpg', 
                       position: new THREE.Vector3(-6, 2.5, 19.99),
                       rotation: new THREE.Euler(0, Math.PI, 0),    
                     },
-                
                     { //left side of front wall
                       texture: 'img/EV_00044.jpg', 
                       text: 'Description for EV_00044.jpg', 
                       position: new THREE.Vector3(-9.99, 2.5, 18),
                       rotation: new THREE.Euler(0, Math.PI / 2, 0)
                     },
-                
                     {
                       texture: 'img/EV_00044.jpg', 
                       text: 'Description for EV_00044.jpg', 
                       position: new THREE.Vector3(-9.99, 2.5, 7),
                       rotation: new THREE.Euler(0, Math.PI / 2, 0)
                     },
-                
                     { // right side of front wall
                       texture: 'img/EV_00045.jpg', 
                       text: 'Description for EV_00045.jpg', 
                       position: new THREE.Vector3(-9.99, 2.5, -18),
                       rotation: new THREE.Euler(0, Math.PI / 2, 0)
                     },
-                
                     { // right of gallery right side
                       texture: 'img/EV_09965.jpg',  
                       text: 'Description for EV_09965.jpg', 
                       position: new THREE.Vector3(-6, 2.5, -19.9),
                       rotation: new THREE.Euler(0, 0, 0),
                     },
-                    
                     { // center of gallery right side
                       texture: 'img/EV_09965.jpg',  
                       text: 'Description for EV_09965.jpg', 
                       position: new THREE.Vector3(0, 2.5, -19.9),
                       rotation: new THREE.Euler(0, 0, 0),
                     },
-                
                     { // left of gallery right side
                       texture: 'img/EV_09965.jpg',  
                       text: 'Description for EV_09965.jpg', 
                       position: new THREE.Vector3(6, 2.5, -19.9),
                       rotation: new THREE.Euler(0, 0, 0),
                     },
-                
                     {
                       texture: 'img/EV_00040.jpg', 
                       text: 'Description for EV_00040.jpg', 
                       position: new THREE.Vector3(9.99, 2.5, -8),
                       rotation: new THREE.Euler(0, Math.PI / -2, 0),
                     },
-                    
                     { //end position of gallery right side
                       texture: 'img/EV_09990.jpg', 
                       text: 'Description for EV_09990.jpg', 
@@ -344,7 +329,7 @@
 
             loadText(text, position, rotation, width, height) {
                 const loader = new FontLoader();
-                loader.load('../lib/styles/helvetiker_regular.typeface.json', (font) => {
+                loader.load('./lib/three/examples/fonts/helvetiker_regular.typeface.json', (font) => {
                     const maxCharsPerLine = 35;
                     const lineHeight = 0.13;
                     const lines = this.wrapText(text, maxCharsPerLine);
@@ -411,7 +396,7 @@
 
             render() {
                 this.stats.begin();
-                if (this.frameCounter % 100 === 0) { // Only check frame rate every 100 frames
+                if (this.frameCounter % 100 === 0) {
                     this.checkFrameRate();
                 }
                 this.frameCounter++;
