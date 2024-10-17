@@ -10,6 +10,27 @@
     <style>
         body, html { margin: 0; height: 100%; overflow: hidden; }
         canvas { width: 100%; height: 100%; display: block; }
+        .ui-button {
+            position: absolute;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid #ccc;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #nextButton { top: 10px; right: 10px; }
+        #prevButton { top: 10px; left: 10px; }
+        #galleryTitle {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid #ccc;
+            font-size: 24px;
+            text-align: center;
+        }
     </style>
     <script type="importmap">
         {
@@ -45,6 +66,7 @@
                 this.lowFrameRate = false;
                 this.frameCounter = 0;
                 this.initGallery();
+                this.setupUI();
             }
 
             setupCamera() {
@@ -382,6 +404,41 @@
             setupEventListeners() {
                 window.addEventListener('resize', () => this.onWindowResize(), false);
                 document.addEventListener('dblclick', (event) => this.onDoubleClick(event), false);
+            }
+
+            setupUI() {
+                // Adding next and previous buttons
+                const nextButton = document.createElement('button');
+                nextButton.id = 'nextButton';
+                nextButton.classList.add('ui-button');
+                nextButton.innerText = 'Next';
+                nextButton.addEventListener('click', () => this.showNextArtwork());
+                document.body.appendChild(nextButton);
+
+                const prevButton = document.createElement('button');
+                prevButton.id = 'prevButton';
+                prevButton.classList.add('ui-button');
+                prevButton.innerText = 'Previous';
+                prevButton.addEventListener('click', () => this.showPreviousArtwork());
+                document.body.appendChild(prevButton);
+
+                // Adding gallery title
+                const galleryTitle = document.createElement('div');
+                galleryTitle.id = 'galleryTitle';
+                galleryTitle.innerText = 'Virtual Gallery';
+                document.body.appendChild(galleryTitle);
+            }
+
+            showNextArtwork() {
+                this.currentArtIndex = (this.currentArtIndex + 1) % this.artworks.length;
+                this.camera.position.copy(this.artworks[this.currentArtIndex].position);
+                this.camera.lookAt(0, 1.6, 0);
+            }
+
+            showPreviousArtwork() {
+                this.currentArtIndex = (this.currentArtIndex - 1 + this.artworks.length) % this.artworks.length;
+                this.camera.position.copy(this.artworks[this.currentArtIndex].position);
+                this.camera.lookAt(0, 1.6, 0);
             }
 
             onWindowResize() {
