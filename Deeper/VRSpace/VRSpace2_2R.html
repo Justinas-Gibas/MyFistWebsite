@@ -43,6 +43,7 @@
                 document.body.appendChild(this.stats.dom);
 
                 this.lowFrameRate = false;
+                this.frameCounter = 0; // Counter to control frame rate checks
                 this.initGallery();
             }
 
@@ -410,7 +411,10 @@
 
             render() {
                 this.stats.begin();
-                this.checkFrameRate();
+                if (this.frameCounter % 100 === 0) { // Only check frame rate every 100 frames
+                    this.checkFrameRate();
+                }
+                this.frameCounter++;
                 this.renderer.render(this.scene, this.camera);
                 this.controls.update();
                 this.stats.end();
