@@ -108,7 +108,7 @@
 
                 // HDR Environment Setup
                 const envLoader = new RGBELoader();
-                envLoader.load('./lib/images/Galer.hdr', (texture) => {
+                envLoader.load('../lib/images/Galer.hdr', (texture) => {
                     texture.mapping = THREE.EquirectangularReflectionMapping;
                     this.scene.environment = texture;
                 });
@@ -147,7 +147,7 @@
 
             loadGalleryModel() {
                 const loader = new GLTFLoader();
-                loader.load('./lib/models/GalerAll.glb', (gltf) => {
+                loader.load('../lib/models/GalerAll.glb', (gltf) => {
                     gltf.scene.traverse((child) => {
                         if (child.isMesh) {
                             child.castShadow = true;
@@ -343,7 +343,7 @@
 
             loadText(text, position, rotation, width, height) {
                 const loader = new FontLoader();
-                loader.load('./lib/three/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+                loader.load('../lib/styles/helvetiker_regular.typeface.json', (font) => {
                     const maxCharsPerLine = 35;
                     const lineHeight = 0.13;
                     const lines = this.wrapText(text, maxCharsPerLine);
