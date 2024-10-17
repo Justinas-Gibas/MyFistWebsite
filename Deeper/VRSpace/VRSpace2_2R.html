@@ -417,13 +417,17 @@
             }
 
             checkFrameRate() {
-                const currentFPS = this.stats.getFPS();
-                if (currentFPS < 30 && !this.lowFrameRate) {
-                    this.lowFrameRate = true;
-                    this.reduceGraphicsQuality();
-                } else if (currentFPS >= 30 && this.lowFrameRate) {
-                    this.lowFrameRate = false;
-                    this.restoreGraphicsQuality();
+                if (typeof this.stats.getFPS === 'function') {
+                    const currentFPS = this.stats.getFPS();
+                    if (currentFPS < 30 && !this.lowFrameRate) {
+                        this.lowFrameRate = true;
+                        this.reduceGraphicsQuality();
+                    } else if (currentFPS >= 30 && this.lowFrameRate) {
+                        this.lowFrameRate = false;
+                        this.restoreGraphicsQuality();
+                    }
+                } else {
+                    console.warn('getFPS is not a function, skipping frame rate check');
                 }
             }
 
