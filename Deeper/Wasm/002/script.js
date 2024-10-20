@@ -3,7 +3,7 @@ let gpuDevice, gpuContext, gpuPipeline;
 // Function to load the WebAssembly module
 async function loadWasm() {
     try {
-        const response = await fetch('/doubleSlit.wasm'); // Adjust this path
+        const response = await fetch('doubleSlit.wasm'); // Adjust this path
         if (!response.ok) throw new Error("Failed to load WASM file");
         const bytes = await response.arrayBuffer();
         const module = await WebAssembly.instantiate(bytes);
