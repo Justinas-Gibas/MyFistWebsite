@@ -16,6 +16,7 @@
             color: white;
             font-family: 'Arial', sans-serif;
             font-size: 24px;
+            overflow: hidden;
         }
 
         /* Container for centering the elements */
@@ -80,6 +81,11 @@
             100% { transform: scale(1); }
         }
 
+        @keyframes expandToScreen {
+            0% { transform: scale(1); }
+            100% { transform: scale(100); }
+        }
+
         #pulsatingBall {
             position: absolute;
             top: 50%;
@@ -99,21 +105,23 @@
             100% { opacity: 1; }
         }
 
-        /* Choice buttons for cookies */
+        /* Improved button styling */
         .choiceButton {
-            padding: 10px 20px;
+            padding: 12px 25px;
             margin: 10px;
-            background-color: white;
-            color: black;
+            background-color: #ffffff;
+            color: #2f2f2f;
             border: none;
             cursor: pointer;
             font-size: 18px;
+            border-radius: 8px;
             opacity: 0; /* Initially hidden */
             animation: fadeIn 1s forwards; /* Apply fade-in */
+            transition: background-color 0.3s ease;
         }
 
         .choiceButton:hover {
-            background-color: #ccc;
+            background-color: #dddddd;
         }
 
         /* Styling for the second question */
@@ -235,6 +243,18 @@
             rejectCookiesButton.classList.remove('hidden');
         }
 
+        function startFinalBallExpansion() {
+            // Show the pulsating ball again and expand it after a delay
+            pulsatingBallElement.style.display = 'block';
+            pulsatingBallElement.style.animation = "pulse 1.5s infinite";
+
+            // After 5 seconds, expand the ball to full screen
+            setTimeout(() => {
+                pulsatingBallElement.style.animation = "expandToScreen 2s forwards";
+                pulsatingBallElement.style.backgroundColor = "white"; // Change color to white
+            }, 5000); // Wait for 5 seconds before expanding
+        }
+
         // Start the loading and greeting sequence
         showLoading();
         handleNameSubmit();
@@ -242,12 +262,12 @@
         // Handle cookie consent choices
         acceptCookiesButton.addEventListener('click', () => {
             alert("You accepted additional cookies!");
-            // Logic for handling cookie consent can go here
+            startFinalBallExpansion();
         });
 
         rejectCookiesButton.addEventListener('click', () => {
             alert("You rejected additional cookies!");
-            // Logic for rejecting cookie consent can go here
+            startFinalBallExpansion();
         });
     </script>
 </body>
