@@ -222,11 +222,11 @@
             // Show the pulsating ball in the center of the screen
             pulsatingBallElement.style.display = 'block';
 
-            // After 2 seconds, ask the next question (reduce delay)
+            // After 4 seconds, ask the next question (increase duration)
             setTimeout(() => {
                 pulsatingBallElement.style.display = 'none';
                 showNextQuestion();
-            }, 2000); // Pulsate for a shorter 2 seconds
+            }, 4000); // Pulsate for 4 seconds
         }
 
         function showNextQuestion() {
@@ -255,6 +255,7 @@
             acceptCookiesButton.classList.add('collapsingText');
             rejectCookiesButton.classList.add('collapsingText');
 
+            // Ensure buttons and text disappear before ball animation starts
             setTimeout(() => {
                 // Display the ball and start the pulsating animation
                 pulsatingBallElement.style.display = 'block';
@@ -265,7 +266,7 @@
                     pulsatingBallElement.style.animation = "expandToScreen 2s forwards";
                     pulsatingBallElement.style.backgroundColor = "white"; // Change color to white
                 }, 5000);
-            }, 1000); // Ensure buttons and text collapse properly before the ball appears
+            }, 1000); // Wait for buttons and text to disappear
         }
 
         // Start the loading and greeting sequence
@@ -274,12 +275,12 @@
 
         // Handle cookie consent choices
         acceptCookiesButton.addEventListener('click', () => {
-            alert("You accepted additional cookies!");
+            //alert("You accepted additional cookies!");
             startFinalBallExpansion();
         });
 
         rejectCookiesButton.addEventListener('click', () => {
-            //alert("You rejected additional cookies!");
+            alert("You rejected additional cookies!");
             startFinalBallExpansion();
         });
     </script>
