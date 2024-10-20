@@ -180,7 +180,7 @@
 
         function typeWriterEffect(element, text, callback) {
             let index = 0;
-            const speed = 120; // Speed of typing effect
+            const speed = 150; // Speed of typing effect
 
             function type() {
                 if (index < text.length) {
@@ -215,18 +215,18 @@
                     greetingTextElement.classList.add('hidden'); // Hide the text completely after collapse
                     startPulsatingBall();
                 }, 500); // Wait for the collapse animation to finish
-            }, 1500); // Wait for some time after displaying the "Connecting" message
+            }, 1000); // Shorten the wait before the next step
         }
 
         function startPulsatingBall() {
             // Show the pulsating ball in the center of the screen
             pulsatingBallElement.style.display = 'block';
 
-            // After 3 seconds, ask the next question
+            // After 2 seconds, ask the next question (reduce delay)
             setTimeout(() => {
                 pulsatingBallElement.style.display = 'none';
                 showNextQuestion();
-            }, 3000); // Pulsate for 3 seconds
+            }, 2000); // Pulsate for a shorter 2 seconds
         }
 
         function showNextQuestion() {
@@ -274,12 +274,12 @@
 
         // Handle cookie consent choices
         acceptCookiesButton.addEventListener('click', () => {
-            //alert("You accepted additional cookies!");
+            alert("You accepted additional cookies!");
             startFinalBallExpansion();
         });
 
         rejectCookiesButton.addEventListener('click', () => {
-            alert("You rejected additional cookies!");
+            //alert("You rejected additional cookies!");
             startFinalBallExpansion();
         });
     </script>
