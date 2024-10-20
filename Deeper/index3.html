@@ -132,6 +132,8 @@
         /* Styling for the second question */
         #nextQuestion {
             font-size: 30px;
+            opacity: 0;
+            animation: fadeIn 1s forwards;
         }
     </style>
 </head>
@@ -238,12 +240,12 @@
             // Ensure all elements are reset properly before showing the next question
             nextQuestionElement.innerHTML = "";
             nextQuestionElement.classList.remove('collapsingText');
+            nextQuestionElement.classList.remove('hidden');
             acceptCookiesButton.classList.remove('collapsingText');
             rejectCookiesButton.classList.remove('collapsingText');
 
             // Use typewriter effect for the second question
             typeWriterEffect(nextQuestionElement, "Do you accept additional cookies?", () => {
-                nextQuestionElement.classList.remove('hidden');
                 showCookieOptions();
             });
         }
@@ -268,6 +270,7 @@
 
                 // After 2 seconds, expand the ball to cover the screen
                 setTimeout(() => {
+                    pulsatingBallElement.classList.remove('hidden');
                     pulsatingBallElement.classList.add('expandToScreen');
                 }, 2000);
             }, 500); // Wait for buttons and text to disappear
