@@ -225,7 +225,7 @@
             // Show the pulsating ball in the center of the screen
             pulsatingBallElement.style.display = 'block';
 
-            // After 4 seconds, ask the next question (increase duration)
+            // After 4 seconds, ask the next question immediately
             setTimeout(() => {
                 pulsatingBallElement.style.display = 'none';
                 showNextQuestion();
@@ -279,12 +279,20 @@
 
         // Handle cookie consent choices
         acceptCookiesButton.addEventListener('click', () => {
+            hideCookieOptions();
             startFinalBallExpansion();
         });
 
         rejectCookiesButton.addEventListener('click', () => {
+            hideCookieOptions();
             startFinalBallExpansion();
         });
+
+        function hideCookieOptions() {
+            acceptCookiesButton.classList.add('hidden');
+            rejectCookiesButton.classList.add('hidden');
+            nextQuestionElement.classList.add('hidden');
+        }
     </script>
 </body>
 </html>
