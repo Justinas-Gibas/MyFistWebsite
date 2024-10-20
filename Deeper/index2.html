@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Greeting Animation</title>
+    <title>Greeting and Art Gallery</title>
     <style>
         /* Overall layout */
         body, html {
@@ -16,6 +16,17 @@
             color: white;
             font-family: 'Arial', sans-serif;
             font-size: 24px;
+        }
+
+        /* Container for centering the elements */
+        #greetingContainer {
+            text-align: center;
+        }
+
+        /* Text styling */
+        #greetingText {
+            font-size: 36px;
+            margin-bottom: 20px; /* Add gap between text and input */
         }
 
         /* Loading text */
@@ -37,6 +48,8 @@
             color: white;
             text-align: center;
             outline: none;
+            margin-top: 20px; /* Add margin for spacing */
+            width: 300px; /* Control input width */
         }
 
         /* Blinking animation for input cursor */
@@ -79,18 +92,38 @@
             transform: translate(-50%, -50%);
             display: none;
         }
+
+        /* Choice buttons for next step */
+        .choiceButton {
+            padding: 10px 20px;
+            margin: 10px;
+            background-color: white;
+            color: black;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .choiceButton:hover {
+            background-color: #ccc;
+        }
     </style>
 </head>
 <body>
     <!-- HTML Structure -->
     <div id="greetingContainer">
         <div id="loading" class="hidden">Loading...</div>
-        <div id="greetingText" class="hidden">What is your name?</div>
-        <input type="text" id="nameInput" class="hidden" placeholder="Enter your name" autofocus />
+        <div id="greetingText" class="hidden"></div> <!-- Greeting text will start empty -->
+        <input type="text" id="nameInput" class="hidden" value="" placeholder="Anonymous1234" autofocus />
     </div>
 
     <!-- Pulsating ball that appears after name is entered -->
     <div id="pulsatingBall"></div>
+
+    <!-- Choices after pulsating ball -->
+    <div id="nextQuestion" class="hidden">Why did you come here?</div>
+    <button class="choiceButton hidden" id="importArt">Import Art</button>
+    <button class="choiceButton hidden" id="seeGallery">See the Art</button>
 
     <!-- JavaScript for handling logic -->
     <script>
@@ -98,6 +131,15 @@
         const greetingTextElement = document.getElementById('greetingText');
         const nameInputElement = document.getElementById('nameInput');
         const pulsatingBallElement = document.getElementById('pulsatingBall');
+        const nextQuestionElement = document.getElementById('nextQuestion');
+        const importArtButton = document.getElementById('importArt');
+        const seeGalleryButton = document.getElementById('seeGallery');
+
+        // Generates a random anonymous name
+        const randomAnonymousName = "Anonymous" + Math.floor(Math.random() * 10000);
+
+        // Set default name in input field
+        nameInputElement.value = randomAnonymousName;
 
         function showLoading() {
             loadingElement.classList.remove('hidden');
@@ -109,7 +151,7 @@
 
         function startGreeting() {
             greetingTextElement.classList.remove('hidden');
-            typeWriterEffect(greetingTextElement, "What is your name?", () => {
+            typeWriterEffect(greetingTextElement, "Hello! What is your name? (Name in VR gallery)", () => {
                 nameInputElement.classList.remove('hidden');
                 nameInputElement.focus();
             });
@@ -136,13 +178,13 @@
             nameInputElement.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter' && nameInputElement.value.trim() !== "") {
                     const name = nameInputElement.value.trim();
-                    connectToApi(name);
+                    connectToNextStep(name);
                 }
             });
         }
 
-        function connectToApi(name) {
-            greetingTextElement.innerHTML = `Connecting, ${name}...`;
+        function connectToNextStep(name) {
+            greetingTextElement.innerHTML = `Connecting, ${name || randomAnonymousName}...`;
             nameInputElement.classList.add('hidden');
 
             // Wait for a moment before collapsing the text
@@ -158,11 +200,34 @@
         function startPulsatingBall() {
             // Show the pulsating ball in the center of the screen
             pulsatingBallElement.style.display = 'block';
+
+            // After 3 seconds, ask the next question
+            setTimeout(() => {
+                pulsatingBallElement.style.display = 'none';
+                showNextQuestion();
+            }, 3000); // Pulsate for 3 seconds
+        }
+
+        function showNextQuestion() {
+            nextQuestionElement.classList.remove('hidden');
+            importArtButton.classList.remove('hidden');
+            seeGalleryButton.classList.remove('hidden');
         }
 
         // Start the loading and greeting sequence
         showLoading();
         handleNameSubmit();
+
+        // Handle choice buttons
+        importArtButton.addEventListener('click', () => {
+            alert("Import Art chosen!");
+            // Logic for importing art can be implemented here
+        });
+
+        seeGalleryButton.addEventListener('click', () => {
+            alert("See Gallery chosen!");
+            // Logic for viewing the gallery can be implemented here
+        });
     </script>
 </body>
 </html>
