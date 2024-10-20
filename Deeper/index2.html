@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greeting Animation</title>
+    <style>
+        /* Overall layout */
+        body, html {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #2f2f2f;
+            color: white;
+            font-family: 'Arial', sans-serif;
+            font-size: 24px;
+        }
+
+        /* Loading text */
+        #loading {
+            font-size: 30px;
+        }
+
+        /* Hide elements initially */
+        .hidden {
+            display: none;
+        }
+
+        /* Input field for name */
+        #nameInput {
+            font-size: 24px;
+            border: none;
+            border-bottom: 2px solid white;
+            background: transparent;
+            color: white;
+            text-align: center;
+            outline: none;
+        }
+
+        /* Blinking animation for input cursor */
+        @keyframes blink {
+            0% { border-color: white; }
+            50% { border-color: transparent; }
+            100% { border-color: white; }
+        }
+
+        #nameInput:focus {
+            animation: blink 1s step-end infinite;
+        }
+
+        /* Text collapse animation */
+        @keyframes collapse {
+            0% { transform: scale(1); }
+            100% { transform: scale(0); }
+        }
+
+        .collapsingText {
+            animation: collapse 0.5s forwards;
+        }
+
+        /* Pulsating ball animation */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+
+        #pulsatingBall {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background-color: white;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- HTML Structure -->
+    <div id="greetingContainer">
+        <div id="loading" class="hidden">Loading...</div>
+        <div id="greetingText" class="hidden">What is your name?</div>
+        <input type="text" id="nameInput" class="hidden" placeholder="Enter your name" autofocus />
+    </div>
+
+    <!-- Pulsating ball that appears after name is entered -->
+    <div id="pulsatingBall"></div>
+
+    <!-- JavaScript for handling logic -->
+    <script>
+        const loadingElement = document.getElementById('loading');
+        const greetingTextElement = document.getElementById('greetingText');
+        const nameInputElement = document.getElementById('nameInput');
+        const pulsatingBallElement = document.getElementById('pulsatingBall');
+
+        function showLoading() {
+            loadingElement.classList.remove('hidden');
+            setTimeout(() => {
+                loadingElement.classList.add('hidden');
+                startGreeting();
+            }, 2000); // Simulate loading delay (2 seconds)
+        }
+
+        function startGreeting() {
+            greetingTextElement.classList.remove('hidden');
+            typeWriterEffect(greetingTextElement, "What is your name?", () => {
+                nameInputElement.classList.remove('hidden');
+                nameInputElement.focus();
+            });
+        }
+
+        function typeWriterEffect(element, text, callback) {
+            let index = 0;
+            const speed = 100; // Speed of typing effect
+
+            function type() {
+                if (index < text.length) {
+                    element.innerHTML += text.charAt(index);
+                    index++;
+                    setTimeout(type, speed);
+                } else {
+                    callback();
+                }
+            }
+
+            type();
+        }
+
+        function handleNameSubmit() {
+            nameInputElement.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && nameInputElement.value.trim() !== "") {
+                    const name = nameInputElement.value.trim();
+                    connectToApi(name);
+                }
+            });
+        }
+
+        function connectToApi(name) {
+            greetingTextElement.innerHTML = `Connecting, ${name}...`;
+            nameInputElement.classList.add('hidden');
+
+            // Wait for a moment before collapsing the text
+            setTimeout(() => {
+                greetingTextElement.classList.add('collapsingText');
+                setTimeout(() => {
+                    greetingTextElement.classList.add('hidden'); // Hide the text completely after collapse
+                    startPulsatingBall();
+                }, 500); // Wait for the collapse animation to finish
+            }, 1500); // Wait for some time after displaying the "Connecting" message
+        }
+
+        function startPulsatingBall() {
+            // Show the pulsating ball in the center of the screen
+            pulsatingBallElement.style.display = 'block';
+        }
+
+        // Start the loading and greeting sequence
+        showLoading();
+        handleNameSubmit();
+    </script>
+</body>
+</html>
