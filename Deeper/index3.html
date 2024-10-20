@@ -94,11 +94,17 @@
             height: 50px;
             background-color: white;
             border-radius: 50%;
-            animation: pulse 1.5s infinite;
             transform: translate(-50%, -50%);
             display: none;
+            /* Removed the default animation */
         }
 
+        /* Added pulsating animation class */
+        .pulsating {
+            animation: pulse 1.5s infinite;
+        }
+
+        /* Expand to screen animation class */
         .expandToScreen {
             animation: expandToScreen 2s forwards;
             background-color: white;
@@ -228,10 +234,12 @@
         function startPulsatingBall() {
             // Show the pulsating ball in the center of the screen
             pulsatingBallElement.style.display = 'block';
+            pulsatingBallElement.classList.add('pulsating');
 
             // After 3 seconds, ask the next question immediately
             setTimeout(() => {
                 pulsatingBallElement.style.display = 'none';
+                pulsatingBallElement.classList.remove('pulsating');
                 showNextQuestion();
             }, 3000); // Pulsate for 3 seconds
         }
@@ -266,11 +274,12 @@
             setTimeout(() => {
                 // Display the ball and start the pulsating animation
                 pulsatingBallElement.style.display = 'block';
-                pulsatingBallElement.style.animation = "pulse 1.5s infinite";
+                pulsatingBallElement.classList.add('pulsating');
 
                 // After 2 seconds, expand the ball to cover the screen
                 setTimeout(() => {
-                    pulsatingBallElement.classList.remove('hidden');
+                    // Remove the pulsating class before expanding
+                    pulsatingBallElement.classList.remove('pulsating');
                     pulsatingBallElement.classList.add('expandToScreen');
                 }, 2000);
             }, 500); // Wait for buttons and text to disappear
