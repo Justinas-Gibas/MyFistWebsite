@@ -156,11 +156,15 @@
         const acceptCookiesButton = document.getElementById('acceptCookies');
         const rejectCookiesButton = document.getElementById('rejectCookies');
 
-        // Generates a random anonymous name
-        const randomAnonymousName = "Anonymous" + Math.floor(Math.random() * 10000);
+        // Generates a random anonymous name from a predefined list
+        const predefinedNames = ["Skywalker", "Starlight", "Phoenix", "Echo", "Shadow", "Nimbus", "Rogue", "Comet"];
+        const randomAnonymousName = "Anonymous" + predefinedNames[Math.floor(Math.random() * predefinedNames.length)] + Math.floor(Math.random() * 1000);
 
         // Set default name in input field
         nameInputElement.value = randomAnonymousName;
+
+        // Configurable typing speed
+        const typingSpeed = 150;
 
         function showLoading() {
             loadingElement.classList.remove('hidden');
@@ -172,7 +176,7 @@
 
         function startGreeting() {
             greetingTextElement.classList.remove('hidden');
-            typeWriterEffect(greetingTextElement, "Hello! What is your name? (Name in VR gallery)", () => {
+            typeWriterEffect(greetingTextElement, "Hello! What is your name?", () => {
                 nameInputElement.classList.remove('hidden');
                 nameInputElement.focus();
             });
@@ -180,13 +184,12 @@
 
         function typeWriterEffect(element, text, callback) {
             let index = 0;
-            const speed = 150; // Speed of typing effect
 
             function type() {
                 if (index < text.length) {
                     element.innerHTML += text.charAt(index);
                     index++;
-                    setTimeout(type, speed);
+                    setTimeout(type, typingSpeed);
                 } else {
                     callback();
                 }
@@ -263,7 +266,8 @@
 
                 // After 5 seconds, expand the ball to cover the screen
                 setTimeout(() => {
-                    pulsatingBallElement.style.animation = "expandToScreen 2s forwards";
+                    const animationDuration = '2s'; // Configurable animation duration
+                    pulsatingBallElement.style.animation = `expandToScreen ${animationDuration} forwards`;
                     pulsatingBallElement.style.backgroundColor = "white"; // Change color to white
                 }, 5000);
             }, 1000); // Wait for buttons and text to disappear
@@ -275,12 +279,10 @@
 
         // Handle cookie consent choices
         acceptCookiesButton.addEventListener('click', () => {
-            //alert("You accepted additional cookies!");
             startFinalBallExpansion();
         });
 
         rejectCookiesButton.addEventListener('click', () => {
-            alert("You rejected additional cookies!");
             startFinalBallExpansion();
         });
     </script>
