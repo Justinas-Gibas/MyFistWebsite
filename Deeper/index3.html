@@ -27,7 +27,7 @@
         /* Text styling */
         #greetingText {
             font-size: 36px;
-            margin-bottom: 20px; /* Add gap between text and input */
+            margin-bottom: 20px;
         }
 
         /* Loading text */
@@ -49,8 +49,8 @@
             color: white;
             text-align: center;
             outline: none;
-            margin-top: 20px; /* Add margin for spacing */
-            width: 300px; /* Control input width */
+            margin-top: 20px;
+            width: 300px;
         }
 
         /* Blinking animation for input cursor */
@@ -115,8 +115,8 @@
             cursor: pointer;
             font-size: 18px;
             border-radius: 8px;
-            opacity: 0; /* Initially hidden */
-            animation: fadeIn 1s forwards; /* Apply fade-in */
+            opacity: 0;
+            animation: fadeIn 1s forwards;
             transition: background-color 0.3s ease;
         }
 
@@ -134,7 +134,7 @@
     <!-- HTML Structure -->
     <div id="greetingContainer">
         <div id="loading" class="hidden">Loading...</div>
-        <div id="greetingText" class="hidden"></div> <!-- Greeting text will start empty -->
+        <div id="greetingText" class="hidden"></div>
         <input type="text" id="nameInput" class="hidden" value="" placeholder="Anonymous1234" autofocus />
     </div>
 
@@ -172,7 +172,7 @@
 
         function startGreeting() {
             greetingTextElement.classList.remove('hidden');
-            typeWriterEffect(greetingTextElement, "Hello! What is your name? (Name in VR gallery)", () => {
+            typeWriterEffect(greetingTextElement, "Hello! What is your name?", () => {
                 nameInputElement.classList.remove('hidden');
                 nameInputElement.focus();
             });
@@ -180,7 +180,7 @@
 
         function typeWriterEffect(element, text, callback) {
             let index = 0;
-            const speed = 100; // Speed of typing effect
+            const speed = 120; // Speed of typing effect
 
             function type() {
                 if (index < text.length) {
@@ -244,15 +244,21 @@
         }
 
         function startFinalBallExpansion() {
-            // Show the pulsating ball again and expand it after a delay
-            pulsatingBallElement.style.display = 'block';
-            pulsatingBallElement.style.animation = "pulse 1.5s infinite";
+            // Hide text and buttons by animating their collapse
+            nextQuestionElement.classList.add('collapsingText');
+            acceptCookiesButton.classList.add('collapsingText');
+            rejectCookiesButton.classList.add('collapsingText');
 
-            // After 5 seconds, expand the ball to full screen
             setTimeout(() => {
-                pulsatingBallElement.style.animation = "expandToScreen 2s forwards";
-                pulsatingBallElement.style.backgroundColor = "white"; // Change color to white
-            }, 5000); // Wait for 5 seconds before expanding
+                pulsatingBallElement.style.display = 'block';
+                pulsatingBallElement.style.animation = "pulse 1.5s infinite";
+
+                // After 5 seconds, expand the ball to full screen
+                setTimeout(() => {
+                    pulsatingBallElement.style.animation = "expandToScreen 2s forwards";
+                    pulsatingBallElement.style.backgroundColor = "white"; // Change color to white
+                }, 5000); // Wait for 5 seconds before expanding
+            }, 500); // Allow time for text and buttons to collapse
         }
 
         // Start the loading and greeting sequence
@@ -261,12 +267,12 @@
 
         // Handle cookie consent choices
         acceptCookiesButton.addEventListener('click', () => {
-            alert("You accepted additional cookies!");
+            //we want to send states and messages here
             startFinalBallExpansion();
         });
 
         rejectCookiesButton.addEventListener('click', () => {
-            alert("You rejected additional cookies!");
+            //we want to send states and messages here
             startFinalBallExpansion();
         });
     </script>
