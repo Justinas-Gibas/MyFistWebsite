@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greeting and Art Gallery</title>
+    <style>
+        /* Overall layout */
+        body, html {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #2f2f2f;
+            color: white;
+            font-family: 'Arial', sans-serif;
+            font-size: 24px;
+        }
+
+        /* Text styling */
+        #greetingText {
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+
+        /* Loading text */
+        #loading {
+            font-size: 30px;
+        }
+
+        /* Hide elements initially */
+        .hidden {
+            display: none;
+        }
+
+        /* Input field for name */
+        #nameInput {
+            font-size: 24px;
+            border: none;
+            border-bottom: 2px solid white;
+            background: transparent;
+            color: white;
+            text-align: center;
+            outline: none;
+        }
+
+        /* Blinking animation for input cursor */
+        @keyframes blink {
+            0% { border-color: white; }
+            50% { border-color: transparent; }
+            100% { border-color: white; }
+        }
+
+        #nameInput:focus {
+            animation: blink 1s step-end infinite;
+        }
+
+        /* Text collapse animation */
+        @keyframes collapse {
+            0% { transform: scale(1); }
+            100% { transform: scale(0); }
+        }
+
+        .collapsingText {
+            animation: collapse 0.5s forwards;
+        }
+
+        /* Pulsating ball animation */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+
+        #pulsatingBall {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background-color: white;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+
+        /* Choice buttons for next step */
+        .choiceButton {
+            padding: 10px 20px;
+            margin: 10px;
+            background-color: white;
+            color: black;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .choiceButton:hover {
+            background-color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <!-- HTML Structure -->
+    <div id="greetingContainer">
+        <div id="loading" class="hidden">Loading...</div>
+        <div id="greetingText" class="hidden">Hello! What is your name? (Name in VR gallery)</div>
+        <input type="text" id="nameInput" class="hidden" placeholder="Anonymous1234" autofocus />
+    </div>
+
+    <!-- Pulsating ball that appears after name is entered -->
+    <div id="pulsatingBall"></div>
+
+    <!-- Choices after pulsating ball -->
+    <div id="nextQuestion" class="hidden">Why did you come here?</div>
+    <button class="choiceButton hidden" id="importArt">Import Art</button>
+    <button class="choiceButton hidden" id="seeGallery">See the Art</button>
+
+    <!-- JavaScript for handling logic -->
+    <script>
+        const loadingElement = document.getElementById('loading');
+        const greetingTextElement = document.getElementById('greetingText');
+        const nameInputElement = document.getElementById('nameInput');
+        const pulsatingBallElement = document.getElementById('pulsatingBall');
+        const nextQuestionElement = document.getElementById('nextQuestion');
+        const importArtButton = document.getElementById('importArt');
+        const seeGalleryButton = document.getElementById('seeGallery');
+
+        // Generates a random anonymous name
+        const randomAnonymousName = "Anonymous" + Math.floor(Math.random() * 10000);
+
+        // Placeholder random name
+        nameInputElement.placeholder = randomAnonymousName;
+
+        function showLoading() {
+            loadingElement.classList.remove('hidden');
+            setTimeout(() => {
+                loadingElement.classList.add('hidden');
+                startGreeting();
+            }, 2000); // Simulate loading delay (2 seconds)
+        }
+
+        function startGreeting() {
+            greetingTextElement.classList.remove('hidden');
+            typeWriterEffect(greetingTextElement, "Hello! What is your name? (Name in VR gallery)", () => {
+                nameInputElement.classList.remove('hidden');
+                nameInputElement.focus();
+            });
+        }
+
+        function typeWriterEffect(element, text, callback) {
+            let index = 0;
+            const speed = 100; // Speed of typing effect
+
+            function type() {
+                if (index < text.length) {
+                    element.innerHTML += text.charAt(index);
+                    index++;
+                    setTimeout(type, speed);
+                } else {
+                    callback();
+                }
+            }
+
+            type();
+        }
+
+        function handleNameSubmit() {
+            nameInputElement.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && nameInputElement.value.trim() !== "") {
+                    const name = nameInputElement.value.trim();
+                    connectToNextStep(name);
+                }
+            });
+        }
+
+        function connectToNextStep(name) {
+            greetingTextElement.innerHTML = `Connecting, ${name || randomAnonymousName}...`;
+            nameInputElement.classList.add('hidden');
+
+            // Wait for a moment before collapsing the text
+            setTimeout(() => {
+                greetingTextElement.classList.add('collapsingText');
+                setTimeout(() => {
+                    greetingTextElement.classList.add('hidden'); // Hide the text completely after collapse
+                    startPulsatingBall();
+                }, 500); // Wait for the collapse animation to finish
+            }, 1500); // Wait for some time after displaying the "Connecting" message
+        }
+
+        function startPulsatingBall() {
+            // Show the pulsating ball in the center of the screen
+            pulsatingBallElement.style.display = 'block';
+
+            // After 3 seconds, ask the next question
+            setTimeout(() => {
+                pulsatingBallElement.style.display = 'none';
+                showNextQuestion();
+            }, 3000); // Pulsate for 3 seconds
+        }
+
+        function showNextQuestion() {
+            nextQuestionElement.classList.remove('hidden');
+            importArtButton.classList.remove('hidden');
+            seeGalleryButton.classList.remove('hidden');
+        }
+
+        // Start the loading and greeting sequence
+        showLoading();
+        handleNameSubmit();
+
+        // Handle choice buttons
+        importArtButton.addEventListener('click', () => {
+            alert("Import Art chosen!");
+            // Logic for importing art can be implemented here
+        });
+
+        seeGalleryButton.addEventListener('click', () => {
+            alert("See Gallery chosen!");
+            // Logic for viewing the gallery can be implemented here
+        });
+    </script>
+</body>
+</html>
