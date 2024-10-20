@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Greeting and Art Gallery</title>
+    <title>Greeting and Cookies Consent</title>
     <style>
         /* Overall layout */
         body, html {
@@ -16,6 +16,7 @@
             color: white;
             font-family: 'Arial', sans-serif;
             font-size: 24px;
+            overflow: hidden;
         }
 
         /* Container for centering the elements */
@@ -26,7 +27,7 @@
         /* Text styling */
         #greetingText {
             font-size: 36px;
-            margin-bottom: 20px; /* Add gap between text and input */
+            margin-bottom: 20px;
         }
 
         /* Loading text */
@@ -48,8 +49,8 @@
             color: white;
             text-align: center;
             outline: none;
-            margin-top: 20px; /* Add margin for spacing */
-            width: 300px; /* Control input width */
+            margin-top: 20px;
+            width: 300px;
         }
 
         /* Blinking animation for input cursor */
@@ -80,6 +81,11 @@
             100% { transform: scale(1); }
         }
 
+        @keyframes expandToScreen {
+            0% { transform: scale(1); }
+            100% { transform: scale(100); }
+        }
+
         #pulsatingBall {
             position: absolute;
             top: 50%;
@@ -93,19 +99,34 @@
             display: none;
         }
 
-        /* Choice buttons for next step */
+        /* Fade-in animation for buttons */
+        @keyframes fadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+
+        /* Improved button styling */
         .choiceButton {
-            padding: 10px 20px;
+            padding: 12px 25px;
             margin: 10px;
-            background-color: white;
-            color: black;
+            background-color: #ffffff;
+            color: #2f2f2f;
             border: none;
             cursor: pointer;
             font-size: 18px;
+            border-radius: 8px;
+            opacity: 0;
+            animation: fadeIn 1s forwards;
+            transition: background-color 0.3s ease;
         }
 
         .choiceButton:hover {
-            background-color: #ccc;
+            background-color: #dddddd;
+        }
+
+        /* Styling for the second question */
+        #nextQuestion {
+            font-size: 30px;
         }
     </style>
 </head>
@@ -113,17 +134,17 @@
     <!-- HTML Structure -->
     <div id="greetingContainer">
         <div id="loading" class="hidden">Loading...</div>
-        <div id="greetingText" class="hidden"></div> <!-- Greeting text will start empty -->
+        <div id="greetingText" class="hidden"></div>
         <input type="text" id="nameInput" class="hidden" value="" placeholder="Anonymous1234" autofocus />
     </div>
 
     <!-- Pulsating ball that appears after name is entered -->
     <div id="pulsatingBall"></div>
 
-    <!-- Choices after pulsating ball -->
-    <div id="nextQuestion" class="hidden">Why did you come here?</div>
-    <button class="choiceButton hidden" id="importArt">Import Art</button>
-    <button class="choiceButton hidden" id="seeGallery">See the Art</button>
+    <!-- Choices for cookies consent -->
+    <div id="nextQuestion" class="hidden"></div>
+    <button class="choiceButton hidden" id="acceptCookies">Yes</button>
+    <button class="choiceButton hidden" id="rejectCookies">No</button>
 
     <!-- JavaScript for handling logic -->
     <script>
@@ -132,8 +153,8 @@
         const nameInputElement = document.getElementById('nameInput');
         const pulsatingBallElement = document.getElementById('pulsatingBall');
         const nextQuestionElement = document.getElementById('nextQuestion');
-        const importArtButton = document.getElementById('importArt');
-        const seeGalleryButton = document.getElementById('seeGallery');
+        const acceptCookiesButton = document.getElementById('acceptCookies');
+        const rejectCookiesButton = document.getElementById('rejectCookies');
 
         // Generates a random anonymous name
         const randomAnonymousName = "Anonymous" + Math.floor(Math.random() * 10000);
@@ -151,7 +172,7 @@
 
         function startGreeting() {
             greetingTextElement.classList.remove('hidden');
-            typeWriterEffect(greetingTextElement, "Hello! What is your name? (Name in VR gallery)", () => {
+            typeWriterEffect(greetingTextElement, "Hello! What is your name?", () => {
                 nameInputElement.classList.remove('hidden');
                 nameInputElement.focus();
             });
@@ -159,7 +180,7 @@
 
         function typeWriterEffect(element, text, callback) {
             let index = 0;
-            const speed = 100; // Speed of typing effect
+            const speed = 120; // Speed of typing effect
 
             function type() {
                 if (index < text.length) {
@@ -209,24 +230,50 @@
         }
 
         function showNextQuestion() {
-            nextQuestionElement.classList.remove('hidden');
-            importArtButton.classList.remove('hidden');
-            seeGalleryButton.classList.remove('hidden');
+            // Use typewriter effect for the second question
+            typeWriterEffect(nextQuestionElement, "Do you accept additional cookies?", () => {
+                nextQuestionElement.classList.remove('hidden');
+                showCookieOptions();
+            });
+        }
+
+        function showCookieOptions() {
+            // Show the "Yes" and "No" buttons with a fade-in effect
+            acceptCookiesButton.classList.remove('hidden');
+            rejectCookiesButton.classList.remove('hidden');
+        }
+
+        function startFinalBallExpansion() {
+            // Hide text and buttons by animating their collapse
+            nextQuestionElement.classList.add('collapsingText');
+            acceptCookiesButton.classList.add('collapsingText');
+            rejectCookiesButton.classList.add('collapsingText');
+
+            setTimeout(() => {
+                pulsatingBallElement.style.display = 'block';
+                pulsatingBallElement.style.animation = "pulse 1.5s infinite";
+
+                // After 5 seconds, expand the ball to full screen
+                setTimeout(() => {
+                    pulsatingBallElement.style.animation = "expandToScreen 2s forwards";
+                    pulsatingBallElement.style.backgroundColor = "white"; // Change color to white
+                }, 5000); // Wait for 5 seconds before expanding
+            }, 500); // Allow time for text and buttons to collapse
         }
 
         // Start the loading and greeting sequence
         showLoading();
         handleNameSubmit();
 
-        // Handle choice buttons
-        importArtButton.addEventListener('click', () => {
-            alert("Import Art chosen!");
-            // Logic for importing art can be implemented here
+        // Handle cookie consent choices
+        acceptCookiesButton.addEventListener('click', () => {
+            //we want to send states and messages here
+            startFinalBallExpansion();
         });
 
-        seeGalleryButton.addEventListener('click', () => {
-            alert("See Gallery chosen!");
-            // Logic for viewing the gallery can be implemented here
+        rejectCookiesButton.addEventListener('click', () => {
+            //we want to send states and messages here
+            startFinalBallExpansion();
         });
     </script>
 </body>

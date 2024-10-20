@@ -172,7 +172,7 @@
 
         function startGreeting() {
             greetingTextElement.classList.remove('hidden');
-            typeWriterEffect(greetingTextElement, "Hello! What is your name?", () => {
+            typeWriterEffect(greetingTextElement, "Hello! What is your name? (Name in VR gallery)", () => {
                 nameInputElement.classList.remove('hidden');
                 nameInputElement.focus();
             });
@@ -230,6 +230,12 @@
         }
 
         function showNextQuestion() {
+            // Ensure all elements are reset properly before showing the next question
+            nextQuestionElement.innerHTML = "";
+            nextQuestionElement.classList.remove('collapsingText');
+            acceptCookiesButton.classList.remove('collapsingText');
+            rejectCookiesButton.classList.remove('collapsingText');
+
             // Use typewriter effect for the second question
             typeWriterEffect(nextQuestionElement, "Do you accept additional cookies?", () => {
                 nextQuestionElement.classList.remove('hidden');
@@ -244,21 +250,22 @@
         }
 
         function startFinalBallExpansion() {
-            // Hide text and buttons by animating their collapse
+            // Collapse text and buttons before expanding the ball
             nextQuestionElement.classList.add('collapsingText');
             acceptCookiesButton.classList.add('collapsingText');
             rejectCookiesButton.classList.add('collapsingText');
 
             setTimeout(() => {
+                // Display the ball and start the pulsating animation
                 pulsatingBallElement.style.display = 'block';
                 pulsatingBallElement.style.animation = "pulse 1.5s infinite";
 
-                // After 5 seconds, expand the ball to full screen
+                // After 5 seconds, expand the ball to cover the screen
                 setTimeout(() => {
                     pulsatingBallElement.style.animation = "expandToScreen 2s forwards";
                     pulsatingBallElement.style.backgroundColor = "white"; // Change color to white
-                }, 5000); // Wait for 5 seconds before expanding
-            }, 500); // Allow time for text and buttons to collapse
+                }, 5000);
+            }, 1000); // Ensure buttons and text collapse properly before the ball appears
         }
 
         // Start the loading and greeting sequence
@@ -267,12 +274,12 @@
 
         // Handle cookie consent choices
         acceptCookiesButton.addEventListener('click', () => {
-            //we want to send states and messages here
+            //alert("You accepted additional cookies!");
             startFinalBallExpansion();
         });
 
         rejectCookiesButton.addEventListener('click', () => {
-            //we want to send states and messages here
+            alert("You rejected additional cookies!");
             startFinalBallExpansion();
         });
     </script>
