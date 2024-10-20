@@ -99,6 +99,11 @@
             display: none;
         }
 
+        .expandToScreen {
+            animation: expandToScreen 2s forwards;
+            background-color: white;
+        }
+
         /* Fade-in animation for buttons */
         @keyframes fadeIn {
             0% { opacity: 0; }
@@ -166,12 +171,11 @@
         // Configurable typing speed
         const typingSpeed = 150;
 
-        function showLoading() {
+        async function showLoading() {
             loadingElement.classList.remove('hidden');
-            setTimeout(() => {
-                loadingElement.classList.add('hidden');
-                startGreeting();
-            }, 2000); // Simulate loading delay (2 seconds)
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate loading delay (2 seconds)
+            loadingElement.classList.add('hidden');
+            startGreeting();
         }
 
         function startGreeting() {
@@ -189,7 +193,7 @@
                 if (index < text.length) {
                     element.innerHTML += text.charAt(index);
                     index++;
-                    setTimeout(type, typingSpeed);
+                    requestAnimationFrame(type);
                 } else {
                     callback();
                 }
@@ -207,18 +211,16 @@
             });
         }
 
-        function connectToNextStep(name) {
+        async function connectToNextStep(name) {
             greetingTextElement.innerHTML = `Connecting, ${name || randomAnonymousName}...`;
             nameInputElement.classList.add('hidden');
 
             // Wait for a moment before collapsing the text
-            setTimeout(() => {
-                greetingTextElement.classList.add('collapsingText');
-                setTimeout(() => {
-                    greetingTextElement.classList.add('hidden'); // Hide the text completely after collapse
-                    startPulsatingBall();
-                }, 500); // Wait for the collapse animation to finish
-            }, 1000); // Shorten the wait before the next step
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            greetingTextElement.classList.add('collapsingText');
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait for the collapse animation to finish
+            greetingTextElement.classList.add('hidden'); // Hide the text completely after collapse
+            startPulsatingBall();
         }
 
         function startPulsatingBall() {
@@ -266,9 +268,7 @@
 
                 // After 5 seconds, expand the ball to cover the screen
                 setTimeout(() => {
-                    const animationDuration = '2s'; // Configurable animation duration
-                    pulsatingBallElement.style.animation = `expandToScreen ${animationDuration} forwards`;
-                    pulsatingBallElement.style.backgroundColor = "white"; // Change color to white
+                    pulsatingBallElement.classList.add('expandToScreen');
                 }, 5000);
             }, 1000); // Wait for buttons and text to disappear
         }
