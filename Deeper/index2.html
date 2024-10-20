@@ -66,8 +66,8 @@
 
         /* Text collapse animation */
         @keyframes collapse {
-            0% { transform: scale(1); }
-            100% { transform: scale(0); }
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0); opacity: 0; }
         }
 
         .collapsingText {
@@ -83,7 +83,7 @@
 
         @keyframes expandToScreen {
             0% { transform: scale(1); }
-            100% { transform: scale(100); }
+            100% { transform: scale(150); }
         }
 
         #pulsatingBall {
@@ -97,6 +97,11 @@
             animation: pulse 1.5s infinite;
             transform: translate(-50%, -50%);
             display: none;
+        }
+
+        .expandToScreen {
+            animation: expandToScreen 2s forwards;
+            background-color: white;
         }
 
         /* Fade-in animation for buttons */
@@ -127,6 +132,8 @@
         /* Styling for the second question */
         #nextQuestion {
             font-size: 30px;
+            opacity: 0;
+            animation: fadeIn 1s forwards;
         }
     </style>
 </head>
@@ -156,18 +163,21 @@
         const acceptCookiesButton = document.getElementById('acceptCookies');
         const rejectCookiesButton = document.getElementById('rejectCookies');
 
-        // Generates a random anonymous name
-        const randomAnonymousName = "Anonymous" + Math.floor(Math.random() * 10000);
+        // Generates a random anonymous name from a predefined list
+        const predefinedNames = ["Skywalker", "Starlight", "Phoenix", "Echo", "Shadow", "Nimbus", "Rogue", "Comet"];
+        const randomAnonymousName = "Anonymous" + predefinedNames[Math.floor(Math.random() * predefinedNames.length)] + Math.floor(Math.random() * 1000);
 
         // Set default name in input field
         nameInputElement.value = randomAnonymousName;
 
-        function showLoading() {
+        // Configurable typing speed
+        const typingSpeed = 100;
+
+        async function showLoading() {
             loadingElement.classList.remove('hidden');
-            setTimeout(() => {
-                loadingElement.classList.add('hidden');
-                startGreeting();
-            }, 2000); // Simulate loading delay (2 seconds)
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate loading delay (2 seconds)
+            loadingElement.classList.add('hidden');
+            startGreeting();
         }
 
         function startGreeting() {
@@ -180,13 +190,12 @@
 
         function typeWriterEffect(element, text, callback) {
             let index = 0;
-            const speed = 120; // Speed of typing effect
 
             function type() {
                 if (index < text.length) {
                     element.innerHTML += text.charAt(index);
                     index++;
-                    setTimeout(type, speed);
+                    setTimeout(type, typingSpeed);
                 } else {
                     callback();
                 }
@@ -204,25 +213,23 @@
             });
         }
 
-        function connectToNextStep(name) {
+        async function connectToNextStep(name) {
             greetingTextElement.innerHTML = `Connecting, ${name || randomAnonymousName}...`;
             nameInputElement.classList.add('hidden');
 
             // Wait for a moment before collapsing the text
-            setTimeout(() => {
-                greetingTextElement.classList.add('collapsingText');
-                setTimeout(() => {
-                    greetingTextElement.classList.add('hidden'); // Hide the text completely after collapse
-                    startPulsatingBall();
-                }, 500); // Wait for the collapse animation to finish
-            }, 1500); // Wait for some time after displaying the "Connecting" message
+            await new Promise(resolve => setTimeout(resolve, 500));
+            greetingTextElement.classList.add('collapsingText');
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait for the collapse animation to finish
+            greetingTextElement.classList.add('hidden'); // Hide the text completely after collapse
+            startPulsatingBall();
         }
 
         function startPulsatingBall() {
             // Show the pulsating ball in the center of the screen
             pulsatingBallElement.style.display = 'block';
 
-            // After 3 seconds, ask the next question
+            // After 3 seconds, ask the next question immediately
             setTimeout(() => {
                 pulsatingBallElement.style.display = 'none';
                 showNextQuestion();
@@ -230,9 +237,15 @@
         }
 
         function showNextQuestion() {
+            // Ensure all elements are reset properly before showing the next question
+            nextQuestionElement.innerHTML = "";
+            nextQuestionElement.classList.remove('collapsingText');
+            nextQuestionElement.classList.remove('hidden');
+            acceptCookiesButton.classList.remove('collapsingText');
+            rejectCookiesButton.classList.remove('collapsingText');
+
             // Use typewriter effect for the second question
             typeWriterEffect(nextQuestionElement, "Do you accept additional cookies?", () => {
-                nextQuestionElement.classList.remove('hidden');
                 showCookieOptions();
             });
         }
@@ -244,21 +257,23 @@
         }
 
         function startFinalBallExpansion() {
-            // Hide text and buttons by animating their collapse
+            // Collapse text and buttons before expanding the ball
             nextQuestionElement.classList.add('collapsingText');
             acceptCookiesButton.classList.add('collapsingText');
             rejectCookiesButton.classList.add('collapsingText');
 
+            // Ensure buttons and text disappear before ball animation starts
             setTimeout(() => {
+                // Display the ball and start the pulsating animation
                 pulsatingBallElement.style.display = 'block';
                 pulsatingBallElement.style.animation = "pulse 1.5s infinite";
 
-                // After 5 seconds, expand the ball to full screen
+                // After 2 seconds, expand the ball to cover the screen
                 setTimeout(() => {
-                    pulsatingBallElement.style.animation = "expandToScreen 2s forwards";
-                    pulsatingBallElement.style.backgroundColor = "white"; // Change color to white
-                }, 5000); // Wait for 5 seconds before expanding
-            }, 500); // Allow time for text and buttons to collapse
+                    pulsatingBallElement.classList.remove('hidden');
+                    pulsatingBallElement.classList.add('expandToScreen');
+                }, 2000);
+            }, 500); // Wait for buttons and text to disappear
         }
 
         // Start the loading and greeting sequence
@@ -267,14 +282,20 @@
 
         // Handle cookie consent choices
         acceptCookiesButton.addEventListener('click', () => {
-            //we want to send states and messages here in the futture
+            hideCookieOptions();
             startFinalBallExpansion();
         });
 
         rejectCookiesButton.addEventListener('click', () => {
-            //we want to send states and messages here in the futture
+            hideCookieOptions();
             startFinalBallExpansion();
         });
+
+        function hideCookieOptions() {
+            acceptCookiesButton.classList.add('hidden');
+            rejectCookiesButton.classList.add('hidden');
+            nextQuestionElement.classList.add('hidden');
+        }
     </script>
 </body>
 </html>
