@@ -18,10 +18,15 @@
             font-size: 24px;
         }
 
+        /* Container for centering the elements */
+        #greetingContainer {
+            text-align: center;
+        }
+
         /* Text styling */
         #greetingText {
             font-size: 36px;
-            margin-bottom: 20px;
+            margin-bottom: 20px; /* Add gap between text and input */
         }
 
         /* Loading text */
@@ -43,6 +48,8 @@
             color: white;
             text-align: center;
             outline: none;
+            margin-top: 20px; /* Add margin for spacing */
+            width: 300px; /* Control input width */
         }
 
         /* Blinking animation for input cursor */
@@ -106,8 +113,8 @@
     <!-- HTML Structure -->
     <div id="greetingContainer">
         <div id="loading" class="hidden">Loading...</div>
-        <div id="greetingText" class="hidden">Hello! What is your name? (Name in VR gallery)</div>
-        <input type="text" id="nameInput" class="hidden" placeholder="Anonymous1234" autofocus />
+        <div id="greetingText" class="hidden"></div> <!-- Greeting text will start empty -->
+        <input type="text" id="nameInput" class="hidden" value="" placeholder="Anonymous1234" autofocus />
     </div>
 
     <!-- Pulsating ball that appears after name is entered -->
@@ -131,8 +138,8 @@
         // Generates a random anonymous name
         const randomAnonymousName = "Anonymous" + Math.floor(Math.random() * 10000);
 
-        // Placeholder random name
-        nameInputElement.placeholder = randomAnonymousName;
+        // Set default name in input field
+        nameInputElement.value = randomAnonymousName;
 
         function showLoading() {
             loadingElement.classList.remove('hidden');
