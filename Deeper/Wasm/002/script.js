@@ -1,5 +1,18 @@
 let gpuDevice, gpuContext, gpuPipeline;
 
+// Function to load the WebAssembly module
+async function loadWasm() {
+    try {
+        const response = await fetch('/doubleSlit.wasm'); // Adjust this path
+        if (!response.ok) throw new Error("Failed to load WASM file");
+        const bytes = await response.arrayBuffer();
+        const module = await WebAssembly.instantiate(bytes);
+        return module.instance.exports; // Modify this if you need specific exports
+    } catch (error) {
+        console.error("Error loading WASM:", error);
+    }
+}
+
 // Step 2: Initialize WebGPU
 async function initWebGPU() {
     if (!navigator.gpu) {

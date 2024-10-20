@@ -127,7 +127,7 @@
             font-size: 18px;
             border-radius: 8px;
             opacity: 0;
-            animation: fadeIn 1s forwards;
+            animation: fadeIn 2s forwards;
             transition: background-color 0.3s ease;
         }
 
@@ -177,8 +177,9 @@
         nameInputElement.value = randomAnonymousName;
 
         // Configurable typing speed
-        const typingSpeed = 100;
+        const typingSpeed = 120;
 
+        // Simulate loading of data
         async function showLoading() {
             loadingElement.classList.remove('hidden');
             await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate loading delay (2 seconds)
