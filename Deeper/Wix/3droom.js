@@ -83,15 +83,50 @@ class GalleryElement extends HTMLElement {
       scene.add(group);
     }
   
-    loadArtPieces(scene) {
+    async loadArtPieces(scene) {
       const textureLoader = new THREE.TextureLoader();
       const geometry = new THREE.PlaneGeometry(2, 2);
-      textureLoader.load('https://example.com/art-piece.png', (texture) => {
-        const material = new THREE.MeshStandardMaterial({ map: texture });
+      
+      const imageSources = [
+        'https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url&generator=featuredimage&formatversion=2&origin=*',
+        'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY'
+      ];
+  
+      let imageUrl = await this.fetchImageOfTheDay(imageSources);
+  
+      if (!imageUrl) {
+        console.error('Failed to load Image of the Day. Using blank texture.');
+        const blankTexture = new THREE.Texture();
+        blankTexture.needsUpdate = true;
+        const material = new THREE.MeshStandardMaterial({ map: blankTexture });
         const art = new THREE.Mesh(geometry, material);
         art.position.set(0, 2, -4);
         scene.add(art);
-      });
+      } else {
+        textureLoader.load(imageUrl, (texture) => {
+          const material = new THREE.MeshStandardMaterial({ map: texture });
+          const art = new THREE.Mesh(geometry, material);
+          art.position.set(0, 2, -4);
+          scene.add(art);
+        });
+      }
+    }
+  
+    async fetchImageOfTheDay(sources) {
+      for (const source of sources) {
+        try {
+          const response = await fetch(source);
+          const data = await response.json();
+          if (source.includes('commons.wikimedia.org')) {
+            return data.query.pages[0].imageinfo[0].url;
+          } else if (source.includes('api.nasa.gov')) {
+            return data.url;
+          }
+        } catch (error) {
+          console.error(`Error fetching image from ${source}:`, error);
+        }
+      }
+      return null; // Return null if all sources fail
     }
   
     onWindowResize(camera, renderer) {
