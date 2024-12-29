@@ -1,0 +1,27 @@
++-------------------+
+|     VR Clients    |
+| (Headsets, PCs,   |
+| Mobile Devices)   |
++---------+---------+
+          |
+          | Low-Latency Network (5G, Fiber)
+          |
++---------v---------+
+|    Edge Nodes     |
+| +---------------+ |
+| | Serverless    | | 
+| | Functions     | | 
+| +---------------+ |
+| +---------------+ |
+| | Caching &     | | 
+| | Data Storage  | | 
+| +---------------+ |
++---------+---------+
+          |
+          | Secure, Efficient Communication
+          |
++---------v---------+
+|    Central Cloud  |
+|  (Optional Backup |
+|    & Heavy Compute|
++-------------------+
