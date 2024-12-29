@@ -33,182 +33,70 @@ import { GLTFLoader } from './Deeper/lib/loaders/GLTFLoader.js';
 import { RGBELoader } from './Deeper/lib/loaders/RGBELoader.js';
 import { OrbitControls } from './Deeper/lib/controls/OrbitControls.js';
 import { Sky } from './Deeper/lib/utils/Sky.js';
-import Stats from './Deeper/lib/libs/stats.module.js'
+import Stats from './Deeper/lib/libs/stats.module.js';
 
-let camera, scene, renderer, controls;
+let camera, scene, renderer, controls, carouselGroup;
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 const targetPosition = new THREE.Vector3();
 let moveCamera = false;
-let carouselGroup;
 
 const stats = new Stats();
 document.body.appendChild(stats.dom);
 
 const projects = [
-    {
-        name: "L2Web",
-        description: "Responsive website project",
-        link: "./Deeper/L2Web/L2Web.html"
-    },
-    {
-        name: "GLTFLoader",
-        description: "GLTFLoader project",
-        link: "./Deeper/GLTFLoader/GLTFLoader.html"
-    },
-    {
-        name: "Chunks World",
-        description: "GLTF chunk project",
-        link: "./Deeper/ChunkWorld/ChunkWorld.html"
-    },
-    {
-        name: "Chunks World++",
-        description: "Enhanced GLTF chunk project",
-        link: "./Deeper/ChunkWorld++/ChunkWorld++.html"
-    },
-    {
-        name: "Volume Editor",
-        description: "Volume Editor project",
-        link: "./Deeper/VolumeEditor/VolumeEditor.html"
-    },
-    {
-        name: "VRSpace",
-        description: "VRSpace for art",
-        link: "./Deeper/VRSpace/VRSpace.html"
-    }
+    { name: "L2Web", description: "Responsive website project", link: "./Deeper/L2Web/L2Web.html" },
+    { name: "GLTFLoader", description: "GLTFLoader project", link: "./Deeper/GLTFLoader/GLTFLoader.html" },
+    { name: "Chunks World", description: "GLTF chunk project", link: "./Deeper/ChunkWorld/ChunkWorld.html" },
+    { name: "Chunks World++", description: "Enhanced GLTF chunk project", link: "./Deeper/ChunkWorld++/ChunkWorld++.html" },
+    { name: "Volume Editor", description: "Volume Editor project", link: "./Deeper/VolumeEditor/VolumeEditor.html" },
+    { name: "VRSpace", description: "VRSpace for art", link: "./Deeper/VRSpace/VRSpace.html" }
 ];
 
 function initGallery() {
-    // Initialize the scene
     scene = new THREE.Scene();
-    // Set up the camera
-    camera = setupCamera();
-    // Set up the renderer
-    renderer = setupRenderer();
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(0, 1.6, 20);
 
-    // Add lighting to the scene
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.6, 0);
+    controls.maxDistance = 30;
+    controls.minDistance = 5;
+    controls.update();
+
     setupLighting();
-    // Set up the camera controls
-    setupControls();
-    // Load gallery elements
-    setupGallery();
-    // Set up event listeners for user interaction
-    setupEventListeners();
-    // Start animation loop
+    setupSky();
+    setupGroundPlane();
+    loadProjectPosters();
+
+    window.addEventListener('resize', onWindowResize);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('dblclick', onDoubleClick);
+
     animate();
 }
 
-function setupCamera() {
-    // Create a perspective camera with a FOV of 75, suitable for immersive experiences
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-    camera.position.set(0, 1.6, 20); // Position the camera to start further away from the gallery
-    return camera;
-}
-
-function setupRenderer() {
-    // Create the renderer and configure it for AR
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Clamp pixel ratio to avoid performance issues on high-DPI displays
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-    return renderer;
-}
-
 function setupLighting() {
-    // Add ambient light for even lighting across the scene
     const ambientLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 1);
     scene.add(ambientLight);
-    
-    // Add directional light to highlight objects from above
+
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
     directionalLight.position.set(5, 10, 7.5);
     directionalLight.castShadow = true;
     scene.add(directionalLight);
 }
 
-function setupControls() {
-    // Create OrbitControls to allow the user to look around the scene
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1.6, 0); // Set the focal point to align with the center of the gallery
-    controls.maxDistance = 30; // Limit zoom out distance
-    controls.minDistance = 5;  // Limit zoom in distance
-    controls.update();
-}
-
-function setupGallery() {
-    // Create a group to hold all posters and rotate them
-    carouselGroup = new THREE.Group();
-    scene.add(carouselGroup);
-
-    // Load 3D project posters into the gallery
-    loadProjectPosters();
-    // Add reflective ground plane
-    setupGroundPlane();
-    // Add sky to the scene
-    setupSky();
-}
-
-function loadProjectPosters() {
-    const loader = new FontLoader();
-    loader.load('./Deeper/lib/styles/helvetiker_regular.typeface.json', function (font) {
-        const planeGeometry = new THREE.PlaneGeometry(3, 2);
-
-        projects.forEach((project, index) => {
-            // Create a plane for each project
-            const material = new THREE.MeshStandardMaterial({ color: 0x888888 });
-            const poster = new THREE.Mesh(planeGeometry, material);
-            const angle = (index / projects.length) * Math.PI * 2;
-            const radius = 18;
-            poster.position.set(Math.cos(angle) * radius, 2, Math.sin(angle) * radius); // Arrange posters in a circular layout further from center
-            poster.lookAt(camera.position); // Ensure the posters always face the camera
-            poster.userData = { clickable: true, link: project.link }; // Store project link for interaction
-            poster.name = 'projectPoster';
-            carouselGroup.add(poster);
-
-            // Add project title text below each poster
-            const textGeometry = new TextGeometry(project.name, {
-                font: font,
-                size: 0.2,
-                depth: 0.01,
-                curveSegments: 4,
-                bevelEnabled: false,
-            });
-
-            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-            textMesh.position.set(poster.position.x, poster.position.y - 1.5, poster.position.z);
-            textMesh.lookAt(camera.position); // Ensure the text always faces the camera
-            carouselGroup.add(textMesh);
-        });
-    });
-}
-
-function setupGroundPlane() {
-    // Create a ground plane using a PlaneGeometry
-    const groundGeo = new THREE.PlaneGeometry(100, 100);
-    const groundMat = new THREE.MeshPhysicalMaterial({
-        color: 0xffffff,
-        roughness: 1.0,
-        metalness: 0.0,
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.1
-    });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.rotation.x = -Math.PI / 2; // Rotate to make it horizontal
-    ground.position.y = 0; // Position at ground level
-    ground.receiveShadow = true;
-    ground.name = 'groundPlane';
-    scene.add(ground);
-}
-
 function setupSky() {
-    // Create a skybox to simulate an outdoor environment
     const sky = new Sky();
     sky.scale.setScalar(4500);
     scene.add(sky);
 
     const sun = new THREE.Vector3();
-
     const effectController = {
         turbidity: 0.0,
         rayleigh: 0.0,
@@ -227,69 +115,105 @@ function setupSky() {
         renderer.toneMappingExposure = effectController.exposure;
     }
 
-    updateSun(); // Set initial position of the sun
+    updateSun();
 }
 
-function onDoubleClick(event) {
-    // Calculate mouse position in normalized device coordinates (-1 to +1) for both components
+function setupGroundPlane() {
+    const groundGeo = new THREE.PlaneGeometry(100, 100);
+    const groundMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        roughness: 1.0,
+        metalness: 0.0,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.1
+    });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = 0;
+    ground.receiveShadow = true;
+    ground.name = 'groundPlane';
+    scene.add(ground);
+}
+
+function loadProjectPosters() {
+    const loader = new FontLoader();
+    loader.load('./Deeper/lib/styles/helvetiker_regular.typeface.json', function (font) {
+        const planeGeometry = new THREE.PlaneGeometry(3, 2);
+
+        carouselGroup = new THREE.Group();
+        scene.add(carouselGroup);
+
+        projects.forEach((project, index) => {
+            const material = new THREE.MeshStandardMaterial({ color: 0x888888 });
+            const poster = new THREE.Mesh(planeGeometry, material);
+            const angle = (index / projects.length) * Math.PI * 2;
+            const radius = 18;
+            poster.position.set(Math.cos(angle) * radius, 2, Math.sin(angle) * radius);
+            poster.lookAt(camera.position);
+            poster.userData = { clickable: true, link: project.link };
+            poster.name = 'projectPoster';
+            carouselGroup.add(poster);
+
+            const textGeometry = new TextGeometry(project.name, {
+                font: font,
+                size: 0.2,
+                depth: 0.01,
+                curveSegments: 4,
+                bevelEnabled: false,
+            });
+
+            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+            textMesh.position.set(poster.position.x, poster.position.y - 1.5, poster.position.z);
+            textMesh.lookAt(camera.position);
+            carouselGroup.add(textMesh);
+        });
+    });
+}
+
+function onMouseMove(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    // Check if the mouse click intersects with any clickable objects
-    checkForIntersections();
-}
-
-function checkForIntersections() {
-    // Use raycasting to determine if the mouse intersects with any clickable objects
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(scene.children);
+    const intersects = raycaster.intersectObjects(carouselGroup.children, true);
 
-    for (let i = 0; i < intersects.length; i++) {
-        if (intersects[i].object.userData.clickable) {
-            window.open(intersects[i].object.userData.link, '_blank'); // Open the project link in a new tab
-            return; // Only interact with the first intersected clickable object
+    carouselGroup.children.forEach((child) => {
+        if (child.name === 'projectPoster' && child.material) {
+            child.material.color.set(0x888888);
         }
-        if (intersects[i].object.name === 'groundPlane') {
-            targetPosition.copy(intersects[i].point);
-            moveCamera = true;
-            return;
+    });
+
+    if (intersects.length > 0) {
+        const obj = intersects[0].object;
+        if (obj.name === 'projectPoster' && obj.material) {
+            obj.material.color.set(0xaaaaaa);
         }
     }
 }
 
-function onMouseMove(event) {
-    // Calculate mouse position in normalized device coordinates (-1 to +1) for both components
+function onDoubleClick(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(scene.children);
+    const intersects = raycaster.intersectObjects(carouselGroup.children, true);
 
-    for (let i = 0; i < intersects.length; i++) {
-        if (intersects[i].object.name === 'projectPoster') {
-            intersects[i].object.material.color.set(0xaaaaaa); // Change color on hover
-        } else {
-            intersects[i].object.material.color.set(0x888888); // Revert color if not hovered
+    if (intersects.length > 0) {
+        const obj = intersects[0].object;
+        if (obj.userData.clickable) {
+            window.open(obj.userData.link, '_blank');
         }
     }
 }
 
 function onWindowResize() {
-    // Handle window resizing to maintain correct aspect ratio and renderer size
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-function setupEventListeners() {
-    // Set up event listeners for window resizing, mouse move, and double-click events
-    window.addEventListener('resize', onWindowResize, false);
-    document.addEventListener('dblclick', onDoubleClick, false);
-    document.addEventListener('mousemove', onMouseMove, false);
-}
-
 function animate() {
-    // Continuously render the scene
     if (moveCamera) {
         const delta = 0.05;
         camera.position.lerp(targetPosition, delta);
@@ -298,25 +222,14 @@ function animate() {
             moveCamera = false;
         }
     }
-    // Make posters actively look at the viewer
-    scene.traverse((child) => {
-        if (child.name === 'projectPoster' || child instanceof TextGeometry) {
-            child.lookAt(camera.position);
-        }
+
+    renderer.setAnimationLoop(() => {
+        stats.begin();
+        renderer.render(scene, camera);
+        stats.end();
     });
-    // Rotate the carousel group
-    carouselGroup.rotation.y += 0.002;
-    renderer.setAnimationLoop(() => render());
 }
 
-function render() {
-    // Render the scene and update statistics
-    stats.begin();
-    renderer.render(scene, camera);
-    stats.end();
-}
-
-// Initialize the gallery
 initGallery();
 </script>
 
