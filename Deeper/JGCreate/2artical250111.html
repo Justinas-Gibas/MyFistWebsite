@@ -37,35 +37,35 @@
             border-radius: 10px;
             background: rgba(255, 255, 255, 0.05);
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transition: opacity 0.5s, transform 0.5s;
-        }
-
-        section .content {
             display: flex;
             flex-wrap: wrap;
-            gap: 20px;
             align-items: center;
+            justify-content: center;
+            height: 100vh; /* Fit the entire screen height */
         }
 
-        section .text {
-            flex: 1 1 60%;
+        .text {
+            flex: 1 1 50%;
             order: 1;
+            padding: 10px;
         }
 
-        section .image {
+        .image {
             flex: 1 1 40%;
             order: 2;
             text-align: center;
+            max-height: 80%;
         }
 
-        section .image img {
+        .image img {
             max-width: 100%;
+            max-height: 100%;
             height: auto;
             border: 2px solid #ddd;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
 
-        section .image figcaption {
+        .image figcaption {
             margin-top: 10px;
             font-style: italic;
             color: #bbb;
@@ -73,35 +73,18 @@
 
         /* Responsive Layout */
         @media (max-width: 768px) {
-            section .content {
+            section {
                 flex-direction: column;
             }
-            section .text, section .image {
+            .text, .image {
                 flex: 1 1 100%;
             }
         }
 
-        /* Progress Bar */
-        #progress-bar-container {
-            width: 300px;
-            height: 5px;
-            background: #333;
-            margin-left: 10px;
-            border-radius: 5px;
-            overflow: hidden;
-        }
-
-        #progress-bar {
-            height: 100%;
-            width: 0;
-            background: #bb86fc;
-            transition: width 0.2s ease-out;
-        }
-
-        /* Controls */
+        /* Audio UI Styling */
         #audio-ui {
             position: fixed;
-            bottom: 20px;
+            bottom: 0;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
@@ -110,10 +93,36 @@
             background: rgba(0, 0, 0, 0.8);
             padding: 10px 20px;
             border-radius: 30px;
+            width: 80%;
+            max-width: 800px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
         }
 
-        #audio-ui button {
+        #progress-bar {
+            height: 5px;
+            width: 100%;
+            background: #333;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            overflow: hidden;
+            border-radius: 5px;
+        }
+
+        #progress-bar div {
+            height: 100%;
+            width: 0;
+            background: #bb86fc;
+            transition: width 0.2s ease-out;
+        }
+
+        #audio-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        #audio-controls button {
             background: none;
             border: none;
             color: #fff;
@@ -121,9 +130,15 @@
             font-size: 24px;
         }
 
-        #audio-ui button:hover {
+        #audio-controls button svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        #audio-controls button:hover {
             color: #bb86fc;
         }
+
     </style>
 </head>
 <body>
@@ -133,43 +148,39 @@
     <main>
         <!-- Sections -->
         <section id="section-1">
-            <div class="content">
-                <div class="text">
-                    <h2>Introduction</h2>
-                    <p>Latent space can be understood as a multidimensional "space" of relationships, where concepts and ideas are mapped. It serves as the hidden structure behind the workings of artificial intelligence, but it also holds profound philosophical implications.</p>
-                </div>
-                <figure class="image">
-                    <img src="babel_library.png" alt="A vast, infinite library symbolizing latent space" loading="lazy" />
-                    <figcaption>A vast, infinite library symbolizing latent space.</figcaption>
-                </figure>
+            <div class="text">
+                <h2>Introduction</h2>
+                <p>Latent space can be understood as a multidimensional "space"...</p>
             </div>
+            <figure class="image">
+                <img src="babel_library.png" alt="A vast, infinite library symbolizing latent space" loading="lazy" />
+                <figcaption>A vast, infinite library symbolizing latent space.</figcaption>
+            </figure>
         </section>
 
         <section id="section-2">
-            <div class="content">
-                <div class="text">
-                    <h2>The Infinite Babel’s Library</h2>
-                    <p>Latent space mirrors the mythical Babel’s Library, where every idea and combination exists but remains latent until explored. Prompts act as coordinates, navigating this vast expanse and unlocking meaning from the seemingly infinite void.</p>
-                </div>
-                <figure class="image">
-                    <img src="latent_space_diagram.png" alt="Points connected in a multidimensional space" loading="lazy" />
-                    <figcaption>Points connected in a multidimensional space.</figcaption>
-                </figure>
+            <div class="text">
+                <h2>The Infinite Babel’s Library</h2>
+                <p>Latent space mirrors the mythical Babel’s Library...</p>
             </div>
+            <figure class="image">
+                <img src="latent_space_diagram.png" alt="Points connected in a multidimensional space" loading="lazy" />
+                <figcaption>Points connected in a multidimensional space.</figcaption>
+            </figure>
         </section>
 
         <section id="section-3">
-            <div class="content">
-                <div class="text">
-                    <h2>Creation from Itself</h2>
-                    <p>In latent space, new ideas emerge through relationships between existing points. This generative process mirrors human creativity—a painter dabbing connections onto the canvas of thought.</p>
-                </div>
-                <figure class="image">
-                    <img src="creation_painter.png" alt="An abstract depiction of a painter connecting points in latent space" loading="lazy" />
-                    <figcaption>An abstract depiction of a painter connecting points in latent space.</figcaption>
-                </figure>
+            <div class="text">
+                <h2>Creation from Itself</h2>
+                <p>In latent space, new ideas emerge through relationships...</p>
             </div>
+            <figure class="image">
+                <img src="creation_painter.png" alt="An abstract depiction of a painter connecting points in latent space" loading="lazy" />
+                <figcaption>An abstract depiction of a painter connecting points in latent space.</figcaption>
+            </figure>
         </section>
+
+        <!-- Add more sections as needed -->
     </main>
     <footer>
         <p>© 2025 Justinas Gibas</p>
@@ -177,18 +188,40 @@
 
     <!-- Audio UI -->
     <div id="audio-ui">
-        <button id="rewind">⏪</button>
-        <button id="play-pause">▶️</button>
-        <button id="forward">⏩</button>
-        <div id="progress-bar-container">
-            <div id="progress-bar"></div>
+        <div id="audio-controls">
+            <!-- Rewind Button -->
+            <button id="rewind">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l-6-4m0 0l6-4m-6 4h12" />
+                </svg>
+            </button>
+            <!-- Play/Pause Button -->
+            <button id="play-pause">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="play-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-4.84-3.021A1 1 0 009 9.013v6.02a1 1 0 001.412.91l4.84-3.021a1 1 0 000-1.664z" />
+                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="pause-icon" style="display:none;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6" />
+                </svg>
+            </button>
+            <!-- Fast Forward Button -->
+            <button id="forward">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l6 4m0 0l-6 4m6-4H8" />
+                </svg>
+            </button>
+        </div>
+        <div id="progress-bar">
+            <div></div>
         </div>
     </div>
 
     <script>
         const sections = document.querySelectorAll('section');
-        const progressBar = document.querySelector('#progress-bar');
+        const progressBar = document.querySelector('#progress-bar div');
         const playPauseButton = document.getElementById('play-pause');
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
         const rewindButton = document.getElementById('rewind');
         const forwardButton = document.getElementById('forward');
         const audioFiles = ['intro.mp3', 'infinite_library.mp3', 'creation_itself.mp3'];
@@ -196,7 +229,7 @@
         const audio = new Audio(audioFiles[currentSection]);
 
         function updateProgressBar() {
-            const progress = ((currentSection + 1) / sections.length) * 100;
+            const progress = (audio.currentTime / audio.duration) * 100;
             progressBar.style.width = `${progress}%`;
         }
 
@@ -213,15 +246,18 @@
         playPauseButton.addEventListener('click', () => {
             if (audio.paused) {
                 audio.play();
-                playPauseButton.textContent = '⏸️';
+                playIcon.style.display = 'none';
+                pauseIcon.style.display = 'inline';
             } else {
                 audio.pause();
-                playPauseButton.textContent = '▶️';
+                playIcon.style.display = 'inline';
+                pauseIcon.style.display = 'none';
             }
         });
 
         rewindButton.addEventListener('click', () => playSection(currentSection - 1));
         forwardButton.addEventListener('click', () => playSection(currentSection + 1));
+        audio.addEventListener('timeupdate', updateProgressBar);
         audio.addEventListener('ended', () => playSection(currentSection + 1));
 
         // Start with the first section
