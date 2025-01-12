@@ -105,5 +105,6 @@ class GalleryElement extends HTMLElement {
     }
   }
   
+  // Define the custom element with the tag name
   customElements.define('gallery-element', GalleryElement);
   
