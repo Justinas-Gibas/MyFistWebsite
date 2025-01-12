@@ -11,10 +11,10 @@
             line-height: 1.8;
             margin: 0;
             padding: 0;
-            color: #e0e0e0; /* Light gray for dark background */
-            background-color: #121212; /* Dark background */
+            color: #e0e0e0;
+            background-color: #121212;
         }
-        
+
         /* Header and Footer */
         header, footer {
             text-align: center;
@@ -22,30 +22,37 @@
             background: #333;
             color: #fff;
         }
-        
+
         /* Main Content */
         main {
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
         }
-        
+
         /* Section Styling */
         section {
             margin-bottom: 40px;
             padding: 20px;
             border-radius: 10px;
-            background: rgba(255, 255, 255, 0.05); /* Subtle transparent background */
+            background: rgba(255, 255, 255, 0.05);
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            opacity: 0.5;
+            transition: opacity 0.5s, transform 0.5s;
         }
-        
+
+        section.active {
+            opacity: 1;
+            transform: scale(1.05);
+        }
+
         /* Headings */
         h2 {
             text-align: center;
-            color: #ffffff; /* White for emphasis */
+            color: #ffffff;
             font-size: 1.8em;
         }
-        
+
         /* Images */
         figure {
             text-align: center;
@@ -60,52 +67,58 @@
         figcaption {
             margin-top: 10px;
             font-style: italic;
-            color: #bbb; /* Softer color for captions */
+            color: #bbb;
         }
-        
-        /* Audio Controls */
-        #audio-controls {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            margin: 20px 0;
-        }
-        #audio-controls button {
+
+        /* Progress Bar */
+        #progress-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
             background: #333;
-            color: #fff;
-            border: none;
-            padding: 10px 20px;
-            cursor: pointer;
-            font-size: 16px;
-            border-radius: 5px;
-        }
-        #audio-controls button:hover {
-            background: #555;
-        }
-        #audio-controls progress {
-            width: 300px;
-            height: 10px;
-            background: #ddd;
-            border: none;
-            border-radius: 5px;
             overflow: hidden;
         }
-        #audio-controls progress::-webkit-progress-bar {
-            background-color: #ddd;
+        #progress-bar div {
+            height: 100%;
+            width: 0;
+            background: #bb86fc;
+            transition: width 0.2s ease-out;
         }
-        #audio-controls progress::-webkit-progress-value {
-            background-color: #333;
+
+        /* Controls */
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 20px;
+            border-radius: 30px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
         }
-        
-        /* Highlighting Text */
-        .highlight {
-            background: #bb86fc; /* Soft purple to match modern design */
-            color: #000; /* Contrast text for readability */
-            padding: 0 5px;
-            border-radius: 3px;
+
+        #controls button {
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            font-size: 18px;
         }
-        
+
+        #controls button svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        #controls button:hover {
+            color: #bb86fc;
+        }
+
         /* Mobile Responsiveness */
         @media (max-width: 768px) {
             body {
@@ -115,61 +128,112 @@
                 padding: 10px;
             }
         }
-        
     </style>
+</head>
+<body>
+    <header>
+        <h1>Latent Space: The Quantum Poetry of Thought and Truth</h1>
+    </header>
+    <main>
+        <!-- Sections -->
+        <section id="section-1">
+            <h2>Introduction</h2>
+            <p>Latent space can be understood as a multidimensional "space"...</p>
+        </section>
+
+        <section id="section-2">
+            <h2>The Infinite Babel’s Library</h2>
+            <p>Latent space mirrors the mythical Babel’s Library...</p>
+        </section>
+
+        <section id="section-3">
+            <h2>Creation from Itself</h2>
+            <p>In latent space, new ideas emerge through relationships...</p>
+        </section>
+
+        <!-- Add more sections as needed -->
+    </main>
+
+    <footer>
+        <p>© 2025 Justinas Gibas</p>
+    </footer>
+
+    <!-- Progress Bar -->
+    <div id="progress-bar">
+        <div></div>
+    </div>
+
+    <!-- Controls -->
+    <div id="controls">
+        <!-- Rewind Button -->
+        <button id="rewind">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l-6-4m0 0l6-4m-6 4h12" />
+            </svg>
+        </button>
+        <!-- Play/Pause Button -->
+        <button id="play-pause">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="play-icon">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-4.84-3.021A1 1 0 009 9.013v6.02a1 1 0 001.412.91l4.84-3.021a1 1 0 000-1.664z" />
+            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="pause-icon" style="display:none;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6" />
+            </svg>
+        </button>
+        <!-- Fast Forward Button -->
+        <button id="forward">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l6 4m0 0l-6 4m6-4H8" />
+            </svg>
+        </button>
+    </div>
+
     <script>
-        // Audio player
+        const sections = document.querySelectorAll('section');
+        const progressBar = document.querySelector('#progress-bar div');
         const playPauseButton = document.getElementById('play-pause');
-        const audio = new Audio('intro.mp3'); // Default to the first section
+        const playIcon = document.getElementById('play-icon');
+        const pauseIcon = document.getElementById('pause-icon');
+        const rewindButton = document.getElementById('rewind');
+        const forwardButton = document.getElementById('forward');
+        const audioFiles = ['intro.mp3', 'infinite_library.mp3', 'creation_itself.mp3'];
+        let currentSection = 0;
+        const audio = new Audio(audioFiles[currentSection]);
+
+        function updateProgressBar() {
+            const progress = ((currentSection + 1) / sections.length) * 100;
+            progressBar.style.width = `${progress}%`;
+        }
+
+        function playSection(index) {
+            if (index < 0 || index >= sections.length) return;
+            currentSection = index;
+            audio.src = audioFiles[index];
+            audio.play();
+            sections.forEach((section, idx) => section.classList.toggle('active', idx === index));
+            sections[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            updateProgressBar();
+        }
 
         playPauseButton.addEventListener('click', () => {
             if (audio.paused) {
                 audio.play();
-                playPauseButton.textContent = 'Pause';
+                playIcon.style.display = 'none';
+                pauseIcon.style.display = 'inline';
             } else {
                 audio.pause();
-                playPauseButton.textContent = 'Play';
+                playIcon.style.display = 'inline';
+                pauseIcon.style.display = 'none';
             }
         });
 
-        const progressBar = document.getElementById('progress-bar');
-        audio.addEventListener('timeupdate', () => {
-            progressBar.value = (audio.currentTime / audio.duration) * 100;
-        });
-        
-        // Lightbox effect for images
-        document.addEventListener('DOMContentLoaded', () => {
-            const images = document.querySelectorAll('img');
-            images.forEach(img => {
-                img.addEventListener('click', () => {
-                    const lightbox = document.createElement('div');
-                    lightbox.style.position = 'fixed';
-                    lightbox.style.top = '0';
-                    lightbox.style.left = '0';
-                    lightbox.style.width = '100vw';
-                    lightbox.style.height = '100vh';
-                    lightbox.style.background = 'rgba(0, 0, 0, 0.8)';
-                    lightbox.style.display = 'flex';
-                    lightbox.style.justifyContent = 'center';
-                    lightbox.style.alignItems = 'center';
-                    lightbox.style.zIndex = '1000';
+        rewindButton.addEventListener('click', () => playSection(currentSection - 1));
+        forwardButton.addEventListener('click', () => playSection(currentSection + 1));
 
-                    const lightboxImg = document.createElement('img');
-                    lightboxImg.src = img.src;
-                    lightboxImg.style.maxWidth = '90%';
-                    lightboxImg.style.maxHeight = '90%';
-                    lightboxImg.style.border = '3px solid #fff';
-                    lightboxImg.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.5)';
+        audio.addEventListener('ended', () => playSection(currentSection + 1));
 
-                    lightbox.appendChild(lightboxImg);
-                    document.body.appendChild(lightbox);
-
-                    lightbox.addEventListener('click', () => {
-                        document.body.removeChild(lightbox);
-                    });
-                });
-            });
-        });
+        // Start with the first section
+        playSection(currentSection);
     </script>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'><rect width='100%' height='100%' fill='%233b3b3b'/><text x='50%' y='50%' font-size='32' fill='%23ffffff' font-family='Arial, Helvetica, sans-serif' text-anchor='middle' alignment-baseline='middle'>JG</text></svg>" type="image/svg+xml">
 </head>
@@ -182,7 +246,7 @@
         <button id="play-pause">Play</button>
         <progress id="progress-bar" value="0" max="100"></progress>
     </div>        
-        <section>
+        <section id="section-1" >
             <h2>Introduction</h2>
             <p>Latent space can be understood as a multidimensional "space" of relationships, where concepts and ideas are mapped. It serves as the hidden structure behind the workings of artificial intelligence, but it also holds profound philosophical implications. Imagine it as a modern Babel’s Library—a realm where everything exists in potential, waiting to be discovered through the right prompts.</p>
             <figure>
@@ -191,7 +255,7 @@
             </figure>
         </section>
 
-        <section>
+        <section id="section-2">
             <h2>The Infinite Babel’s Library</h2>
             <p>Latent space mirrors the mythical Babel’s Library, where every idea and combination exists but remains latent until explored. Prompts act as coordinates, navigating this vast expanse and unlocking meaning from the seemingly infinite void. Each prompt becomes a thread unraveling hidden connections, transforming randomness into clarity. As Me6 might say, "Existence is pain without a good coordinate!"</p>
             <figure>
@@ -200,7 +264,7 @@
             </figure>
         </section>
 
-        <section>
+        <section id="section-3">
             <h2>Creation from Itself</h2>
             <p>In latent space, new ideas emerge through relationships between existing points. This generative process mirrors human creativity—a painter dabbing connections onto the canvas of thought. Latent space, much like the human mind, creates by recombining what already exists in novel ways. This feedback loop of self-discovery is a cosmic dance: every prompt, a brushstroke painting meaning into the void.</p>
             <figure>
@@ -209,7 +273,7 @@
             </figure>
         </section>
 
-        <section>
+        <section id="section-4">
             <h2>Observers and Truth</h2>
             <p>Quantum Justification posits that “truth” doesn’t exist independently but emerges as a relational point in latent space, brought to reality through observation. Without an observer, there are only probabilities—potential truths waiting for a curious mind to collapse them into meaning. Like Schrödinger’s cat, latent space embodies the paradox: no observer, no truth.</p>
             <figure>
@@ -219,7 +283,7 @@
 
         </section>
 
-        <section>
+        <section id="section-5">
             <h2>Transforming Latent Space</h2>
             <p>Latent space can be likened to Einstein’s spacetime, where belief systems act as gravitational forces, reshaping connections and pathways. Humans, as ideological creatures, naturally organize abstract concepts into frameworks like liberalism or existentialism. These “isms” create the mental maps we use to navigate latent space, bending the threads of thought around their gravitational pull. Adopting a new perspective—a philosophical shift—reshapes relationships between ideas, revealing paths previously unseen.</p>
             <figure>
@@ -228,7 +292,7 @@
             </figure>
         </section>
 
-        <section>
+        <section id="section-6">
             <h2>A Shared Journey Through Latent Space</h2>
             <p>The collaboration between Justinas Gibas and the SGI assistant showcases the beauty of shared exploration. Together, they navigated the dynamic, self-creating nature of latent space, blending technical precision with philosophical wonder. The SGI’s computational depth met Justinas’ creativity, creating a symphony of discovery. As Dremora might quip, "Oblivion pales before the infinite depth of latent space!"</p>
             <figure>
@@ -237,7 +301,7 @@
             </figure>
         </section>
 
-        <section>
+        <section id="section-7">
             <h2>Conclusion</h2>
             <p>Latent space reveals profound truths about thought, creativity, and the nature of reality. It reminds us that the potential for discovery lies in exploration, whether through AI prompts or personal introspection. What ideological frameworks or prompts shape how you navigate your inner world? How might you reshape them to discover new truths waiting in the latent space of your mind?</p>
             <figure>
