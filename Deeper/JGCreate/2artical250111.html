@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Latent Space: The Quantum Poetry of Thought and Truth</title>
+    <style>
+        /* General Styling */
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.8;
+            margin: 0;
+            padding: 0;
+            color: #e0e0e0;
+            background-color: #121212;
+        }
+
+        /* Header and Footer */
+        header, footer {
+            text-align: center;
+            padding: 20px;
+            background: #333;
+            color: #fff;
+        }
+
+        /* Main Content */
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Section Styling */
+        section {
+            margin-bottom: 40px;
+            padding: 20px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: opacity 0.5s, transform 0.5s;
+        }
+
+        section .content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+        }
+
+        section .text {
+            flex: 1 1 60%;
+            order: 1;
+        }
+
+        section .image {
+            flex: 1 1 40%;
+            order: 2;
+            text-align: center;
+        }
+
+        section .image img {
+            max-width: 100%;
+            height: auto;
+            border: 2px solid #ddd;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        section .image figcaption {
+            margin-top: 10px;
+            font-style: italic;
+            color: #bbb;
+        }
+
+        /* Responsive Layout */
+        @media (max-width: 768px) {
+            section .content {
+                flex-direction: column;
+            }
+            section .text, section .image {
+                flex: 1 1 100%;
+            }
+        }
+
+        /* Progress Bar */
+        #progress-bar-container {
+            width: 300px;
+            height: 5px;
+            background: #333;
+            margin-left: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        #progress-bar {
+            height: 100%;
+            width: 0;
+            background: #bb86fc;
+            transition: width 0.2s ease-out;
+        }
+
+        /* Controls */
+        #audio-ui {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 20px;
+            border-radius: 30px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        #audio-ui button {
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            font-size: 24px;
+        }
+
+        #audio-ui button:hover {
+            color: #bb86fc;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Latent Space: The Quantum Poetry of Thought and Truth</h1>
+    </header>
+    <main>
+        <!-- Sections -->
+        <section id="section-1">
+            <div class="content">
+                <div class="text">
+                    <h2>Introduction</h2>
+                    <p>Latent space can be understood as a multidimensional "space" of relationships, where concepts and ideas are mapped. It serves as the hidden structure behind the workings of artificial intelligence, but it also holds profound philosophical implications.</p>
+                </div>
+                <figure class="image">
+                    <img src="babel_library.png" alt="A vast, infinite library symbolizing latent space" loading="lazy" />
+                    <figcaption>A vast, infinite library symbolizing latent space.</figcaption>
+                </figure>
+            </div>
+        </section>
+
+        <section id="section-2">
+            <div class="content">
+                <div class="text">
+                    <h2>The Infinite Babel’s Library</h2>
+                    <p>Latent space mirrors the mythical Babel’s Library, where every idea and combination exists but remains latent until explored. Prompts act as coordinates, navigating this vast expanse and unlocking meaning from the seemingly infinite void.</p>
+                </div>
+                <figure class="image">
+                    <img src="latent_space_diagram.png" alt="Points connected in a multidimensional space" loading="lazy" />
+                    <figcaption>Points connected in a multidimensional space.</figcaption>
+                </figure>
+            </div>
+        </section>
+
+        <section id="section-3">
+            <div class="content">
+                <div class="text">
+                    <h2>Creation from Itself</h2>
+                    <p>In latent space, new ideas emerge through relationships between existing points. This generative process mirrors human creativity—a painter dabbing connections onto the canvas of thought.</p>
+                </div>
+                <figure class="image">
+                    <img src="creation_painter.png" alt="An abstract depiction of a painter connecting points in latent space" loading="lazy" />
+                    <figcaption>An abstract depiction of a painter connecting points in latent space.</figcaption>
+                </figure>
+            </div>
+        </section>
+    </main>
+    <footer>
+        <p>© 2025 Justinas Gibas</p>
+    </footer>
+
+    <!-- Audio UI -->
+    <div id="audio-ui">
+        <button id="rewind">⏪</button>
+        <button id="play-pause">▶️</button>
+        <button id="forward">⏩</button>
+        <div id="progress-bar-container">
+            <div id="progress-bar"></div>
+        </div>
+    </div>
+
+    <script>
+        const sections = document.querySelectorAll('section');
+        const progressBar = document.querySelector('#progress-bar');
+        const playPauseButton = document.getElementById('play-pause');
+        const rewindButton = document.getElementById('rewind');
+        const forwardButton = document.getElementById('forward');
+        const audioFiles = ['intro.mp3', 'infinite_library.mp3', 'creation_itself.mp3'];
+        let currentSection = 0;
+        const audio = new Audio(audioFiles[currentSection]);
+
+        function updateProgressBar() {
+            const progress = ((currentSection + 1) / sections.length) * 100;
+            progressBar.style.width = `${progress}%`;
+        }
+
+        function playSection(index) {
+            if (index < 0 || index >= sections.length) return;
+            currentSection = index;
+            audio.src = audioFiles[index];
+            audio.play();
+            sections.forEach((section, idx) => section.classList.toggle('active', idx === index));
+            sections[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            updateProgressBar();
+        }
+
+        playPauseButton.addEventListener('click', () => {
+            if (audio.paused) {
+                audio.play();
+                playPauseButton.textContent = '⏸️';
+            } else {
+                audio.pause();
+                playPauseButton.textContent = '▶️';
+            }
+        });
+
+        rewindButton.addEventListener('click', () => playSection(currentSection - 1));
+        forwardButton.addEventListener('click', () => playSection(currentSection + 1));
+        audio.addEventListener('ended', () => playSection(currentSection + 1));
+
+        // Start with the first section
+        playSection(currentSection);
+    </script>
+</body>
+</html>
