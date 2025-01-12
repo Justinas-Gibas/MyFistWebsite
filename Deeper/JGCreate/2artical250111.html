@@ -1,267 +1,291 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Latent Space: The Quantum Poetry of Thought and Truth</title>
-    <style>
-        /* General Styling */
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.8;
-            margin: 0;
-            padding: 0;
-            color: #e0e0e0;
-            background-color: #121212;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Latent Space: The Quantum Poetry of Thought and Truth</title>
+  <style>
+    /* General Styling */
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
 
-        /* Header and Footer */
-        header, footer {
-            text-align: center;
-            padding: 20px;
-            background: #333;
-            color: #fff;
-        }
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.8;
+      margin: 0;
+      padding: 0;
+      color: #e0e0e0;
+      background-color: #121212;
+      overflow-x: hidden;
+    }
 
-        /* Main Content */
-        main {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+    /* Header and Footer */
+    header, footer {
+      text-align: center;
+      padding: 20px;
+      background: #333;
+      color: #fff;
+    }
 
-        /* Section Styling */
-        section {
-            margin-bottom: 40px;
-            padding: 20px;
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.05);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: center;
-            height: 100vh; /* Fit the entire screen height */
-        }
+    /* Main Content */
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
 
-        .text {
-            flex: 1 1 50%;
-            order: 1;
-            padding: 10px;
-        }
+    /* Section Styling */
+    section {
+      margin: 0; /* Remove extra margin to help fill viewport */
+      padding: 20px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      height: 100vh; /* Each section fills the viewport */
+      scroll-snap-align: center;
+    }
 
-        .image {
-            flex: 1 1 40%;
-            order: 2;
-            text-align: center;
-            max-height: 80%;
-        }
+    /* Enable smooth snapping for sections */
+    main {
+      scroll-snap-type: y mandatory;
+      overflow-y: scroll;
+      height: 100vh;
+    }
 
-        .image img {
-            max-width: 100%;
-            max-height: 100%;
-            height: auto;
-            border: 2px solid #ddd;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
+    .text {
+      flex: 1 1 50%;
+      order: 1;
+      padding: 10px;
+    }
 
-        .image figcaption {
-            margin-top: 10px;
-            font-style: italic;
-            color: #bbb;
-        }
+    .image {
+      flex: 1 1 40%;
+      order: 2;
+      text-align: center;
+      max-height: 80%;
+    }
 
-        /* Responsive Layout */
-        @media (max-width: 768px) {
-            section {
-                flex-direction: column;
-            }
-            .text, .image {
-                flex: 1 1 100%;
-            }
-        }
+    .image img {
+      max-width: 100%;
+      max-height: 100%;
+      height: auto;
+      border: 2px solid #ddd;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
 
-        /* Audio UI Styling */
-        #audio-ui {
-            position: fixed;
-            bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 10px 20px;
-            border-radius: 30px;
-            width: 80%;
-            max-width: 800px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-        }
+    .image figcaption {
+      margin-top: 10px;
+      font-style: italic;
+      color: #bbb;
+    }
 
-        #progress-bar {
-            height: 5px;
-            width: 100%;
-            background: #333;
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            overflow: hidden;
-            border-radius: 5px;
-        }
+    /* Responsive Layout */
+    @media (max-width: 768px) {
+      section {
+        flex-direction: column;
+        padding: 10px;
+      }
+      .text, .image {
+        flex: 1 1 100%;
+      }
+    }
 
-        #progress-bar div {
-            height: 100%;
-            width: 0;
-            background: #bb86fc;
-            transition: width 0.2s ease-out;
-        }
+    /* Audio UI Styling */
+    #audio-ui {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 10px 20px;
+      border-radius: 30px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+    }
 
-        #audio-controls {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
+    /* Controls Container */
+    #audio-controls {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      position: relative;
+      width: 100%;
+      justify-content: center;
+    }
 
-        #audio-controls button {
-            background: none;
-            border: none;
-            color: #fff;
-            cursor: pointer;
-            font-size: 24px;
-        }
+    #audio-controls button {
+      background: none;
+      border: none;
+      color: #fff;
+      cursor: pointer;
+      font-size: 24px;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-        #audio-controls button svg {
-            width: 24px;
-            height: 24px;
-        }
+    #audio-controls button svg {
+      width: 100%;
+      height: 100%;
+    }
 
-        #audio-controls button:hover {
-            color: #bb86fc;
-        }
+    #audio-controls button:hover {
+      color: #bb86fc;
+    }
 
-    </style>
+    /* Progress Bar directly below buttons */
+    #progress-container {
+      width: 100%;
+      height: 5px;
+      background: #333;
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    #progress-bar {
+      height: 100%;
+      width: 0;
+      background: #bb86fc;
+      transition: width 0.2s ease-out;
+    }
+  </style>
 </head>
 <body>
-    <header>
-        <h1>Latent Space: The Quantum Poetry of Thought and Truth</h1>
-    </header>
-    <main>
-        <!-- Sections -->
-        <section id="section-1">
-            <div class="text">
-                <h2>Introduction</h2>
-                <p>Latent space can be understood as a multidimensional "space"...</p>
-            </div>
-            <figure class="image">
-                <img src="babel_library.png" alt="A vast, infinite library symbolizing latent space" loading="lazy" />
-                <figcaption>A vast, infinite library symbolizing latent space.</figcaption>
-            </figure>
-        </section>
+  <header>
+    <h1>Latent Space: The Quantum Poetry of Thought and Truth</h1>
+  </header>
+  <main>
+    <!-- Sections -->
+    <section id="section-1">
+      <div class="text">
+        <h2>Introduction</h2>
+        <p>Latent space can be understood as a multidimensional "space"...</p>
+      </div>
+      <figure class="image">
+        <img src="babel_library.png" alt="A vast, infinite library symbolizing latent space" loading="lazy" />
+        <figcaption>A vast, infinite library symbolizing latent space.</figcaption>
+      </figure>
+    </section>
 
-        <section id="section-2">
-            <div class="text">
-                <h2>The Infinite Babel’s Library</h2>
-                <p>Latent space mirrors the mythical Babel’s Library...</p>
-            </div>
-            <figure class="image">
-                <img src="latent_space_diagram.png" alt="Points connected in a multidimensional space" loading="lazy" />
-                <figcaption>Points connected in a multidimensional space.</figcaption>
-            </figure>
-        </section>
+    <section id="section-2">
+      <div class="text">
+        <h2>The Infinite Babel’s Library</h2>
+        <p>Latent space mirrors the mythical Babel’s Library...</p>
+      </div>
+      <figure class="image">
+        <img src="latent_space_diagram.png" alt="Points connected in a multidimensional space" loading="lazy" />
+        <figcaption>Points connected in a multidimensional space.</figcaption>
+      </figure>
+    </section>
 
-        <section id="section-3">
-            <div class="text">
-                <h2>Creation from Itself</h2>
-                <p>In latent space, new ideas emerge through relationships...</p>
-            </div>
-            <figure class="image">
-                <img src="creation_painter.png" alt="An abstract depiction of a painter connecting points in latent space" loading="lazy" />
-                <figcaption>An abstract depiction of a painter connecting points in latent space.</figcaption>
-            </figure>
-        </section>
+    <section id="section-3">
+      <div class="text">
+        <h2>Creation from Itself</h2>
+        <p>In latent space, new ideas emerge through relationships...</p>
+      </div>
+      <figure class="image">
+        <img src="creation_painter.png" alt="An abstract depiction of a painter connecting points in latent space" loading="lazy" />
+        <figcaption>An abstract depiction of a painter connecting points in latent space.</figcaption>
+      </figure>
+    </section>
 
-        <!-- Add more sections as needed -->
-    </main>
-    <footer>
-        <p>© 2025 Justinas Gibas</p>
-    </footer>
+    <!-- Add more sections as needed -->
+  </main>
+  <footer>
+    <p>© 2025 Justinas Gibas</p>
+  </footer>
 
-    <!-- Audio UI -->
-    <div id="audio-ui">
-        <div id="audio-controls">
-            <!-- Rewind Button -->
-            <button id="rewind">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l-6-4m0 0l6-4m-6 4h12" />
-                </svg>
-            </button>
-            <!-- Play/Pause Button -->
-            <button id="play-pause">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="play-icon">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-4.84-3.021A1 1 0 009 9.013v6.02a1 1 0 001.412.91l4.84-3.021a1 1 0 000-1.664z" />
-                </svg>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="pause-icon" style="display:none;">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6" />
-                </svg>
-            </button>
-            <!-- Fast Forward Button -->
-            <button id="forward">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l6 4m0 0l-6 4m6-4H8" />
-                </svg>
-            </button>
-        </div>
-        <div id="progress-bar">
-            <div></div>
-        </div>
+  <!-- Audio UI -->
+  <div id="audio-ui">
+    <div id="audio-controls">
+      <!-- Rewind Button -->
+      <button id="rewind" title="Rewind">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l-6-4m0 0l6-4m-6 4h12" />
+        </svg>
+      </button>
+      <!-- Play/Pause Button -->
+      <button id="play-pause" title="Play / Pause">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="play-icon">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-4.84-3.021A1 1 0 009 9.013v6.02a1 1 0 001.412.91l4.84-3.021a1 1 0 000-1.664z" />
+        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="pause-icon" style="display: none;">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6" />
+        </svg>
+      </button>
+      <!-- Fast Forward Button -->
+      <button id="forward" title="Fast Forward">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l6 4m0 0l-6 4m6-4H8" />
+        </svg>
+      </button>
     </div>
+    <div id="progress-container">
+      <div id="progress-bar"></div>
+    </div>
+  </div>
 
-    <script>
-        const sections = document.querySelectorAll('section');
-        const progressBar = document.querySelector('#progress-bar div');
-        const playPauseButton = document.getElementById('play-pause');
-        const playIcon = document.getElementById('play-icon');
-        const pauseIcon = document.getElementById('pause-icon');
-        const rewindButton = document.getElementById('rewind');
-        const forwardButton = document.getElementById('forward');
-        const audioFiles = ['intro.mp3', 'infinite_library.mp3', 'creation_itself.mp3'];
-        let currentSection = 0;
-        const audio = new Audio(audioFiles[currentSection]);
+  <script>
+    const sections = document.querySelectorAll('section');
+    const progressBar = document.getElementById('progress-bar');
+    const playPauseButton = document.getElementById('play-pause');
+    const playIcon = document.getElementById('play-icon');
+    const pauseIcon = document.getElementById('pause-icon');
+    const rewindButton = document.getElementById('rewind');
+    const forwardButton = document.getElementById('forward');
+    const audioFiles = ['intro.mp3', 'infinite_library.mp3', 'creation_itself.mp3'];
+    let currentSection = 0;
+    const audio = new Audio(audioFiles[currentSection]);
 
-        function updateProgressBar() {
-            const progress = (audio.currentTime / audio.duration) * 100;
-            progressBar.style.width = `${progress}%`;
-        }
+    function updateProgressBar() {
+      const progress = (audio.currentTime / audio.duration) * 100 || 0;
+      progressBar.style.width = `${progress}%`;
+    }
 
-        function playSection(index) {
-            if (index < 0 || index >= sections.length) return;
-            currentSection = index;
-            audio.src = audioFiles[index];
-            audio.play();
-            sections.forEach((section, idx) => section.classList.toggle('active', idx === index));
-            sections[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
-            updateProgressBar();
-        }
+    function playSection(index) {
+      if (index < 0 || index >= sections.length) return;
+      currentSection = index;
+      audio.src = audioFiles[index];
+      audio.play();
+      sections.forEach((section, idx) => section.classList.toggle('active', idx === index));
+      sections[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      updateProgressBar();
+      // Reset UI icons
+      playIcon.style.display = 'none';
+      pauseIcon.style.display = 'inline';
+    }
 
-        playPauseButton.addEventListener('click', () => {
-            if (audio.paused) {
-                audio.play();
-                playIcon.style.display = 'none';
-                pauseIcon.style.display = 'inline';
-            } else {
-                audio.pause();
-                playIcon.style.display = 'inline';
-                pauseIcon.style.display = 'none';
-            }
-        });
+    playPauseButton.addEventListener('click', () => {
+      if (audio.paused) {
+        audio.play();
+        playIcon.style.display = 'none';
+        pauseIcon.style.display = 'inline';
+      } else {
+        audio.pause();
+        playIcon.style.display = 'inline';
+        pauseIcon.style.display = 'none';
+      }
+    });
 
-        rewindButton.addEventListener('click', () => playSection(currentSection - 1));
-        forwardButton.addEventListener('click', () => playSection(currentSection + 1));
-        audio.addEventListener('timeupdate', updateProgressBar);
-        audio.addEventListener('ended', () => playSection(currentSection + 1));
+    rewindButton.addEventListener('click', () => playSection(currentSection - 1));
+    forwardButton.addEventListener('click', () => playSection(currentSection + 1));
+    audio.addEventListener('timeupdate', updateProgressBar);
+    audio.addEventListener('ended', () => playSection(currentSection + 1));
 
-        // Start with the first section
-        playSection(currentSection);
-    </script>
+    // Start with the first section
+    playSection(currentSection);
+  </script>
 </body>
 </html>
