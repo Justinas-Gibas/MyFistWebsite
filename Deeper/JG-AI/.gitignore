@@ -1,0 +1,10 @@
+venv
+.env
+
+logs
+training_data
+generated_images
+
+__pycache__
+
+handwriting_data

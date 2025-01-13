@@ -1,0 +1,21 @@
+torch>=1.10.0
+keras>=2.6.0
+triton==2.0.0         # or the latest available version
+taichi==1.5.0         # or latest version
+PySide6>=6.2.0        # if you want to switch the UI to PySide6 eventually
+matplotlib
+seaborn
+plotly
+opencv-python-headless
+Pillow
+numpy
+pytest
+
+
+
+torchvision
+torchaudio
+
+python-dotenv
+openai
+
