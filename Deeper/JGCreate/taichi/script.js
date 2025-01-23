@@ -11,7 +11,7 @@ function logMessage(message) {
   }
   
   // Version Label
-  const VERSION = "1.1";
+  const VERSION = "1.2";
   
   // Main Function
   let main = async () => {
@@ -64,8 +64,21 @@ function logMessage(message) {
       await initIBO();
       logMessage(`Version ${VERSION}: IBO Initialization complete.`);
   
+      // Kernel to initialize the grid with random live cells
+      const init = ti.kernel(() => {
+        for (let I of ti.ndrange(16, 16, 16)) { // Fixed loop ranges: 16x16x16
+          liveness[I.x, I.y, I.z] = 0;
+          let f = ti.random();
+          if (f < 0.2) { // 20% chance to be alive
+            liveness[I.x, I.y, I.z] = 1;
+          }
+        }
+      });
+      await init();
+      logMessage(`Version ${VERSION}: Grid initialization complete.`);
+  
       // Proceed to the next version
-      logMessage(`Version ${VERSION}: Completed successfully. Proceed to Version 1.2.`);
+      logMessage(`Version ${VERSION}: Completed successfully. Proceed to Version 1.3.`);
     } catch (error) {
       logMessage(`Version ${VERSION} - Main Error: ${error.message}`);
       console.error("Main Error:", error);
@@ -79,7 +92,7 @@ function logMessage(message) {
   });
   script.src = 'https://unpkg.com/taichi.js/dist/taichi.umd.js';
   script.onerror = function () {
-    logMessage("Version 1.1: Failed to load Taichi.js script.");
+    logMessage("Version 1.2: Failed to load Taichi.js script.");
     console.error("Failed to load Taichi.js script.");
   };
   // Append to the `head` element
