@@ -11,7 +11,7 @@ function logMessage(message) {
   }
   
   // Version Label
-  const VERSION = "1.3.2";
+  const VERSION = "1.3.2.1";
   
   // Renderer3DGameOfLife Class
   class Renderer3DGameOfLife {
@@ -187,6 +187,7 @@ function logMessage(message) {
       // Define Count Neighbors Kernel with Corrected Field Access
       const countNeighbors = ti.kernel(() => {
         for (let idx of ti.range(N * N * N)) { // Loop over 1D index
+          // Map 1D index to 3D coordinates
           let x = Math.floor(idx / (N * N));
           let y = Math.floor((idx % (N * N)) / N);
           let z = idx % N;
@@ -195,8 +196,14 @@ function logMessage(message) {
           for (let dx of ti.ndrange(3)) { // 0,1,2
             for (let dy of ti.ndrange(3)) { // 0,1,2
               for (let dz of ti.ndrange(3)) { // 0,1,2
-                // Skip the cell itself
-                if (dx === 1 && dy === 1 && dz === 1) continue;
+                // Replace compound condition with nested if statements
+                if (dx === 1) {
+                  if (dy === 1) {
+                    if (dz === 1) {
+                      continue; // Skip the cell itself
+                    }
+                  }
+                }
   
                 // Calculate neighbor coordinates with edge wrapping
                 let nx = (x + dx - 1 + N) % N;
@@ -214,7 +221,7 @@ function logMessage(message) {
         }
       });
       await countNeighbors();
-      logMessage(`Version ${VERSION}: Count Neighbors Kernel executed without conditions.`);
+      logMessage(`Version ${VERSION}: Count Neighbors Kernel executed with nested conditions.`);
   
       // Proceed to the next version
       logMessage(`Version ${VERSION}: Completed successfully. Proceed to Version 1.4.`);
