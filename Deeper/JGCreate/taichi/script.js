@@ -152,7 +152,7 @@ function logMessage(message) {
   
       // Initialize IBO with indices 0 to liveCellsMax-1
       const initIBO = ti.kernel(() => {
-        for (let i of ti.range(liveCellsMax)) { // Use ti.range for 1D loop
+        for (let i of ti.range(liveCellsMax)) { // Fixed loop range
           IBO[i] = i;
         }
       });
@@ -161,7 +161,7 @@ function logMessage(message) {
   
       // Kernel to initialize the grid with random live cells
       const init = ti.kernel(() => {
-        for (let I of ti.ndrange(N, N, N)) {
+        for (let I of ti.ndrange(16, 16, 16)) { // Fixed loop ranges
           liveness[I.x, I.y, I.z] = 0;
           let f = ti.random();
           if (f < 0.2) { // 20% chance to be alive
@@ -178,7 +178,7 @@ function logMessage(message) {
       // Kernel to transfer live cell positions to VBO
       const transferLiveCells = ti.kernel(() => {
         let idx = 0;
-        for (let I of ti.ndrange(N, N, N)) {
+        for (let I of ti.ndrange(16, 16, 16)) { // Fixed loop ranges
           if (liveness[I.x, I.y, I.z] === 1) {
             if (idx < liveCellsMax) {
               VBO[idx] = [I.x + 0.5, I.y + 0.5, I.z + 0.5]; // Center of the cell
@@ -189,20 +189,20 @@ function logMessage(message) {
         liveCellCount[0] = idx; // Store the count of live cells
   
         // Assign out-of-bounds positions
-        for (let i of ti.range(liveCellsMax)) { // Fixed loop range
+        for (let i of ti.range(4096)) { // Fixed loop range
           if (i >= idx) {
-            VBO[i] = [N * 2, N * 2, N * 2]; // Positions outside the grid
+            VBO[i] = [32, 32, 32]; // Positions outside the grid (assuming N=16)
           }
         }
       });
   
       // Kernel to count the number of live neighbors for each cell
       const countNeighbors = ti.kernel(() => {
-        for (let I of ti.ndrange(N, N, N)) {
+        for (let I of ti.ndrange(16, 16, 16)) { // Fixed loop ranges
           let neighbors = 0;
-          for (let dx of ti.ndrange(3)) {
-            for (let dy of ti.ndrange(3)) {
-              for (let dz of ti.ndrange(3)) {
+          for (let dx of ti.ndrange(3)) { // 0,1,2
+            for (let dy of ti.ndrange(3)) { // 0,1,2
+              for (let dz of ti.ndrange(3)) { // 0,1,2
                 if (dx === 1 && dy === 1 && dz === 1) continue; // Skip the cell itself
                 let x = (I.x + dx - 1 + N) % N;
                 let y = (I.y + dy - 1 + N) % N;
@@ -217,7 +217,7 @@ function logMessage(message) {
   
       // Kernel to update the liveness of each cell based on Game of Life rules
       const updateLiveness = ti.kernel(() => {
-        for (let I of ti.ndrange(N, N, N)) {
+        for (let I of ti.ndrange(16, 16, 16)) { // Fixed loop ranges
           let neighbors = numNeighbors[I.x, I.y, I.z];
           if (liveness[I.x, I.y, I.z] === 1) {
             if (neighbors < 4 || neighbors > 5) { // Survival condition adjusted for 26 neighbors
@@ -276,5 +276,6 @@ function logMessage(message) {
     logMessage("Failed to load Taichi.js script.");
     console.error("Failed to load Taichi.js script.");
   };
+  // Append to the `head` element
   document.head.appendChild(script);
   
