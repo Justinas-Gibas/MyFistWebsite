@@ -73,7 +73,7 @@ function logMessage(message) {
         ];
   
         // Define the center and up vector
-        let center = [gridSize / 2, gridSize / 2, gridSize / 2];
+        let center = [0.0, 0.0, 0.0]; // Center at origin
         let up = [0.0, 1.0, 0.0];
   
         // Compute view and projection matrices
@@ -82,7 +82,7 @@ function logMessage(message) {
         let mvp = proj.matmul(view);
   
         // Clear the canvas and depth buffer
-        ti.clearColor(canvasTexture, [0.0, 0.0, 0.0, 1.0]);
+        ti.clearColor(canvasTexture, [0.0, 0.0, 0.0, 1.0]); // Black background
         ti.useDepth(depthTexture);
   
         // Render live cells as white points using inputVertices
@@ -204,6 +204,9 @@ function logMessage(message) {
           for (let dx of ti.ndrange(3)) { // 0,1,2
             for (let dy of ti.ndrange(3)) { // 0,1,2
               for (let dz of ti.ndrange(3)) { // 0,1,2
+                // Skip the cell itself
+                if (dx === 1 && dy === 1 && dz === 1) continue;
+  
                 // Calculate neighbor coordinates with edge wrapping
                 let nx = (x + dx - 1 + N) % N;
                 let ny = (y + dy - 1 + N) % N;
@@ -228,13 +231,12 @@ function logMessage(message) {
           let currentState = liveness[idx];
           let neighbors = numNeighbors[idx];
   
-          if (currentState == 1) {
-            neighbors -= 1; // Subtract the cell itself if it's alive
+          if (currentState === 1) {
             if (neighbors < 5 || neighbors > 7) { // Survival rules adjusted for 26 neighbors
               liveness[idx] = 0;
             }
           } else {
-            if (neighbors == 5) { // Birth condition
+            if (neighbors === 5) { // Birth condition
               liveness[idx] = 1;
             }
           }
@@ -247,13 +249,13 @@ function logMessage(message) {
       const transferLiveCells = ti.kernel(() => {
         let idx = 0;
         for (let i of ti.range(TOTAL_CELLS)) { // Loop over 1D index
-          if (liveness[i] == 1) {
+          if (liveness[i] === 1) {
             if (idx < liveCellsMax) { // Ensure we don't exceed VBO capacity
-              VBO[idx] = [
-                (Math.floor(i / (N * N)) + 0.5),
-                (Math.floor((i % (N * N)) / N) + 0.5),
-                (i % N + 0.5)
-              ]; // Center of the cell
+              // Center the grid around origin
+              let x = (Math.floor(i / (N * N)) + 0.5) - (N / 2);
+              let y = (Math.floor((i % (N * N)) / N) + 0.5) - (N / 2);
+              let z = (i % N + 0.5) - (N / 2);
+              VBO[idx] = [x, y, z]; // Centered position
               idx += 1;
             }
           }
@@ -316,9 +318,8 @@ function logMessage(message) {
         htmlCanvas.width = window.innerWidth;
         htmlCanvas.height = window.innerHeight - 200; // Adjust height based on log panel
         renderer.aspectRatio = htmlCanvas.width / htmlCanvas.height;
-        // Update aspect ratio in Taichi.js if necessary
-        // Currently, Taichi.js doesn't have a direct method to update aspect ratio dynamically
-        // You may need to recreate or adjust textures/matrices if aspect ratio changes significantly
+        // Update projection matrix if necessary
+        // Note: Taichi.js may require reinitializing certain parameters if aspect ratio changes
       });
   
       logMessage(`Version ${VERSION}: Completed successfully.`);
