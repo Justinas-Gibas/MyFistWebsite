@@ -11,7 +11,7 @@ function logMessage(message) {
   }
   
   // Version Label
-  const VERSION = "1.5.0 - Implement Renderer";
+  const VERSION = "1.6.0 - Continuous Simulation";
   
   // Renderer3DGameOfLife Class
   class Renderer3DGameOfLife {
@@ -272,8 +272,42 @@ function logMessage(message) {
       renderer.render();
       logMessage(`Version ${VERSION}: Renderer executed.`);
   
+      // Define a simulation step
+      const simulationStep = async () => {
+        try {
+          // Count Neighbors
+          await countNeighbors();
+          logMessage(`Version ${VERSION}: Count Neighbors Kernel executed.`);
+  
+          // Update Liveness
+          await updateLiveness();
+          logMessage(`Version ${VERSION}: Update Liveness Kernel executed.`);
+  
+          // Transfer Live Cells
+          await transferLiveCells();
+          logMessage(`Version ${VERSION}: Transfer Live Cells Kernel executed.`);
+  
+          // Render the frame
+          renderer.render();
+          logMessage(`Version ${VERSION}: Renderer executed.`);
+        } catch (error) {
+          logMessage(`Version ${VERSION} - Simulation Step Error: ${error.message || 'Undefined error.'}`);
+          console.error("Simulation Step Error:", error);
+        }
+      };
+  
+      // Define the animation loop
+      const animate = async () => {
+        await simulationStep();
+        requestAnimationFrame(animate);
+      };
+  
+      // Start the animation loop
+      animate();
+      logMessage(`Version ${VERSION}: Animation loop started.`);
+  
       // Proceed to the next version
-      logMessage(`Version ${VERSION}: Completed successfully. Proceed to Version 1.5.1.`);
+      logMessage(`Version ${VERSION}: Completed successfully. Proceed to Version 1.6.1.`);
     } catch (error) {
       // Enhanced Error Logging
       if (error.message) {
