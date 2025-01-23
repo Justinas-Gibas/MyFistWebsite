@@ -11,7 +11,7 @@ function logMessage(message) {
   }
   
   // Version Label
-  const VERSION = "1.3.2.1";
+  const VERSION = "1.3.2.2";
   
   // Renderer3DGameOfLife Class
   class Renderer3DGameOfLife {
@@ -184,7 +184,7 @@ function logMessage(message) {
       await init();
       logMessage(`Version ${VERSION}: Grid initialization complete.`);
   
-      // Define Count Neighbors Kernel with Corrected Field Access
+      // Define Count Neighbors Kernel with Corrected Field Access and Scalar Conditions
       const countNeighbors = ti.kernel(() => {
         for (let idx of ti.range(N * N * N)) { // Loop over 1D index
           // Map 1D index to 3D coordinates
@@ -196,10 +196,10 @@ function logMessage(message) {
           for (let dx of ti.ndrange(3)) { // 0,1,2
             for (let dy of ti.ndrange(3)) { // 0,1,2
               for (let dz of ti.ndrange(3)) { // 0,1,2
-                // Replace compound condition with nested if statements
-                if (dx === 1) {
-                  if (dy === 1) {
-                    if (dz === 1) {
+                // Replace '===' with '=='
+                if (dx == 1) {
+                  if (dy == 1) {
+                    if (dz == 1) {
                       continue; // Skip the cell itself
                     }
                   }
@@ -226,8 +226,14 @@ function logMessage(message) {
       // Proceed to the next version
       logMessage(`Version ${VERSION}: Completed successfully. Proceed to Version 1.4.`);
     } catch (error) {
-      logMessage(`Version ${VERSION} - Main Error: ${error.message}`);
-      console.error("Main Error:", error);
+      // Enhanced Error Logging
+      if (error.message) {
+        logMessage(`Version ${VERSION} - Main Error: ${error.message}`);
+        console.error("Main Error:", error);
+      } else {
+        logMessage(`Version ${VERSION} - Main Error: Undefined error.`);
+        console.error("Main Error: Undefined error.", error);
+      }
     }
   };
   
