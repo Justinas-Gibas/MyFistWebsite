@@ -11,7 +11,7 @@ function logMessage(message) {
   }
   
   // Version Label
-  const VERSION = "1.2";
+  const VERSION = "1.3";
   
   // Main Function
   let main = async () => {
@@ -77,8 +77,29 @@ function logMessage(message) {
       await init();
       logMessage(`Version ${VERSION}: Grid initialization complete.`);
   
+      // Define Count Neighbors Kernel without Conditions
+      const countNeighbors = ti.kernel(() => {
+        for (let I of ti.ndrange(16, 16, 16)) { // Fixed loop ranges: 16x16x16
+          let neighbors = 0;
+          for (let dx of ti.ndrange(3)) { // 0,1,2
+            for (let dy of ti.ndrange(3)) { // 0,1,2
+              for (let dz of ti.ndrange(3)) { // 0,1,2
+                // No condition; count all neighbors including the cell itself
+                let x = (I.x + dx - 1 + 16) % 16; // Wrap around edges
+                let y = (I.y + dy - 1 + 16) % 16;
+                let z = (I.z + dz - 1 + 16) % 16;
+                neighbors += liveness[x, y, z];
+              }
+            }
+          }
+          numNeighbors[I.x, I.y, I.z] = neighbors;
+        }
+      });
+      await countNeighbors();
+      logMessage(`Version ${VERSION}: Count Neighbors Kernel executed without conditions.`);
+  
       // Proceed to the next version
-      logMessage(`Version ${VERSION}: Completed successfully. Proceed to Version 1.3.`);
+      logMessage(`Version ${VERSION}: Completed successfully. Proceed to Version 1.4.`);
     } catch (error) {
       logMessage(`Version ${VERSION} - Main Error: ${error.message}`);
       console.error("Main Error:", error);
@@ -92,7 +113,7 @@ function logMessage(message) {
   });
   script.src = 'https://unpkg.com/taichi.js/dist/taichi.umd.js';
   script.onerror = function () {
-    logMessage("Version 1.2: Failed to load Taichi.js script.");
+    logMessage("Version 1.3: Failed to load Taichi.js script.");
     console.error("Failed to load Taichi.js script.");
   };
   // Append to the `head` element
