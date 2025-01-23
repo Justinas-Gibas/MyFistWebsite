@@ -2,20 +2,53 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>3D Game of Life - Continuous Simulation</title>
+  <title>3D Game of Life - Final MVP</title>
+  <style>
+    /* Reset default margins and paddings */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    /* Use Flexbox to arrange log and canvas side by side */
+    body {
+      display: flex;
+      flex-direction: row;
+      height: 100vh;
+      font-family: monospace;
+      background-color: #000; /* Dark background for better contrast */
+    }
+
+    /* Log Area Styling */
+    #log {
+      width: 300px; /* Fixed width for the log panel */
+      height: 100%;
+      overflow-y: auto; /* Enable vertical scrolling */
+      background-color: #1e1e1e; /* Dark gray background */
+      color: #d4d4d4; /* Light gray text for readability */
+      padding: 10px;
+      box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5); /* Subtle shadow for separation */
+    }
+
+    /* Canvas Styling */
+    #result_canvas {
+      flex-grow: 1; /* Take up remaining horizontal space */
+      display: block;
+    }
+  </style>
 </head>
 <body>
-  <!-- Canvas for any potential rendering (not used in minimal example) -->
-  <canvas id="result_canvas"></canvas>
-  
-  <!-- Section for displaying logs and errors -->
+  <!-- Log Area -->
   <div id="log"></div>
-  
-  <!-- Include Taichi.js library -->
+
+  <!-- Canvas for Rendering -->
+  <canvas id="result_canvas"></canvas>
+
+  <!-- Load Taichi.js First -->
   <script src="https://unpkg.com/taichi.js/dist/taichi.umd.js"></script>
-  
-  <!-- Include your main JavaScript file -->
+
+  <!-- Then Load Your Custom Script -->
   <script src="script.js"></script>
-  <div id="log" style="white-space: pre-wrap; font-family: monospace;"></div>
 </body>
 </html>

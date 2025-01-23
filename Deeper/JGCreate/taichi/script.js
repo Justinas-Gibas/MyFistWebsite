@@ -11,7 +11,7 @@ function logMessage(message) {
   }
   
   // Version Label
-  const VERSION = "1.6.0 - Continuous Simulation";
+  const VERSION = "Final MVP - 1.0";
   
   // Renderer3DGameOfLife Class
   class Renderer3DGameOfLife {
@@ -131,12 +131,10 @@ function logMessage(message) {
       const liveCellsMax = 4096; // Fixed compile-time constant
       const TOTAL_CELLS = N * N * N;
   
-      // Initialize HTML Canvas
-      let htmlCanvas = document.createElement('canvas');
-      htmlCanvas.id = 'result_canvas';
-      htmlCanvas.width = 800;
-      htmlCanvas.height = 800;
-      document.body.appendChild(htmlCanvas);
+      // Initialize HTML Canvas (already present in HTML)
+      let htmlCanvas = document.getElementById('result_canvas');
+      htmlCanvas.width = window.innerWidth - 300; // Adjust width based on log panel
+      htmlCanvas.height = window.innerHeight;
   
       // Define fields
       // Flattening the 3D fields to 1D
@@ -268,9 +266,9 @@ function logMessage(message) {
       // Initialize Renderer
       const renderer = new Renderer3DGameOfLife(htmlCanvas, N, liveCellsMax, ti);
   
-      // Render the frame
+      // Render the initial frame
       renderer.render();
-      logMessage(`Version ${VERSION}: Renderer executed.`);
+      logMessage(`Version ${VERSION}: Initial Renderer execution complete.`);
   
       // Define a simulation step
       const simulationStep = async () => {
@@ -306,8 +304,16 @@ function logMessage(message) {
       animate();
       logMessage(`Version ${VERSION}: Animation loop started.`);
   
-      // Proceed to the next version
-      logMessage(`Version ${VERSION}: Completed successfully. Proceed to Version 1.6.1.`);
+      // Handle Window Resize
+      window.addEventListener('resize', () => {
+        htmlCanvas.width = window.innerWidth - 300; // Adjust width based on log panel
+        htmlCanvas.height = window.innerHeight;
+        renderer.aspectRatio = htmlCanvas.width / htmlCanvas.height;
+        // Update aspect ratio in Taichi.js if necessary
+        ti.updateAspectRatio(renderer.aspectRatio);
+      });
+  
+      logMessage(`Version ${VERSION}: Completed successfully.`);
     } catch (error) {
       // Enhanced Error Logging
       if (error.message) {
@@ -320,16 +326,6 @@ function logMessage(message) {
     }
   };
   
-  // Load Taichi.js and execute the main function
-  const script = document.createElement('script');
-  script.addEventListener('load', function () {
-    main();
-  });
-  script.src = 'https://unpkg.com/taichi.js/dist/taichi.umd.js';
-  script.onerror = function () {
-    logMessage(`Version ${VERSION}: Failed to load Taichi.js script.`);
-    console.error("Failed to load Taichi.js script.");
-  };
-  // Append to the `head` element
-  document.head.appendChild(script);
+  // Execute the main function once the window loads
+  window.onload = main;
   

@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Enhanced Chat with OpenAI & Local Models</title>
+  <!-- Scripts for TensorFlow and QnA -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/qna"></script>
+  <!-- Add other scripts for local LLM integration here, e.g., WebLLM, custom solutions, etc. -->
+  
+  <style>
+    /* Global styling */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      font-size: 16px; /* Larger default text size */
+      box-sizing: border-box;
+    }
+    h1 {
+      margin: 10px;
+      text-align: center;
+    }
+
+    /* Layout: 3 columns with flexible widths */
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 2fr 1fr;
+      grid-gap: 10px;
+      height: calc(100vh - 60px); /* minus some space for the heading */
+    }
+
+    /* Left sidebar */
+    .left-pane {
+      border-right: 1px solid #ccc;
+      padding: 10px;
+      overflow-y: auto;
+    }
+
+    /* Middle chat area */
+    .middle-pane {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #ccc;
+    }
+
+    /* Right sidebar */
+    .right-pane {
+      padding: 10px;
+      overflow-y: auto;
+    }
+
+    /* Chat container styling */
+    #chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      background-color: #f9f9f9;
+    }
+    .chat-bubble {
+      padding: 10px;
+      border-radius: 10px;
+      margin: 5px 0;
+      word-wrap: break-word;
+    }
+    .chat-bubble.you {
+      background-color: #e1f5fe;
+      text-align: left;
+    }
+    .chat-bubble.chatbot {
+      background-color: #c8e6c9;
+      text-align: right;
+    }
+    .chat-bubble.system {
+      background-color: #fff3e0;
+      text-align: center;
+      font-style: italic;
+    }
+
+    /* Chat controls at bottom of middle pane */
+    .chat-controls {
+      display: flex;
+      padding: 10px;
+      border-top: 1px solid #ccc;
+      background-color: #f1f1f1;
+      gap: 5px;
+    }
+    .chat-controls > * {
+      font-size: 14px; /* slightly smaller in controls, but still readable */
+    }
+    #user-input {
+      flex: 1;
+    }
+
+    /* Progress bar design (top of chat area) */
+    #progress-container {
+      width: 100%;
+      height: 20px;
+      background-color: #ddd;
+      margin: 0;
+    }
+    #progress-bar {
+      width: 0;
+      height: 100%;
+      background-color: #4caf50;
+      text-align: center;
+      transition: width 0.5s;
+      color: #fff;
+    }
+
+    /* System prompt styling (left pane text area) */
+    #system-prompt {
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 10px;
+    }
+
+    /* Logging area (right pane) */
+    #log-area {
+      width: 100%;
+      height: 200px; 
+      box-sizing: border-box;
+      margin-top: 10px;
+      background-color: #f9f9f9;
+      border: 1px solid #ccc;
+      overflow-y: auto;
+      padding: 5px;
+      font-size: 14px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Enhanced Chat with OpenAI & Local Models</h1>
+
+  <div class="container">
+    <!-- Left Pane: System Prompt, Model Selection, API Key Input, etc. -->
+    <div class="left-pane">
+      <h2>Setup</h2>
+      <!-- API Key box for OpenAI or other providers -->
+      <label for="api-key-input"><strong>OpenAI API Key:</strong></label><br>
+      <input type="text" id="api-key-input" placeholder="Enter API key...">
+      <hr>
+
+      <label for="system-prompt"><strong>System Prompt:</strong></label><br>
+      <textarea id="system-prompt" rows="4" placeholder="Enter system prompt here..."></textarea>
+      <hr>
+
+      <label for="model-select"><strong>Select Model:</strong></label><br>
+      <select id="model-select">
+        <option value="bert">BERT (TensorFlow QnA)</option>
+        <option value="localLLM">Local LLM (Future Placeholder)</option>
+        <option value="openai">OpenAI GPT (via API Key)</option>
+      </select>
+      <button id="load-model">Load Model</button>
+      <hr>
+
+      <p>Select a model and click "Load Model" before chatting.</p>
+    </div>
+
+    <!-- Middle Pane: Progress bar + Chat display + Chat controls -->
+    <div class="middle-pane">
+      <!-- Progress bar at top -->
+      <div id="progress-container">
+        <div id="progress-bar">Loading Model (0%)</div>
+      </div>
+
+      <!-- Chat area -->
+      <div id="chat-container"></div>
+
+      <!-- Chat controls -->
+      <div class="chat-controls">
+        <input type="text" id="user-input" placeholder="Type your message...">
+        <button id="ask-button">Ask</button>
+        <button id="reset-chat">Reset</button>
+      </div>
+    </div>
+
+    <!-- Right Pane: Additional info, logs, instructions, etc. -->
+    <div class="right-pane">
+      <h2>Logs & Status</h2>
+      <div id="log-area" aria-label="Log output"></div>
+    </div>
+  </div>
+
+  <!-- Main script -->
+  <script>
+    /* -----------------------------------------------------
+       DOM References
+    ----------------------------------------------------- */
+    const chatContainer   = document.getElementById("chat-container");
+    const userInput       = document.getElementById("user-input");
+    const progressBar     = document.getElementById("progress-bar");
+    const askButton       = document.getElementById("ask-button");
+    const resetChatButton = document.getElementById("reset-chat");
+    const loadModelButton = document.getElementById("load-model");
+    const modelSelect     = document.getElementById("model-select");
+    const systemPrompt    = document.getElementById("system-prompt");
+    const apiKeyInput     = document.getElementById("api-key-input");
+    const logArea         = document.getElementById("log-area");
+
+    /* -----------------------------------------------------
+       Global Variables
+    ----------------------------------------------------- */
+    let models        = {};             // Cache for loaded models
+    let currentModel  = modelSelect.value; // Tracks current model selection
+    let openaiApiKey  = "";            // For storing API key
+
+    /* -----------------------------------------------------
+       Utility / Logging
+    ----------------------------------------------------- */
+    function logMessage(message) {
+      console.log(message);
+      logArea.textContent += message + "\n";
+      logArea.scrollTop = logArea.scrollHeight;
+    }
+
+    /* -----------------------------------------------------
+       UI Helpers
+    ----------------------------------------------------- */
+    function appendChatBubble(text, role) {
+      const bubble = document.createElement("div");
+      bubble.className = `chat-bubble ${role}`;
+      bubble.textContent = text;
+      chatContainer.appendChild(bubble);
+      chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll
+    }
+
+    function updateProgressBar(percent) {
+      progressBar.style.width = percent + "%";
+      progressBar.textContent = `Loading Model (${percent}%)`;
+    }
+
+    function disableControls(disable) {
+      userInput.disabled       = disable;
+      askButton.disabled       = disable;
+      modelSelect.disabled     = disable;
+      apiKeyInput.disabled     = disable;
+      loadModelButton.disabled = disable;
+    }
+
+    /* -----------------------------------------------------
+       Model Loading
+    ----------------------------------------------------- */
+    async function loadModel() {
+      try {
+        currentModel = modelSelect.value;
+        openaiApiKey = apiKeyInput.value.trim();
+        logMessage(`Attempting to load model: ${currentModel}`);
+
+        // If model is cached, just announce reuse:
+        if (models[currentModel]) {
+          appendChatBubble(`Using cached ${currentModel} model.`, "chatbot");
+          logMessage(`${currentModel} model already loaded from cache.`);
+          return;
+        }
+
+        // Otherwise, load new model
+        disableControls(true);
+        // Start a simulated progress
+        simulateLoadingProgress(3000, async () => {
+          try {
+            let newModel = null;
+
+            if (currentModel === "bert") {
+              logMessage("Loading TensorFlow QnA BERT model...");
+              newModel = await qna.load();
+              logMessage("BERT model loaded.");
+            }
+            else if (currentModel === "localLLM") {
+              // Placeholder for a local LLM
+              // e.g., a WebLLM or other local model approach
+              logMessage("Local LLM model placeholder loaded (not implemented).");
+              newModel = { 
+                // Just a mock object with a findAnswers-like function
+                findAnswers: async (question, context) => {
+                  return [{ text: "(Local LLM placeholder response...)" }];
+                }
+              };
+            }
+            else if (currentModel === "openai") {
+              if (!openaiApiKey) {
+                appendChatBubble("No OpenAI API key provided!", "chatbot");
+                logMessage("OpenAI API key is empty; cannot load model.");
+                throw new Error("OpenAI API key is required for openai model.");
+              }
+              // We don't "load" a model here—API-based approach, but we can store the key
+              logMessage("OpenAI GPT model is set to use the provided API key.");
+              newModel = { openaiApi: true };
+            }
+            else {
+              appendChatBubble("Unsupported model selected.", "chatbot");
+              throw new Error("Unsupported model: " + currentModel);
+            }
+
+            models[currentModel] = newModel; // Cache the loaded model
+            appendChatBubble(`${currentModel} model loaded successfully.`, "chatbot");
+          } catch (error) {
+            appendChatBubble("Model loading failed.", "chatbot");
+            logMessage("Error loading model: " + error);
+          } finally {
+            disableControls(false);
+          }
+        });
+      } catch (e) {
+        appendChatBubble("Model loading failed unexpectedly.", "chatbot");
+        logMessage("Unexpected error: " + e);
+        disableControls(false);
+      }
+    }
+
+    /* Simulate a loading progress bar for a given duration, then callback */
+    async function simulateLoadingProgress(duration, callback) {
+      let steps    = 10;
+      let stepTime = duration / steps;
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        updateProgressBar(progress.toFixed(0));
+        if (progress >= 100) {
+          clearInterval(interval);
+          callback();
+        }
+      }, stepTime);
+    }
+
+    /* -----------------------------------------------------
+       Q&A Logic
+    ----------------------------------------------------- */
+    async function askQuestion() {
+      const question = userInput.value.trim();
+      if (!question) {
+        appendChatBubble("No question entered.", "chatbot");
+        logMessage("User tried to ask an empty question.");
+        return;
+      }
+      appendChatBubble("You: " + question, "you");
+
+      if (!models[currentModel]) {
+        appendChatBubble("The model is not yet loaded.", "chatbot");
+        logMessage("User asked a question but model isn't loaded.");
+        return;
+      }
+
+      try {
+        const answer = await getAnswer(question);
+        appendChatBubble("Chatbot: " + answer, "chatbot");
+        logMessage(`Answer provided: ${answer}`);
+      } catch (error) {
+        appendChatBubble("Error answering the question.", "chatbot");
+        logMessage("Error in askQuestion: " + error);
+      }
+      userInput.value = "";
+    }
+
+    async function getAnswer(question) {
+      const systemText = systemPrompt.value.trim() || "Default system context.";
+      const modelObj   = models[currentModel];
+
+      // For demonstration, we handle the 3 model “types” differently:
+      if (currentModel === "bert" || currentModel === "localLLM") {
+        try {
+          const answers = await modelObj.findAnswers(question, systemText);
+          if (!answers.length) return "No answer found. Please rephrase your question.";
+          return answers[0].text;
+        } catch (error) {
+          logMessage("Error from local QnA: " + error);
+          return "An error occurred while processing your request.";
+        }
+      }
+      else if (currentModel === "openai" && modelObj.openaiApi) {
+        // Make an API call to OpenAI
+        const apiKey = apiKeyInput.value.trim();
+        if (!apiKey) throw new Error("OpenAI API key missing at question time.");
+
+        try {
+          // For demonstration, a minimal fetch to OpenAI completions or chat completions endpoint
+          // with a basic prompt. You'll likely refine it based on ChatGPT usage and parameters.
+          logMessage("Sending request to OpenAI...");
+          const response = await fetch("https://api.openai.com/v1/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: "text-davinci-003",
+              prompt: `${systemText}\n\nUser question: ${question}\nAnswer:`,
+              max_tokens: 50
+            })
+          });
+          const data = await response.json();
+
+          if (data.choices && data.choices.length > 0) {
+            return data.choices[0].text.trim();
+          } else {
+            logMessage("OpenAI response had no choices: " + JSON.stringify(data));
+            return "No answer returned from OpenAI.";
+          }
+        } catch (error) {
+          logMessage("Error contacting OpenAI: " + error);
+          return "Error calling OpenAI API.";
+        }
+      }
+
+      return "Unsupported model or model not loaded.";
+    }
+
+    /* -----------------------------------------------------
+       Event Listeners
+    ----------------------------------------------------- */
+    askButton.addEventListener("click", askQuestion);
+    userInput.addEventListener("keyup", (e) => {
+      if (e.key === "Enter") askQuestion();
+    });
+
+    loadModelButton.addEventListener("click", loadModel);
+
+    resetChatButton.addEventListener("click", () => {
+      chatContainer.innerHTML = "";
+      appendChatBubble("System: Chat reset.", "system");
+      logMessage("Chat reset requested. Reloading selected model...");
+      loadModel();
+    });
+
+    modelSelect.addEventListener("change", (e) => {
+      currentModel = e.target.value;
+      appendChatBubble(`Switched to ${currentModel}.`, "chatbot");
+      logMessage(`User switched model to: ${currentModel}`);
+    });
+
+    /* -----------------------------------------------------
+       On Page Load
+    ----------------------------------------------------- */
+    // Optionally load a default model immediately
+    // loadModel();
+    appendChatBubble("System: Welcome! Select a model and enter your question.", "system");
+    logMessage("Page loaded. Waiting for user input...");
+  </script>
+</body>
+</html>
