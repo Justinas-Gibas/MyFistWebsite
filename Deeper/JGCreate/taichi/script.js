@@ -77,18 +77,23 @@ function logMessage(message) {
       await init();
       logMessage(`Version ${VERSION}: Grid initialization complete.`);
   
-      // Define Count Neighbors Kernel without Conditions
+      // Define Count Neighbors Kernel with Corrected Field Access
       const countNeighbors = ti.kernel(() => {
         for (let I of ti.ndrange(16, 16, 16)) { // Fixed loop ranges: 16x16x16
           let neighbors = 0;
           for (let dx of ti.ndrange(3)) { // 0,1,2
             for (let dy of ti.ndrange(3)) { // 0,1,2
               for (let dz of ti.ndrange(3)) { // 0,1,2
-                // No condition; count all neighbors including the cell itself
+                // Calculate neighbor coordinates with edge wrapping
                 let x = (I.x + dx - 1 + 16) % 16; // Wrap around edges
                 let y = (I.y + dy - 1 + 16) % 16;
                 let z = (I.z + dz - 1 + 16) % 16;
-                neighbors += liveness[x, y, z];
+                
+                // Create a vector for the neighbor's coordinates
+                let neighborPos = ti.Vector([x, y, z]);
+                
+                // Access the liveness field using the vector index
+                neighbors += liveness[neighborPos];
               }
             }
           }
