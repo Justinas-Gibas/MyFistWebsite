@@ -1,11 +1,17 @@
 // script.js
 
-// Function to log messages to the log div
+// Function to log messages to the log div with log management
 function logMessage(message) {
     const logDiv = document.getElementById('log');
     const p = document.createElement('p');
     p.textContent = message;
     logDiv.appendChild(p);
+  
+    // Limit to last 100 messages to prevent overflow
+    while (logDiv.children.length > 100) {
+      logDiv.removeChild(logDiv.firstChild);
+    }
+  
     // Auto-scroll to the bottom
     logDiv.scrollTop = logDiv.scrollHeight;
   }
@@ -84,6 +90,7 @@ function logMessage(message) {
           // Transform the position using the MVP matrix
           let transformed = mvp.matmul([v.x, v.y, v.z, 1.0]);
           ti.outputPosition(transformed); // Only transformed position
+  
           // Pass color to fragment shader
           ti.outputVertex({ color: [1.0, 1.0, 1.0, 1.0] }); // White color
         }
@@ -133,8 +140,8 @@ function logMessage(message) {
   
       // Initialize HTML Canvas (already present in HTML)
       let htmlCanvas = document.getElementById('result_canvas');
-      htmlCanvas.width = window.innerWidth - 300; // Adjust width based on log panel
-      htmlCanvas.height = window.innerHeight;
+      htmlCanvas.width = window.innerWidth;
+      htmlCanvas.height = window.innerHeight - 200; // Adjust height based on log panel
   
       // Define fields
       // Flattening the 3D fields to 1D
@@ -306,11 +313,12 @@ function logMessage(message) {
   
       // Handle Window Resize
       window.addEventListener('resize', () => {
-        htmlCanvas.width = window.innerWidth - 300; // Adjust width based on log panel
-        htmlCanvas.height = window.innerHeight;
+        htmlCanvas.width = window.innerWidth;
+        htmlCanvas.height = window.innerHeight - 200; // Adjust height based on log panel
         renderer.aspectRatio = htmlCanvas.width / htmlCanvas.height;
         // Update aspect ratio in Taichi.js if necessary
-        ti.updateAspectRatio(renderer.aspectRatio);
+        // Currently, Taichi.js doesn't have a direct method to update aspect ratio dynamically
+        // You may need to recreate or adjust textures/matrices if aspect ratio changes significantly
       });
   
       logMessage(`Version ${VERSION}: Completed successfully.`);

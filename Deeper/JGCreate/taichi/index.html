@@ -11,39 +11,41 @@
       box-sizing: border-box;
     }
 
-    /* Use Flexbox to arrange log and canvas side by side */
+    /* Use Flexbox to arrange canvas and log vertically */
     body {
       display: flex;
-      flex-direction: row;
+      flex-direction: column;
       height: 100vh;
       font-family: monospace;
       background-color: #000; /* Dark background for better contrast */
     }
 
+    /* Canvas Styling */
+    #result_canvas {
+      flex-grow: 1; /* Take up remaining vertical space */
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
     /* Log Area Styling */
     #log {
-      width: 300px; /* Fixed width for the log panel */
-      height: 100%;
+      height: 200px; /* Fixed height for the log panel */
       overflow-y: auto; /* Enable vertical scrolling */
       background-color: #1e1e1e; /* Dark gray background */
       color: #d4d4d4; /* Light gray text for readability */
       padding: 10px;
-      box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5); /* Subtle shadow for separation */
-    }
-
-    /* Canvas Styling */
-    #result_canvas {
-      flex-grow: 1; /* Take up remaining horizontal space */
-      display: block;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); /* Inner shadow for depth */
+      font-size: 12px;
     }
   </style>
 </head>
 <body>
-  <!-- Log Area -->
-  <div id="log"></div>
-
   <!-- Canvas for Rendering -->
   <canvas id="result_canvas"></canvas>
+
+  <!-- Log Area -->
+  <div id="log"></div>
 
   <!-- Load Taichi.js First -->
   <script src="https://unpkg.com/taichi.js/dist/taichi.umd.js"></script>
