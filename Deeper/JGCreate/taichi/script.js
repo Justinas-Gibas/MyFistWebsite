@@ -11,7 +11,7 @@ function logMessage(message) {
   }
   
   // Version Label
-  const VERSION = "1.3.3";
+  const VERSION = "1.5.0 - Implement Renderer";
   
   // Renderer3DGameOfLife Class
   class Renderer3DGameOfLife {
@@ -129,16 +129,19 @@ function logMessage(message) {
       // Define grid dimensions
       const N = 16; // 16x16x16 grid for performance
       const liveCellsMax = 4096; // Fixed compile-time constant
+      const TOTAL_CELLS = N * N * N;
   
       // Initialize HTML Canvas
-      let htmlCanvas = document.getElementById('result_canvas');
+      let htmlCanvas = document.createElement('canvas');
+      htmlCanvas.id = 'result_canvas';
       htmlCanvas.width = 800;
       htmlCanvas.height = 800;
+      document.body.appendChild(htmlCanvas);
   
       // Define fields
       // Flattening the 3D fields to 1D
-      const liveness = ti.field(ti.i32, [N * N * N]);
-      const numNeighbors = ti.field(ti.i32, [N * N * N]);
+      const liveness = ti.field(ti.i32, [TOTAL_CELLS]);
+      const numNeighbors = ti.field(ti.i32, [TOTAL_CELLS]);
   
       // Define VBO and IBO for rendering
       const VBO = ti.Vector.field(3, ti.f32, [liveCellsMax]); // Positions of live cells
@@ -153,6 +156,7 @@ function logMessage(message) {
       // Add fields to kernel scope
       ti.addToKernelScope({
         N,
+        TOTAL_CELLS,
         liveness,
         numNeighbors,
         VBO,
@@ -164,7 +168,7 @@ function logMessage(message) {
   
       // Initialize IBO with indices 0 to liveCellsMax-1
       const initIBO = ti.kernel(() => {
-        for (let i of ti.range(4096)) { // Fixed loop range: 4096
+        for (let i of ti.range(liveCellsMax)) { // Fixed loop range: liveCellsMax
           IBO[i] = i;
         }
       });
@@ -172,8 +176,8 @@ function logMessage(message) {
       logMessage(`Version ${VERSION}: IBO Initialization complete.`);
   
       // Kernel to initialize the grid with random live cells
-      const init = ti.kernel(() => {
-        for (let idx of ti.range(N * N * N)) { // Loop over 1D index
+      const initGrid = ti.kernel(() => {
+        for (let idx of ti.range(TOTAL_CELLS)) { // Loop over 1D index with fixed range
           liveness[idx] = 0;
           let f = ti.random();
           if (f < 0.2) { // 20% chance to be alive
@@ -181,21 +185,21 @@ function logMessage(message) {
           }
         }
       });
-      await init();
+      await initGrid();
       logMessage(`Version ${VERSION}: Grid initialization complete.`);
   
-      // Define Count Neighbors Kernel without Skipping the Cell Itself
+      // Define Count Neighbors Kernel with Fixed Range
       const countNeighbors = ti.kernel(() => {
-        for (let idx of ti.range(N * N * N)) { // Loop over 1D index
+        for (let idx of ti.range(TOTAL_CELLS)) { // Use fixed TOTAL_CELLS
+          let x = Math.floor(idx / (N * N));
+          let y = Math.floor((idx % (N * N)) / N);
+          let z = idx % N;
+  
           let neighbors = 0;
           for (let dx of ti.ndrange(3)) { // 0,1,2
             for (let dy of ti.ndrange(3)) { // 0,1,2
               for (let dz of ti.ndrange(3)) { // 0,1,2
                 // Calculate neighbor coordinates with edge wrapping
-                let x = Math.floor(idx / (N * N));
-                let y = Math.floor((idx % (N * N)) / N);
-                let z = idx % N;
-  
                 let nx = (x + dx - 1 + N) % N;
                 let ny = (y + dy - 1 + N) % N;
                 let nz = (z + dz - 1 + N) % N;
@@ -211,11 +215,11 @@ function logMessage(message) {
         }
       });
       await countNeighbors();
-      logMessage(`Version ${VERSION}: Count Neighbors Kernel executed without skipping the cell itself.`);
+      logMessage(`Version ${VERSION}: Count Neighbors Kernel executed with fixed range.`);
   
       // Define Update Liveness Kernel
       const updateLiveness = ti.kernel(() => {
-        for (let idx of ti.range(N * N * N)) { // Loop over 1D index
+        for (let idx of ti.range(TOTAL_CELLS)) { // Loop over 1D index with fixed range
           let currentState = liveness[idx];
           let neighbors = numNeighbors[idx];
   
@@ -237,7 +241,7 @@ function logMessage(message) {
       // Define Transfer Live Cells Kernel
       const transferLiveCells = ti.kernel(() => {
         let idx = 0;
-        for (let i of ti.range(N * N * N)) { // Loop over 1D index
+        for (let i of ti.range(TOTAL_CELLS)) { // Loop over 1D index
           if (liveness[i] == 1) {
             if (idx < liveCellsMax) { // Ensure we don't exceed VBO capacity
               VBO[idx] = [
@@ -261,8 +265,15 @@ function logMessage(message) {
       await transferLiveCells();
       logMessage(`Version ${VERSION}: Transfer Live Cells Kernel executed.`);
   
+      // Initialize Renderer
+      const renderer = new Renderer3DGameOfLife(htmlCanvas, N, liveCellsMax, ti);
+  
+      // Render the frame
+      renderer.render();
+      logMessage(`Version ${VERSION}: Renderer executed.`);
+  
       // Proceed to the next version
-      logMessage(`Version ${VERSION}: Completed successfully. Proceed to Version 1.4.`);
+      logMessage(`Version ${VERSION}: Completed successfully. Proceed to Version 1.5.1.`);
     } catch (error) {
       // Enhanced Error Logging
       if (error.message) {
