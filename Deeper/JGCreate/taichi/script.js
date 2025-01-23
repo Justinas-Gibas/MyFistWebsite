@@ -185,7 +185,7 @@ function logMessage(message) {
           for (let dx of ti.ndrange(3)) { // 0,1,2
             for (let dy of ti.ndrange(3)) { // 0,1,2
               for (let dz of ti.ndrange(3)) { // 0,1,2
-                if (dx === 1 && dy === 1 && dz === 1) continue; // Skip the cell itself
+                if (dx == 1 && dy == 1 && dz == 1) continue; // Skip the cell itself
                 let x = (I.x + dx - 1 + 16) % 16; // Wrap around edges
                 let y = (I.y + dy - 1 + 16) % 16;
                 let z = (I.z + dz - 1 + 16) % 16;
