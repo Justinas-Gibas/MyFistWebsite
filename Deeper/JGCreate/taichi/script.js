@@ -201,9 +201,9 @@ function logMessage(message) {
           let z = idx % N;
   
           let neighbors = 0;
-          for (let dx of ti.ndrange(3)) { // 0,1,2
-            for (let dy of ti.ndrange(3)) { // 0,1,2
-              for (let dz of ti.ndrange(3)) { // 0,1,2
+          for (let dx of ti.range(3)) { // 0,1,2
+            for (let dy of ti.range(3)) { // 0,1,2
+              for (let dz of ti.range(3)) { // 0,1,2
                 // Skip the cell itself
                 if (dx === 1 && dy === 1 && dz === 1) continue;
   
@@ -318,8 +318,7 @@ function logMessage(message) {
         htmlCanvas.width = window.innerWidth;
         htmlCanvas.height = window.innerHeight - 200; // Adjust height based on log panel
         renderer.aspectRatio = htmlCanvas.width / htmlCanvas.height;
-        // Update projection matrix if necessary
-        // Note: Taichi.js may require reinitializing certain parameters if aspect ratio changes
+        // Note: Taichi.js may require reinitializing certain parameters if aspect ratio changes significantly
       });
   
       logMessage(`Version ${VERSION}: Completed successfully.`);
