@@ -279,6 +279,9 @@ function logMessage(message) {
       renderer.render();
       logMessage(`Version ${VERSION}: Initial Renderer execution complete.`);
   
+      // Log the initial number of live cells
+      logMessage(`Live Cells Count: ${liveCellCount[0]}`);
+  
       // Define a simulation step
       const simulationStep = async () => {
         try {
@@ -293,6 +296,9 @@ function logMessage(message) {
           // Transfer Live Cells
           await transferLiveCells();
           logMessage(`Version ${VERSION}: Transfer Live Cells Kernel executed.`);
+  
+          // Log the current number of live cells
+          logMessage(`Live Cells Count: ${liveCellCount[0]}`);
   
           // Render the frame
           renderer.render();
