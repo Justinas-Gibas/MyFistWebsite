@@ -1,10 +1,16 @@
 // script.js
 
-// Function to log messages to the log div with log management
-function logMessage(message) {
+// Function to get current time as a formatted string
+function getCurrentTime() {
+    const now = new Date();
+    return now.toLocaleTimeString();
+  }
+  
+  // Function to log messages to the log div with time stamps and log management
+  function logMessage(message) {
     const logDiv = document.getElementById('log');
     const p = document.createElement('p');
-    p.textContent = message;
+    p.textContent = `[${getCurrentTime()}] ${message}`;
     logDiv.appendChild(p);
   
     // Limit to last 100 messages to prevent overflow
@@ -12,8 +18,8 @@ function logMessage(message) {
       logDiv.removeChild(logDiv.firstChild);
     }
   
-    // Auto-scroll to the bottom
-    logDiv.scrollTop = logDiv.scrollHeight;
+    // Removed auto-scrolling to allow manual scrolling
+    // logDiv.scrollTop = logDiv.scrollHeight;
   }
   
   // Version Label
@@ -279,8 +285,16 @@ function logMessage(message) {
       renderer.render();
       logMessage(`Version ${VERSION}: Initial Renderer execution complete.`);
   
-      // Log the initial number of live cells
-      logMessage(`Live Cells Count: ${liveCellCount[0]}`);
+      // Fetch and log the initial number of live cells
+      const initialLiveCellCount = await liveCellCount.toArray();
+      logMessage(`Live Cells Count: ${initialLiveCellCount[0]}`);
+  
+      // Optionally, log the first few live cell positions
+      if (initialLiveCellCount[0] > 0) {
+        const liveCellsArray = await VBO.toArray();
+        const firstFew = liveCellsArray.slice(0, Math.min(5, initialLiveCellCount[0]));
+        logMessage(`First few Live Cells Positions: ${JSON.stringify(firstFew)}`);
+      }
   
       // Define a simulation step
       const simulationStep = async () => {
@@ -297,8 +311,16 @@ function logMessage(message) {
           await transferLiveCells();
           logMessage(`Version ${VERSION}: Transfer Live Cells Kernel executed.`);
   
-          // Log the current number of live cells
-          logMessage(`Live Cells Count: ${liveCellCount[0]}`);
+          // Fetch and log the current number of live cells
+          const currentLiveCellCount = await liveCellCount.toArray();
+          logMessage(`Live Cells Count: ${currentLiveCellCount[0]}`);
+  
+          // Optionally, log the first few live cell positions
+          if (currentLiveCellCount[0] > 0) {
+            const liveCellsArray = await VBO.toArray();
+            const firstFew = liveCellsArray.slice(0, Math.min(5, currentLiveCellCount[0]));
+            logMessage(`First few Live Cells Positions: ${JSON.stringify(firstFew)}`);
+          }
   
           // Render the frame
           renderer.render();
