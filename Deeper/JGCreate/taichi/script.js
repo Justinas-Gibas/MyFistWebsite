@@ -17,7 +17,7 @@ function logMessage(message) {
 }
 
 // --- Global Version String ---
-const VERSION = "Final MVP - 1.0";
+const VERSION = "1.1.0";
 
 // --- Main Async Function ---
 let main = async () => {
