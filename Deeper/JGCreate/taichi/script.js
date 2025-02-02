@@ -1,6 +1,6 @@
 // script.js
 
-// Utility functions for logging
+// --- Logging Utilities ---
 function getCurrentTime() {
   return new Date().toLocaleTimeString();
 }
@@ -14,7 +14,7 @@ function logMessage(message) {
   }
 }
 
-const VERSION = "Final MVP - 1.1";
+const VERSION = "Final MVP - 1.2";
 
 let main = async () => {
   try {
@@ -28,39 +28,24 @@ let main = async () => {
     htmlCanvas.height = window.innerHeight - 200;
 
     // --- Simulation Setup ---
-    const N = 16; // Grid dimensions (16x16x16)
+    const N = 16; // 16x16x16 grid
     const TOTAL_CELLS = N * N * N;
     const liveCellsMax = 4096; // Maximum number of live cells
 
-    // Fields: liveness (cell state), neighbor count, live cell count
+    // Define fields: cell state, neighbor count, live cell count
     const liveness = ti.field(ti.i32, [TOTAL_CELLS]);
     const numNeighbors = ti.field(ti.i32, [TOTAL_CELLS]);
     const liveCellCount = ti.field(ti.i32, [1]);
-
-    // VBO to store live cell positions (3D vectors)
+    // VBO to store live cell positions and IBO for vertex indexing
     const VBO = ti.Vector.field(3, ti.f32, [liveCellsMax]);
-    // IBO for vertex indexing
     const IBO = ti.field(ti.i32, [liveCellsMax]);
 
-    // Helper: convert 3D indices to 1D
-    function get1DIndex(x, y, z, N) {
-      return x * N * N + y * N + z;
-    }
-
-    // Make fields available to Taichi kernels
+    // Add fields to kernel scope (we now omit get1DIndex and inline its calculation)
     ti.addToKernelScope({
-      N,
-      TOTAL_CELLS,
-      liveness,
-      numNeighbors,
-      VBO,
-      IBO,
-      liveCellsMax,
-      liveCellCount,
-      get1DIndex,
+      N, TOTAL_CELLS, liveness, numNeighbors, VBO, IBO, liveCellsMax, liveCellCount
     });
 
-    // Initialize IBO with indices 0...liveCellsMax-1
+    // --- Kernel: Initialize IBO ---
     const initIBO = ti.kernel(() => {
       for (let i of ti.range(liveCellsMax)) {
         IBO[i] = i;
@@ -69,7 +54,7 @@ let main = async () => {
     await initIBO();
     logMessage(`${VERSION}: IBO initialized.`);
 
-    // Initialize grid with random live cells (20% chance alive)
+    // --- Kernel: Initialize Grid with Random Live Cells ---
     const initGrid = ti.kernel(() => {
       for (let idx of ti.range(TOTAL_CELLS)) {
         liveness[idx] = 0;
@@ -81,7 +66,7 @@ let main = async () => {
     await initGrid();
     logMessage(`${VERSION}: Grid initialized.`);
 
-    // Count neighbors for each cell (with wrap-around)
+    // --- Kernel: Count Neighbors (Inline 3D→1D Index Calculation) ---
     const countNeighbors = ti.kernel(() => {
       for (let idx of ti.range(TOTAL_CELLS)) {
         let x = idx / (N * N) | 0;
@@ -95,7 +80,8 @@ let main = async () => {
               let nx = (x + dx - 1 + N) % N;
               let ny = (y + dy - 1 + N) % N;
               let nz = (z + dz - 1 + N) % N;
-              let nIdx = get1DIndex(nx, ny, nz, N);
+              // Inline conversion to 1D index:
+              let nIdx = nx * N * N + ny * N + nz;
               neighbors += liveness[nIdx];
             }
           }
@@ -106,7 +92,7 @@ let main = async () => {
     await countNeighbors();
     logMessage(`${VERSION}: Neighbors counted.`);
 
-    // Update cell liveness using Game of Life rules
+    // --- Kernel: Update Liveness (Game of Life Rules) ---
     const updateLiveness = ti.kernel(() => {
       for (let idx of ti.range(TOTAL_CELLS)) {
         let state = liveness[idx];
@@ -125,7 +111,7 @@ let main = async () => {
     await updateLiveness();
     logMessage(`${VERSION}: Liveness updated.`);
 
-    // Transfer live cell positions into the VBO (center the grid)
+    // --- Kernel: Transfer Live Cell Positions into VBO ---
     const transferLiveCells = ti.kernel(() => {
       let count = 0;
       for (let i of ti.range(TOTAL_CELLS)) {
@@ -134,6 +120,7 @@ let main = async () => {
             let ix = i / (N * N) | 0;
             let iy = (i % (N * N)) / N | 0;
             let iz = i % N;
+            // Center the grid around the origin:
             VBO[count] = [ix + 0.5 - N / 2, iy + 0.5 - N / 2, iz + 0.5 - N / 2];
             count = count + 1;
           }
@@ -142,7 +129,7 @@ let main = async () => {
       liveCellCount[0] = count;
       for (let j of ti.range(liveCellsMax)) {
         if (j >= count) {
-          VBO[j] = [999, 999, 999]; // Off-screen
+          VBO[j] = [999, 999, 999]; // Off-screen position
         }
       }
     });
@@ -160,17 +147,17 @@ let main = async () => {
         this.aspectRatio = canvas.width / canvas.height;
         this.cameraDistance = gridSize * 2;
 
-        // Initialize camera angles
+        // Initialize camera angles (fields of size 1)
         this.angleX = this.taichi.field(this.taichi.f32, [1]);
         this.angleY = this.taichi.field(this.taichi.f32, [1]);
         this.angleX[0] = 0.0;
         this.angleY[0] = 0.0;
 
-        // Create canvas and depth textures
+        // Create textures for canvas and depth buffer
         this.canvasTexture = this.taichi.canvasTexture(canvas, 4);
         this.depthTexture = this.taichi.depthTexture([canvas.width, canvas.height], 4);
 
-        // Add necessary fields to the kernel scope
+        // Add necessary fields to the kernel scope (including IBO for rendering)
         this.taichi.addToKernelScope({
           canvasTexture: this.canvasTexture,
           depthTexture: this.depthTexture,
@@ -184,9 +171,9 @@ let main = async () => {
           IBO: iboField,
         });
 
-        // Define the rendering kernel:
-        // First, it draws a test marker (a large green point at [0,0,0])
-        // Then it draws the simulation live cells as emissive points.
+        // Define the rendering kernel.
+        // First, draw a test marker (a large green point at [0,0,0]),
+        // then draw the simulation live cells as emissive points.
         this.renderKernel = this.taichi.kernel(() => {
           // Compute camera matrices from current angles.
           let theta = angleY[0];
@@ -206,7 +193,7 @@ let main = async () => {
           ti.clearColor(canvasTexture, [0.0, 0.0, 0.0, 1.0]);
           ti.useDepth(depthTexture);
 
-          // *** Test Marker: draw a bright green point at world origin ***
+          // *** Test Marker: Draw a bright green point at world origin ***
           {
             let testPos = [0.0, 0.0, 0.0, 1.0];
             let clipTestPos = mvp.matmul(testPos);
@@ -224,7 +211,7 @@ let main = async () => {
             ti.outputVertex({ baseColor: [1.0, 0.6, 0.2, 1.0] });
           }
 
-          // Fragment shader: create a radial emissive glow.
+          // --- Fragment Shader: Create a Radial Emissive Glow ---
           for (let f of ti.inputFragments()) {
             let pCoord = f.point_coord - [0.5, 0.5];
             let r = pCoord.norm() / 0.5;
@@ -243,7 +230,6 @@ let main = async () => {
           }
         });
       }
-
       // Update camera angles (e.g., via mouse dragging)
       updateCamera(deltaX, deltaY) {
         this.angleX[0] += deltaX;
@@ -253,16 +239,16 @@ let main = async () => {
         try {
           this.renderKernel();
         } catch (error) {
-          logMessage(`${VERSION} - Render Error: ${error.message}`);
+          logMessage(`${VERSION} - Render Error: ${error && error.message ? error.message : error}`);
           console.error("Render Error:", error);
         }
       }
     }
 
-    // Create our renderer, passing the VBO and IBO.
+    // Create the renderer, passing the VBO and IBO.
     const renderer = new Renderer3DGameOfLife(htmlCanvas, N, VBO, ti, IBO);
 
-    // --- Mouse Controls for Camera ---
+    // --- Mouse-Based Camera Controls ---
     let isDragging = false;
     let lastMouseX, lastMouseY;
     htmlCanvas.addEventListener("mousedown", (e) => {
@@ -292,7 +278,7 @@ let main = async () => {
         const countArray = await liveCellCount.toArray();
         logMessage(`${VERSION}: Live Cells Count: ${countArray[0]}`);
       } catch (error) {
-        logMessage(`${VERSION} - Simulation Step Error: ${error.message}`);
+        logMessage(`${VERSION} - Simulation Step Error: ${error && error.message ? error.message : error}`);
         console.error("Simulation Step Error:", error);
       }
     };
@@ -304,6 +290,7 @@ let main = async () => {
     animate();
     logMessage(`${VERSION}: Animation loop started.`);
 
+    // --- Handle Window Resize ---
     window.addEventListener("resize", () => {
       htmlCanvas.width = window.innerWidth;
       htmlCanvas.height = window.innerHeight - 200;
@@ -311,7 +298,7 @@ let main = async () => {
     });
 
   } catch (error) {
-    logMessage(`${VERSION} - Main Error: ${error.message}`);
+    logMessage(`${VERSION} - Main Error: ${error && error.message ? error.message : error}`);
     console.error("Main Error:", error);
   }
 };
