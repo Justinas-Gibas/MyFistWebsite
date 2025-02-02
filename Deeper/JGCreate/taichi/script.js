@@ -6,55 +6,64 @@
 function getCurrentTime() {
   return new Date().toLocaleTimeString();
 }
-function logMessage(message) {
+
+function logMessage(msg) {
   const logDiv = document.getElementById("log");
   const p = document.createElement("p");
-  p.textContent = `[${getCurrentTime()}] ${message}`;
+  p.textContent = `[${getCurrentTime()}] ${msg}`;
   logDiv.appendChild(p);
+  // Limit to 100 messages
   while (logDiv.children.length > 100) {
     logDiv.removeChild(logDiv.firstChild);
   }
+  console.log(msg);
 }
 
+// Global version string
 const VERSION = "3D Game of Life - Cube Version";
 
 // =========================
-// Main Function
+// Main Async Function
 // =========================
 let main = async () => {
   try {
+    logMessage(`${VERSION}: Starting main...`);
+
     // Initialize Taichi.js
     await ti.init();
     logMessage(`${VERSION}: Taichi.js initialized.`);
 
-    // Set up canvas dimensions (adjust height for log panel)
+    // Set up the canvas
     const htmlCanvas = document.getElementById("result_canvas");
     htmlCanvas.width = window.innerWidth;
     htmlCanvas.height = window.innerHeight - 200;
+    logMessage(`${VERSION}: Canvas set to ${htmlCanvas.width} x ${htmlCanvas.height}.`);
 
     // =========================
     // 1. Simulation Setup (3D Game of Life)
     // =========================
-    const N = 16; // Grid dimensions (16x16x16)
+    const N = 16; // grid dimensions: 16x16x16
     const TOTAL_CELLS = N * N * N;
-    const liveCellsMax = 4096; // Maximum number of live cells
+    const liveCellsMax = 4096; // maximum live cells
 
-    // Fields for simulation:
+    // Create simulation fields
     const liveness = ti.field(ti.i32, [TOTAL_CELLS]);
     const numNeighbors = ti.field(ti.i32, [TOTAL_CELLS]);
-    const liveCellCount = ti.field(ti.i32, [1]); // Will hold the number of live cells
+    const liveCellCount = ti.field(ti.i32, [1]);
 
-    // VBO for live cell centers (each live cell will later spawn a cube)
+    // Field to hold live cell center positions
     const simVBO = ti.Vector.field(3, ti.f32, [liveCellsMax]);
-    // Dummy IBO (used only to iterate over simVBO; not used for geometry here)
+    // Dummy IBO to iterate simVBO
     const simIBO = ti.field(ti.i32, [liveCellsMax]);
 
-    // Helper: 3D index → 1D index
+    logMessage(`${VERSION}: Simulation fields created.`);
+
+    // Helper: Convert 3D indices to 1D
     function get1DIndex(x, y, z, N) {
       return x * N * N + y * N + z;
     }
 
-    // Add to Taichi kernel scope:
+    // Add simulation fields and helper to kernel scope
     ti.addToKernelScope({
       N,
       TOTAL_CELLS,
@@ -66,6 +75,7 @@ let main = async () => {
       liveCellCount,
       get1DIndex,
     });
+    logMessage(`${VERSION}: Added simulation fields to kernel scope.`);
 
     // --- Kernel: Initialize simIBO ---
     const initSimIBO = ti.kernel(() => {
@@ -76,7 +86,7 @@ let main = async () => {
     await initSimIBO();
     logMessage(`${VERSION}: Simulation IBO initialized.`);
 
-    // --- Kernel: Initialize Grid with Random Live Cells ---
+    // --- Kernel: Initialize Grid (Random live cells) ---
     const initGrid = ti.kernel(() => {
       for (let idx of ti.range(TOTAL_CELLS)) {
         liveness[idx] = 0;
@@ -86,9 +96,9 @@ let main = async () => {
       }
     });
     await initGrid();
-    logMessage(`${VERSION}: Grid initialized.`);
+    logMessage(`${VERSION}: Grid initialized with random live cells.`);
 
-    // --- Kernel: Count Neighbors (with wrap-around) ---
+    // --- Kernel: Count Neighbors (Wrap-around) ---
     const countNeighbors = ti.kernel(() => {
       for (let idx of ti.range(TOTAL_CELLS)) {
         let x = i32(idx / (N * N));
@@ -113,7 +123,7 @@ let main = async () => {
     await countNeighbors();
     logMessage(`${VERSION}: Neighbors counted.`);
 
-    // --- Kernel: Update Liveness (Game of Life Rules)
+    // --- Kernel: Update Liveness (Rules) ---
     const updateLiveness = ti.kernel(() => {
       for (let idx of ti.range(TOTAL_CELLS)) {
         let state = liveness[idx];
@@ -132,7 +142,7 @@ let main = async () => {
     await updateLiveness();
     logMessage(`${VERSION}: Liveness updated.`);
 
-    // --- Kernel: Transfer Live Cell Positions into simVBO ---
+    // --- Kernel: Transfer Live Cell Positions ---
     const transferLiveCells = ti.kernel(() => {
       let count = 0;
       for (let i of ti.range(TOTAL_CELLS)) {
@@ -141,14 +151,14 @@ let main = async () => {
             let ix = i32(i / (N * N));
             let iy = i32((i % (N * N)) / N);
             let iz = i % N;
-            // Center the grid around origin
+            // Center the grid about the origin
             simVBO[count] = [ix + 0.5 - N / 2, iy + 0.5 - N / 2, iz + 0.5 - N / 2];
             count = count + 1;
           }
         }
       }
       liveCellCount[0] = count;
-      // For any unused entry, place off-screen
+      // Place off-screen for any unused entry
       for (let j of ti.range(liveCellsMax)) {
         if (j >= count) {
           simVBO[j] = [999, 999, 999];
@@ -156,19 +166,20 @@ let main = async () => {
       }
     });
     await transferLiveCells();
-    logMessage(`${VERSION}: Live cells transferred.`);
+    logMessage(`${VERSION}: Live cell positions transferred.`);
 
     // =========================
-    // 2. Cube Geometry Setup (for Rendering each live cell as a cube)
+    // 2. Cube Geometry Setup for Rendering
     // =========================
-    // We'll create (and update each frame) a geometry VBO and IBO.
-    const maxCubeVertices = liveCellsMax * 8;   // 8 vertices per cube
-    const maxCubeIndices  = liveCellsMax * 36;    // 36 indices per cube
+    const maxCubeVertices = liveCellsMax * 8;   // each cube has 8 vertices
+    const maxCubeIndices  = liveCellsMax * 36;    // each cube has 36 indices
 
+    // Create geometry fields (for cube vertices and indices)
     let geometryVBO = ti.Vector.field(3, ti.f32, [maxCubeVertices]);
     let geometryIBO = ti.field(ti.i32, [maxCubeIndices]);
+    logMessage(`${VERSION}: Geometry fields created: geometryVBO (${maxCubeVertices} vertices), geometryIBO (${maxCubeIndices} indices).`);
 
-    // Define a constant cube (unit cube centered at origin, half-size = 0.4)
+    // Define a constant cube (unit cube with half-size 0.4)
     const cubeOffsets = [
       [-0.4, -0.4, -0.4],
       [ 0.4, -0.4, -0.4],
@@ -179,7 +190,6 @@ let main = async () => {
       [ 0.4,  0.4,  0.4],
       [-0.4,  0.4,  0.4]
     ];
-    // 36 indices for a cube (two triangles per face)
     const cubeIBO_const = [
       0, 1, 2, 1, 3, 2,      // front face
       4, 5, 6, 5, 7, 6,      // back face
@@ -188,12 +198,17 @@ let main = async () => {
       0, 1, 4, 1, 5, 4,      // bottom face
       2, 3, 6, 3, 7, 6       // top face
     ];
+    logMessage(`${VERSION}: Cube constants defined.`);
 
     // =========================
-    // 3. Cube Renderer (renders all cubes from geometryVBO/geometryIBO)
+    // 3. CubeRenderer Class (with Detailed Logging)
     // =========================
     class CubeRenderer {
       constructor(canvas, tiInstance, geometryVBO, geometryIBO) {
+        console.log("CubeRenderer: Constructor called.");
+        console.log("CubeRenderer: Received geometryVBO:", geometryVBO);
+        console.log("CubeRenderer: Received geometryIBO:", geometryIBO);
+        
         this.canvas = canvas;
         this.taichi = tiInstance;
         this.geometryVBO = geometryVBO;
@@ -207,19 +222,22 @@ let main = async () => {
         this.angleY = ti.field(ti.f32, [1]);
         this.angleX[0] = 0.0;
         this.angleY[0] = 0.0;
+        console.log("CubeRenderer: angleX field:", this.angleX, "angleY field:", this.angleY);
 
-        // Add necessary globals to kernel scope
+        // Add geometry fields and camera globals to kernel scope
         ti.addToKernelScope({
           target: this.target,
           depth: this.depth,
           aspectRatio: this.aspectRatio,
           angleX: this.angleX,
           angleY: this.angleY,
+          geometryVBO: this.geometryVBO,
+          geometryIBO: this.geometryIBO,
         });
+        console.log("CubeRenderer: Kernel scope updated with geometryVBO and geometryIBO.");
 
-        // Define the render kernel (iterate over geometryVBO via IBO)
+        // Define the render kernel with logging for errors
         this.renderKernel = ti.kernel(() => {
-          // Set up camera (here we use a fixed distance; adjust as desired)
           let theta = angleY[0];
           let phi = angleX[0];
           let eye = [
@@ -235,14 +253,12 @@ let main = async () => {
           ti.clearColor(target, [0.1, 0.1, 0.1, 1.0]);
           ti.useDepth(depth);
 
-          // Vertex loop: transform each vertex
+          // Transform and output each vertex
           for (let v of ti.inputVertices(geometryVBO, geometryIBO)) {
             let pos = mvp.matmul(v.concat([1.0]));
             ti.outputPosition(pos);
-            // Set a constant color (here light gray)
             ti.outputVertex({ color: [0.8, 0.8, 0.8, 1.0] });
           }
-          // Fragment loop: simply output the interpolated color
           for (let f of ti.inputFragments()) {
             ti.outputColor(target, f.color);
           }
@@ -255,13 +271,15 @@ let main = async () => {
       render() {
         try {
           this.renderKernel();
+          console.log("CubeRenderer: Render kernel executed successfully.");
         } catch (error) {
-          logMessage(`${VERSION} - Render Error: ${error.message}`);
-          console.error("Render Error:", error);
+          console.error("CubeRenderer render error:", error);
+          logMessage(`CubeRenderer render error: ${error.message}`);
         }
       }
     }
     const cubeRenderer = new CubeRenderer(htmlCanvas, ti, geometryVBO, geometryIBO);
+    logMessage(`${VERSION}: CubeRenderer created.`);
 
     // =========================
     // 4. Mouse-Based Camera Controls
@@ -272,6 +290,7 @@ let main = async () => {
       isDragging = true;
       lastMouseX = e.clientX;
       lastMouseY = e.clientY;
+      logMessage("Mouse down: starting camera drag.");
     });
     htmlCanvas.addEventListener("mousemove", (e) => {
       if (isDragging) {
@@ -282,53 +301,69 @@ let main = async () => {
         lastMouseY = e.clientY;
       }
     });
-    htmlCanvas.addEventListener("mouseup", () => (isDragging = false));
-    htmlCanvas.addEventListener("mouseleave", () => (isDragging = false));
+    htmlCanvas.addEventListener("mouseup", () => {
+      isDragging = false;
+      logMessage("Mouse up: ending camera drag.");
+    });
+    htmlCanvas.addEventListener("mouseleave", () => {
+      isDragging = false;
+      logMessage("Mouse left canvas: ending camera drag.");
+    });
 
     // =========================
-    // 5. Animation Loop:
-    //    Run simulation kernels, build cube geometry from simulation live cell positions,
-    //    update geometry fields, and render the cubes.
+    // 5. Animation Loop: Simulation, Geometry Build, and Rendering
     // =========================
     async function animate() {
-      // Run simulation kernels:
-      await countNeighbors();
-      await updateLiveness();
-      await transferLiveCells();
+      try {
+        // Run simulation kernels:
+        await countNeighbors();
+        await updateLiveness();
+        await transferLiveCells();
+        logMessage("Simulation kernels executed.");
 
-      // Get the live cell count and positions from simulation:
-      let liveCountArr = await liveCellCount.toArray();
-      let liveCount = liveCountArr[0];
-      let simPositions = await simVBO.toArray(); // array of [x,y,z]
+        // Read live cell count and positions
+        let liveCountArr = await liveCellCount.toArray();
+        let liveCount = liveCountArr[0];
+        logMessage(`Live cell count: ${liveCount}`);
 
-      // Build combined cube geometry (vertices & indices) on CPU:
-      let cubeVerticesArray = new Float32Array(liveCount * 8 * 3); // 8 vertices per cube, 3 components each
-      let cubeIndicesArray = new Int32Array(liveCount * 36);         // 36 indices per cube
-      for (let i = 0; i < liveCount; i++) {
-        let baseVertexIndex = i * 8;
-        let baseIndexIndex = i * 36;
-        let pos = simPositions[i]; // live cell center position
-        // For each of the 8 cube vertices:
-        for (let j = 0; j < 8; j++) {
-          cubeVerticesArray[(baseVertexIndex + j) * 3 + 0] = pos[0] + cubeOffsets[j][0];
-          cubeVerticesArray[(baseVertexIndex + j) * 3 + 1] = pos[1] + cubeOffsets[j][1];
-          cubeVerticesArray[(baseVertexIndex + j) * 3 + 2] = pos[2] + cubeOffsets[j][2];
+        let simPositions = await simVBO.toArray();
+        console.log("Simulation positions:", simPositions.slice(0, Math.min(10, liveCount)));
+
+        // Build cube geometry arrays (vertices and indices)
+        let cubeVerticesArray = new Float32Array(liveCount * 8 * 3);
+        let cubeIndicesArray = new Int32Array(liveCount * 36);
+        for (let i = 0; i < liveCount; i++) {
+          let baseVertexIndex = i * 8;
+          let baseIndexIndex = i * 36;
+          let pos = simPositions[i]; // center of live cell cube
+          for (let j = 0; j < 8; j++) {
+            cubeVerticesArray[(baseVertexIndex + j) * 3 + 0] = pos[0] + cubeOffsets[j][0];
+            cubeVerticesArray[(baseVertexIndex + j) * 3 + 1] = pos[1] + cubeOffsets[j][1];
+            cubeVerticesArray[(baseVertexIndex + j) * 3 + 2] = pos[2] + cubeOffsets[j][2];
+          }
+          for (let j = 0; j < 36; j++) {
+            cubeIndicesArray[baseIndexIndex + j] = baseVertexIndex + cubeIBO_const[j];
+          }
         }
-        // For each of the 36 cube indices:
-        for (let j = 0; j < 36; j++) {
-          cubeIndicesArray[baseIndexIndex + j] = baseVertexIndex + cubeIBO_const[j];
-        }
+        logMessage(`Built geometry for ${liveCount} cubes.`);
+
+        // Update Taichi geometry fields with the new arrays
+        await geometryVBO.fromArray(Array.from(cubeVerticesArray));
+        await geometryIBO.fromArray(Array.from(cubeIndicesArray));
+        logMessage("Geometry fields updated with new cube geometry.");
+
+        // Render the cubes
+        cubeRenderer.render();
+
+        requestAnimationFrame(animate);
+      } catch (error) {
+        console.error("Animation loop error:", error);
+        logMessage(`Animation loop error: ${error.message}`);
+        requestAnimationFrame(animate);
       }
-      // Update geometry fields (convert typed arrays to normal arrays)
-      await geometryVBO.fromArray(Array.from(cubeVerticesArray));
-      await geometryIBO.fromArray(Array.from(cubeIndicesArray));
-
-      // Render cubes:
-      cubeRenderer.render();
-
-      requestAnimationFrame(animate);
     }
     animate();
+    logMessage(`${VERSION}: Animation loop started.`);
 
     // =========================
     // 6. Handle Window Resize
@@ -337,11 +372,12 @@ let main = async () => {
       htmlCanvas.width = window.innerWidth;
       htmlCanvas.height = window.innerHeight - 200;
       cubeRenderer.aspectRatio = htmlCanvas.width / htmlCanvas.height;
+      logMessage(`Window resized: New canvas dimensions ${htmlCanvas.width} x ${htmlCanvas.height}`);
     });
 
   } catch (error) {
+    console.error("Main error:", error);
     logMessage(`${VERSION} - Main Error: ${error.message}`);
-    console.error("Main Error:", error);
   }
 };
 
