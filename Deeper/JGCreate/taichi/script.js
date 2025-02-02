@@ -4,53 +4,51 @@
 function getCurrentTime() {
   return new Date().toLocaleTimeString();
 }
-
 function logMessage(message) {
   const logDiv = document.getElementById('log');
   const p = document.createElement('p');
   p.textContent = `[${getCurrentTime()}] ${message}`;
   logDiv.appendChild(p);
+  // Limit the log length
   while (logDiv.children.length > 100) {
     logDiv.removeChild(logDiv.firstChild);
   }
 }
 
-// --- Global Version String ---
-const VERSION = "Final MVP - 1.2";
+const VERSION = "Final MVP - 1.3";
 
-// --- Main Async Function ---
 let main = async () => {
   try {
     // Initialize Taichi.js
     await ti.init();
     logMessage(`${VERSION}: Taichi.js initialized.`);
 
-    // Setup HTML Canvas dimensions (adjust height for log panel)
+    // Set up the canvas dimensions (adjusting height for the log panel)
     const htmlCanvas = document.getElementById('result_canvas');
     htmlCanvas.width = window.innerWidth;
     htmlCanvas.height = window.innerHeight - 200;
 
     // --- Simulation Setup ---
-    const N = 16; // Grid dimensions: 16x16x16
+    const N = 16; // 16x16x16 grid
     const TOTAL_CELLS = N * N * N;
-    const liveCellsMax = 4096; // Maximum number of live cells
+    const liveCellsMax = 4096; // Maximum live cell count
 
-    // Fields for simulation: liveness, neighbor count, and live cell count
+    // Define simulation fields
     const liveness = ti.field(ti.i32, [TOTAL_CELLS]);
     const numNeighbors = ti.field(ti.i32, [TOTAL_CELLS]);
     const liveCellCount = ti.field(ti.i32, [1]);
 
-    // VBO to store live cell positions (a 3D vector per cell)
+    // VBO for live cell positions (3D vectors)
     const VBO = ti.Vector.field(3, ti.f32, [liveCellsMax]);
     // IBO for vertex indexing
     const IBO = ti.field(ti.i32, [liveCellsMax]);
 
-    // Helper function to map 3D indices to 1D index
+    // Helper: Map 3D indices to 1D index
     function get1DIndex(x, y, z, N) {
       return x * N * N + y * N + z;
     }
 
-    // Add these fields and helper to Taichi’s kernel scope
+    // Add fields and helper to Taichi kernel scope
     ti.addToKernelScope({
       N,
       TOTAL_CELLS,
@@ -76,7 +74,7 @@ let main = async () => {
     const initGrid = ti.kernel(() => {
       for (let idx of ti.range(TOTAL_CELLS)) {
         liveness[idx] = 0;
-        if (ti.random() < 0.2) { // 20% chance to be alive
+        if (ti.random() < 0.2) { // 20% chance alive
           liveness[idx] = 1;
         }
       }
@@ -84,10 +82,10 @@ let main = async () => {
     await initGrid();
     logMessage(`${VERSION}: Grid initialized.`);
 
-    // --- Kernel: Count Neighbors (with wrap–around) ---
+    // --- Kernel: Count Neighbors (with Wrap–Around) ---
     const countNeighbors = ti.kernel(() => {
       for (let idx of ti.range(TOTAL_CELLS)) {
-        // Use i32() to cast the division result to integer
+        // Cast division result to integer using i32()
         let x = i32(idx / (N * N));
         let y = i32((idx % (N * N)) / N);
         let z = idx % N;
@@ -95,7 +93,7 @@ let main = async () => {
         for (let dx of ti.range(3)) {
           for (let dy of ti.range(3)) {
             for (let dz of ti.range(3)) {
-              if (dx === 1 && dy === 1 && dz === 1) continue; // skip self
+              if (dx === 1 && dy === 1 && dz === 1) continue;
               let nx = (x + dx - 1 + N) % N;
               let ny = (y + dy - 1 + N) % N;
               let nz = (z + dz - 1 + N) % N;
@@ -135,17 +133,17 @@ let main = async () => {
       for (let i of ti.range(TOTAL_CELLS)) {
         if (liveness[i] === 1) {
           if (count < liveCellsMax) {
-            // Use i32() for integer division
             let ix = i32(i / (N * N));
             let iy = i32((i % (N * N)) / N);
             let iz = i % N;
+            // Center the grid around the origin
             VBO[count] = [ix + 0.5 - N / 2, iy + 0.5 - N / 2, iz + 0.5 - N / 2];
             count = count + 1;
           }
         }
       }
       liveCellCount[0] = count;
-      // For unused entries, assign an off-screen position
+      // For any unused entry, place off–screen
       for (let j of ti.range(liveCellsMax)) {
         if (j >= count) {
           VBO[j] = [999, 999, 999];
@@ -155,29 +153,30 @@ let main = async () => {
     await transferLiveCells();
     logMessage(`${VERSION}: Live cells transferred.`);
 
-    // --- Renderer Class with Test Marker ---
+    // --- Renderer Class with a Test Marker ---
     class Renderer3DGameOfLife {
-      constructor(canvas, gridSize, liveCellsField, tiInstance, iboField) {
+      // Now we pass liveCellsMax explicitly.
+      constructor(canvas, gridSize, liveCellsField, liveCellsMax, tiInstance, iboField) {
         this.canvas = canvas;
         this.taichi = tiInstance;
         this.liveCells = liveCellsField;
-        this.liveCellsMax = liveCellsField.shape[0];
+        this.liveCellsMax = liveCellsMax;  // Use provided capacity
         this.gridSize = gridSize;
         this.aspectRatio = canvas.width / canvas.height;
         this.cameraDistance = gridSize * 2;
 
-        // Initialize camera angles (fields of size 1)
-        this.angleX = this.taichi.field(this.taichi.f32, [1]);
-        this.angleY = this.taichi.field(this.taichi.f32, [1]);
+        // Create scalar fields using global ti (this works reliably)
+        this.angleX = ti.field(ti.f32, [1]);
+        this.angleY = ti.field(ti.f32, [1]);
         this.angleX[0] = 0.0;
         this.angleY[0] = 0.0;
 
-        // Create textures for canvas and depth buffer
+        // Create textures for rendering and depth
         this.canvasTexture = this.taichi.canvasTexture(canvas, 4);
         this.depthTexture = this.taichi.depthTexture([canvas.width, canvas.height], 4);
 
-        // Add fields to kernel scope (including IBO for rendering)
-        this.taichi.addToKernelScope({
+        // Add these fields to the kernel scope
+        ti.addToKernelScope({
           canvasTexture: this.canvasTexture,
           depthTexture: this.depthTexture,
           gridSize: this.gridSize,
@@ -190,11 +189,11 @@ let main = async () => {
           IBO: iboField,
         });
 
-        // Define the rendering kernel.
-        // First, it draws a test marker (a large green point at [0,0,0])
-        // Then it draws the simulation live cells as emissive points.
-        this.renderKernel = this.taichi.kernel(() => {
-          // --- Compute camera matrices ---
+        // Define the rendering kernel:
+        // It first draws a test marker (a large green point at [0,0,0]),
+        // then draws simulation live cells as emissive point sprites.
+        this.renderKernel = ti.kernel(() => {
+          // Compute the camera matrices.
           let theta = angleY[0];
           let phi = angleX[0];
           let eye = [
@@ -230,9 +229,8 @@ let main = async () => {
             ti.outputVertex({ baseColor: [1.0, 0.6, 0.2, 1.0] });
           }
 
-          // --- Fragment Shader: Create a radial emissive glow ---
+          // Fragment shader: Create a radial emissive glow.
           for (let f of ti.inputFragments()) {
-            // f.point_coord is in [0, 1] range for point sprites.
             let pCoord = f.point_coord - [0.5, 0.5];
             let r = pCoord.norm() / 0.5;
             if (r > 1.0) {
@@ -251,13 +249,12 @@ let main = async () => {
         });
       }
 
-      // Method to update camera angles (e.g., via mouse dragging)
+      // Update camera angles (called from mouse events)
       updateCamera(deltaX, deltaY) {
         this.angleX[0] += deltaX;
         this.angleY[0] += deltaY;
       }
 
-      // Render one frame
       render() {
         try {
           this.renderKernel();
@@ -268,8 +265,8 @@ let main = async () => {
       }
     }
 
-    // Create the renderer (pass VBO and IBO)
-    const renderer = new Renderer3DGameOfLife(htmlCanvas, N, VBO, ti, IBO);
+    // Create the renderer, passing liveCellsMax explicitly.
+    const renderer = new Renderer3DGameOfLife(htmlCanvas, N, VBO, liveCellsMax, ti, IBO);
 
     // --- Mouse-Based Camera Controls ---
     let isDragging = false;
@@ -310,7 +307,6 @@ let main = async () => {
       await simulationStep();
       requestAnimationFrame(animate);
     };
-
     animate();
     logMessage(`${VERSION}: Animation loop started.`);
 
