@@ -61,7 +61,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>API Tester</h1>
+    <h1>API Tester 0.1.0</h1>
     <label for="prompt">Enter Prompt:</label>
     <input type="text" id="prompt" placeholder="Type your prompt here..." />
     <button id="testApiBtn">Test API</button>
@@ -82,7 +82,7 @@
       resultDiv.innerHTML = "Loading...";
 
       // Call your secure Vercel API endpoint.
-      fetch("https://haveno.vercel.app/api/openai/generate-answer", {
+      fetch("https://haveno-vercel.vercel.app/api/openai/generate-answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: promptValue })
