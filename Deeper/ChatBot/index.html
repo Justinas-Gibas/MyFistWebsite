@@ -1,241 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Enhanced Question-Answering Chatbot</title>
-  <!-- Scripts for TensorFlow and QnA -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/qna"></script>
-  <!-- Styling for chat bubbles and progress bar -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>API Tester</title>
   <style>
-    /* Progress bar design */
-    #progress-container {
+    /* Basic styling */
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    label {
+      display: block;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    input[type="text"] {
       width: 100%;
-      height: 20px;
-      background-color: #ddd;
-    }
-    #progress-bar {
-      width: 0;
-      height: 100%;
-      background-color: #4caf50;
-      text-align: center;
-      transition: width 0.5s;
-    }
-    /* Chat bubble design */
-    #chat-container {
-      max-height: 400px;
-      overflow-y: auto;
       padding: 10px;
-      border: 1px solid #ccc;
-      background-color: #f9f9f9;
+      margin-bottom: 20px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
     }
-    .chat-bubble {
+    button {
+      display: block;
+      width: 100%;
       padding: 10px;
-      border-radius: 10px;
-      margin: 5px 0;
+      background: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e9ecef;
+      border-radius: 4px;
       word-wrap: break-word;
-    }
-    .chat-bubble.you {
-      background-color: #e1f5fe;
-      text-align: left;
-    }
-    .chat-bubble.chatbot {
-      background-color: #c8e6c9;
-      text-align: right;
-    }
-    .chat-bubble.system {
-      background-color: #fff3e0;
-      text-align: center;
-      font-style: italic;
-    }
-    /* Chat controls design */
-    .chat-controls {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px;
-      border-top: 1px solid #ccc;
-      background-color: #f1f1f1;
     }
   </style>
 </head>
 <body>
-  <h1>Enhanced Question-Answering Chatbot</h1>
-
-  <!-- System prompt for additional context -->
-  <textarea id="system-prompt" rows="3" placeholder="Enter system prompt here..." aria-label="System prompt"></textarea>
-
-  <!-- Progress bar to indicate model loading status -->
-  <div id="progress-container">
-    <div id="progress-bar">Loading Model (0%)</div>
+  <div class="container">
+    <h1>API Tester</h1>
+    <label for="prompt">Enter Prompt:</label>
+    <input type="text" id="prompt" placeholder="Type your prompt here..." />
+    <button id="testApiBtn">Test API</button>
+    <div id="result" class="result" style="display:none;"></div>
   </div>
 
-  <!-- Chat area for displaying messages -->
-  <div id="chat-container"></div>
-
-  <!-- Chat controls for user input and model selection -->
-  <div class="chat-controls">
-    <input type="text" id="user-input" placeholder="Ask a question..." aria-label="Question input">
-    <button id="ask-button">Ask</button>
-    <button id="reset-chat">Reset</button>
-    <button id="load-model">Load Model</button>
-    <select id="model-select">
-      <option value="bert">BERT</option>
-      <option value="roberta">RoBERTa</option>
-      <option value="albert">ALBERT</option>
-      <option value="gpt3">GPT-3.5</option>
-    </select>
-  </div>
-
-  <!-- Script for handling chat logic -->
   <script>
-    const chatContainer = document.getElementById("chat-container");
-    const userInput = document.getElementById("user-input");
-    const progressBar = document.getElementById("progress-bar");
-    const askButton = document.getElementById("ask-button");
-    const resetChatButton = document.getElementById("reset-chat");
-    const loadModelButton = document.getElementById("load-model");
-    const modelSelect = document.getElementById("model-select");
-    const systemPrompt = document.getElementById("system-prompt");
+    document.getElementById("testApiBtn").addEventListener("click", function () {
+      const promptValue = document.getElementById("prompt").value.trim();
+      const resultDiv = document.getElementById("result");
 
-    let models = {}; // Cache for loaded models
-    let currentModel = 'bert'; // Default model selection
-
-    // Function to append chat bubbles and update chat history
-    function appendChatBubble(text, role) {
-      const bubble = document.createElement("div");
-      bubble.className = `chat-bubble ${role}`;
-      bubble.textContent = text;
-      chatContainer.appendChild(bubble);
-      chatContainer.scrollTop = chatContainer.scrollHeight; // Auto-scroll to bottom
-    }
-
-    // Function to update the progress bar dynamically during file download
-    function updateProgressBar(progress) {
-      progressBar.style.width = `${progress}%`;
-      progressBar.textContent = `Loading Model (${progress}%)`;
-    }
-
-    // Function to update progress bar during download
-    function updateProgressBarDuringDownload(event) {
-      if (event.lengthComputable) {
-        const progress = (event.loaded / event.total) * 100;
-        updateProgressBar(progress.toFixed(0));
+      if (!promptValue) {
+        alert("Please enter a prompt.");
+        return;
       }
-    }
+      
+      resultDiv.style.display = "block";
+      resultDiv.innerHTML = "Loading...";
 
-    // Function to load the model with a progress bar
-    async function loadModel() {
-      if (models[currentModel]) {
-        appendChatBubble(`Chatbot: Using cached ${currentModel} model.`, 'chatbot');
-        return; // Return if model is already loaded
-      }
-
-      disableControls(true); // Disable controls during loading
-
-      simulateLoadingProgress(3000, async () => {
-        try {
-          let newModel = null;
-
-          if (currentModel === 'bert') {
-            newModel = await qna.load(); // Load the BERT model
-          } else {
-            appendChatBubble("Chatbot: Unsupported model.", 'chatbot');
-          }
-
-          models[currentModel] = newModel; // Cache the loaded model
-          appendChatBubble(`Chatbot: ${currentModel} model loaded successfully.`, 'chatbot');
-        } catch (error) {
-          appendChatBubble("Chatbot: Model loading failed.", 'chatbot');
-          console.error("Error loading model:", error);
-        } finally {
-          disableControls(false); // Re-enable controls after loading
+      // Call your secure Vercel API endpoint.
+      fetch("https://haveno.vercel.app/api/openai/generate-answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: promptValue })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("API error: " + response.status);
         }
+        return response.json();
+      })
+      .then(data => {
+        if (data.content) {
+          resultDiv.innerHTML = "<strong>Answer:</strong><br>" + data.content;
+        } else if (data.error) {
+          resultDiv.innerHTML = "<strong>Error:</strong><br>" + data.error;
+        } else {
+          resultDiv.innerHTML = "<strong>Error:</strong><br>Unexpected response.";
+        }
+      })
+      .catch(error => {
+        resultDiv.innerHTML = "<strong>Error:</strong><br>" + error.message;
       });
-    }
-
-    // Function to disable or enable controls
-    function disableControls(disable) {
-      userInput.disabled = disable; // Disable/enable input field
-      askButton.disabled = disable; // Disable/enable ask button
-      modelSelect.disabled = disable; // Disable/enable model selection
-    }
-
-    // Function to simulate loading progress and invoke callback upon completion
-    async function simulateLoadingProgress(duration, callback) {
-      const steps = 10;
-      const steptime = duration / steps;
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 10;
-        updateProgressBar(progress.toFixed(0)); // Update progress
-        if (progress >= 100) {
-          clearInterval(interval); // Stop the interval
-          callback(); // Callback when loading is complete
-        }
-      }, steptime);
-    }
-
-    // Function to ask a question and get an answer
-    async function askQuestion() {
-      if (!models[currentModel]) {
-        appendChatBubble("Chatbot: The model is not yet loaded. Please wait.", 'chatbot');
-        return;
-      }
-
-      const question = userInput.value.trim();
-      if (question === "") {
-        appendChatBubble("Chatbot: No question entered.", 'chatbot');
-        return;
-      }
-
-      appendChatBubble("You: " + question, 'you');
-
-      try {
-        const answer = await getAnswer(question); // Get the answer from the model
-        appendChatBubble("Chatbot: " + answer, 'chatbot');
-      } catch (error) {
-        appendChatBubble("Chatbot: Error answering the question.", 'chatbot');
-        console.error("Error getting answer:", error);
-      }
-
-      userInput.value = ""; // Clear the input field
-    }
-
-    // Function to get an answer from the model based on context
-    async function getAnswer(question) {
-      const systemText = systemPrompt.value.trim(); // Get system prompt text
-      const context = systemText || "Default context for question-answering.";
-
-      const currentModelObject = models[currentModel]; // Get the cached model
-
-      try {
-        const answers = await currentModelObject.findAnswers(question, context); // Get answers from the current model
-        if (answers.length === 0) {
-          return "No answer found. Please rephrase your question.";
-        }
-        return answers[0].text; // Return the first answer
-      } catch (error) {
-        console.error("Error getting answer:", error);
-        return "An error occurred while processing your request.";
-      }
-    }
-
-    // Event handlers for various button clicks and interactions
-    askButton.addEventListener("click", askQuestion); // Ask a question
-    loadModelButton.addEventListener("click", loadModel); // Load the model
-    resetChatButton.addEventListener("click", () => {
-      chatContainer.innerHTML = ""; // Clear chat history
-      appendChatBubble("System: Chat reset.", 'system'); // System message
-      loadModel(); // Reload the model
     });
-
-    modelSelect.addEventListener("change", (e) => {
-      currentModel = e.target.value; // Change the current model
-      appendChatBubble(`Chatbot: Switched to ${currentModel}.`, 'chatbot'); // Notify the change
-    });
-
-    loadModel(); // Load the model at the start
   </script>
 </body>
 </html>
