@@ -12,7 +12,7 @@ function logMessage(msg) {
   const p = document.createElement("p");
   p.textContent = `[${getCurrentTime()}] ${msg}`;
   logDiv.appendChild(p);
-  // Limit to 100 messages
+  // Limit log messages to 100 entries.
   while (logDiv.children.length > 100) {
     logDiv.removeChild(logDiv.firstChild);
   }
@@ -20,7 +20,7 @@ function logMessage(msg) {
 }
 
 // Global version string
-const VERSION = "3D Game of Life - Cube Version 1";
+const VERSION = "3D Game of Life - Cube Version";
 
 // =========================
 // Main Async Function
@@ -171,10 +171,11 @@ let main = async () => {
     // =========================
     // 2. Cube Geometry Setup for Rendering
     // =========================
+    // We allocate fields with maximum capacity.
     const maxCubeVertices = liveCellsMax * 8;   // each cube has 8 vertices
     const maxCubeIndices  = liveCellsMax * 36;    // each cube has 36 indices
 
-    // Create geometry fields (for cube vertices and indices)
+    // Create geometry fields with fixed size.
     let geometryVBO = ti.Vector.field(3, ti.f32, [maxCubeVertices]);
     let geometryIBO = ti.field(ti.i32, [maxCubeIndices]);
     logMessage(`${VERSION}: Geometry fields created: geometryVBO (${maxCubeVertices} vertices), geometryIBO (${maxCubeIndices} indices).`);
@@ -327,32 +328,52 @@ let main = async () => {
         logMessage(`Live cell count: ${liveCount}`);
 
         let simPositions = await simVBO.toArray();
-        console.log("Simulation positions:", simPositions.slice(0, Math.min(10, liveCount)));
+        console.log("Simulation positions (first few):", simPositions.slice(0, Math.min(10, liveCount)));
 
-        // Build cube geometry arrays (vertices and indices)
-        let cubeVerticesArray = new Float32Array(liveCount * 8 * 3);
-        let cubeIndicesArray = new Int32Array(liveCount * 36);
+        // Build cube geometry arrays.
+        // IMPORTANT: We must pad the arrays to match the fixed field sizes.
+        let totalCubeVertices = maxCubeVertices; // liveCellsMax * 8
+        let totalCubeIndices = maxCubeIndices;   // liveCellsMax * 36
+        let cubeVerticesArray = new Float32Array(totalCubeVertices * 3); // each vertex has 3 components
+        let cubeIndicesArray = new Int32Array(totalCubeIndices);
+
+        // Fill geometry for each live cell.
         for (let i = 0; i < liveCount; i++) {
           let baseVertexIndex = i * 8;
           let baseIndexIndex = i * 36;
           let pos = simPositions[i]; // center of live cell cube
           for (let j = 0; j < 8; j++) {
-            cubeVerticesArray[(baseVertexIndex + j) * 3 + 0] = pos[0] + cubeOffsets[j][0];
-            cubeVerticesArray[(baseVertexIndex + j) * 3 + 1] = pos[1] + cubeOffsets[j][1];
-            cubeVerticesArray[(baseVertexIndex + j) * 3 + 2] = pos[2] + cubeOffsets[j][2];
+            let vertexIndex = (baseVertexIndex + j) * 3;
+            cubeVerticesArray[vertexIndex + 0] = pos[0] + cubeOffsets[j][0];
+            cubeVerticesArray[vertexIndex + 1] = pos[1] + cubeOffsets[j][1];
+            cubeVerticesArray[vertexIndex + 2] = pos[2] + cubeOffsets[j][2];
           }
           for (let j = 0; j < 36; j++) {
             cubeIndicesArray[baseIndexIndex + j] = baseVertexIndex + cubeIBO_const[j];
           }
         }
+        // Pad remaining geometry with dummy data.
+        for (let i = liveCount; i < liveCellsMax; i++) {
+          let baseVertexIndex = i * 8;
+          for (let j = 0; j < 8; j++) {
+            let vertexIndex = (baseVertexIndex + j) * 3;
+            cubeVerticesArray[vertexIndex + 0] = 999;
+            cubeVerticesArray[vertexIndex + 1] = 999;
+            cubeVerticesArray[vertexIndex + 2] = 999;
+          }
+          let baseIndexIndex = i * 36;
+          for (let j = 0; j < 36; j++) {
+            cubeIndicesArray[baseIndexIndex + j] = 0;
+          }
+        }
         logMessage(`Built geometry for ${liveCount} cubes.`);
 
-        // Update Taichi geometry fields with the new arrays
+        // Update Taichi geometry fields with padded arrays.
         await geometryVBO.fromArray(Array.from(cubeVerticesArray));
         await geometryIBO.fromArray(Array.from(cubeIndicesArray));
         logMessage("Geometry fields updated with new cube geometry.");
 
-        // Render the cubes
+        // Render the cubes.
         cubeRenderer.render();
 
         requestAnimationFrame(animate);
