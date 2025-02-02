@@ -20,7 +20,7 @@ function logMessage(msg) {
 }
 
 // Global version string
-const VERSION = "3D Game of Life - Cube Version";
+const VERSION = "3D Game of Life - Cube Version 1.0.1";
 
 // =========================
 // Main Async Function
