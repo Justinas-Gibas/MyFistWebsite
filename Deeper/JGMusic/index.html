@@ -2,43 +2,164 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>File Listing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music Sharing - Version 1.0.1</title>
+  <style>
+    body {
+      background-color: #2d2d2d;
+      color: #e0e0e0;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1, label {
+      color: #ffffff;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background-color: #3a3a3a;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+    }
+
+    select, button {
+      padding: 10px;
+      margin-bottom: 10px;
+      width: 100%;
+      border: none;
+      border-radius: 4px;
+      background-color: #4b4b4b;
+      color: #ffffff;
+      font-size: 16px;
+    }
+
+    button {
+      background-color: #007bff;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      margin-bottom: 10px;
+    }
+
+    a {
+      color: #80c8ff;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .audio-player {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #444;
+      border-radius: 8px;
+      display: none;
+    }
+
+    audio {
+      width: 100%;
+      outline: none;
+    }
+  </style>
 </head>
 <body>
-  <h1>File Listing</h1>
-  <div>
+  <div class="container">
+    <h1>Music Sharing - Version 1.0.1</h1>
     <label for="bucket">Select Bucket:</label>
     <select id="bucket">
-      <option value="jgmusic">JGMusic</option>
+      <option value="JGMusic">JGMusic</option>
       <option value="artworks">Artworks</option>
     </select>
     <button id="fetchFiles">Fetch Files</button>
+    
+    <ul id="file-list"></ul>
+
+    <!-- Audio Player Section -->
+    <div class="audio-player" id="audio-player">
+      <h2>Now Playing</h2>
+      <p id="current-track">Select a track to play.</p>
+      <audio id="audio" controls></audio>
+    </div>
   </div>
-  <ul id="file-list"></ul>
 
   <script>
+    const version = "1.0.1";
+    console.log("Running Music Sharing Project - Version " + version);
+
     document.getElementById('fetchFiles').addEventListener('click', async () => {
       const bucket = document.getElementById('bucket').value;
       try {
-        // Replace with your live Vercel API URL for listing files
+        console.log(`[Version ${version}] Fetching files from bucket: ${bucket}`);
+
+        // Fetch file list from the Vercel API
         const response = await fetch(`https://haveno-vercel.vercel.app/api/list-files?bucket=${encodeURIComponent(bucket)}`);
         const result = await response.json();
         const listElement = document.getElementById('file-list');
         listElement.innerHTML = '';
+
         if (result.files && result.files.length) {
           result.files.forEach(file => {
-            // Create a link that uses the get-file API endpoint
             const li = document.createElement('li');
-            li.innerHTML = `<a href="https://haveno-vercel.vercel.app/api/get-file?bucket=${encodeURIComponent(bucket)}&file=${encodeURIComponent(file.name)}" target="_blank">${file.name}</a>`;
+            
+            // Create a clickable link to play the selected audio file
+            li.innerHTML = `
+              <a href="#" data-file="${file.name}" data-bucket="${bucket}">
+                ${file.name}
+              </a>`;
             listElement.appendChild(li);
           });
+
+          // Attach event listeners to the audio file links
+          document.querySelectorAll('#file-list a').forEach(link => {
+            link.addEventListener('click', function (e) {
+              e.preventDefault();  // Prevent link from opening in a new page
+              const bucket = this.getAttribute('data-bucket');
+              const fileName = this.getAttribute('data-file');
+              playAudio(bucket, fileName);
+            });
+          });
+
         } else {
           listElement.innerHTML = '<li>No files found</li>';
         }
+
       } catch (error) {
-        console.error('Error fetching files:', error);
+        console.error(`[Version ${version}] Error fetching files:`, error);
       }
     });
+
+    function playAudio(bucket, fileName) {
+      console.log(`[Version ${version}] Playing audio file: ${fileName} from bucket ${bucket}`);
+      
+      const audioElement = document.getElementById('audio');
+      const currentTrackElement = document.getElementById('current-track');
+      const audioPlayer = document.getElementById('audio-player');
+
+      // Set audio source to the selected file using the Vercel API endpoint
+      audioElement.src = `https://haveno-vercel.vercel.app/api/get-file?bucket=${encodeURIComponent(bucket)}&file=${encodeURIComponent(fileName)}`;
+
+      // Display the audio player and update the track information
+      currentTrackElement.textContent = fileName;
+      audioPlayer.style.display = 'block';
+
+      // Automatically play the selected track
+      audioElement.play();
+    }
   </script>
 </body>
 </html>
