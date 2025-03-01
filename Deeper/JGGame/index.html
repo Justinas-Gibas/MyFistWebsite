@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Dark Fantasy VR RPG</title>
+    <meta name="description" content="A first-person, Diablo-like RPG with tower defense and base building elements">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- A-Frame and dependencies -->
+    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-physics-system@4.0.1/dist/aframe-physics-system.min.js"></script>
+    <script src="https://unpkg.com/aframe-environment-component@1.3.3/dist/aframe-environment-component.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-extras@6.1.1/dist/aframe-extras.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-gui@0.5.0/dist/aframe-gui.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+    
+    <!-- Shoelace Web Components -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/dist/themes/light.css">
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/dist/shoelace.js"></script>
+    
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="styles/main.css">
+    
+    <!-- Game scripts -->
+    <script src="scripts/utils/math.js"></script>
+    <script src="scripts/utils/assets.js"></script>
+    <script src="scripts/generation/noise.js"></script>
+    <script src="scripts/generation/textures.js"></script>
+    <script src="scripts/generation/world.js"></script>
+    <script src="scripts/generation/characters.js"></script>
+    <script src="scripts/gameplay/player.js"></script>
+    <script src="scripts/gameplay/combat.js"></script>
+    <script src="scripts/gameplay/building.js"></script>
+    <script src="scripts/gameplay/npc.js"></script>
+    <script src="scripts/gameplay/quests.js"></script>
+    <!-- Add debug scripts -->
+    <script src="scripts/debug/console.js"></script>
+    <script src="scripts/engine/ui.js"></script>
+    <script src="scripts/engine/vr.js"></script>
+    <script src="scripts/engine/core.js"></script>
+    <script src="scripts/main.js"></script>
+</head>
+<body>
+    <!-- Main HTML file containing the A-Frame scene and UI elements -->
+    <div id="loading-screen">
+        <div class="loading-container">
+            <h1>Dark Fantasy VR RPG</h1>
+            <div class="progress-bar">
+                <div class="progress-value"></div>
+            </div>
+            <p class="loading-status">Generating world...</p>
+        </div>
+    </div>
+
+    <div id="game-ui" class="hidden">
+        <sl-tab-group placement="bottom">
+            <sl-tab slot="nav" panel="inventory">Inventory</sl-tab>
+            <sl-tab slot="nav" panel="skills">Skills</sl-tab>
+            <sl-tab slot="nav" panel="building">Building</sl-tab>
+            <sl-tab slot="nav" panel="quests">Quests</sl-tab>
+            
+            <sl-tab-panel name="inventory">
+                <div class="inventory-grid" id="inventory-container"></div>
+            </sl-tab-panel>
+            
+            <sl-tab-panel name="skills">
+                <div class="skills-tree" id="skills-container"></div>
+            </sl-tab-panel>
+            
+            <sl-tab-panel name="building">
+                <div class="building-options" id="building-container"></div>
+            </sl-tab-panel>
+            
+            <sl-tab-panel name="quests">
+                <div class="quest-log" id="quests-container"></div>
+            </sl-tab-panel>
+        </sl-tab-group>
+    </div>
+    
+    <a-scene 
+        id="scene"
+        physics="debug: false;" 
+        loading-screen="enabled: false"
+        renderer="antialias: true; physicallyCorrectLights: true; colorManagement: true;"
+        background="color: #000"
+        vr-mode-ui="enterVRButton: #enter-vr">
+        
+        <!-- Assets -->
+        <a-assets id="assets">
+            <!-- Assets will be generated at runtime -->
+        </a-assets>
+        
+        <!-- Player and camera rig -->
+        <a-entity id="rig" movement-controls="fly: false; speed: 0.15;">
+            <a-entity id="camera" 
+                      camera="active: true" 
+                      position="0 1.6 0" 
+                      look-controls="pointerLockEnabled: true">
+                
+                <!-- Weapon/hands -->
+                <a-entity id="rightHand" 
+                          laser-controls="hand: right"
+                          raycaster="objects: .interactive; far: 5;"
+                          line="color: #FF0000; opacity: 0.5"
+                          visible="true"></a-entity>
+                          
+                <a-entity id="leftHand" 
+                          laser-controls="hand: left"
+                          raycaster="objects: .interactive; far: 5;"
+                          line="color: #00FF00; opacity: 0.5"
+                          visible="true"></a-entity>
+                
+                <!-- Weapon model -->
+                <a-entity id="weapon" position="0.5 -0.25 -0.5" rotation="0 0 0"></a-entity>
+                
+                <!-- HUD elements -->
+                <a-entity id="hud" position="0 0 -1">
+                    <a-entity id="health-bar" position="-0.4 -0.4 0"></a-entity>
+                    <a-entity id="mana-bar" position="0 -0.4 0"></a-entity>
+                    <a-entity id="stamina-bar" position="0.4 -0.4 0"></a-entity>
+                </a-entity>
+            </a-entity>
+        </a-entity>
+        
+        <!-- World container -->
+        <a-entity id="world-container"></a-entity>
+        
+        <!-- Base/city container -->
+        <a-entity id="base-container"></a-entity>
+        
+        <!-- NPCs container -->
+        <a-entity id="npcs-container"></a-entity>
+        
+        <!-- Enemies container -->
+        <a-entity id="enemies-container"></a-entity>
+        
+        <!-- Lighting -->
+        <a-entity id="ambient-light" light="type: ambient; color: #222; intensity: 0.5"></a-entity>
+        <a-entity id="directional-light" light="type: directional; color: #FFF; intensity: 0.8; castShadow: true" position="1 1 1"></a-entity>
+    </a-scene>
+    
+    <!-- UI overlays -->
+    <div id="interaction-prompt" class="hidden">
+        <p>Press E to interact</p>
+    </div>
+    
+    <div id="dialog-container" class="hidden">
+        <div class="dialog-box">
+            <div id="npc-portrait"></div>
+            <div id="dialog-text"></div>
+            <div id="dialog-options"></div>
+        </div>
+    </div>
+    
+    <button id="enter-vr" class="enter-vr-button">Enter VR</button>
+    <button id="toggle-ui" class="toggle-ui-button">Toggle UI</button>
+</body>
+</html>

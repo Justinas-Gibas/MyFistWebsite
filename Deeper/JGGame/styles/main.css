@@ -1,0 +1,204 @@
+/* Main CSS Styles */
+:root {
+  --primary-color: #6a1b9a;
+  --secondary-color: #9c27b0;
+  --accent-color: #ff9800;
+  --text-color: #e0e0e0;
+  --background-dark: #1a1a1a;
+  --background-medium: #2d2d2d;
+  --background-light: #3a3a3a;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--text-color);
+  overflow: hidden;
+  background: #000;
+}
+
+/* Loading Screen */
+#loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--background-dark);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.loading-container {
+  width: 60%;
+  max-width: 500px;
+  text-align: center;
+}
+
+.loading-container h1 {
+  color: var(--accent-color);
+  margin-bottom: 2rem;
+  font-size: 2.5rem;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  text-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+}
+
+.progress-bar {
+  height: 20px;
+  background: var(--background-light);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.progress-value {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+.loading-status {
+  font-size: 1rem;
+  color: var(--text-color);
+}
+
+/* Game UI */
+#game-ui {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(26, 26, 26, 0.9);
+  padding: 1rem;
+  z-index: 10;
+}
+
+.inventory-grid, .skills-tree, .building-options, .quest-log {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 10px;
+  padding: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.inventory-item {
+  width: 60px;
+  height: 60px;
+  background: var(--background-medium);
+  border: 2px solid var(--primary-color);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.inventory-item:hover {
+  border-color: var(--accent-color);
+  transform: scale(1.05);
+}
+
+/* Dialog */
+#dialog-container {
+  position: fixed;
+  bottom: 20%;
+  left: 10%;
+  width: 80%;
+  background: rgba(26, 26, 26, 0.9);
+  border: 2px solid var(--primary-color);
+  border-radius: 10px;
+  padding: 1rem;
+  z-index: 20;
+}
+
+.dialog-box {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 15px;
+}
+
+#npc-portrait {
+  width: 100px;
+  height: 100px;
+  background: var(--background-medium);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+#dialog-text {
+  color: var(--text-color);
+  font-size: 1rem;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+#dialog-options button {
+  background: var(--background-medium);
+  color: var(--text-color);
+  border: 1px solid var(--primary-color);
+  padding: 8px 12px;
+  margin-right: 10px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+#dialog-options button:hover {
+  background: var(--primary-color);
+}
+
+/* UI Controls */
+.enter-vr-button, .toggle-ui-button {
+  position: fixed;
+  background: var(--primary-color);
+  color: var(--text-color);
+  border: none;
+  padding: 10px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.enter-vr-button {
+  bottom: 20px;
+  right: 20px;
+}
+
+.toggle-ui-button {
+  bottom: 20px;
+  left: 20px;
+}
+
+.enter-vr-button:hover, .toggle-ui-button:hover {
+  background: var(--accent-color);
+}
+
+#interaction-prompt {
+  position: fixed;
+  bottom: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(26, 26, 26, 0.7);
+  padding: 10px 20px;
+  border-radius: 5px;
+  z-index: 15;
+}
+
+/* Utility Classes */
+.hidden {
+  display: none !important;
+}
+
+/* A-Frame VR mode tweaks */
+.a-enter-vr-button {
+  display: none;
+}

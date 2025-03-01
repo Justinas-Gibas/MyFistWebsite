@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>VR Game</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Bootstrap 5 CSS and JS -->
+    <link id="theme-link" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Add Shoelace after Bootstrap -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.12.0/cdn/themes/light.css" />
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.12.0/cdn/shoelace-autoloader.js"></script>
+    
+    <style>
+        .btn-lg {
+            padding: 1rem 2rem;
+            font-size: 1.25rem;
+        }
+        .card {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .console-output {
+            height: 200px;
+            overflow-y: auto;
+            background-color: #1e1e1e;
+            color: #fff;
+            padding: 1rem;
+            font-family: monospace;
+        }
+
+        /* Custom Bootstrap color overrides */
+        /*  :root {
+            --bs-primary: #4a90e2;
+            --bs-secondary: #6c757d;
+            --bs-success: #2ecc71;
+            --bs-info: #3498db;
+            --bs-warning: #f1c40f;
+            --bs-danger: #e74c3c;
+            --bs-light: #f8f9fa;
+            --bs-dark: #343a40;  
+        }
+        */
+
+        /* Example of styling Shoelace buttons to match Bootstrap */
+        sl-button::part(base) {
+            font-family: var(--bs-body-font-family);
+            font-size: var(--bs-body-font-size);
+            border-radius: var(--bs-border-radius);
+        }
+
+        sl-button[variant="primary"]::part(base) {
+            background-color: var(--bs-primary);
+            border-color: var(--bs-primary);
+        }
+
+        /* Custom background colors */
+        .bg-custom-dark {
+            background-color: #1a1a1a !important;
+            color: #ffffff;
+        }
+        .bg-custom-blue {
+            background-color: #1e3c72 !important;
+            color: #ffffff;
+        }
+        .bg-custom-gradient {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) !important;
+            color: #ffffff;
+        }
+        .bg-custom-navy {
+            background-color: #172b4d !important;
+            color: #ffffff;
+        }
+        .bg-custom-purple {
+            background-color: #4a148c !important;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body class="bg-light text-dark">
+    <div class="container-fluid text-center mt-5 px-3">
+        <h1>JG VR Game Version {version}</h1>
+        <p>Main menu</p>
+        
+        <!-- Main Menu -->
+        <div id="main-menu" class="card mx-auto p-4 mb-3" style="max-width: 600px;">
+            <div class="d-grid gap-3">
+                <button class="btn btn-primary btn-lg" onclick="startGame()">Start Game</button>
+                <button class="btn btn-secondary btn-lg" onclick="showSettings()">Settings</button>
+                <button class="btn btn-secondary btn-lg" onclick="showCredits()">Credits</button>
+            </div>
+        </div>
+
+        <!-- DevTools Button -->
+        <button class="btn btn-secondary mb-3" onclick="showDevTools()">DevTools</button>
+
+        <!-- Settings Window -->
+        <div id="settings-window" class="card mx-auto p-3 mb-3" style="max-width: 600px; display: none;">
+            <h2>Settings</h2>
+            <form id="settingsForm" class="text-start">
+                <!-- UI Settings -->
+                <div class="card mb-3">
+                    <div class="card-header">UI Settings</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Button Style:</label>
+                            <select id="buttonStyleSelector" class="form-select" onchange="updatePreview()">
+                                <option value="primary">Primary</option>
+                                <option value="secondary">Secondary</option>
+                                <option value="success">Success</option>
+                                <option value="danger">Danger</option>
+                                <option value="warning">Warning</option>
+                                <option value="info">Info</option>
+                                <option value="dark">Dark</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Theme:</label>
+                            <select id="theme-selector" class="form-select">
+                                <option value="default">Default</option>
+                                <option value="cerulean">Cerulean</option>
+                                <option value="cosmo">Cosmo</option>
+                                <option value="cyborg">Cyborg</option>
+                                <option value="darkly">Darkly</option>
+                                <option value="flatly">Flatly</option>
+                                <option value="journal">Journal</option>
+                                <option value="litera">Litera</option>
+                                <option value="lumen">Lumen</option>
+                                <option value="lux">Lux</option>
+                                <option value="materia">Materia</option>
+                                <option value="minty">Minty</option>
+                                <option value="morph">Morph</option>
+                                <option value="pulse">Pulse</option>
+                                <option value="quartz">Quartz</option>
+                                <option value="sandstone">Sandstone</option>
+                                <option value="simplex">Simplex</option>
+                                <option value="sketchy">Sketchy</option>
+                                <option value="slate">Slate</option>
+                                <option value="solar">Solar</option>
+                                <option value="spacelab">Spacelab</option>
+                                <option value="superhero">Superhero</option>
+                                <option value="united">United</option>
+                                <option value="vapor">Vapor</option>
+                                <option value="yeti">Yeti</option>
+                                <option value="zephyr">Zephyr</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Background:</label>
+                            <select id="bgStyleSelector" class="form-select">
+                                <option value="bg-light">Light (Default)</option>
+                                <option value="bg-dark">Dark</option>
+                                <option value="bg-custom-dark">Custom Dark</option>
+                                <option value="bg-custom-blue">Custom Blue</option>
+                                <option value="bg-custom-gradient">Custom Gradient</option>
+                                <option value="bg-custom-navy">Custom Navy</option>
+                                <option value="bg-custom-purple">Custom Purple</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Preview:</label>
+                            <div class="d-grid gap-2">
+                                <button id="previewButton" class="btn btn-lg btn-primary w-100">Bootstrap Button</button>
+                                <sl-button id="previewButtonShoelace" variant="primary" size="large" class="w-100">Shoelace Button</sl-button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Game Settings -->
+                <div class="card mb-3">
+                    <div class="card-header">Game Settings</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Difficulty:</label>
+                            <select class="form-select" id="difficultySelect">
+                                <option value="easy">Easy</option>
+                                <option value="normal" selected>Normal</option>
+                                <option value="hard">Hard</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Graphics Quality:</label>
+                            <select class="form-select" id="graphicsSelect">
+                                <option value="low">Low</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-primary" onclick="applySettings()">Apply Settings</button>
+            </form>
+        </div>
+
+        <!-- DevTools Window -->
+        <div id="devtools-window" class="card mx-auto p-3 mb-3" style="max-width: 600px; display: none;">
+            <h2>DevTools</h2>
+            <ul class="nav nav-tabs mb-3" id="devToolsTab" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#console">Console</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#performance">Performance</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#debug">Debug</button>
+                </li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="console">
+                    <div class="console-output mb-2" id="consoleOutput"></div>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="consoleInput" placeholder="Enter command...">
+                        <button class="btn btn-primary" onclick="executeCommand()">Execute</button>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="performance">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5>Performance Metrics</h5>
+                            <div class="mb-2">FPS: <span id="fps">60</span></div>
+                            <div class="mb-2">Memory: <span id="memory">128MB</span></div>
+                            <div class="mb-2">Draw calls: <span id="drawCalls">100</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="debug">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="debugMode">
+                        <label class="form-check-label" for="debugMode">Debug Mode</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="showFPS">
+                        <label class="form-check-label" for="showFPS">Show FPS</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="wireframe">
+                        <label class="form-check-label" for="wireframe">Wireframe Mode</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Credits Window -->
+        <div id="credits-window" class="card mx-auto p-3 mb-3" style="max-width: 600px; display: none;">
+            <h2>Credits</h2>
+            <div class="text-start">
+                <h5>Development Team</h5>
+                <ul class="list-unstyled">
+                    <li>Lead Developer: Justinas Gibas</li>
+                    <li>UI Design: Justinas Gibas</li>
+                </ul>
+                <h5>Technologies Used</h5>
+                <ul class="list-unstyled">
+                    <li>Bootstrap 5</li>
+                    <li>JavaScript</li>
+                    <li>HTML5</li>
+                </ul>
+                <h5>Version</h5>
+                <p>v0.0.1</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Window Management
+        function toggleWindow(windowId) {
+            const windows = ['devtools-window', 'settings-window', 'credits-window'];
+            windows.forEach(id => {
+                const win = document.getElementById(id);
+                win.style.display = (id === windowId) ? 
+                    ((win.style.display === 'none' || win.style.display === '') ? 'block' : 'none') : 
+                    'none';
+            });
+        }
+
+        // Settings Management
+        function updatePreview() {
+            const style = document.getElementById('buttonStyleSelector').value;
+            
+            // Update Bootstrap preview button
+            const previewButton = document.getElementById('previewButton');
+            previewButton.className = `btn btn-lg w-100 btn-${style}`;
+            
+            // Update Shoelace preview button
+            const previewButtonShoelace = document.getElementById('previewButtonShoelace');
+            previewButtonShoelace.setAttribute('variant', style);
+        }
+
+        function applySettings() {
+            // Update button styles
+            const style = document.getElementById('buttonStyleSelector').value;
+            
+            // Update Bootstrap buttons
+            document.querySelectorAll("#main-menu .btn").forEach(button => {
+                button.className = button.className.replace(/btn-(primary|secondary|success|danger|warning|info|dark)/g, `btn-${style}`);
+            });
+            
+            // Update Shoelace buttons
+            document.querySelectorAll("#main-menu sl-button").forEach(button => {
+                button.setAttribute('variant', style);
+            });
+
+            // Update theme
+            const theme = document.getElementById('theme-selector').value;
+            const themeLink = document.getElementById('theme-link');
+            themeLink.href = theme === 'default' 
+                ? 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'
+                : `https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/${theme}/bootstrap.min.css`;
+
+            // Update background
+            const bgStyle = document.getElementById('bgStyleSelector').value;
+            document.body.className = document.body.className
+                .replace(/bg-(light|dark|custom-dark|custom-blue|custom-gradient|custom-navy|custom-purple)/g, '')
+                .trim();
+            document.body.classList.add(bgStyle);
+            document.body.classList.add('text-' + (bgStyle.includes('light') ? 'dark' : 'light'));
+
+            // Log settings
+            console.log("Settings applied:", {
+                buttonStyle: style,
+                theme: theme,
+                background: bgStyle,
+                difficulty: document.getElementById('difficultySelect').value,
+                graphics: document.getElementById('graphicsSelect').value
+            });
+        }
+
+        // DevTools Functions
+        function executeCommand() {
+            const input = document.getElementById('consoleInput');
+            const output = document.getElementById('consoleOutput');
+            output.innerHTML += `> ${input.value}\n`;
+            input.value = '';
+            output.scrollTop = output.scrollHeight;
+        }
+
+        // Game Functions
+        function startGame() {
+            console.log("Starting game...");
+            // Add your game initialization logic here
+        }
+
+        function showSettings() {
+            toggleWindow('settings-window');
+        }
+
+        function showCredits() {
+            toggleWindow('credits-window');
+        }
+
+        function showDevTools() {
+            toggleWindow('devtools-window');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Dark Fantasy VR RPG - Test Environment</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Core dependencies -->
+    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-physics-system@4.0.1/dist/aframe-physics-system.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+    
+    <!-- Game scripts (minimal set for testing) -->
+    <script src="scripts/utils/math.js"></script>
+    <script src="scripts/utils/assets.js"></script>
+    <script src="scripts/generation/noise.js"></script>
+    <script src="scripts/generation/textures.js"></script>
+    <script src="scripts/debug/console.js"></script>
+    <script src="scripts/engine/events.js"></script>
+    <script src="scripts/engine/core.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            color: #333;
+        }
+        
+        .test-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 400px;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        
+        .test-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #4CAF50;
+        }
+        
+        .test-module {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 5px;
+        }
+        
+        .test-module-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .test-result {
+            margin: 5px 0;
+            padding: 5px;
+        }
+        
+        .test-success {
+            color: #4CAF50;
+            background-color: rgba(76, 175, 80, 0.2);
+        }
+        
+        .test-failure {
+            color: #f44336;
+            background-color: rgba(244, 67, 54, 0.2);
+        }
+        
+        .test-warning {
+            color: #FFC107;
+            background-color: rgba(255, 193, 7, 0.2);
+        }
+        
+        .test-button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        
+        .test-button:hover {
+            background-color: #45a049;
+        }
+        
+        .test-button.warning {
+            background-color: #ff9800;
+        }
+        
+        .test-button.warning:hover {
+            background-color: #e68a00;
+        }
+        
+        .test-scene {
+            width: calc(100% - 400px);
+            height: 100%;
+        }
+
+        .system-monitor {
+            margin-top: 20px;
+            border-top: 1px solid #555;
+            padding-top: 10px;
+        }
+
+        .fps-counter {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-family: monospace;
+            z-index: 1001;
+        }
+    </style>
+</head>
+<body>
+    <!-- FPS Counter -->
+    <div class="fps-counter" id="fps-counter">FPS: --</div>
+
+    <!-- A-Frame Scene -->
+    <a-scene class="test-scene" embedded physics="debug: true;">
+        <a-camera position="0 1.6 5" look-controls></a-camera>
+        <a-plane position="0 0 0" rotation="-90 0 0" width="20" height="20" color="#666666"></a-plane>
+        <a-entity id="test-container" position="0 1 0"></a-entity>
+        
+        <!-- Test Objects -->
+        <a-box id="test-physics" position="-1 3 0" width="1" height="1" depth="1" color="#4CC3D9" dynamic-body></a-box>
+        <a-sphere id="test-object" position="1 1 0" radius="0.5" color="#EF2D5E"></a-sphere>
+    </a-scene>
+    
+    <!-- Test Panel -->
+    <div class="test-panel">
+        <div class="test-title">Dark Fantasy RPG - Test Environment</div>
+        
+        <div class="test-module">
+            <div class="test-module-title">Core Systems</div>
+            <div id="test-core-systems"></div>
+            <button class="test-button" onclick="testCoreSystems()">Test Core Systems</button>
+        </div>
+        
+        <div class="test-module">
+            <div class="test-module-title">Asset Generation</div>
+            <div id="test-asset-generation"></div>
+            <button class="test-button" onclick="testAssetGeneration()">Generate Test Assets</button>
+        </div>
+        
+        <div class="test-module">
+            <div class="test-module-title">Physics System</div>
+            <div id="test-physics-system"></div>
+            <button class="test-button" onclick="testPhysics()">Test Physics</button>
+            <button class="test-button warning" onclick="resetPhysics()">Reset Physics</button>
+        </div>
+        
+        <div class="test-module">
+            <div class="test-module-title">Debug Console</div>
+            <div id="test-debug-console"></div>
+            <button class="test-button" onclick="testDebugConsole()">Test Debug Console</button>
+        </div>
+        
+        <div class="test-module">
+            <div class="test-module-title">File System Check</div>
+            <div id="test-file-system"></div>
+            <button class="test-button" onclick="testFileSystem()">Check Project Files</button>
+        </div>
+
+        <div class="system-monitor">
+            <div class="test-module-title">System Monitor</div>
+            <div id="system-stats"></div>
+        </div>
+    </div>
+
+    <script>
+        // FPS Counter
+        let frameCount = 0;
+        let lastTime = performance.now();
+        const fpsCounter = document.getElementById('fps-counter');
+        
+        function updateFPS() {
+            frameCount++;
+            const currentTime = performance.now();
+            
+            if (currentTime - lastTime >= 1000) {
+                const fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                fpsCounter.textContent = `FPS: ${fps}`;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+            
+            requestAnimationFrame(updateFPS);
+        }
+        
+        updateFPS();
+        
+        // Test Core Systems
+        function testCoreSystems() {
+            const resultDiv = document.getElementById('test-core-systems');
+            resultDiv.innerHTML = '';
+            
+            try {
+                // Check if Game object exists
+                if (typeof Game === 'object') {
+                    addTestResult(resultDiv, true, "Game object initialized");
+                } else {
+                    addTestResult(resultDiv, false, "Game object not found!");
+                    return;
+                }
+                
+                // Check math utilities
+                if (Game.utils && Game.utils.math) {
+                    addTestResult(resultDiv, true, "Math utilities available");
+                } else {
+                    addTestResult(resultDiv, false, "Math utilities missing!");
+                }
+                
+                // Check event system
+                if (Game.engine && Game.engine.events) {
+                    addTestResult(resultDiv, true, "Event system available");
+                    
+                    // Test event emission
+                    try {
+                        Game.engine.events.emit('test:event', { test: true });
+                        addTestResult(resultDiv, true, "Event emission successful");
+                    } catch (error) {
+                        addTestResult(resultDiv, false, `Event emission error: ${error.message}`);
+                    }
+                } else {
+                    addTestResult(resultDiv, false, "Event system missing!");
+                }
+                
+                // Check core engine initialization
+                if (Game.engine && typeof Game.engine.init === 'function') {
+                    addTestResult(resultDiv, true, "Engine init function available");
+                } else {
+                    addTestResult(resultDiv, false, "Engine init function missing!");
+                }
+                
+                // Test core engine state
+                if (Game.engine && typeof Game.engine.getState === 'function') {
+                    const state = Game.engine.getState();
+                    if (state) {
+                        addTestResult(resultDiv, true, "Game state retrieved successfully");
+                        console.log("Game state:", state);
+                    } else {
+                        addTestResult(resultDiv, false, "Game state empty or undefined!");
+                    }
+                } else {
+                    addTestResult(resultDiv, false, "Game state functions missing!");
+                }
+            } catch (error) {
+                addTestResult(resultDiv, false, `Error testing core systems: ${error.message}`);
+                console.error(error);
+            }
+        }
+        
+        // Test Asset Generation
+        function testAssetGeneration() {
+            const resultDiv = document.getElementById('test-asset-generation');
+            resultDiv.innerHTML = '';
+            
+            try {
+                // Check if noise generation is available
+                if (Game.generation && Game.generation.noise) {
+                    addTestResult(resultDiv, true, "Noise generation module available");
+                    
+                    // Generate some noise
+                    try {
+                        const noiseValue = Game.generation.noise.perlin2D(0.5, 0.5);
+                        addTestResult(resultDiv, true, `Noise generation test: ${noiseValue}`);
+                    } catch (error) {
+                        addTestResult(resultDiv, false, `Noise generation error: ${error.message}`);
+                    }
+                } else {
+                    addTestResult(resultDiv, false, "Noise generation module missing!");
+                }
+                
+                // Check texture generation
+                if (Game.generation && Game.generation.textures) {
+                    addTestResult(resultDiv, true, "Texture generation module available");
+                    
+                    // Generate a texture
+                    try {
+                        // Create a test container
+                        const container = document.getElementById('test-container');
+                        const testPlane = document.createElement('a-plane');
+                        testPlane.setAttribute('position', '0 1 -2');
+                        testPlane.setAttribute('width', '1');
+                        testPlane.setAttribute('height', '1');
+                        
+                        // Try to generate texture
+                        const textureUrl = Game.generation.textures.generateNoiseTexture(
+                            { r: 255, g: 0, b: 0 }, 
+                            { r: 0, g: 0, b: 255 },
+                            256
+                        );
+                        
+                        testPlane.setAttribute('material', `src: ${textureUrl}`);
+                        container.appendChild(testPlane);
+                        
+                        addTestResult(resultDiv, true, "Generated test texture successfully");
+                    } catch (error) {
+                        addTestResult(resultDiv, false, `Texture generation error: ${error.message}`);
+                    }
+                } else {
+                    addTestResult(resultDiv, false, "Texture generation module missing!");
+                }
+            } catch (error) {
+                addTestResult(resultDiv, false, `Error testing asset generation: ${error.message}`);
+                console.error(error);
+            }
+        }
+        
+        // Test Physics
+        function testPhysics() {
+            const resultDiv = document.getElementById('test-physics-system');
+            resultDiv.innerHTML = '';
+            
+            try {
+                const physicsBox = document.getElementById('test-physics');
+                
+                if (physicsBox) {
+                    // Reset position
+                    physicsBox.setAttribute('position', '-1 3 0');
+                    
+                    // Check if physics system is active
+                    const scene = document.querySelector('a-scene');
+                    if (scene.systems.physics) {
+                        addTestResult(resultDiv, true, "Physics system is active");
+                        
+                        // Add force to the box
+                        setTimeout(() => {
+                            try {
+                                const body = physicsBox.components['dynamic-body'].body;
+                                body.applyImpulse(
+                                    new CANNON.Vec3(1, 2, 0),
+                                    new CANNON.Vec3(0, 0, 0)
+                                );
+                                addTestResult(resultDiv, true, "Applied force to test object");
+                            } catch (error) {
+                                addTestResult(resultDiv, false, `Error applying force: ${error.message}`);
+                            }
+                        }, 500);
+                    } else {
+                        addTestResult(resultDiv, false, "Physics system not found!");
+                    }
+                } else {
+                    addTestResult(resultDiv, false, "Physics test object not found!");
+                }
+            } catch (error) {
+                addTestResult(resultDiv, false, `Error testing physics: ${error.message}`);
+                console.error(error);
+            }
+        }
+        
+        // Reset Physics
+        function resetPhysics() {
+            const physicsBox = document.getElementById('test-physics');
+            if (physicsBox) {
+                physicsBox.setAttribute('position', '-1 3 0');
+                
+                // Try to reset velocity
+                try {
+                    const body = physicsBox.components['dynamic-body'].body;
+                    body.velocity.set(0, 0, 0);
+                    body.angularVelocity.set(0, 0, 0);
+                } catch (e) {
+                    console.warn("Could not reset velocity:", e);
+                }
+            }
+        }
+        
+        // Test Debug Console
+        function testDebugConsole() {
+            const resultDiv = document.getElementById('test-debug-console');
+            resultDiv.innerHTML = '';
+            
+            try {
+                if (Game.debug && Game.debug.console) {
+                    addTestResult(resultDiv, true, "Debug console module available");
+                    
+                    // Try to toggle console
+                    try {
+                        const isVisible = Game.debug.console.toggle();
+                        addTestResult(resultDiv, true, `Console toggled to ${isVisible ? 'visible' : 'hidden'}`);
+                        
+                        // Log some test messages
+                        Game.debug.console.log("Test log message", "log");
+                        Game.debug.console.log("Test warning message", "warn");
+                        Game.debug.console.log("Test error message", "error");
+                        Game.debug.console.log("Test info message", "info");
+                        
+                        addTestResult(resultDiv, true, "Test messages logged to console");
+                    } catch (error) {
+                        addTestResult(resultDiv, false, `Error using console: ${error.message}`);
+                    }
+                } else {
+                    addTestResult(resultDiv, false, "Debug console module missing!");
+                }
+            } catch (error) {
+                addTestResult(resultDiv, false, `Error testing debug console: ${error.message}`);
+                console.error(error);
+            }
+        }
+        
+        // Test File System
+        function testFileSystem() {
+            const resultDiv = document.getElementById('test-file-system');
+            resultDiv.innerHTML = '';
+            
+            // Core files that should exist
+            const coreFiles = [
+                { path: "index.html", name: "Main HTML file" },
+                { path: "scripts/utils/math.js", name: "Math utilities" },
+                { path: "scripts/utils/assets.js", name: "Asset utilities" },
+                { path: "scripts/generation/noise.js", name: "Noise generation" },
+                { path: "scripts/generation/textures.js", name: "Texture generation" },
+                { path: "scripts/engine/core.js", name: "Core engine" },
+                { path: "scripts/engine/events.js", name: "Event system" },
+                { path: "scripts/debug/console.js", name: "Debug console" }
+            ];
+            
+            // Check each file using fetch
+            coreFiles.forEach(file => {
+                fetch(file.path)
+                    .then(response => {
+                        if (response.ok) {
+                            addTestResult(resultDiv, true, `${file.name} (${file.path}) found`);
+                        } else {
+                            addTestResult(resultDiv, false, `${file.name} (${file.path}) not found!`);
+                        }
+                    })
+                    .catch(error => {
+                        addTestResult(resultDiv, false, `Error checking ${file.name}: ${error.message}`);
+                    });
+            });
+        }
+        
+        // Helper to add test results
+        function addTestResult(container, success, message) {
+            const resultElement = document.createElement('div');
+            resultElement.className = `test-result ${success ? 'test-success' : 'test-failure'}`;
+            resultElement.innerHTML = `${success ? '✓' : '✗'} ${message}`;
+            container.appendChild(resultElement);
+        }
+        
+        // System stats monitor
+        function updateSystemStats() {
+            const statsDiv = document.getElementById('system-stats');
+            
+            let html = `<div>Memory: ${Math.round(performance.memory ? performance.memory.usedJSHeapSize / (1024 * 1024) : 0)} MB</div>`;
+            
+            // A-Frame entity count
+            const entityCount = document.querySelectorAll('a-entity').length;
+            html += `<div>A-Frame Entities: ${entityCount}</div>`;
+            
+            // A-Frame components count
+            let componentCount = 0;
+            document.querySelectorAll('[components]').forEach(el => {
+                if (el.components) {
+                    componentCount += Object.keys(el.components).length;
+                }
+            });
+            html += `<div>A-Frame Components: ${componentCount}</div>`;
+            
+            statsDiv.innerHTML = html;
+            setTimeout(updateSystemStats, 1000);
+        }
+        
+        // Start system monitoring
+        updateSystemStats();
+        
+        // Run initial tests
+        window.addEventListener('load', () => {
+            // Give systems time to initialize
+            setTimeout(() => {
+                testCoreSystems();
+                testFileSystem();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
