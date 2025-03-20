@@ -560,18 +560,17 @@
     
     // Initialize the application
     function init() {
-      // Check URL for room ID parameter
+      console.log("init: URL parameters =", window.location.search);
       const urlParams = new URLSearchParams(window.location.search);
       const roomIdFromUrl = urlParams.get('room');
-      
+      console.log("init: roomIdFromUrl =", roomIdFromUrl);
       if (roomIdFromUrl) {
         document.getElementById('roomIdInput').value = roomIdFromUrl;
       }
       
-      // Check if any rooms exist in localStorage
       const availableRooms = getAllRooms();
+      console.log("init: availableRooms =", availableRooms);
       if (availableRooms.length > 0) {
-        // Show notification about existing rooms
         document.getElementById('defaultRoomNotice').classList.remove('hidden');
       }
       
@@ -646,12 +645,13 @@
     
     // Store room offer in localStorage with room ID
     function storeRoomOffer(roomId, offerStr) {
+      console.log("storeRoomOffer: Storing room", roomId, "with offer:", offerStr);
       localStorage.setItem(`room_${roomId}`, offerStr);
-      // Keep track of rooms
       let rooms = JSON.parse(localStorage.getItem('room_list') || '[]');
       if (!rooms.includes(roomId)) {
         rooms.push(roomId);
         localStorage.setItem('room_list', JSON.stringify(rooms));
+        console.log("storeRoomOffer: Updated room_list =", rooms);
       }
     }
     
@@ -719,6 +719,7 @@
       if (!roomId) {
         roomId = generateRoomId();
       }
+      console.log("createRoomButton: Creating room with ID =", roomId);
       
       // Check if room already exists
       if (roomExists(roomId)) {
@@ -757,6 +758,7 @@
     // Join button handler
     document.getElementById('joinButton').addEventListener('click', async () => {
       let roomId = document.getElementById('roomIdInput').value.trim();
+      console.log("joinButton: Room ID input =", roomId);
       
       // If no room ID is provided, try to join the default room
       if (!roomId) {
@@ -800,10 +802,12 @@
 
     // Setup broadcaster role
     async function setupBroadcaster(roomId) {
+      console.log("setupBroadcaster: Starting setup for room", roomId);
       updateStatus('Requesting microphone access...', 'connecting');
       
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log("setupBroadcaster: Microphone access granted");
         
         // Set up audio visualization for broadcaster
         setupAudioVisualization(localStream, 'broadcasterAudioIndicator');
@@ -815,8 +819,10 @@
 
         // Create the offer and disable trickle ICE
         const offer = await peerConnection.createOffer();
+        console.log("setupBroadcaster: Created offer =", offer);
         await peerConnection.setLocalDescription(offer);
         await waitForIceGatheringComplete(peerConnection);
+        console.log("setupBroadcaster: Local description set and ICE gathering completed");
 
         // Store offer for listeners
         const offerStr = JSON.stringify(peerConnection.localDescription);
@@ -838,6 +844,7 @@
         
         updateStatus(`Room "${roomId}" created. Ready to broadcast. Waiting for listeners...`, 'connected');
       } catch (err) {
+        console.error("setupBroadcaster: Error setting up broadcaster:", err);
         updateStatus('Error accessing microphone: ' + err.message, 'error');
         // Show join button again if microphone access fails
         document.getElementById('joinSection').classList.remove('hidden');
