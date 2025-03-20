@@ -2,97 +2,373 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Manual WebRTC Signaling Demo</title>
+  <title>Voice Space - WebRTC Audio Room</title>
   <style>
+    :root {
+      --primary-color: #4f46e5;
+      --primary-hover: #4338ca;
+      --secondary-color: #10b981;
+      --secondary-hover: #059669;
+      --danger-color: #ef4444;
+      --text-color: #1f2937;
+      --light-text: #6b7280;
+      --border-color: #e5e7eb;
+      --bg-color: #f9fafb;
+      --card-bg: #ffffff;
+      --transition: all 0.3s ease;
+    }
+    
     body {
-      font-family: Arial, sans-serif;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 0;
+      margin: 0;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
       padding: 2rem;
-      background-color: #f9f9f9;
-      color: #333;
     }
-    h1, h2 {
+    
+    header {
+      background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+      color: white;
+      padding: 2rem 0;
       text-align: center;
+      border-radius: 0 0 15px 15px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
-    p {
-      text-align: center;
+    
+    h1 {
+      margin: 0;
+      font-size: 2.5rem;
+      font-weight: 700;
     }
-    textarea {
-      width: 100%;
-      height: 150px;
+    
+    .subtitle {
+      font-size: 1.1rem;
+      opacity: 0.9;
       margin-top: 0.5rem;
-      font-family: monospace;
-      font-size: 0.9rem;
     }
+    
+    .card {
+      background-color: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      transition: var(--transition);
+      border: 1px solid var(--border-color);
+    }
+    
+    .card:hover {
+      box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+      transform: translateY(-2px);
+    }
+    
+    .card-title {
+      font-size: 1.5rem;
+      color: var(--text-color);
+      margin-top: 0;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .card-icon {
+      width: 24px;
+      height: 24px;
+      color: var(--primary-color);
+    }
+    
     button {
-      display: block;
-      margin: 1rem auto;
+      cursor: pointer;
       padding: 0.75rem 1.5rem;
       font-size: 1rem;
+      font-weight: 600;
+      border-radius: 8px;
       border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
+      transition: var(--transition);
+      background-color: var(--primary-color);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin: 1rem 0;
     }
+    
     button:hover {
-      opacity: 0.9;
+      background-color: var(--primary-hover);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
-    .section {
-      margin-bottom: 2rem;
-      border: 1px solid #ddd;
-      padding: 1rem;
-      border-radius: 5px;
-      background-color: #fff;
+    
+    .btn-primary {
+      background-color: var(--primary-color);
     }
+    
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
+    
+    .btn-secondary {
+      background-color: var(--secondary-color);
+    }
+    
+    .btn-secondary:hover {
+      background-color: var(--secondary-hover);
+    }
+    
+    .btn-danger {
+      background-color: var(--danger-color);
+    }
+    
+    .btn-danger:hover {
+      background-color: #dc2626;
+    }
+    
+    .center-btn {
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    textarea {
+      width: 100%;
+      height: 120px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      padding: 0.75rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+      resize: none;
+      background-color: #f8fafc;
+    }
+    
     #status {
       text-align: center;
-      font-weight: bold;
+      font-weight: 500;
+      padding: 0.75rem;
+      border-radius: 8px;
+      background-color: rgba(79, 70, 229, 0.1);
+      color: var(--primary-color);
       margin-top: 1rem;
+      transition: var(--transition);
+    }
+    
+    .status-connecting {
+      background-color: rgba(245, 158, 11, 0.1) !important;
+      color: #d97706 !important;
+    }
+    
+    .status-connected {
+      background-color: rgba(16, 185, 129, 0.1) !important;
+      color: var(--secondary-color) !important;
+    }
+    
+    .status-error {
+      background-color: rgba(239, 68, 68, 0.1) !important;
+      color: var(--danger-color) !important;
+    }
+    
+    .role-badge {
+      display: inline-block;
+      padding: 0.35rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      background-color: rgba(79, 70, 229, 0.1);
+      color: var(--primary-color);
+      margin-bottom: 1rem;
+    }
+    
+    .broadcaster-badge {
+      background-color: rgba(16, 185, 129, 0.1);
+      color: var(--secondary-color);
+    }
+    
+    .audio-indicator {
+      display: flex;
+      gap: 0.25rem;
+      margin: 1rem 0;
+      justify-content: center;
+    }
+    
+    .audio-bar {
+      width: 4px;
+      height: 16px;
+      background-color: var(--primary-color);
+      border-radius: 2px;
+      transition: var(--transition);
+      opacity: 0.3;
+    }
+    
+    .audio-bar.active {
+      opacity: 1;
+      height: 24px;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .fade-in {
+      animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .room-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background-color: rgba(79, 70, 229, 0.05);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    
+    .participants {
+      display: flex;
+      gap: 0.5rem;
+    }
+    
+    .participant {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background-color: var(--primary-color);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+    
+    .broadcaster {
+      background-color: var(--secondary-color);
     }
   </style>
 </head>
 <body>
-  <h1>Manual WebRTC Signaling Demo</h1>
-  <p>This demo enables peer-to-peer audio connection using manual signaling.</p>
-
-  <!-- Broadcaster Section -->
-  <div class="section" id="broadcasterSection">
-    <h2>Broadcaster (Take the Mic)</h2>
-    <button id="startBroadcaster">Take the Mic</button>
-    <div id="offerSection" style="display: none;">
-      <p><strong>Step 1:</strong> Copy this offer and share it with your listener:</p>
-      <textarea id="offerSDP" readonly></textarea>
-      <p><strong>Step 2:</strong> Paste the listener's answer below:</p>
-      <textarea id="answerSDP" placeholder="Paste listener's answer here..."></textarea>
-      <button id="setAnswer">Set Answer</button>
+  <header>
+    <h1>Voice Space</h1>
+    <div class="subtitle">Simple yet powerful real-time audio communication</div>
+  </header>
+  
+  <div class="container">
+    <!-- Join Section -->
+    <div class="card" id="joinSection">
+      <h2 class="card-title">
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+        Audio Room
+      </h2>
+      <p>Join the voice space to communicate with others in real-time. If you're the first one here, you'll automatically become the broadcaster.</p>
+      <button id="joinButton" class="btn-primary center-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+        </svg>
+        Join Room
+      </button>
     </div>
-  </div>
 
-  <!-- Listener Section -->
-  <div class="section" id="listenerSection">
-    <h2>Listener (Start Listening)</h2>
-    <button id="startListener">Start Listening</button>
-    <div id="answerSection" style="display: none;">
-      <p><strong>Step 1:</strong> Paste the broadcaster's offer:</p>
-      <textarea id="offerInput" placeholder="Paste broadcaster's offer here..."></textarea>
-      <button id="generateAnswer">Generate Answer</button>
-      <p><strong>Step 2:</strong> Copy this answer and send it back to the broadcaster:</p>
-      <textarea id="listenerAnswer" readonly></textarea>
+    <!-- Room Section (initially hidden) -->
+    <div class="card hidden" id="roomSection">
+      <div class="room-info">
+        <div class="room-name">Room #1</div>
+        <div class="participants">
+          <div class="participant broadcaster" title="Broadcaster">B</div>
+          <div class="participant" title="Listener">L</div>
+        </div>
+      </div>
+      
+      <div id="roleIndicator" class="role-badge">Role: Connecting...</div>
+      
+      <!-- Broadcaster View -->
+      <div id="broadcasterView" class="hidden">
+        <h3>You are broadcasting</h3>
+        <div class="audio-indicator" id="broadcasterAudioIndicator">
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+        </div>
+        <button id="stopBroadcasting" class="btn-danger center-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+          Stop Broadcasting
+        </button>
+      </div>
+      
+      <!-- Listener View -->
+      <div id="listenerView" class="hidden">
+        <h3>You are listening</h3>
+        <div class="audio-indicator" id="listenerAudioIndicator">
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+          <div class="audio-bar"></div>
+        </div>
+        <button id="requestMic" class="btn-secondary center-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+          Request Microphone
+        </button>
+      </div>
     </div>
-  </div>
 
-  <div id="status">Status: Ready</div>
+    <!-- Technical Details (Collapsed by Default) -->
+    <div class="card" id="technicalDetails">
+      <details>
+        <summary>Technical Details</summary>
+        <div id="sdpExchange" class="hidden">
+          <h3>Connection Details</h3>
+          <textarea id="connectionDetails" readonly></textarea>
+        </div>
+      </details>
+    </div>
+    
+    <div id="status">Status: Ready to connect</div>
+  </div>
 
   <script>
     let localStream;
     let peerConnection;
     const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-
-    // Utility to log status messages
-    function logStatus(message) {
-      document.getElementById('status').innerText = "Status: " + message;
+    let isBroadcaster = false;
+    let audioContext;
+    let audioAnalyser;
+    
+    // Utility to update status with appropriate styling
+    function updateStatus(message, type = 'default') {
+      const statusEl = document.getElementById('status');
+      statusEl.innerText = "Status: " + message;
+      
+      // Remove all status classes
+      statusEl.classList.remove('status-connecting', 'status-connected', 'status-error');
+      
+      // Add appropriate class based on status type
+      if (type === 'connecting') statusEl.classList.add('status-connecting');
+      if (type === 'connected') statusEl.classList.add('status-connected');
+      if (type === 'error') statusEl.classList.add('status-error');
+      
+      console.log(message);
     }
 
-    // Utility to wait for ICE gathering to complete (disabling trickle ICE)
+    // Utility to wait for ICE gathering to complete
     async function waitForIceGatheringComplete(pc) {
       return new Promise(resolve => {
         if (pc.iceGatheringState === 'complete') {
@@ -109,73 +385,230 @@
       });
     }
 
-    // Broadcaster: Capture audio and generate offer
-    document.getElementById('startBroadcaster').addEventListener('click', async () => {
-      logStatus('Initializing broadcaster audio...');
+    // Check if the room is empty
+    function isRoomEmpty() {
+      return !localStorage.getItem('roomOffer');
+    }
+    
+    // Set up audio visualization
+    function setupAudioVisualization(stream, targetElementId) {
+      // This would normally use the Web Audio API to visualize audio levels
+      // For now, we'll simulate audio activity with random bars
+      
+      // TODO: Implement real audio visualization with Web Audio API
+      const bars = document.querySelectorAll(`#${targetElementId} .audio-bar`);
+      
+      // Simple simulation of audio activity
+      const simulateAudioActivity = () => {
+        bars.forEach(bar => {
+          if (Math.random() > 0.5) {
+            bar.classList.add('active');
+          } else {
+            bar.classList.remove('active');
+          }
+        });
+      };
+      
+      // Simulate audio activity every 200ms
+      return setInterval(simulateAudioActivity, 200);
+    }
+
+    // Join button handler
+    document.getElementById('joinButton').addEventListener('click', async () => {
+      updateStatus('Connecting to room...', 'connecting');
+      
+      // Hide join section, show room section
+      document.getElementById('joinSection').classList.add('hidden');
+      document.getElementById('roomSection').classList.remove('hidden');
+      document.getElementById('roomSection').classList.add('fade-in');
+      
+      if (isRoomEmpty()) {
+        // First person - become the broadcaster
+        isBroadcaster = true;
+        document.getElementById('roleIndicator').textContent = "Role: Broadcaster";
+        document.getElementById('roleIndicator').classList.add('broadcaster-badge');
+        document.getElementById('broadcasterView').classList.remove('hidden');
+        await setupBroadcaster();
+      } else {
+        // Room exists - become a listener
+        isBroadcaster = false;
+        document.getElementById('roleIndicator').textContent = "Role: Listener";
+        document.getElementById('listenerView').classList.remove('hidden');
+        await setupListener();
+      }
+    });
+
+    // Setup broadcaster role
+    async function setupBroadcaster() {
+      updateStatus('Requesting microphone access...', 'connecting');
+      
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Set up audio visualization for broadcaster
+        setupAudioVisualization(localStream, 'broadcasterAudioIndicator');
+        
+        updateStatus('Microphone access granted. Setting up connection...', 'connecting');
+        
+        peerConnection = new RTCPeerConnection(config);
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+        // Create the offer and disable trickle ICE
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        await waitForIceGatheringComplete(peerConnection);
+
+        // Store offer for listeners
+        const offerStr = JSON.stringify(peerConnection.localDescription);
+        document.getElementById('connectionDetails').value = offerStr;
+        localStorage.setItem('roomOffer', offerStr);
+        
+        // Handle connection state changes
+        peerConnection.onconnectionstatechange = () => {
+          updateStatus('Connection state: ' + peerConnection.connectionState, 
+                       peerConnection.connectionState === 'connected' ? 'connected' : 'connecting');
+        };
+        
+        // Handle ICE connection state changes
+        peerConnection.oniceconnectionstatechange = () => {
+          if (peerConnection.iceConnectionState === 'connected') {
+            updateStatus('Broadcasting - Listeners connected!', 'connected');
+          }
+        };
+        
+        updateStatus('Ready to broadcast. Waiting for listeners...', 'connected');
       } catch (err) {
-        logStatus('Error accessing microphone: ' + err);
-        return;
+        updateStatus('Error accessing microphone: ' + err.message, 'error');
+        // Show join button again if microphone access fails
+        document.getElementById('joinSection').classList.remove('hidden');
+        document.getElementById('roomSection').classList.add('hidden');
       }
-      logStatus('Audio captured. Creating peer connection...');
+    }
+
+    // Setup listener role
+    async function setupListener() {
+      updateStatus('Connecting to broadcaster...', 'connecting');
+      
       peerConnection = new RTCPeerConnection(config);
-      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-      // Create the offer and disable trickle ICE
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-      await waitForIceGatheringComplete(peerConnection);
-
-      // Display the offer SDP for manual sharing
-      document.getElementById('offerSDP').value = JSON.stringify(peerConnection.localDescription);
-      document.getElementById('offerSection').style.display = 'block';
-      logStatus('Offer generated. Please share it with your listener.');
-    });
-
-    // Broadcaster: Set listener's answer to finalize connection
-    document.getElementById('setAnswer').addEventListener('click', async () => {
-      const answerText = document.getElementById('answerSDP').value;
-      if (!answerText) {
-        alert('Please paste the listener\'s answer.');
-        return;
-      }
+      
+      // Set up audio output
+      peerConnection.ontrack = (event) => {
+        const audioElement = new Audio();
+        audioElement.srcObject = event.streams[0];
+        audioElement.play();
+        
+        // Set up audio visualization for incoming audio
+        setupAudioVisualization(event.streams[0], 'listenerAudioIndicator');
+        
+        updateStatus('Receiving audio from broadcaster', 'connected');
+      };
+      
       try {
-        const answerDesc = new RTCSessionDescription(JSON.parse(answerText));
-        await peerConnection.setRemoteDescription(answerDesc);
-        logStatus('Connection established successfully.');
-      } catch (err) {
-        logStatus('Error setting listener answer: ' + err);
-      }
-    });
-
-    // Listener: Prepare to receive broadcaster's offer and generate an answer
-    document.getElementById('startListener').addEventListener('click', () => {
-      document.getElementById('answerSection').style.display = 'block';
-      logStatus('Listener mode active. Please paste the broadcaster\'s offer.');
-    });
-
-    // Listener: Generate answer upon receiving offer
-    document.getElementById('generateAnswer').addEventListener('click', async () => {
-      const offerText = document.getElementById('offerInput').value;
-      if (!offerText) {
-        alert('Please paste the broadcaster\'s offer.');
-        return;
-      }
-      peerConnection = new RTCPeerConnection(config);
-      try {
+        // Get the offer from storage
+        const offerText = localStorage.getItem('roomOffer');
         const offerDesc = new RTCSessionDescription(JSON.parse(offerText));
         await peerConnection.setRemoteDescription(offerDesc);
+        
+        // Create and set the answer
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        await waitForIceGatheringComplete(peerConnection);
+        
+        document.getElementById('connectionDetails').value = JSON.stringify(peerConnection.localDescription);
+        
+        // Monitor connection state
+        peerConnection.oniceconnectionstatechange = () => {
+          if (peerConnection.iceConnectionState === 'connected') {
+            updateStatus('Connected to broadcaster', 'connected');
+          } else if (peerConnection.iceConnectionState === 'disconnected' || 
+                     peerConnection.iceConnectionState === 'failed') {
+            updateStatus('Connection to broadcaster lost', 'error');
+          }
+        };
+        
+        updateStatus('Connecting to broadcaster...', 'connecting');
       } catch (err) {
-        logStatus('Error setting broadcaster offer: ' + err);
-        return;
+        updateStatus('Error connecting to room: ' + err.message, 'error');
+        // Show join button again if connection fails
+        document.getElementById('joinSection').classList.remove('hidden');
+        document.getElementById('roomSection').classList.add('hidden');
       }
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-      await waitForIceGatheringComplete(peerConnection);
-      document.getElementById('listenerAnswer').value = JSON.stringify(peerConnection.localDescription);
-      logStatus('Answer generated. Please send it back to the broadcaster.');
+    }
+
+    // Request microphone handler (for listeners)
+    document.getElementById('requestMic').addEventListener('click', async () => {
+      updateStatus('Requesting to become broadcaster...', 'connecting');
+      
+      // TODO: In a real application, this would involve signaling to the current broadcaster
+      // For now, we'll simulate becoming the broadcaster by clearing the current room
+      
+      // Clean up existing connection
+      if (peerConnection) {
+        peerConnection.close();
+      }
+      
+      // Become the new broadcaster
+      document.getElementById('listenerView').classList.add('hidden');
+      document.getElementById('broadcasterView').classList.remove('hidden');
+      document.getElementById('roleIndicator').textContent = "Role: Broadcaster";
+      document.getElementById('roleIndicator').classList.add('broadcaster-badge');
+      
+      // Set up as broadcaster
+      isBroadcaster = true;
+      localStorage.removeItem('roomOffer'); // Clear existing room
+      await setupBroadcaster();
     });
+    
+    // Stop broadcasting handler
+    document.getElementById('stopBroadcasting').addEventListener('click', () => {
+      // Clean up broadcaster resources
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      
+      if (peerConnection) {
+        peerConnection.close();
+      }
+      
+      // Clear room data
+      localStorage.removeItem('roomOffer');
+      
+      // Reset UI
+      document.getElementById('roomSection').classList.add('hidden');
+      document.getElementById('joinSection').classList.remove('hidden');
+      document.getElementById('broadcasterView').classList.add('hidden');
+      document.getElementById('roleIndicator').classList.remove('broadcaster-badge');
+      
+      updateStatus('Broadcasting stopped. Room closed.', 'default');
+    });
+
+    // Clean up when leaving
+    window.addEventListener('beforeunload', () => {
+      if (isBroadcaster) {
+        localStorage.removeItem('roomOffer');
+        
+        // Stop all media tracks
+        if (localStream) {
+          localStream.getTracks().forEach(track => track.stop());
+        }
+      }
+      
+      if (peerConnection) {
+        peerConnection.close();
+      }
+    });
+    
+    /* 
+    TODO: Future enhancements
+    - Implement server-side signaling for multi-user rooms
+    - Add proper user authentication and presence detection
+    - Implement chat functionality alongside voice
+    - Add recording capabilities
+    - Implement proper room management with names and persistence
+    - Add bandwidth and quality controls
+    - Implement proper error handling and reconnection logic
+    - Add mobile responsiveness enhancements
+    */
   </script>
 </body>
 </html>
