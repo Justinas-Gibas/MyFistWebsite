@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Manual WebRTC Signaling Demo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f9f9f9;
+      color: #333;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    p {
+      text-align: center;
+    }
+    textarea {
+      width: 100%;
+      height: 150px;
+      margin-top: 0.5rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+    button {
+      display: block;
+      margin: 1rem auto;
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+    .section {
+      margin-bottom: 2rem;
+      border: 1px solid #ddd;
+      padding: 1rem;
+      border-radius: 5px;
+      background-color: #fff;
+    }
+    #status {
+      text-align: center;
+      font-weight: bold;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Manual WebRTC Signaling Demo</h1>
+  <p>This demo enables peer-to-peer audio connection using manual signaling.</p>
+
+  <!-- Broadcaster Section -->
+  <div class="section" id="broadcasterSection">
+    <h2>Broadcaster (Take the Mic)</h2>
+    <button id="startBroadcaster">Take the Mic</button>
+    <div id="offerSection" style="display: none;">
+      <p><strong>Step 1:</strong> Copy this offer and share it with your listener:</p>
+      <textarea id="offerSDP" readonly></textarea>
+      <p><strong>Step 2:</strong> Paste the listener's answer below:</p>
+      <textarea id="answerSDP" placeholder="Paste listener's answer here..."></textarea>
+      <button id="setAnswer">Set Answer</button>
+    </div>
+  </div>
+
+  <!-- Listener Section -->
+  <div class="section" id="listenerSection">
+    <h2>Listener (Start Listening)</h2>
+    <button id="startListener">Start Listening</button>
+    <div id="answerSection" style="display: none;">
+      <p><strong>Step 1:</strong> Paste the broadcaster's offer:</p>
+      <textarea id="offerInput" placeholder="Paste broadcaster's offer here..."></textarea>
+      <button id="generateAnswer">Generate Answer</button>
+      <p><strong>Step 2:</strong> Copy this answer and send it back to the broadcaster:</p>
+      <textarea id="listenerAnswer" readonly></textarea>
+    </div>
+  </div>
+
+  <div id="status">Status: Ready</div>
+
+  <script>
+    let localStream;
+    let peerConnection;
+    const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+    // Utility to log status messages
+    function logStatus(message) {
+      document.getElementById('status').innerText = "Status: " + message;
+    }
+
+    // Utility to wait for ICE gathering to complete (disabling trickle ICE)
+    async function waitForIceGatheringComplete(pc) {
+      return new Promise(resolve => {
+        if (pc.iceGatheringState === 'complete') {
+          resolve();
+        } else {
+          function checkState() {
+            if (pc.iceGatheringState === 'complete') {
+              pc.removeEventListener('icegatheringstatechange', checkState);
+              resolve();
+            }
+          }
+          pc.addEventListener('icegatheringstatechange', checkState);
+        }
+      });
+    }
+
+    // Broadcaster: Capture audio and generate offer
+    document.getElementById('startBroadcaster').addEventListener('click', async () => {
+      logStatus('Initializing broadcaster audio...');
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err) {
+        logStatus('Error accessing microphone: ' + err);
+        return;
+      }
+      logStatus('Audio captured. Creating peer connection...');
+      peerConnection = new RTCPeerConnection(config);
+      localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
+      // Create the offer and disable trickle ICE
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      await waitForIceGatheringComplete(peerConnection);
+
+      // Display the offer SDP for manual sharing
+      document.getElementById('offerSDP').value = JSON.stringify(peerConnection.localDescription);
+      document.getElementById('offerSection').style.display = 'block';
+      logStatus('Offer generated. Please share it with your listener.');
+    });
+
+    // Broadcaster: Set listener's answer to finalize connection
+    document.getElementById('setAnswer').addEventListener('click', async () => {
+      const answerText = document.getElementById('answerSDP').value;
+      if (!answerText) {
+        alert('Please paste the listener\'s answer.');
+        return;
+      }
+      try {
+        const answerDesc = new RTCSessionDescription(JSON.parse(answerText));
+        await peerConnection.setRemoteDescription(answerDesc);
+        logStatus('Connection established successfully.');
+      } catch (err) {
+        logStatus('Error setting listener answer: ' + err);
+      }
+    });
+
+    // Listener: Prepare to receive broadcaster's offer and generate an answer
+    document.getElementById('startListener').addEventListener('click', () => {
+      document.getElementById('answerSection').style.display = 'block';
+      logStatus('Listener mode active. Please paste the broadcaster\'s offer.');
+    });
+
+    // Listener: Generate answer upon receiving offer
+    document.getElementById('generateAnswer').addEventListener('click', async () => {
+      const offerText = document.getElementById('offerInput').value;
+      if (!offerText) {
+        alert('Please paste the broadcaster\'s offer.');
+        return;
+      }
+      peerConnection = new RTCPeerConnection(config);
+      try {
+        const offerDesc = new RTCSessionDescription(JSON.parse(offerText));
+        await peerConnection.setRemoteDescription(offerDesc);
+      } catch (err) {
+        logStatus('Error setting broadcaster offer: ' + err);
+        return;
+      }
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      await waitForIceGatheringComplete(peerConnection);
+      document.getElementById('listenerAnswer').value = JSON.stringify(peerConnection.localDescription);
+      logStatus('Answer generated. Please send it back to the broadcaster.');
+    });
+  </script>
+</body>
+</html>
