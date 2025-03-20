@@ -135,6 +135,13 @@
       margin-left: auto;
       margin-right: auto;
     }
+
+    .btn-group {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin: 1.5rem 0;
+    }
     
     textarea {
       width: 100%;
@@ -146,6 +153,15 @@
       font-size: 0.9rem;
       resize: none;
       background-color: #f8fafc;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      font-size: 1rem;
+      margin-bottom: 1rem;
     }
     
     #status {
@@ -190,10 +206,19 @@
       color: var(--secondary-color);
     }
     
+    /* Fix for audio visualization - prevent layout shifts */
+    .audio-indicator-container {
+      height: 40px; /* Fixed height to prevent layout shifts */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 1rem 0;
+      padding: 0.5rem 0;
+    }
+    
     .audio-indicator {
       display: flex;
       gap: 0.25rem;
-      margin: 1rem 0;
       justify-content: center;
     }
     
@@ -255,6 +280,106 @@
     .broadcaster {
       background-color: var(--secondary-color);
     }
+
+    .info-box {
+      background-color: rgba(79, 70, 229, 0.05);
+      border-left: 4px solid var(--primary-color);
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .info-box.success {
+      background-color: rgba(16, 185, 129, 0.05);
+      border-left-color: var(--secondary-color);
+    }
+
+    .info-box.warning {
+      background-color: rgba(245, 158, 11, 0.05);
+      border-left-color: #d97706;
+    }
+
+    .share-link {
+      background-color: rgba(79, 70, 229, 0.05);
+      border-radius: 8px;
+      padding: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 1rem 0;
+    }
+
+    .share-link input {
+      flex-grow: 1;
+      margin: 0;
+      margin-right: 1rem;
+      background-color: rgba(255, 255, 255, 0.7);
+    }
+
+    .share-link button {
+      margin: 0;
+      padding: 0.5rem 1rem;
+    }
+
+    .steps {
+      counter-reset: step;
+      margin: 1.5rem 0;
+    }
+
+    .step {
+      position: relative;
+      padding-left: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .step::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 50%;
+      background-color: var(--primary-color);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+    }
+
+    .step h4 {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+    }
+
+    .tab-group {
+      display: flex;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .tab {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: var(--transition);
+    }
+
+    .tab.active {
+      border-bottom-color: var(--primary-color);
+      color: var(--primary-color);
+      font-weight: 600;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -272,19 +397,46 @@
         </svg>
         Audio Room
       </h2>
-      <p>Join the voice space to communicate with others in real-time. If you're the first one here, you'll automatically become the broadcaster.</p>
-      <button id="joinButton" class="btn-primary center-btn">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-        </svg>
-        Join Room
-      </button>
+
+      <!-- Default room notification (shown if a room exists) -->
+      <div id="defaultRoomNotice" class="info-box success hidden">
+        <p><strong>A room is already active!</strong> You can join the existing conversation.</p>
+      </div>
+
+      <div class="tab-group">
+        <div class="tab active" data-tab="join">Join Room</div>
+        <div class="tab" data-tab="create">Create Room</div>
+      </div>
+
+      <!-- Join Room Tab -->
+      <div class="tab-content active" id="joinTab">
+        <p>Enter a room ID to join an existing conversation, or use the default room if available.</p>
+        <input type="text" id="roomIdInput" placeholder="Enter room ID (optional)">
+        <button id="joinButton" class="btn-primary center-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+          </svg>
+          Join Room
+        </button>
+      </div>
+
+      <!-- Create Room Tab -->
+      <div class="tab-content" id="createTab">
+        <p>Create a new room with an optional custom ID. Share this ID with others to let them join.</p>
+        <input type="text" id="newRoomIdInput" placeholder="Enter custom room ID (optional)">
+        <button id="createRoomButton" class="btn-secondary center-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+          Create Room
+        </button>
+      </div>
     </div>
 
     <!-- Room Section (initially hidden) -->
     <div class="card hidden" id="roomSection">
       <div class="room-info">
-        <div class="room-name">Room #1</div>
+        <div id="roomName" class="room-name">Room #1</div>
         <div class="participants">
           <div class="participant broadcaster" title="Broadcaster">B</div>
           <div class="participant" title="Listener">L</div>
@@ -293,15 +445,35 @@
       
       <div id="roleIndicator" class="role-badge">Role: Connecting...</div>
       
+      <!-- Room sharing section -->
+      <div id="shareSection" class="hidden">
+        <h3>Share Room</h3>
+        <p>Share this link with others to let them join this room:</p>
+        <div class="share-link">
+          <input type="text" id="shareUrl" readonly>
+          <button id="copyLinkBtn" class="btn-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            Copy
+          </button>
+        </div>
+      </div>
+      
       <!-- Broadcaster View -->
       <div id="broadcasterView" class="hidden">
         <h3>You are broadcasting</h3>
-        <div class="audio-indicator" id="broadcasterAudioIndicator">
-          <div class="audio-bar"></div>
-          <div class="audio-bar"></div>
-          <div class="audio-bar"></div>
-          <div class="audio-bar"></div>
-          <div class="audio-bar"></div>
+        <div class="audio-indicator-container">
+          <div class="audio-indicator" id="broadcasterAudioIndicator">
+            <div class="audio-bar"></div>
+            <div class="audio-bar"></div>
+            <div class="audio-bar"></div>
+            <div class="audio-bar"></div>
+            <div class="audio-bar"></div>
+          </div>
+        </div>
+        <div class="info-box">
+          <p>Your voice is being transmitted to all listeners in this room. Speak clearly and ensure your microphone works properly.</p>
         </div>
         <button id="stopBroadcasting" class="btn-danger center-btn">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -314,12 +486,17 @@
       <!-- Listener View -->
       <div id="listenerView" class="hidden">
         <h3>You are listening</h3>
-        <div class="audio-indicator" id="listenerAudioIndicator">
-          <div class="audio-bar"></div>
-          <div class="audio-bar"></div>
-          <div class="audio-bar"></div>
-          <div class="audio-bar"></div>
-          <div class="audio-bar"></div>
+        <div class="audio-indicator-container">
+          <div class="audio-indicator" id="listenerAudioIndicator">
+            <div class="audio-bar"></div>
+            <div class="audio-bar"></div>
+            <div class="audio-bar"></div>
+            <div class="audio-bar"></div>
+            <div class="audio-bar"></div>
+          </div>
+        </div>
+        <div class="info-box">
+          <p>You are currently receiving audio from the broadcaster. If you don't hear anything, the broadcaster might be silent or there might be connection issues.</p>
         </div>
         <button id="requestMic" class="btn-secondary center-btn">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -330,11 +507,38 @@
       </div>
     </div>
 
+    <!-- Guidance Section -->
+    <div class="card" id="guidanceSection">
+      <h2 class="card-title">
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        How It Works
+      </h2>
+      <div class="steps">
+        <div class="step">
+          <h4>Create or Join a Room</h4>
+          <p>Either create a new room or join an existing one using a room ID.</p>
+        </div>
+        <div class="step">
+          <h4>Share Your Room</h4>
+          <p>If you're the creator, share the room link with others so they can join.</p>
+        </div>
+        <div class="step">
+          <h4>Communicate</h4>
+          <p>The first person to join becomes the broadcaster. Others can listen and request broadcasting access.</p>
+        </div>
+      </div>
+      <div class="info-box warning">
+        <p><strong>Note:</strong> This application uses peer-to-peer WebRTC technology. Your voice data is transmitted directly between browsers without a central server. This application works best on modern browsers and devices.</p>
+      </div>
+    </div>
+
     <!-- Technical Details (Collapsed by Default) -->
     <div class="card" id="technicalDetails">
       <details>
         <summary>Technical Details</summary>
-        <div id="sdpExchange" class="hidden">
+        <div id="sdpExchange">
           <h3>Connection Details</h3>
           <textarea id="connectionDetails" readonly></textarea>
         </div>
@@ -351,6 +555,56 @@
     let isBroadcaster = false;
     let audioContext;
     let audioAnalyser;
+    let currentRoomId = null;
+    let audioVisualInterval = null;
+    
+    // Initialize the application
+    function init() {
+      // Check URL for room ID parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomIdFromUrl = urlParams.get('room');
+      
+      if (roomIdFromUrl) {
+        document.getElementById('roomIdInput').value = roomIdFromUrl;
+      }
+      
+      // Check if any rooms exist in localStorage
+      const availableRooms = getAllRooms();
+      if (availableRooms.length > 0) {
+        // Show notification about existing rooms
+        document.getElementById('defaultRoomNotice').classList.remove('hidden');
+      }
+      
+      // Set up tab switching
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          // Remove active class from all tabs and content
+          document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          
+          // Add active class to clicked tab and corresponding content
+          tab.classList.add('active');
+          const tabId = tab.getAttribute('data-tab') + 'Tab';
+          document.getElementById(tabId).classList.add('active');
+        });
+      });
+      
+      // Set up copy link button
+      document.getElementById('copyLinkBtn').addEventListener('click', () => {
+        const shareUrlInput = document.getElementById('shareUrl');
+        shareUrlInput.select();
+        document.execCommand('copy');
+        document.getElementById('copyLinkBtn').textContent = 'Copied!';
+        setTimeout(() => {
+          document.getElementById('copyLinkBtn').innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            Copy
+          `;
+        }, 2000);
+      });
+    }
     
     // Utility to update status with appropriate styling
     function updateStatus(message, type = 'default') {
@@ -385,13 +639,58 @@
       });
     }
 
-    // Check if the room is empty
-    function isRoomEmpty() {
-      return !localStorage.getItem('roomOffer');
+    // Generate a random room ID if none is provided
+    function generateRoomId() {
+      return Math.random().toString(36).substring(2, 10);
+    }
+    
+    // Store room offer in localStorage with room ID
+    function storeRoomOffer(roomId, offerStr) {
+      localStorage.setItem(`room_${roomId}`, offerStr);
+      // Keep track of rooms
+      let rooms = JSON.parse(localStorage.getItem('room_list') || '[]');
+      if (!rooms.includes(roomId)) {
+        rooms.push(roomId);
+        localStorage.setItem('room_list', JSON.stringify(rooms));
+      }
+    }
+    
+    // Get room offer from localStorage by room ID
+    function getRoomOffer(roomId) {
+      return localStorage.getItem(`room_${roomId}`);
+    }
+    
+    // Get all available rooms
+    function getAllRooms() {
+      return JSON.parse(localStorage.getItem('room_list') || '[]');
+    }
+    
+    // Check if a room exists
+    function roomExists(roomId) {
+      return !!getRoomOffer(roomId);
+    }
+    
+    // Remove a room
+    function removeRoom(roomId) {
+      localStorage.removeItem(`room_${roomId}`);
+      let rooms = JSON.parse(localStorage.getItem('room_list') || '[]');
+      rooms = rooms.filter(id => id !== roomId);
+      localStorage.setItem('room_list', JSON.stringify(rooms));
+    }
+    
+    // Get the default room (first one in the list if any)
+    function getDefaultRoom() {
+      const rooms = getAllRooms();
+      return rooms.length > 0 ? rooms[0] : null;
     }
     
     // Set up audio visualization
     function setupAudioVisualization(stream, targetElementId) {
+      // Clear any existing visualization interval
+      if (audioVisualInterval) {
+        clearInterval(audioVisualInterval);
+      }
+      
       // This would normally use the Web Audio API to visualize audio levels
       // For now, we'll simulate audio activity with random bars
       
@@ -410,11 +709,80 @@
       };
       
       // Simulate audio activity every 200ms
-      return setInterval(simulateAudioActivity, 200);
+      audioVisualInterval = setInterval(simulateAudioActivity, 200);
+      return audioVisualInterval;
     }
+
+    // Create room handler
+    document.getElementById('createRoomButton').addEventListener('click', async () => {
+      let roomId = document.getElementById('newRoomIdInput').value.trim();
+      if (!roomId) {
+        roomId = generateRoomId();
+      }
+      
+      // Check if room already exists
+      if (roomExists(roomId)) {
+        updateStatus(`Room "${roomId}" already exists. Please choose another ID.`, 'error');
+        return;
+      }
+      
+      currentRoomId = roomId;
+      
+      // Update URL to include room ID
+      const url = new URL(window.location.href);
+      url.searchParams.set('room', roomId);
+      window.history.pushState({}, '', url);
+      
+      // Set room name display
+      document.getElementById('roomName').textContent = `Room: ${roomId}`;
+      
+      // Show room section, hide join section
+      document.getElementById('joinSection').classList.add('hidden');
+      document.getElementById('roomSection').classList.remove('hidden');
+      document.getElementById('roomSection').classList.add('fade-in');
+      
+      // Setup as broadcaster
+      isBroadcaster = true;
+      document.getElementById('roleIndicator').textContent = "Role: Broadcaster";
+      document.getElementById('roleIndicator').classList.add('broadcaster-badge');
+      document.getElementById('broadcasterView').classList.remove('hidden');
+      document.getElementById('shareSection').classList.remove('hidden');
+      
+      // Set share URL
+      document.getElementById('shareUrl').value = url.toString();
+      
+      await setupBroadcaster(roomId);
+    });
 
     // Join button handler
     document.getElementById('joinButton').addEventListener('click', async () => {
+      let roomId = document.getElementById('roomIdInput').value.trim();
+      
+      // If no room ID is provided, try to join the default room
+      if (!roomId) {
+        roomId = getDefaultRoom();
+        if (!roomId) {
+          updateStatus('No room ID provided and no default room available.', 'error');
+          return;
+        }
+      }
+      
+      // Check if room exists
+      if (!roomExists(roomId)) {
+        updateStatus(`Room "${roomId}" doesn't exist. Please check the ID or create a new room.`, 'error');
+        return;
+      }
+      
+      currentRoomId = roomId;
+      
+      // Update URL to include room ID
+      const url = new URL(window.location.href);
+      url.searchParams.set('room', roomId);
+      window.history.pushState({}, '', url);
+      
+      // Set room name display
+      document.getElementById('roomName').textContent = `Room: ${roomId}`;
+      
       updateStatus('Connecting to room...', 'connecting');
       
       // Hide join section, show room section
@@ -422,24 +790,16 @@
       document.getElementById('roomSection').classList.remove('hidden');
       document.getElementById('roomSection').classList.add('fade-in');
       
-      if (isRoomEmpty()) {
-        // First person - become the broadcaster
-        isBroadcaster = true;
-        document.getElementById('roleIndicator').textContent = "Role: Broadcaster";
-        document.getElementById('roleIndicator').classList.add('broadcaster-badge');
-        document.getElementById('broadcasterView').classList.remove('hidden');
-        await setupBroadcaster();
-      } else {
-        // Room exists - become a listener
-        isBroadcaster = false;
-        document.getElementById('roleIndicator').textContent = "Role: Listener";
-        document.getElementById('listenerView').classList.remove('hidden');
-        await setupListener();
-      }
+      // Become a listener
+      isBroadcaster = false;
+      document.getElementById('roleIndicator').textContent = "Role: Listener";
+      document.getElementById('listenerView').classList.remove('hidden');
+      
+      await setupListener(roomId);
     });
 
     // Setup broadcaster role
-    async function setupBroadcaster() {
+    async function setupBroadcaster(roomId) {
       updateStatus('Requesting microphone access...', 'connecting');
       
       try {
@@ -461,7 +821,7 @@
         // Store offer for listeners
         const offerStr = JSON.stringify(peerConnection.localDescription);
         document.getElementById('connectionDetails').value = offerStr;
-        localStorage.setItem('roomOffer', offerStr);
+        storeRoomOffer(roomId, offerStr);
         
         // Handle connection state changes
         peerConnection.onconnectionstatechange = () => {
@@ -476,17 +836,22 @@
           }
         };
         
-        updateStatus('Ready to broadcast. Waiting for listeners...', 'connected');
+        updateStatus(`Room "${roomId}" created. Ready to broadcast. Waiting for listeners...`, 'connected');
       } catch (err) {
         updateStatus('Error accessing microphone: ' + err.message, 'error');
         // Show join button again if microphone access fails
         document.getElementById('joinSection').classList.remove('hidden');
         document.getElementById('roomSection').classList.add('hidden');
+        
+        // Clean up room if it was created but failed to set up
+        if (roomExists(roomId)) {
+          removeRoom(roomId);
+        }
       }
     }
 
     // Setup listener role
-    async function setupListener() {
+    async function setupListener(roomId) {
       updateStatus('Connecting to broadcaster...', 'connecting');
       
       peerConnection = new RTCPeerConnection(config);
@@ -505,7 +870,11 @@
       
       try {
         // Get the offer from storage
-        const offerText = localStorage.getItem('roomOffer');
+        const offerText = getRoomOffer(roomId);
+        if (!offerText) {
+          throw new Error(`Room ${roomId} no longer available`);
+        }
+        
         const offerDesc = new RTCSessionDescription(JSON.parse(offerText));
         await peerConnection.setRemoteDescription(offerDesc);
         
@@ -526,7 +895,7 @@
           }
         };
         
-        updateStatus('Connecting to broadcaster...', 'connecting');
+        updateStatus(`Joining room "${roomId}". Connecting to broadcaster...`, 'connecting');
       } catch (err) {
         updateStatus('Error connecting to room: ' + err.message, 'error');
         // Show join button again if connection fails
@@ -539,24 +908,35 @@
     document.getElementById('requestMic').addEventListener('click', async () => {
       updateStatus('Requesting to become broadcaster...', 'connecting');
       
-      // TODO: In a real application, this would involve signaling to the current broadcaster
-      // For now, we'll simulate becoming the broadcaster by clearing the current room
-      
       // Clean up existing connection
       if (peerConnection) {
         peerConnection.close();
       }
       
+      // Clean up audio visualization
+      if (audioVisualInterval) {
+        clearInterval(audioVisualInterval);
+      }
+      
       // Become the new broadcaster
       document.getElementById('listenerView').classList.add('hidden');
       document.getElementById('broadcasterView').classList.remove('hidden');
+      document.getElementById('shareSection').classList.remove('hidden');
       document.getElementById('roleIndicator').textContent = "Role: Broadcaster";
       document.getElementById('roleIndicator').classList.add('broadcaster-badge');
       
       // Set up as broadcaster
       isBroadcaster = true;
-      localStorage.removeItem('roomOffer'); // Clear existing room
-      await setupBroadcaster();
+      
+      // Update share URL
+      const url = new URL(window.location.href);
+      document.getElementById('shareUrl').value = url.toString();
+      
+      // Remove old room and create new one
+      if (currentRoomId) {
+        removeRoom(currentRoomId);
+        await setupBroadcaster(currentRoomId);
+      }
     });
     
     // Stop broadcasting handler
@@ -570,22 +950,38 @@
         peerConnection.close();
       }
       
+      // Clean up audio visualization
+      if (audioVisualInterval) {
+        clearInterval(audioVisualInterval);
+      }
+      
       // Clear room data
-      localStorage.removeItem('roomOffer');
+      if (currentRoomId) {
+        removeRoom(currentRoomId);
+      }
+      
+      // Reset URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('room');
+      window.history.pushState({}, '', url);
       
       // Reset UI
       document.getElementById('roomSection').classList.add('hidden');
       document.getElementById('joinSection').classList.remove('hidden');
       document.getElementById('broadcasterView').classList.add('hidden');
+      document.getElementById('shareSection').classList.add('hidden');
       document.getElementById('roleIndicator').classList.remove('broadcaster-badge');
       
       updateStatus('Broadcasting stopped. Room closed.', 'default');
+      
+      // Reset current room
+      currentRoomId = null;
     });
 
     // Clean up when leaving
     window.addEventListener('beforeunload', () => {
-      if (isBroadcaster) {
-        localStorage.removeItem('roomOffer');
+      if (isBroadcaster && currentRoomId) {
+        removeRoom(currentRoomId);
         
         // Stop all media tracks
         if (localStream) {
@@ -596,7 +992,15 @@
       if (peerConnection) {
         peerConnection.close();
       }
+      
+      // Clean up audio visualization
+      if (audioVisualInterval) {
+        clearInterval(audioVisualInterval);
+      }
     });
+    
+    // Initialize the application when DOM is loaded
+    document.addEventListener('DOMContentLoaded', init);
     
     /* 
     TODO: Future enhancements
@@ -608,6 +1012,10 @@
     - Add bandwidth and quality controls
     - Implement proper error handling and reconnection logic
     - Add mobile responsiveness enhancements
+    - Add WebRTC connection statistics monitoring
+    - Implement real audio visualization using Web Audio API
+    - Add support for multiple broadcasters in the same room
+    - Implement room password protection
     */
   </script>
 </body>
