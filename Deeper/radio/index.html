@@ -1228,7 +1228,7 @@
         updateStatus('Microphone access granted. Setting up connection...', 'connecting');
         
         peerConnection = new RTCPeerConnection(config);
-        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream);
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream)); // Fixed missing closing parenthesis here
 
         // Create the offer and disable trickle ICE
         const offer = await peerConnection.createOffer();
