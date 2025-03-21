@@ -389,6 +389,19 @@
   </header>
   
   <div class="container">
+    <!-- Quick Connect Button (Added at top) -->
+    <div class="card" id="quickConnectSection">
+      <h2 class="card-title">Quick Connect</h2>
+      <p>Connect instantly to a European audio room.</p>
+      <button id="quickConnectButton" class="btn-primary center-btn" style="margin: 0 auto; display: flex;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        Connect to Europe
+      </button>
+      <div id="quickStatus" style="text-align: center; margin-top: 1rem;"></div>
+    </div>
+
     <!-- Join Section -->
     <div class="card" id="joinSection">
       <h2 class="card-title">
@@ -578,7 +591,12 @@
       console.log("init: roomIdFromUrl =", roomIdFromUrl);
       if (roomIdFromUrl) {
         document.getElementById('roomIdInput').value = roomIdFromUrl;
+        // Auto-join room from URL
+        setTimeout(() => joinRoom(roomIdFromUrl), 500);
       }
+      
+      // Check for European room on load
+      checkEuropeanRoom();
       
       // Also add region to create tab for consistency
       document.getElementById('newRoomIdInput').placeholder = `Enter custom room ID (or leave empty for ${document.getElementById('regionSelect').value}-room)`;
@@ -631,6 +649,111 @@
           `;
         }, 2000);
       });
+    }
+    
+    // Check if European room exists and update UI
+    function checkEuropeanRoom() {
+      const europRoomId = "europ-default";
+      const exists = roomExists(europRoomId);
+      const quickStatus = document.getElementById('quickStatus');
+      
+      if (exists) {
+        quickStatus.textContent = "European room is active! Click to join.";
+        quickStatus.style.color = "var(--secondary-color)";
+      } else {
+        quickStatus.textContent = "No active European room. Click to create one.";
+        quickStatus.style.color = "var(--primary-color)";
+      }
+    }
+    
+    // Quick Connect button handler
+    document.getElementById('quickConnectButton').addEventListener('click', async () => {
+      const europRoomId = "europ-default";
+      const exists = roomExists(europRoomId);
+      
+      // Set region to Europe
+      document.getElementById('regionSelect').value = 'europ';
+      
+      if (exists) {
+        // If room exists, join it
+        joinRoom(europRoomId);
+      } else {
+        // If room doesn't exist, create it
+        createRoom(europRoomId);
+      }
+    });
+    
+    // Join a room with the specified ID
+    async function joinRoom(roomId) {
+      console.log("joinRoom: Joining room", roomId);
+      
+      if (!roomExists(roomId)) {
+        updateStatus(`Room "${roomId}" doesn't exist.`, 'error');
+        return;
+      }
+      
+      currentRoomId = roomId;
+      
+      // Update URL to include room ID
+      const url = new URL(window.location.href);
+      url.searchParams.set('room', roomId);
+      window.history.pushState({}, '', url);
+      
+      // Set room name display
+      document.getElementById('roomName').textContent = `Room: ${roomId}`;
+      
+      updateStatus('Connecting to room...', 'connecting');
+      
+      // Hide all sections, show room section
+      document.getElementById('quickConnectSection').classList.add('hidden');
+      document.getElementById('joinSection').classList.add('hidden');
+      document.getElementById('roomSection').classList.remove('hidden');
+      document.getElementById('roomSection').classList.add('fade-in');
+      
+      // Become a listener
+      isBroadcaster = false;
+      document.getElementById('roleIndicator').textContent = "Role: Listener";
+      document.getElementById('listenerView').classList.remove('hidden');
+      
+      await setupListener(roomId);
+    }
+    
+    // Create a room with the specified ID
+    async function createRoom(roomId) {
+      console.log("createRoom: Creating room", roomId);
+      
+      if (roomExists(roomId)) {
+        updateStatus(`Room "${roomId}" already exists.`, 'error');
+        return;
+      }
+      
+      currentRoomId = roomId;
+      
+      // Update URL to include room ID
+      const url = new URL(window.location.href);
+      url.searchParams.set('room', roomId);
+      window.history.pushState({}, '', url);
+      
+      // Set room name display
+      document.getElementById('roomName').textContent = `Room: ${roomId}`;
+      
+      // Hide all sections, show room section
+      document.getElementById('quickConnectSection').classList.add('hidden');
+      document.getElementById('joinSection').classList.add('hidden');
+      document.getElementById('roomSection').classList.remove('hidden');
+      document.getElementById('roomSection').classList.add('fade-in');
+      
+      // Setup as broadcaster
+      isBroadcaster = true;
+      document.getElementById('roleIndicator').textContent = "Role: Broadcaster";
+      document.getElementById('roleIndicator').classList.add('broadcaster-badge');
+      document.getElementById('broadcasterView').classList.remove('hidden');
+      document.getElementById('shareSection').classList.remove('hidden');
+      
+      // Set share URL
+      document.getElementById('shareUrl').value = url.toString();
+      
+      await setupBroadcaster(roomId);
     }
     
     // Utility to update status with appropriate styling
@@ -719,25 +842,52 @@
         clearInterval(audioVisualInterval);
       }
       
-      // This would normally use the Web Audio API to visualize audio levels
-      // For now, we'll simulate audio activity with random bars
+      // Create audio context and analyzer if they don't exist
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
       
-      // TODO: Implement real audio visualization with Web Audio API
+      // Set up audio analyzer
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 32;
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      // Connect the stream to the analyzer
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      
       const bars = document.querySelectorAll(`#${targetElementId} .audio-bar`);
       
-      // Simple simulation of audio activity
-      const simulateAudioActivity = () => {
-        bars.forEach(bar => {
-          if (Math.random() > 0.5) {
+      // Update visualization based on actual audio levels
+      const updateVisualization = () => {
+        analyser.getByteFrequencyData(dataArray);
+        
+        // Calculate average volume
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          sum += dataArray[i];
+        }
+        const average = sum / bufferLength;
+        
+        // Update UI based on volume threshold
+        bars.forEach((bar, index) => {
+          const threshold = 10 + (index * 15); // Different threshold for each bar
+          if (average > threshold) {
             bar.classList.add('active');
           } else {
             bar.classList.remove('active');
           }
         });
+        
+        // Log volume for debugging
+        if (average > 5) {
+          console.log(`Audio level: ${average.toFixed(2)}`);
+        }
       };
       
-      // Simulate audio activity every 200ms
-      audioVisualInterval = setInterval(simulateAudioActivity, 200);
+      // Update visualization 10 times per second
+      audioVisualInterval = setInterval(updateVisualization, 100);
       return audioVisualInterval;
     }
 
@@ -777,32 +927,7 @@
         return;
       }
       
-      currentRoomId = roomId;
-      
-      // Update URL to include room ID
-      const url = new URL(window.location.href);
-      url.searchParams.set('room', roomId);
-      window.history.pushState({}, '', url);
-      
-      // Set room name display
-      document.getElementById('roomName').textContent = `Room: ${roomId}`;
-      
-      // Show room section, hide join section
-      document.getElementById('joinSection').classList.add('hidden');
-      document.getElementById('roomSection').classList.remove('hidden');
-      document.getElementById('roomSection').classList.add('fade-in');
-      
-      // Setup as broadcaster
-      isBroadcaster = true;
-      document.getElementById('roleIndicator').textContent = "Role: Broadcaster";
-      document.getElementById('roleIndicator').classList.add('broadcaster-badge');
-      document.getElementById('broadcasterView').classList.remove('hidden');
-      document.getElementById('shareSection').classList.remove('hidden');
-      
-      // Set share URL
-      document.getElementById('shareUrl').value = url.toString();
-      
-      await setupBroadcaster(roomId);
+      createRoom(roomId);
     });
 
     // Join button handler
@@ -819,61 +944,13 @@
       // Check if room exists, create it if it's a region default room and doesn't exist
       if (!roomExists(roomId) && roomId.includes('-default')) {
         console.log(`Default room ${roomId} doesn't exist yet, creating it...`);
-        currentRoomId = roomId;
-        
-        // Update URL to include room ID
-        const url = new URL(window.location.href);
-        url.searchParams.set('room', roomId);
-        window.history.pushState({}, '', url);
-        
-        // Set room name display
-        document.getElementById('roomName').textContent = `Room: ${roomId}`;
-        
-        // Show room section, hide join section
-        document.getElementById('joinSection').classList.add('hidden');
-        document.getElementById('roomSection').classList.remove('hidden');
-        document.getElementById('roomSection').classList.add('fade-in');
-        
-        // Setup as broadcaster for the new default room
-        isBroadcaster = true;
-        document.getElementById('roleIndicator').textContent = "Role: Broadcaster";
-        document.getElementById('roleIndicator').classList.add('broadcaster-badge');
-        document.getElementById('broadcasterView').classList.remove('hidden');
-        document.getElementById('shareSection').classList.remove('hidden');
-        
-        // Set share URL
-        document.getElementById('shareUrl').value = url.toString();
-        
-        await setupBroadcaster(roomId);
-        return;
+        createRoom(roomId);
       } else if (!roomExists(roomId)) {
         updateStatus(`Room "${roomId}" doesn't exist. Please check the ID or create a new room.`, 'error');
-        return;
+      } else {
+        // Join the existing room
+        joinRoom(roomId);
       }
-      
-      currentRoomId = roomId;
-      
-      // Update URL to include room ID
-      const url = new URL(window.location.href);
-      url.searchParams.set('room', roomId);
-      window.history.pushState({}, '', url);
-      
-      // Set room name display
-      document.getElementById('roomName').textContent = `Room: ${roomId}`;
-      
-      updateStatus('Connecting to room...', 'connecting');
-      
-      // Hide join section, show room section
-      document.getElementById('joinSection').classList.add('hidden');
-      document.getElementById('roomSection').classList.remove('hidden');
-      document.getElementById('roomSection').classList.add('fade-in');
-      
-      // Become a listener
-      isBroadcaster = false;
-      document.getElementById('roleIndicator').textContent = "Role: Listener";
-      document.getElementById('listenerView').classList.remove('hidden');
-      
-      await setupListener(roomId);
     });
 
     // Setup broadcaster role
@@ -1048,6 +1125,9 @@
       url.searchParams.delete('room');
       window.history.pushState({}, '', url);
       
+      // Show quick connect section again
+      document.getElementById('quickConnectSection').classList.remove('hidden');
+      
       // Reset UI
       document.getElementById('roomSection').classList.add('hidden');
       document.getElementById('joinSection').classList.remove('hidden');
@@ -1056,6 +1136,9 @@
       document.getElementById('roleIndicator').classList.remove('broadcaster-badge');
       
       updateStatus('Broadcasting stopped. Room closed.', 'default');
+      
+      // Update European room status
+      checkEuropeanRoom();
       
       // Reset current room
       currentRoomId = null;
