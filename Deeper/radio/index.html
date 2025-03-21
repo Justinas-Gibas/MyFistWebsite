@@ -410,8 +410,20 @@
 
       <!-- Join Room Tab -->
       <div class="tab-content active" id="joinTab">
-        <p>Enter a room ID to join an existing conversation, or use the default room if available.</p>
+        <p>Enter a room ID to join an existing conversation, or use a default regional room.</p>
         <input type="text" id="roomIdInput" placeholder="Enter room ID (optional)">
+        
+        <!-- Add region selection dropdown -->
+        <div style="margin-bottom: 1rem;">
+          <label for="regionSelect">Default region:</label>
+          <select id="regionSelect" style="padding: 0.5rem; border-radius: 8px; margin-left: 0.5rem; border: 1px solid var(--border-color);">
+            <option value="europ" selected>Europe</option>
+            <option value="america">America</option>
+            <option value="asia">Asia</option>
+            <option value="africa">Africa</option>
+          </select>
+        </div>
+        
         <button id="joinButton" class="btn-primary center-btn">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
@@ -568,6 +580,14 @@
         document.getElementById('roomIdInput').value = roomIdFromUrl;
       }
       
+      // Also add region to create tab for consistency
+      document.getElementById('newRoomIdInput').placeholder = `Enter custom room ID (or leave empty for ${document.getElementById('regionSelect').value}-room)`;
+      
+      // Update create room placeholder when region changes
+      document.getElementById('regionSelect').addEventListener('change', function() {
+        document.getElementById('newRoomIdInput').placeholder = `Enter custom room ID (or leave empty for ${this.value}-room)`;
+      });
+      
       const availableRooms = getAllRooms();
       console.log("init: availableRooms =", availableRooms);
       if (availableRooms.length > 0) {
@@ -589,11 +609,19 @@
       });
       
       // Set up copy link button
-      document.getElementById('copyLinkBtn').addEventListener('click', () => {
+      document.getElementById('copyLinkBtn').addEventListener('click', async () => {
         const shareUrlInput = document.getElementById('shareUrl');
-        shareUrlInput.select();
-        document.execCommand('copy');
-        document.getElementById('copyLinkBtn').textContent = 'Copied!';
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(shareUrlInput.value);
+          } else {
+            shareUrlInput.select();
+            document.execCommand('copy');
+          }
+          document.getElementById('copyLinkBtn').textContent = 'Copied!';
+        } catch (err) {
+          console.error('Copy failed:', err);
+        }
         setTimeout(() => {
           document.getElementById('copyLinkBtn').innerHTML = `
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -713,11 +741,33 @@
       return audioVisualInterval;
     }
 
+    // Get or create a default room based on region
+    function getOrCreateDefaultRoom() {
+      const region = document.getElementById('regionSelect').value;
+      const roomId = `${region}-default`;
+      
+      // Check if the room exists already
+      if (roomExists(roomId)) {
+        return roomId;
+      }
+      
+      // Otherwise, see if any room exists
+      const defaultRoom = getDefaultRoom();
+      if (defaultRoom) {
+        return defaultRoom;
+      }
+      
+      // If no rooms exist, we'll return the region ID to create a new room
+      return roomId;
+    }
+    
     // Create room handler
     document.getElementById('createRoomButton').addEventListener('click', async () => {
       let roomId = document.getElementById('newRoomIdInput').value.trim();
       if (!roomId) {
-        roomId = generateRoomId();
+        // Use region in the room name when auto-generating
+        const region = document.getElementById('regionSelect').value;
+        roomId = `${region}-${generateRoomId()}`;
       }
       console.log("createRoomButton: Creating room with ID =", roomId);
       
@@ -760,17 +810,43 @@
       let roomId = document.getElementById('roomIdInput').value.trim();
       console.log("joinButton: Room ID input =", roomId);
       
-      // If no room ID is provided, try to join the default room
+      // If no room ID is provided, use the selected region's default room
       if (!roomId) {
-        roomId = getDefaultRoom();
-        if (!roomId) {
-          updateStatus('No room ID provided and no default room available.', 'error');
-          return;
-        }
+        roomId = getOrCreateDefaultRoom();
+        console.log("joinButton: Using default room for region:", roomId);
       }
       
-      // Check if room exists
-      if (!roomExists(roomId)) {
+      // Check if room exists, create it if it's a region default room and doesn't exist
+      if (!roomExists(roomId) && roomId.includes('-default')) {
+        console.log(`Default room ${roomId} doesn't exist yet, creating it...`);
+        currentRoomId = roomId;
+        
+        // Update URL to include room ID
+        const url = new URL(window.location.href);
+        url.searchParams.set('room', roomId);
+        window.history.pushState({}, '', url);
+        
+        // Set room name display
+        document.getElementById('roomName').textContent = `Room: ${roomId}`;
+        
+        // Show room section, hide join section
+        document.getElementById('joinSection').classList.add('hidden');
+        document.getElementById('roomSection').classList.remove('hidden');
+        document.getElementById('roomSection').classList.add('fade-in');
+        
+        // Setup as broadcaster for the new default room
+        isBroadcaster = true;
+        document.getElementById('roleIndicator').textContent = "Role: Broadcaster";
+        document.getElementById('roleIndicator').classList.add('broadcaster-badge');
+        document.getElementById('broadcasterView').classList.remove('hidden');
+        document.getElementById('shareSection').classList.remove('hidden');
+        
+        // Set share URL
+        document.getElementById('shareUrl').value = url.toString();
+        
+        await setupBroadcaster(roomId);
+        return;
+      } else if (!roomExists(roomId)) {
         updateStatus(`Room "${roomId}" doesn't exist. Please check the ID or create a new room.`, 'error');
         return;
       }
