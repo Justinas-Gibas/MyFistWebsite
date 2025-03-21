@@ -380,6 +380,109 @@
     .tab-content.active {
       display: block;
     }
+
+    /* Add styling for default rooms grid and loading indicators */
+    .default-rooms-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .room-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    
+    .room-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .room-card.active {
+      border-color: var(--secondary-color);
+      background-color: rgba(16, 185, 129, 0.05);
+    }
+    
+    .room-status {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 0.5rem;
+      background-color: #ccc;
+    }
+    
+    .room-status.active {
+      background-color: var(--secondary-color);
+    }
+    
+    .room-status.inactive {
+      background-color: var(--danger-color);
+    }
+    
+    .setup-progress {
+      margin: 1.5rem 0;
+      padding: 1rem;
+      border-radius: 8px;
+      background-color: rgba(79, 70, 229, 0.05);
+      border-left: 4px solid var(--primary-color);
+    }
+    
+    .setup-step {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      opacity: 0.5;
+    }
+    
+    .setup-step.active {
+      opacity: 1;
+      font-weight: 600;
+    }
+    
+    .setup-step.completed {
+      opacity: 0.8;
+      color: var(--secondary-color);
+    }
+    
+    .setup-icon {
+      width: 20px;
+      height: 20px;
+      margin-right: 0.5rem;
+      animation: pulse 1.5s infinite;
+    }
+    
+    .setup-step.completed .setup-icon {
+      animation: none;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+    
+    .loader {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(79, 70, 229, 0.2);
+      border-radius: 50%;
+      border-top-color: var(--primary-color);
+      animation: spin 1s linear infinite;
+      margin-right: 0.5rem;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -389,17 +492,43 @@
   </header>
   
   <div class="container">
-    <!-- Quick Connect Button (Added at top) -->
-    <div class="card" id="quickConnectSection">
-      <h2 class="card-title">Quick Connect</h2>
-      <p>Connect instantly to a European audio room.</p>
-      <button id="quickConnectButton" class="btn-primary center-btn" style="margin: 0 auto; display: flex;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+    <!-- Default Rooms Section (replaces Quick Connect Button) -->
+    <div class="card" id="defaultRoomsSection">
+      <h2 class="card-title">
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        Connect to Europe
-      </button>
-      <div id="quickStatus" style="text-align: center; margin-top: 1rem;"></div>
+        Default Regional Rooms
+      </h2>
+      <p>Join or create a default room in your region for quick communication:</p>
+      
+      <div class="default-rooms-grid" id="defaultRoomsGrid">
+        <!-- Default room cards will be generated in JS -->
+      </div>
+      
+      <div id="roomSetupProgress" class="setup-progress hidden">
+        <h3>Room Setup Progress</h3>
+        <div class="setup-step" data-step="init">
+          <div class="loader"></div>
+          <span>Initializing connection...</span>
+        </div>
+        <div class="setup-step" data-step="mic">
+          <div class="loader"></div>
+          <span>Requesting microphone access...</span>
+        </div>
+        <div class="setup-step" data-step="offer">
+          <div class="loader"></div>
+          <span>Creating connection offer...</span>
+        </div>
+        <div class="setup-step" data-step="ice">
+          <div class="loader"></div>
+          <span>Gathering connection candidates...</span>
+        </div>
+        <div class="setup-step" data-step="ready">
+          <div class="loader"></div>
+          <span>Room ready for connections</span>
+        </div>
+      </div>
     </div>
 
     <!-- Join Section -->
@@ -583,15 +712,30 @@
     let currentRoomId = null;
     let audioVisualInterval = null;
     
+    // Array of default regions
+    const defaultRegions = [
+      { id: 'europ', name: 'Europe' },
+      { id: 'america', name: 'America' },
+      { id: 'asia', name: 'Asia' },
+      { id: 'africa', name: 'Africa' }
+    ];
+    
     // Initialize the application
     function init() {
       console.log("init: URL parameters =", window.location.search);
       const urlParams = new URLSearchParams(window.location.search);
       const roomIdFromUrl = urlParams.get('room');
       console.log("init: roomIdFromUrl =", roomIdFromUrl);
+      
+      // Generate default room cards
+      generateDefaultRoomCards();
+      
+      // Check all default rooms and update their status
+      checkAllDefaultRooms();
+      
       if (roomIdFromUrl) {
         document.getElementById('roomIdInput').value = roomIdFromUrl;
-        // Auto-join room from URL
+        // Auto-join room from URL with a small delay to ensure UI is ready
         setTimeout(() => joinRoom(roomIdFromUrl), 500);
       }
       
@@ -649,6 +793,9 @@
           `;
         }, 2000);
       });
+      
+      // Set up periodic checking of default rooms (every 10 seconds)
+      setInterval(checkAllDefaultRooms, 10000);
     }
     
     // Check if European room exists and update UI
@@ -683,6 +830,100 @@
       }
     });
     
+    // Generate cards for all default rooms
+    function generateDefaultRoomCards() {
+      const container = document.getElementById('defaultRoomsGrid');
+      container.innerHTML = ''; // Clear existing content
+      
+      defaultRegions.forEach(region => {
+        const roomId = `${region.id}-default`;
+        const card = document.createElement('div');
+        card.className = 'room-card';
+        card.setAttribute('data-room-id', roomId);
+        card.innerHTML = `
+          <h3>${region.name}</h3>
+          <p><span class="room-status" id="status-${roomId}"></span> 
+             <span id="text-${roomId}">Checking status...</span></p>
+          <button class="btn-primary" id="btn-${roomId}">
+            Connect
+          </button>
+        `;
+        container.appendChild(card);
+        
+        // Add click listener to the button
+        document.getElementById(`btn-${roomId}`).addEventListener('click', () => {
+          handleDefaultRoomClick(roomId);
+        });
+      });
+    }
+    
+    // Check status of all default rooms
+    function checkAllDefaultRooms() {
+      defaultRegions.forEach(region => {
+        const roomId = `${region.id}-default`;
+        const exists = roomExists(roomId);
+        updateDefaultRoomStatus(roomId, exists);
+      });
+    }
+    
+    // Update the UI for a default room's status
+    function updateDefaultRoomStatus(roomId, isActive) {
+      const statusIndicator = document.getElementById(`status-${roomId}`);
+      const statusText = document.getElementById(`text-${roomId}`);
+      const button = document.getElementById(`btn-${roomId}`);
+      const card = document.querySelector(`.room-card[data-room-id="${roomId}"]`);
+      
+      if (isActive) {
+        statusIndicator.className = 'room-status active';
+        statusText.textContent = 'Room is active';
+        button.textContent = 'Join Room';
+        card.classList.add('active');
+      } else {
+        statusIndicator.className = 'room-status inactive';
+        statusText.textContent = 'Room is inactive';
+        button.textContent = 'Create Room';
+        card.classList.remove('active');
+      }
+    }
+    
+    // Handle clicking on a default room
+    function handleDefaultRoomClick(roomId) {
+      const exists = roomExists(roomId);
+      
+      // Show setup progress UI
+      document.getElementById('roomSetupProgress').classList.remove('hidden');
+      updateSetupStep('init', 'active');
+      
+      if (exists) {
+        // If room exists, join it
+        joinRoom(roomId);
+      } else {
+        // If room doesn't exist, create it
+        createRoom(roomId);
+      }
+    }
+    
+    // Update the setup progress indicator
+    function updateSetupStep(step, status) {
+      // Reset all steps
+      document.querySelectorAll('.setup-step').forEach(el => {
+        el.className = 'setup-step';
+      });
+      
+      // Based on which step we're at, update all previous steps to completed and current to active
+      const steps = ['init', 'mic', 'offer', 'ice', 'ready'];
+      const currentIndex = steps.indexOf(step);
+      
+      steps.forEach((s, index) => {
+        const el = document.querySelector(`.setup-step[data-step="${s}"]`);
+        if (index < currentIndex) {
+          el.className = 'setup-step completed';
+        } else if (index === currentIndex) {
+          el.className = `setup-step ${status}`;
+        }
+      });
+    }
+    
     // Join a room with the specified ID
     async function joinRoom(roomId) {
       console.log("joinRoom: Joining room", roomId);
@@ -691,6 +932,10 @@
         updateStatus(`Room "${roomId}" doesn't exist.`, 'error');
         return;
       }
+      
+      // Update setup progress
+      updateSetupStep('init', 'completed');
+      updateSetupStep('mic', 'active');
       
       currentRoomId = roomId;
       
@@ -705,7 +950,7 @@
       updateStatus('Connecting to room...', 'connecting');
       
       // Hide all sections, show room section
-      document.getElementById('quickConnectSection').classList.add('hidden');
+      document.getElementById('defaultRoomsSection').classList.add('hidden');
       document.getElementById('joinSection').classList.add('hidden');
       document.getElementById('roomSection').classList.remove('hidden');
       document.getElementById('roomSection').classList.add('fade-in');
@@ -714,6 +959,10 @@
       isBroadcaster = false;
       document.getElementById('roleIndicator').textContent = "Role: Listener";
       document.getElementById('listenerView').classList.remove('hidden');
+      
+      // Update setup progress as we go
+      updateSetupStep('mic', 'completed');
+      updateSetupStep('offer', 'active');
       
       await setupListener(roomId);
     }
@@ -727,6 +976,10 @@
         return;
       }
       
+      // Update setup progress
+      updateSetupStep('init', 'completed');
+      updateSetupStep('mic', 'active');
+      
       currentRoomId = roomId;
       
       // Update URL to include room ID
@@ -738,7 +991,7 @@
       document.getElementById('roomName').textContent = `Room: ${roomId}`;
       
       // Hide all sections, show room section
-      document.getElementById('quickConnectSection').classList.add('hidden');
+      document.getElementById('defaultRoomsSection').classList.add('hidden');
       document.getElementById('joinSection').classList.add('hidden');
       document.getElementById('roomSection').classList.remove('hidden');
       document.getElementById('roomSection').classList.add('fade-in');
@@ -953,14 +1206,21 @@
       }
     });
 
-    // Setup broadcaster role
+    // Setup broadcaster role with improved status updates
     async function setupBroadcaster(roomId) {
       console.log("setupBroadcaster: Starting setup for room", roomId);
       updateStatus('Requesting microphone access...', 'connecting');
       
       try {
+        // Update setup progress
+        updateSetupStep('mic', 'active');
+        
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         console.log("setupBroadcaster: Microphone access granted");
+        
+        // Update setup progress
+        updateSetupStep('mic', 'completed');
+        updateSetupStep('offer', 'active');
         
         // Set up audio visualization for broadcaster
         setupAudioVisualization(localStream, 'broadcasterAudioIndicator');
@@ -968,14 +1228,23 @@
         updateStatus('Microphone access granted. Setting up connection...', 'connecting');
         
         peerConnection = new RTCPeerConnection(config);
-        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream);
 
         // Create the offer and disable trickle ICE
         const offer = await peerConnection.createOffer();
         console.log("setupBroadcaster: Created offer =", offer);
         await peerConnection.setLocalDescription(offer);
+        
+        // Update setup progress
+        updateSetupStep('offer', 'completed');
+        updateSetupStep('ice', 'active');
+        
         await waitForIceGatheringComplete(peerConnection);
         console.log("setupBroadcaster: Local description set and ICE gathering completed");
+        
+        // Update setup progress
+        updateSetupStep('ice', 'completed');
+        updateSetupStep('ready', 'active');
 
         // Store offer for listeners
         const offerStr = JSON.stringify(peerConnection.localDescription);
@@ -995,11 +1264,26 @@
           }
         };
         
+        // Update setup progress to ready
+        updateSetupStep('ready', 'completed');
+        
         updateStatus(`Room "${roomId}" created. Ready to broadcast. Waiting for listeners...`, 'connected');
+        
+        // Show sharing instructions prominently
+        const sharingInfo = document.createElement('div');
+        sharingInfo.className = 'info-box success';
+        sharingInfo.innerHTML = `
+          <h3>Room Ready to Share!</h3>
+          <p>Your room is now set up and ready for others to join. Share the link above with anyone you want to join this voice room.</p>
+          <p><strong>Note:</strong> As the broadcaster, if you leave or close this page, the room will be closed.</p>
+        `;
+        document.getElementById('shareSection').appendChild(sharingInfo);
+        
       } catch (err) {
         console.error("setupBroadcaster: Error setting up broadcaster:", err);
         updateStatus('Error accessing microphone: ' + err.message, 'error');
         // Show join button again if microphone access fails
+        document.getElementById('defaultRoomsSection').classList.remove('hidden');
         document.getElementById('joinSection').classList.remove('hidden');
         document.getElementById('roomSection').classList.add('hidden');
         
@@ -1010,9 +1294,12 @@
       }
     }
 
-    // Setup listener role
+    // Setup listener role with improved status updates
     async function setupListener(roomId) {
       updateStatus('Connecting to broadcaster...', 'connecting');
+      
+      // Update setup progress
+      updateSetupStep('offer', 'active');
       
       peerConnection = new RTCPeerConnection(config);
       
@@ -1026,6 +1313,18 @@
         setupAudioVisualization(event.streams[0], 'listenerAudioIndicator');
         
         updateStatus('Receiving audio from broadcaster', 'connected');
+        
+        // Update setup progress
+        updateSetupStep('ready', 'completed');
+        
+        // Add success message
+        const listenerInfo = document.createElement('div');
+        listenerInfo.className = 'info-box success';
+        listenerInfo.innerHTML = `
+          <h3>Connected Successfully!</h3>
+          <p>You are now connected to the broadcaster. You should be able to hear audio when they speak.</p>
+        `;
+        document.getElementById('listenerView').appendChild(listenerInfo);
       };
       
       try {
@@ -1038,12 +1337,20 @@
         const offerDesc = new RTCSessionDescription(JSON.parse(offerText));
         await peerConnection.setRemoteDescription(offerDesc);
         
+        // Update setup progress
+        updateSetupStep('offer', 'completed');
+        updateSetupStep('ice', 'active');
+        
         // Create and set the answer
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
         await waitForIceGatheringComplete(peerConnection);
         
         document.getElementById('connectionDetails').value = JSON.stringify(peerConnection.localDescription);
+        
+        // Update setup progress
+        updateSetupStep('ice', 'completed');
+        updateSetupStep('ready', 'active');
         
         // Monitor connection state
         peerConnection.oniceconnectionstatechange = () => {
@@ -1059,6 +1366,7 @@
       } catch (err) {
         updateStatus('Error connecting to room: ' + err.message, 'error');
         // Show join button again if connection fails
+        document.getElementById('defaultRoomsSection').classList.remove('hidden');
         document.getElementById('joinSection').classList.remove('hidden');
         document.getElementById('roomSection').classList.add('hidden');
       }
@@ -1125,8 +1433,9 @@
       url.searchParams.delete('room');
       window.history.pushState({}, '', url);
       
-      // Show quick connect section again
-      document.getElementById('quickConnectSection').classList.remove('hidden');
+      // Show default rooms section again
+      document.getElementById('defaultRoomsSection').classList.remove('hidden');
+      document.getElementById('roomSetupProgress').classList.add('hidden');
       
       // Reset UI
       document.getElementById('roomSection').classList.add('hidden');
@@ -1136,6 +1445,9 @@
       document.getElementById('roleIndicator').classList.remove('broadcaster-badge');
       
       updateStatus('Broadcasting stopped. Room closed.', 'default');
+      
+      // Update all default room statuses
+      checkAllDefaultRooms();
       
       // Update European room status
       checkEuropeanRoom();
