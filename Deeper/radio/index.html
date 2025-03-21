@@ -814,21 +814,24 @@
     }
     
     // Quick Connect button handler
-    document.getElementById('quickConnectButton').addEventListener('click', async () => {
-      const europRoomId = "europ-default";
-      const exists = roomExists(europRoomId);
-      
-      // Set region to Europe
-      document.getElementById('regionSelect').value = 'europ';
-      
-      if (exists) {
-        // If room exists, join it
-        joinRoom(europRoomId);
-      } else {
-        // If room doesn't exist, create it
-        createRoom(europRoomId);
-      }
-    });
+    const quickConnectButton = document.getElementById('quickConnectButton');
+    if (quickConnectButton) {
+      quickConnectButton.addEventListener('click', async () => {
+        const europRoomId = "europ-default";
+        const exists = roomExists(europRoomId);
+        
+        // Set region to Europe
+        document.getElementById('regionSelect').value = 'europ';
+        
+        if (exists) {
+          // If room exists, join it
+          joinRoom(europRoomId);
+        } else {
+          // If room doesn't exist, create it
+          createRoom(europRoomId);
+        }
+      });
+    }
     
     // Generate cards for all default rooms
     function generateDefaultRoomCards() {
