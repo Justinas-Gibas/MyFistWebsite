@@ -804,6 +804,11 @@
       const exists = roomExists(europRoomId);
       const quickStatus = document.getElementById('quickStatus');
       
+      if (!quickStatus) {
+        console.warn('checkEuropeanRoom: quickStatus element not found in the DOM.');
+        return; // Exit if the element does not exist
+      }
+      
       if (exists) {
         quickStatus.textContent = "European room is active! Click to join.";
         quickStatus.style.color = "var(--secondary-color)";
