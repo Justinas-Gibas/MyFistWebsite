@@ -30,6 +30,23 @@
 <body>
     <canvas id="renderCanvas" touch-action="none"></canvas>
     <script>
+        // Device detection
+        const deviceDetector = {
+            isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+            isTablet: /iPad|Android(?!.*Mobile)/i.test(navigator.userAgent) || (screen.width > 768 && 'ontouchstart' in window),
+            isVRSupported: 'xr' in navigator,
+            isDesktop: !(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)),
+            hasTouchCapability: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
+            deviceType: function() {
+                if (this.isVRSupported) return "VR-capable";
+                if (this.isTablet) return "tablet";
+                if (this.isMobile) return "mobile";
+                return "desktop";
+            }
+        };
+        
+        console.log("Device detected:", deviceDetector.deviceType());
+        
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true, { stencil: true });
 
@@ -49,21 +66,44 @@
                 skyboxColor: new BABYLON.Color3(0.1, 0.1, 0.2),
             });
             
-            // Better camera setup
+            // Device-optimized camera setup
             const camera = new BABYLON.ArcRotateCamera("Camera", Math.PI / 2, Math.PI / 3, 5, BABYLON.Vector3.Zero(), scene);
             camera.attachControl(canvas, true);
             camera.minZ = 0.1;
-            camera.wheelPrecision = 50;
-            camera.lowerRadiusLimit = 3;
-            camera.upperRadiusLimit = 20;
             
-            // WebXR setup
-            const xrHelper = await scene.createDefaultXRExperienceAsync({
-                uiOptions: {
-                    sessionMode: "immersive-vr",
-                },
-                optionalFeatures: true,
-            });
+            // Device-specific camera settings
+            if (deviceDetector.isMobile) {
+                camera.wheelPrecision = 100; // Less sensitive for mobile
+                camera.panningSensibility = 150; // Adjust panning for touch
+                camera.lowerRadiusLimit = 4; // Keep mobile users from zooming in too close
+                camera.upperRadiusLimit = 15; // Limit max zoom out for performance
+            } else {
+                camera.wheelPrecision = 50;
+                camera.lowerRadiusLimit = 3;
+                camera.upperRadiusLimit = 20;
+            }
+            
+            // WebXR setup - only initialize if VR is supported
+            if (deviceDetector.isVRSupported) {
+                try {
+                    const xrHelper = await scene.createDefaultXRExperienceAsync({
+                        uiOptions: {
+                            sessionMode: "immersive-vr",
+                        },
+                        optionalFeatures: true,
+                    });
+                    console.log("VR experience initialized");
+                } catch (error) {
+                    console.log("VR initialization failed", error);
+                }
+            }
+            
+            // Performance optimizations based on device
+            if (deviceDetector.isMobile || deviceDetector.isTablet) {
+                engine.setHardwareScalingLevel(1.5); // Scale down for mobile
+                scene.postProcessesEnabled = false; // Disable post-processing for performance
+                scene.particlesEnabled = false; // Disable particles for performance
+            }
             
             // Enhanced lighting
             const hemisphericLight = new BABYLON.HemisphericLight("hemisphericLight", new BABYLON.Vector3(0, 1, 0), scene);
@@ -115,22 +155,45 @@
                 scene
             );
             
-            // Add post-processing effects
-            const defaultPipeline = new BABYLON.DefaultRenderingPipeline("defaultPipeline", true, scene, [camera]);
-            defaultPipeline.fxaaEnabled = true;
-            defaultPipeline.bloomEnabled = true;
-            defaultPipeline.bloomThreshold = 0.15;
-            defaultPipeline.bloomWeight = 0.3;
-            defaultPipeline.depthOfFieldEnabled = true;
-            defaultPipeline.depthOfFieldBlurLevel = BABYLON.DepthOfFieldEffectBlurLevel.Low;
-            defaultPipeline.chromaticAberrationEnabled = true;
-            defaultPipeline.chromaticAberration.aberrationAmount = 0.01;
+            // Add post-processing effects - only for desktop/high-end devices
+            if (!deviceDetector.isMobile && !deviceDetector.isTablet) {
+                const defaultPipeline = new BABYLON.DefaultRenderingPipeline("defaultPipeline", true, scene, [camera]);
+                defaultPipeline.fxaaEnabled = true;
+                defaultPipeline.bloomEnabled = true;
+                defaultPipeline.bloomThreshold = 0.15;
+                defaultPipeline.bloomWeight = 0.3;
+                defaultPipeline.depthOfFieldEnabled = true;
+                defaultPipeline.depthOfFieldBlurLevel = BABYLON.DepthOfFieldEffectBlurLevel.Low;
+                defaultPipeline.chromaticAberrationEnabled = true;
+                defaultPipeline.chromaticAberration.aberrationAmount = 0.01;
+            }
             
-            // Debug inspector - press Ctrl+Shift+I to open
-            scene.debugLayer.show({
-                embedMode: true,
-                overlay: true
-            });
+            // Debug inspector - only enable on desktop
+            if (deviceDetector.isDesktop) {
+                scene.debugLayer.show({
+                    embedMode: true,
+                    overlay: true
+                });
+            }
+            
+            // Add device-specific controls/UI
+            if (deviceDetector.hasTouchCapability) {
+                // Create a simple touch UI for mobile/tablet
+                const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+                
+                const touchControlsInfo = new BABYLON.GUI.TextBlock();
+                touchControlsInfo.text = "Use one finger to rotate, two fingers to zoom";
+                touchControlsInfo.color = "white";
+                touchControlsInfo.fontSize = 16;
+                touchControlsInfo.height = "30px";
+                touchControlsInfo.top = "10px";
+                advancedTexture.addControl(touchControlsInfo);
+                
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    touchControlsInfo.isVisible = false;
+                }, 5000);
+            }
             
             return scene;
         };
