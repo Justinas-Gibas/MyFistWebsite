@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JGGame3</title>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+    <script src="https://cdn.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js"></script>
+    <script src="https://cdn.babylonjs.com/serializers/babylonjs.serializers.min.js"></script>
+    <script src="https://cdn.babylonjs.com/inspector/babylon.inspector.bundle.js"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+        }
+        #renderCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas" touch-action="none"></canvas>
+    <script>
+        const canvas = document.getElementById("renderCanvas");
+        const engine = new BABYLON.Engine(canvas, true, { stencil: true });
+
+        const createScene = async () => {
+            const scene = new BABYLON.Scene(engine);
+            
+            // Enable physics
+            const havokInstance = await HavokPhysics();
+            const havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
+            scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), havokPlugin);
+            
+            // Environment setup
+            scene.createDefaultEnvironment({
+                createGround: false,
+                createSkybox: true,
+                skyboxSize: 100,
+                skyboxColor: new BABYLON.Color3(0.1, 0.1, 0.2),
+            });
+            
+            // Better camera setup
+            const camera = new BABYLON.ArcRotateCamera("Camera", Math.PI / 2, Math.PI / 3, 5, BABYLON.Vector3.Zero(), scene);
+            camera.attachControl(canvas, true);
+            camera.minZ = 0.1;
+            camera.wheelPrecision = 50;
+            camera.lowerRadiusLimit = 3;
+            camera.upperRadiusLimit = 20;
+            
+            // WebXR setup
+            const xrHelper = await scene.createDefaultXRExperienceAsync({
+                uiOptions: {
+                    sessionMode: "immersive-vr",
+                },
+                optionalFeatures: true,
+            });
+            
+            // Enhanced lighting
+            const hemisphericLight = new BABYLON.HemisphericLight("hemisphericLight", new BABYLON.Vector3(0, 1, 0), scene);
+            hemisphericLight.intensity = 0.7;
+            
+            const pointLight = new BABYLON.PointLight("pointLight", new BABYLON.Vector3(0, 2, 0), scene);
+            pointLight.intensity = 0.8;
+            pointLight.diffuse = new BABYLON.Color3(1, 0.8, 0.5);
+            
+            // Ground with physics
+            const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 20, height: 20 }, scene);
+            ground.physicsImpostor = new BABYLON.PhysicsImpostor(
+                ground, 
+                BABYLON.PhysicsImpostor.BoxImpostor, 
+                { mass: 0, restitution: 0.7 }, 
+                scene
+            );
+            
+            // Apply material to ground
+            const groundMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
+            groundMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2);
+            groundMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
+            ground.material = groundMaterial;
+            
+            // Create physics-enabled objects
+            const sphere = BABYLON.MeshBuilder.CreateSphere("sphere", { diameter: 1 }, scene);
+            sphere.position.y = 3;
+            sphere.physicsImpostor = new BABYLON.PhysicsImpostor(
+                sphere, 
+                BABYLON.PhysicsImpostor.SphereImpostor, 
+                { mass: 1, restitution: 0.7 }, 
+                scene
+            );
+            
+            // PBR material for the sphere
+            const sphereMaterial = new BABYLON.PBRMaterial("sphereMaterial", scene);
+            sphereMaterial.metallic = 0.3;
+            sphereMaterial.roughness = 0.4;
+            sphereMaterial.albedoColor = new BABYLON.Color3(0.206, 0.94, 1);
+            sphere.material = sphereMaterial;
+            
+            // Add a box with physics
+            const box = BABYLON.MeshBuilder.CreateBox("box", { size: 1 }, scene);
+            box.position = new BABYLON.Vector3(1, 5, 0);
+            box.physicsImpostor = new BABYLON.PhysicsImpostor(
+                box, 
+                BABYLON.PhysicsImpostor.BoxImpostor, 
+                { mass: 1, restitution: 0.5 }, 
+                scene
+            );
+            
+            // Add post-processing effects
+            const defaultPipeline = new BABYLON.DefaultRenderingPipeline("defaultPipeline", true, scene, [camera]);
+            defaultPipeline.fxaaEnabled = true;
+            defaultPipeline.bloomEnabled = true;
+            defaultPipeline.bloomThreshold = 0.15;
+            defaultPipeline.bloomWeight = 0.3;
+            defaultPipeline.depthOfFieldEnabled = true;
+            defaultPipeline.depthOfFieldBlurLevel = BABYLON.DepthOfFieldEffectBlurLevel.Low;
+            defaultPipeline.chromaticAberrationEnabled = true;
+            defaultPipeline.chromaticAberration.aberrationAmount = 0.01;
+            
+            // Debug inspector - press Ctrl+Shift+I to open
+            scene.debugLayer.show({
+                embedMode: true,
+                overlay: true
+            });
+            
+            return scene;
+        };
+
+        createScene().then((scene) => {
+            engine.runRenderLoop(() => {
+                scene.render();
+            });
+        });
+
+        window.addEventListener("resize", () => {
+            engine.resize();
+        });
+    </script>
+</body>
+</html>
