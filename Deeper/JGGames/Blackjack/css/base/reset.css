@@ -1,0 +1,13 @@
+/* Reset CSS to normalize styles across browsers */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--body-font);
+    line-height: 1.5;
+    color: var(--text-color);
+    background-color: #121212;
+}

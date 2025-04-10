@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>JG VR Game</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Bootstrap 5 CSS and JS -->
+    <link id="theme-link" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Add Shoelace after Bootstrap -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.12.0/cdn/themes/light.css" />
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.12.0/cdn/shoelace-autoloader.js"></script>
+    
+    <!-- Add Interact.js for draggable windows -->
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    
+    <style>
+        body {
+        transition: background-color 1.3s ease, color 1.3s ease;
+        }
+        .btn-lg {
+            padding: 1rem 2rem;
+            font-size: 1.25rem;
+        }
+        .card {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .console-output {
+            height: 200px;
+            overflow-y: auto;
+            background-color: #1e1e1e;
+            color: #fff;
+            padding: 1rem;
+            font-family: monospace;
+        }
+
+        /* Custom Bootstrap color overrides */
+        /*  :root {
+            --bs-primary: #4a90e2;
+            --bs-secondary: #6c757d;
+            --bs-success: #2ecc71;
+            --bs-info: #3498db;
+            --bs-warning: #f1c40f;
+            --bs-danger: #e74c3c;
+            --bs-light: #f8f9fa;
+            --bs-dark: #343a40;  
+        }
+        */
+
+        /* Example of styling Shoelace buttons to match Bootstrap */
+        sl-button::part(base) {
+            font-family: var(--bs-body-font-family);
+            font-size: var(--bs-body-font-size);
+            border-radius: var(--bs-border-radius);
+        }
+
+        sl-button[variant="primary"]::part(base) {
+            background-color: var(--bs-primary);
+            border-color: var(--bs-primary);
+        }
+
+        /* Custom background colors */
+        .bg-custom-dark {
+            background-color: #1a1a1a !important;
+            color: #ffffff;
+        }
+        .bg-custom-blue {
+            background-color: #1e3c72 !important;
+            color: #ffffff;
+        }
+        .bg-custom-gradient {
+            background: linear-gradient(135deg, #9dbaec 0%, #2a5298 100%) !important;
+            color: #ffffff;
+        }
+        .bg-custom-navy {
+            background-color: #172b4d !important;
+            color: #ffffff;
+        }
+        .bg-custom-purple {
+            background-color: #4a148c !important;
+            color: #ffffff;
+        }
+
+        /* Draggable window styles */
+        .dragging {
+            opacity: 0.8;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2) !important;
+        }
+
+        .drag-handle {
+            padding: 1rem !important;
+            background: rgba(0,0,0,0.03);
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+            cursor: move;
+            cursor: -webkit-grab;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+        }
+
+        .drag-handle h2 {
+            margin: 0;
+            font-size: 1.25rem;
+            line-height: 1;
+        }
+
+        .dragging .drag-handle {
+            cursor: -webkit-grabbing;
+            cursor: grabbing;
+        }
+
+        /* Window styles */
+        .window-close {
+            position: absolute;
+            right: 15px;
+            top: 15px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            z-index: 1002;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            background: rgba(0,0,0,0.1);
+        }
+
+        .window-close:hover {
+            color: #dc3545;
+        }
+
+        .window-card {
+            position: fixed !important;
+            z-index: 1000;
+            
+            /*top: 0;
+            left: 0;
+            margin: 0 !important;
+            transform-origin: top left;
+            will-change: transform;
+            
+            pointer-events: auto;*/
+            
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(5px);           
+        }
+
+        /* Inventory styles */
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr); /* 5 slots per row */
+            gap: 10px;
+            padding: 15px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        .inventory-slot {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #ccc;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.1);
+            cursor: pointer;
+            position: relative;
+            margin: 0 auto;
+        }
+
+        .inventory-slot.active {
+            border-color: #0d6efd;
+        }
+
+        .inventory-item {
+            width: 50px;
+            height: 50px;
+            border-radius: 4px;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            cursor: move;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .inventory-item:hover {
+            transform: scale(1.05);
+            transition: transform 0.2s ease;
+        }
+
+        /* Skills styles */
+        .skill-slot {
+            background: rgba(0,0,0,0.1);
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .skill-slot:hover {
+            background: rgba(0,0,0,0.2);
+        }
+
+        .skill-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .skill-info {
+            flex: 1;
+        }
+
+        .skill-info h6 {
+            margin: 0 0 5px 0;
+        }
+
+        /* Hotbar styles */
+        #hotbar .inventory-slot {
+            width: 50px;
+            height: 50px;
+        }
+
+        #hotbar .inventory-item {
+            width: 40px;
+            height: 40px;
+        }
+        /* start menu styles */
+        #start-menu {
+            position: relative !important;
+            margin: 2rem auto;
+            transform: none !important;
+        }
+        /* main menu styles */
+        #main-menu {
+            position: relative !important;
+            margin: 2rem auto;
+            transform: none !important;
+        }
+
+        #main-menu .btn-lg {
+            font-size: 1.5rem;
+            padding: 1rem 2rem;
+        }
+
+        #main-menu.window-card {
+            background: rgba(255, 255, 255, 0.98);
+        }
+
+        #game-frame {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background: #000;
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #ui-layer {
+        min-height: 100vh;
+        overflow: hidden;
+    }
+
+        /* Update container z-index to appear above canvas */
+        .container-fluid {
+           min-height: 100vh;
+           width: 100%;
+           margin: 0;
+           padding: 0;
+        }
+        
+    </style>
+</head>
+<body class="bg-light text-dark">
+    <div class="container-fluid text-center mt-5 px-3">
+
+        <div id="game-frame" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+        
+        <div id="ui-layer" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 999;">
+        <div class="container-fluid text-center mt-5 px-3" style="position: relative; height: 100vh; pointer-events: auto;">
+
+                <!-- DevTools Button - positioned in top right corner -->
+                <div style="position: fixed; top: 10px; right: 10px; z-index: 1001;">
+                    <button class="btn btn-secondary" onclick="showDevTools()">DevTools</button>
+                </div>
+            
+                <!-- Start Menu (initial screen) -->
+                <div id="start-menu" class="card window-card mx-auto" style="max-width: 600px; margin-top: 2rem;">
+                    <div class="card-body p-5">
+                        <h1 class="mb-5">JG VR Game</h1>
+                        <div class="d-grid gap-4">
+                            <button class="btn btn-primary btn-lg py-3" onclick="startGame()">Start Game</button>
+                            <button class="btn btn-secondary btn-lg py-3" onclick="showMultiplayer()">Multiplayer</button>
+                            <button class="btn btn-secondary btn-lg py-3" onclick="showSettings()">Settings</button>
+                            <button class="btn btn-secondary btn-lg py-3" onclick="showCredits()">Credits</button>
+                            <button class="btn btn-danger btn-lg py-3" onclick="exitGame()">Exit Game</button>
+                        </div>
+                    </div>
+                </div>
+            
+                <!-- In-Game Main Menu (triggered by ESC or menu button) -->
+                <div id="main-menu" class="card window-card" style="display: none; max-width: 400px;">
+                    <div class="window-close" onclick="toggleWindow('main-menu')">✕</div>
+                    <div class="drag-handle">
+                        <h2>Menu</h2>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="d-grid gap-3">
+                            <button class="btn btn-primary btn-lg" onclick="resumeGame()">Resume</button>
+                            <button class="btn btn-secondary btn-lg" onclick="showSettings()">Settings</button>
+                            <button class="btn btn-secondary btn-lg" onclick="showInventory()">Inventory</button>
+                            <button class="btn btn-secondary btn-lg" onclick="showSkills()">Skills</button>
+                            <button class="btn btn-danger btn-lg" onclick="quitToMainMenu()">Quit to Menu</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Settings Window with improved layout -->
+                <div id="settings-window" class="card window-card" style="max-width: 800px; display: none; position: fixed; z-index: 1000; max-height: 80vh;">
+                    <div class="window-close" onclick="toggleWindow('settings-window')">×</div>
+                    <div class="drag-handle card-header" style="cursor: move; user-select: none;">
+                        <h2 class="mb-0">Settings</h2>
+                    </div>
+                    <div class="card-body" style="overflow-y: auto;">
+                        <nav class="mb-3">
+                            <div class="nav nav-tabs" role="tablist">
+                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ui-settings">UI</button>
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#graphics-settings">Graphics</button>
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#game-settings">Game</button>
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#audio-settings">Audio</button>
+                            </div>
+                        </nav>
+
+                        <div class="tab-content">
+                            <!-- UI Settings Tab -->
+                            <div class="tab-pane fade show active" id="ui-settings">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Button Style:</label>
+                                            <select id="buttonStyleSelector" class="form-select" onchange="updatePreview()">
+                                                <option value="primary">Primary</option>
+                                                <option value="secondary">Secondary</option>
+                                                <option value="success">Success</option>
+                                                <option value="danger">Danger</option>
+                                                <option value="warning">Warning</option>
+                                                <option value="info">Info</option>
+                                                <option value="dark">Dark</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Background:</label>
+                                            <select id="bgStyleSelector" class="form-select">
+                                                <option value="bg-light">Light (Default)</option>
+                                                <option value="bg-dark">Dark</option>
+                                                <option value="bg-custom-dark">Custom Dark</option>
+                                                <option value="bg-custom-blue">Custom Blue</option>
+                                                <option value="bg-custom-gradient">Custom Gradient</option>
+                                                <option value="bg-custom-navy">Custom Navy</option>
+                                                <option value="bg-custom-purple">Custom Purple</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Theme:</label>
+                                            <select id="theme-selector" class="form-select">
+                                                <option value="default">Default</option>
+                                                <option value="cerulean">Cerulean</option>
+                                                <option value="cosmo">Cosmo</option>
+                                                <option value="cyborg">Cyborg</option>
+                                                <option value="darkly">Darkly</option>
+                                                <option value="flatly">Flatly</option>
+                                                <option value="journal">Journal</option>
+                                                <option value="litera">Litera</option>
+                                                <option value="lumen">Lumen</option>
+                                                <option value="lux">Lux</option>
+                                                <option value="materia">Materia</option>
+                                                <option value="minty">Minty</option>
+                                                <option value="morph">Morph</option>
+                                                <option value="pulse">Pulse</option>
+                                                <option value="quartz">Quartz</option>
+                                                <option value="sandstone">Sandstone</option>
+                                                <option value="simplex">Simplex</option>
+                                                <option value="sketchy">Sketchy</option>
+                                                <option value="slate">Slate</option>
+                                                <option value="solar">Solar</option>
+                                                <option value="spacelab">Spacelab</option>
+                                                <option value="superhero">Superhero</option>
+                                                <option value="united">United</option>
+                                                <option value="vapor">Vapor</option>
+                                                <option value="yeti">Yeti</option>
+                                                <option value="zephyr">Zephyr</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Preview:</label>
+                                            <div class="d-grid gap-2">
+                                                <button id="previewButton" class="btn btn-lg btn-primary w-100">Bootstrap Button</button>
+                                                <sl-button id="previewButtonShoelace" variant="primary" size="large" class="w-100">Shoelace Button</sl-button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                            <!-- Graphics Settings Tab -->
+                            <div class="tab-pane fade" id="graphics-settings">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Graphics Quality:</label>
+                                            <select class="form-select" id="graphicsSelect">
+                                                <option value="low">Low</option>
+                                                <option value="medium" selected>Medium</option>
+                                                <option value="high">High</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Resolution:</label>
+                                            <select class="form-select">
+                                                <option>1920x1080</option>
+                                                <option>1280x720</option>
+                                                <option>2560x1440</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                            <!-- Game Settings Tab -->
+                            <div class="tab-pane fade" id="game-settings">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Difficulty:</label>
+                                            <select class="form-select" id="difficultySelect">
+                                                <option value="easy">Easy</option>
+                                                <option value="normal" selected>Normal</option>
+                                                <option value="hard">Hard</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                            <!-- Audio Settings Tab -->
+                            <div class="tab-pane fade" id="audio-settings">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Master Volume:</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="100">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Music Volume:</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="80">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-primary" onclick="applySettings()">Apply Settings</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>  
+
+        <!-- DevTools Window -->
+        <div id="devtools-window" class="card mx-auto p-3 mb-3" style="max-width: 600px; display: none;">
+            <h2>DevTools</h2>
+            <ul class="nav nav-tabs mb-3" id="devToolsTab" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#console">Console</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#performance">Performance</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#debug">Debug</button>
+                </li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="console">
+                    <div class="console-output mb-2" id="consoleOutput"></div>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="consoleInput" placeholder="Enter command...">
+                        <button class="btn btn-primary" onclick="executeCommand()">Execute</button>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="performance">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5>Performance Metrics</h5>
+                            <div class="mb-2">FPS: <span id="fps">60</span></div>
+                            <div class="mb-2">Memory: <span id="memory">128MB</span></div>
+                            <div class="mb-2">Draw calls: <span id="drawCalls">100</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="debug">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="debugMode">
+                        <label class="form-check-label" for="debugMode">Debug Mode</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="showFPS">
+                        <label class="form-check-label" for="showFPS">Show FPS</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="wireframe">
+                        <label class="form-check-label" for="wireframe">Wireframe Mode</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Credits Window -->
+        <div id="credits-window" class="card mx-auto p-3 mb-3" style="max-width: 600px; display: none;">
+            <h2>Credits</h2>
+            <div class="text-start">
+                <h5>Development Team</h5>
+                <ul class="list-unstyled">
+                    <li>Lead Developer: Justinas Gibas</li>
+                    <li>UI Design: Justinas Gibas</li>
+                </ul>
+                <h5>Technologies Used</h5>
+                <ul class="list-unstyled">
+                    <li>Bootstrap 5</li>
+                    <li>JavaScript</li>
+                    <li>HTML5</li>
+                </ul>
+                <h5>Version</h5>
+                <p>v0.0.1</p>
+            </div>
+        </div>
+
+        <!-- Game UI Elements -->
+        <div id="game-ui" style="display: none;">
+            <!-- Hotbar - bottom center -->
+            <div id="hotbar" class="card" style="position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 1000;">
+                <div class="card-body d-flex gap-2">
+                    <button class="btn btn-outline-secondary">1</button>
+                    <button class="btn btn-outline-secondary">2</button>
+                    <button class="btn btn-outline-secondary">3</button>
+                    <button class="btn btn-outline-secondary">4</button>
+                    <button class="btn btn-outline-secondary">5</button>
+                </div>
+            </div>
+
+            <!-- Toolbar - top left -->
+            <div id="toolbar" class="card" style="position: fixed; top: 10px; left: 10px; z-index: 1000;">
+                <div class="card-body d-flex gap-2">
+                    <button class="btn btn-secondary" onclick="toggleWindow('inventory-window')">
+                        <i class="bi bi-backpack"></i> Inventory
+                    </button>
+                    <button class="btn btn-secondary" onclick="toggleWindow('skills-window')">
+                        <i class="bi bi-lightning"></i> Skills
+                    </button>
+                    <button class="btn btn-secondary" onclick="toggleWindow('main-menu')">
+                        <i class="bi bi-list"></i> Menu
+                    </button>
+                </div>
+            </div>
+
+            <!-- Inventory Window - resizable -->
+            <div id="inventory-window" class="card window-card" style="min-width: 400px; max-width: 600px;">
+                <div class="window-close" onclick="toggleWindow('inventory-window')">✕</div>
+                <div class="drag-handle">
+                    <h2>Inventory</h2>
+                </div>
+                <div class="card-body">
+                    <div class="inventory-grid">
+                        <!-- Inventory slots will be added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Skills Window -->
+        <div id="skills-window" class="card window-card" style="display: none; position: fixed; z-index: 1000; min-width: 400px;">
+            <div class="window-close" onclick="toggleWindow('skills-window')">×</div>
+            <div class="drag-handle card-header" style="cursor: move; user-select: none;">
+                <h2 class="mb-0">Skills</h2>
+            </div>
+            <div class="card-body">
+                <div class="skills-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                    <!-- Example skill slots -->
+                    <div class="skill-slot">
+                        <div class="skill-icon" style="background-color: #ff4757;">
+                            <i class="bi bi-lightning-fill"></i>
+                        </div>
+                        <div class="skill-info">
+                            <h6>Fire Bolt</h6>
+                            <div class="progress" style="height: 5px;">
+                                <div class="progress-bar bg-danger" style="width: 70%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Add more skill slots as needed -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Window Management
+        function toggleWindow(windowId) {
+            const windows = ['devtools-window', 'settings-window', 'credits-window', 'inventory-window', 'skills-window', ];
+            const win = document.getElementById(windowId);
+            if (!win) return;
+            
+            if (win) {
+                const newDisplay = (win.style.display === 'none' || win.style.display === '') ? 'block' : 'none';
+                
+                // Center the window when showing it
+                if (newDisplay === 'block') {
+                    win.style.display = 'block'; // Set display first to get correct dimensions
+                    const rect = win.getBoundingClientRect();
+
+                    console.log("Window dimensions:", rect.width, rect.height);
+                    
+                    // Round center positions to integers
+                    const centerX = Math.round((window.innerWidth - rect.width) / 2);
+                    const centerY = Math.round((window.innerHeight - rect.height) / 2);
+
+                    console.log(`[Window Open] ${windowId}, Size: ${Math.round(rect.width)}x${Math.round(rect.height)}, Center: ${centerX}, ${centerY}`);
+                    
+                    win.style.transform = `translate(${centerX}px, ${centerY}px)`;
+                    win.setAttribute('data-x', centerX);
+                    win.setAttribute('data-y', centerY);
+
+                    // Bring window to front when opened
+                    bringToFront(win);
+                }
+                
+                win.style.display = newDisplay;
+            }
+            
+            // Hide other windows except game-ui
+            //windows.forEach(id => {
+            //    if (id !== windowId) {
+            //        const otherWin = document.getElementById(id);
+            //        if (otherWin && !otherWin.classList.contains('game-ui')) {
+            //            otherWin.style.display = 'none';
+            //        }
+            //    }
+            //});
+        }
+
+        // Settings Management
+        function updatePreview() {
+            const style = document.getElementById('buttonStyleSelector').value;
+            
+            // Update Bootstrap preview button
+            const previewButton = document.getElementById('previewButton');
+            previewButton.className = `btn btn-lg w-100 btn-${style}`;
+            
+            // Update Shoelace preview button
+            const previewButtonShoelace = document.getElementById('previewButtonShoelace');
+            previewButtonShoelace.setAttribute('variant', style);
+        }
+
+        function applySettings() {
+            // Update button styles
+            const style = document.getElementById('buttonStyleSelector').value;
+            
+            // Update Bootstrap buttons
+            document.querySelectorAll("#main-menu .btn").forEach(button => {
+                button.className = button.className.replace(/btn-(primary|secondary|success|danger|warning|info|dark)/g, `btn-${style}`);
+            });
+            
+            // Update Shoelace buttons
+            document.querySelectorAll("#main-menu sl-button").forEach(button => {
+                button.setAttribute('variant', style);
+            });
+
+            // Update theme
+            const theme = document.getElementById('theme-selector').value;
+            const themeLink = document.getElementById('theme-link');
+            themeLink.href = theme === 'default' 
+                ? 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css'
+                : `https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/${theme}/bootstrap.min.css`;
+
+            // Update background
+            const bgStyle = document.getElementById('bgStyleSelector').value;
+            document.body.className = document.body.className
+                .replace(/bg-(light|dark|custom-dark|custom-blue|custom-gradient|custom-navy|custom-purple)/g, '')
+                .trim();
+            document.body.classList.add(bgStyle);
+            document.body.classList.add('text-' + (bgStyle.includes('light') ? 'dark' : 'light'));
+
+            // Log settings
+            console.log("Settings applied:", {
+                buttonStyle: style,
+                theme: theme,
+                background: bgStyle,
+                difficulty: document.getElementById('difficultySelect').value,
+                graphics: document.getElementById('graphicsSelect').value
+            });
+        }
+
+        // DevTools Functions
+        function executeCommand() {
+            const input = document.getElementById('consoleInput');
+            const output = document.getElementById('consoleOutput');
+            output.innerHTML += `> ${input.value}\n`;
+            input.value = '';
+            output.scrollTop = output.scrollHeight;
+        }
+
+        // Game Functions
+        function startGame() {
+            console.log("Starting game...");
+            document.getElementById('game-ui').style.display = 'block';
+            document.getElementById('start-menu').style.display = 'none';
+            
+            // Initialize inventory if not already done
+            if (!document.getElementById('inventory-window').initialized) {
+                initializeInventory();
+                document.getElementById('inventory-window').initialized = true;
+            }
+            
+            // Reset main menu position for next time
+            const mainMenu = document.getElementById('main-menu');
+            mainMenu.style.transform = '';
+            mainMenu.removeAttribute('data-x');
+            mainMenu.removeAttribute('data-y');
+        }
+
+        function initializeInventory() {
+            const inventoryGrid = document.querySelector('.inventory-grid');
+            const hotbar = document.querySelector('#hotbar .card-body');
+            
+            // Clear existing content
+            inventoryGrid.innerHTML = '';
+            hotbar.innerHTML = '';
+            
+            // Create inventory slots
+            for(let i = 0; i < 20; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'inventory-slot';
+                
+                // Add example items to first 5 slots
+                if(i < 5) {
+                    const item = createInventoryItem(i);
+                    slot.appendChild(item);
+                }
+                
+                inventoryGrid.appendChild(slot);
+            }
+            
+            // Create hotbar slots
+            for(let i = 0; i < 5; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'inventory-slot';
+                if(i === 0) slot.classList.add('active');
+                hotbar.appendChild(slot);
+            }
+        }
+
+        function createInventoryItem(index) {
+            const item = document.createElement('div');
+            item.className = 'inventory-item';
+            item.style.backgroundColor = `hsl(${index * 50}, 70%, 50%)`;
+            item.setAttribute('draggable', 'true');
+            item.setAttribute('data-item-id', `item-${index}`);
+            return item;
+        }
+
+        function showSettings() {
+            toggleWindow('settings-window');
+        }
+
+        function showCredits() {
+            toggleWindow('credits-window');
+        }
+
+        function showDevTools() {
+            toggleWindow('devtools-window');
+        }
+
+        // Add this to your script section
+        interact('.card[id$="-window"]')
+            .draggable({
+                handle: '.drag-handle',
+                // Enable inertia for the dragging
+                inertia: false,
+                // Ignore dragging from these elements
+                ignoreFrom: '.card-body, input, button, select, .window-close',
+                touchAction: 'none',
+                // Enable all pointer events
+                inputOriginX: 0,
+                inputOriginY: 0,
+                // Add better mobile support
+                gesturable: {
+                    enabled: true
+                },
+                // Keep the element within the area
+                modifiers: [
+                    interact.modifiers.restrictRect({
+                        restriction: 'body',
+                        elementRect: { top: 0, left: 0, bottom: 1, right: 1 },
+                        endOnly: true
+                    })
+                ],
+                // Enable autoScroll
+                autoScroll: false,
+                // Handle the drag start/move/end
+                listeners: {
+                    start(event) {
+                        event.preventDefault();
+                        event.target.classList.add('dragging');
+                        console.log(`[Drag Start] Window: ${event.target.id}`);
+                        bringToFront(event.target);
+
+                        // Store initial position if not set
+                        if (!event.target.hasAttribute('data-x')) {
+                            const rect = event.target.getBoundingClientRect();
+
+                            console.log(event.target.id, "Initial position:", rect.left, rect.top);
+
+                            const x = Math.round(rect.left);
+                            const y = Math.round(rect.top);
+
+                            console.log(`[Drag Start] Window: ${event.target.id}, Initial pos: ${x}, ${y}`);
+
+                            event.target.setAttribute('data-x', x);
+                            event.target.setAttribute('data-y', y);
+                        }
+                    },
+                    move(event) {
+                        const target = event.target;
+                        // Round positions to integers
+                        const x = Math.round((parseFloat(target.getAttribute('data-x')) || 0) + event.dx);
+                        const y = Math.round((parseFloat(target.getAttribute('data-y')) || 0) + event.dy);
+
+                        // Update position attributes first
+                        target.setAttribute('data-x', x);
+                        target.setAttribute('data-y', y);
+
+                        // Then update transform
+                        target.style.transform = `translate(${x}px, ${y}px)`;
+                        console.log(`[Drag Move] Window: ${target.id}, Pos: ${x}, ${y}`);
+                    },
+                    end(event) {
+                        event.target.classList.remove('dragging');
+                        //console.log(`[Drag End] Window: ${event.target.id}, Final pos: ${finalX}, ${finalY}`);
+                        console.log(`[Drag End] Window: ${event.target.id}`);
+                    }
+                }
+            })
+            // Additional event listeners 
+            //on('dragstart', function(event) {
+            //   console.log('[Interact Native] dragstart', event);
+            //)
+            //on('dragmove', function(event) {
+            //   console.log('[Interact Native] dragmove', event);
+            //)
+            //on('draginertiastart', function(event) {
+            //   console.log('[Interact Native] draginertiastart', event);
+            //)
+            //on('dragende', function(event) {
+            //   console.log('[Interact Native] dragende', event);
+            //);
+        
+            document.addEventListener('mousedown', function(e) {
+                console.log('[DOM] mousedown');
+            });
+
+            document.addEventListener('mouseup', function(e) {
+                console.log('[DOM] mouseup');
+            });
+
+            // Add DOM mouse event listeners to track entire drag cycle
+            //document.addEventListener('mousedown', function(e) {
+            //    if (e.target.closest('.card[id$="-window"]')) {
+            //        console.log('[DOM] mousedown on window:', e.target.closest('.card[id$="-window"]').id);
+            //    }
+            //});
+            //
+            //document.addEventListener('mousemove', function(e) {
+            //    if (e.target.closest('.card[id$="-window"]')) {
+            //        console.log('[DOM] mousemove on window:', {
+            //            windowId: e.target.closest('.card[id$="-window"]').id,
+            //            clientX: e.clientX,
+            //            clientY: e.clientY
+            //        });
+            //    }
+            //});
+            
+            document.addEventListener('mouseup', function(e) {
+                if (e.target.closest('.card[id$="-window"]')) {
+                    console.log('[DOM] mouseup on window:', e.target.closest('.card[id$="-window"]').id);
+                }
+            });
+
+            // Add click handlers to bring windows to front
+            document.addEventListener('mousedown', function(e) {
+                const windowElement = e.target.closest('.window-card');
+                if (windowElement) {
+                    bringToFront(windowElement);
+                }
+            });
+
+        // Add ESC key handler
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const mainMenu = document.getElementById('main-menu');
+                const gameUI = document.getElementById('game-ui');
+
+                if (gameUI.style.display === 'block') {
+                    toggleWindow('main-menu');
+                }
+            }
+        });
+
+        // Additional functions
+        function showMultiplayer() {
+            // Implement multiplayer menu
+            console.log("Multiplayer menu - Not implemented");
+        }
+
+        function exitGame() {
+            // Handle game exit
+            window.close();
+        }
+
+        function resumeGame() {
+            toggleWindow('main-menu');
+        }
+
+        function showInventory() {
+            toggleWindow('inventory-window');
+        }
+
+        function showSkills() {
+            toggleWindow('skills-window');
+        }
+
+        function quitToMainMenu() {
+            // Hide game UI
+            document.getElementById('game-ui').style.display = 'none';
+            document.getElementById('main-menu').style.display = 'none';
+
+            // Show start menu
+            document.getElementById('start-menu').style.display = 'block';
+
+            // Reset windows
+            const windows = ['inventory-window', 'skills-window', 'settings-window', 'credits-window'];
+            windows.forEach(id => {
+                const win = document.getElementById(id);
+                if (win) {
+                    win.style.display = 'none';
+                }
+            });
+        }
+
+        // Add this function to manage z-index
+        let currentMaxZIndex = 1000;
+
+        function bringToFront(windowElement) {
+            currentMaxZIndex++;
+            windowElement.style.zIndex = currentMaxZIndex;
+            console.log(`[Z-Index] Window ${windowElement.id} brought to front: z-index ${currentMaxZIndex}`);
+        }
+
+        // Update window close buttons style
+        const closeButtons = document.querySelectorAll('.window-close');
+        closeButtons.forEach(button => {
+            button.innerHTML = '✕';  // Using "✕" instead of "×"
+            button.style.fontFamily = 'Arial';
+            button.style.fontSize = '1.4rem';
+            button.style.top = '12px';
+            button.style.right = '12px';
+        });
+    </script>
+</body>
+</html>

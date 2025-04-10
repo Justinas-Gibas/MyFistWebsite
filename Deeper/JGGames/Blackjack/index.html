@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+    <!-- Detailed Documentation: 
+         This HTML file implements a visually appealing Blackjack game.
+         Architecture:
+         - Modular CSS with separate files for components and responsive design
+         - Separate JS modules for different game functionalities
+         - Responsive design for both mobile and desktop
+    -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Blackjack Game</title>
+    <!-- Use a single CSS file instead of modular imports -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Preload key assets -->
+    <link rel="preload" href="js/card.js" as="script">
+    <link rel="preload" href="js/audio.js" as="script">
+</head>
+<body>
+    <!-- Detailed Documentation: This page provides an interactive Blackjack game with instructions and proposed future enhancements. -->
+    <div class="game-container">
+        <h1>Blackjack</h1>
+        
+        <!-- Audio controls - Added a button to toggle background music -->
+        <div class="audio-controls">
+            <button id="music-toggle" onclick="toggleMusic()">
+                <span class="music-icon">🔊</span>
+            </button>
+        </div>
+        
+        <!-- Hidden message div for backward compatibility -->
+        <div class="message" id="message" style="display: none;">Welcome to Blackjack!</div>
+        
+        <!-- Deck visual with actual deck cards -->
+        <div id="deck-container">
+            <!-- Cards will be dynamically added here -->
+        </div>
+        
+        <div class="table">
+            <div class="position-label dealer-label">Dealer</div>
+            
+            <div class="dealer-area">
+                <div class="score" id="dealer-score">Score: 0</div>
+                <div class="hand" id="dealer-hand"></div>
+            </div>
+            
+            <div class="player-area">
+                <div class="score" id="player-score">Score: 0</div>
+                <div class="hand" id="player-hand"></div>
+            </div>
+            
+            <div class="position-label player-label">Player</div>
+        </div>
+        
+        <!-- Info card to replace separate message and instructions -->
+        <div class="info-card" id="info-card"></div>
+        
+        <div class="bet-container">
+            <div class="balance" id="balance">Balance: $1000</div>
+            <div class="balance" id="current-bet">Current Bet: $0</div>
+        </div>
+        
+        <div class="bet-area">
+            <div class="chip chip-1" onclick="adjustBet(1)">$1</div>
+            <div class="chip chip-5" onclick="adjustBet(5)">$5</div>
+            <div class="chip chip-25" onclick="adjustBet(25)">$25</div>
+            <div class="chip chip-100" onclick="adjustBet(100)">$100</div>
+        </div>
+        
+        <div class="controls">
+            <button id="deal-button" onclick="dealCards()">Deal</button>
+            <button id="hit-button" onclick="hit()" disabled>Hit</button>
+            <button id="stand-button" onclick="stand()" disabled>Stand</button>
+            <button id="reset-button" onclick="resetBet()" disabled>Reset Bet</button>
+        </div>
+        
+        <!-- Hidden instructions for backward compatibility -->
+        <div id="instructions" style="display: none;">Place your bet using the chips above, then click 'Deal' to begin. Try to get closer to 21 than the dealer without going over.</div>
+    </div>
+
+    <!-- Audio elements for sound effects dynamically created -->
+    <audio id="background-music" preload="auto" loop></audio>
+    <audio id="card-flip-sound" preload="auto"></audio>
+    <audio id="win-sound" preload="auto"></audio>
+    <audio id="lose-sound" preload="auto"></audio>
+    <audio id="tie-sound" preload="auto"></audio>
+    <audio id="bet-sound" preload="auto"></audio>
+    
+    <!-- Modular JS files -->
+    <script src="js/audio.js"></script>
+    <script src="js/card.js"></script>
+    <script src="js/betting.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

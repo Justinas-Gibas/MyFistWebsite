@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voxel VR</title>
+  <script>window.AFRAME_STATS_DISABLE_COMPONENT_STATS = true;</script>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script> <!-- Add newer A-Frame library curent newest 1.7.0 and uses THREE r173 (@dmarcos)--> 
+  <script type="importmap">
+  {
+      "imports": {
+          "three": "https://unpkg.com/three@0.147.0/build/three.module.js",
+          "taichi.js": "https://taichi.js.org/taichi.js/taichi.js"
+      }
+  }
+  </script>
+  <script type="module" src="./src/config.js"></script>
+  <script type="module" src="./src/generators.js"></script>
+  <script type="module" src="./src/managers.js"></script>
+  <script type="module" src="./src/components.js"></script>
+  <script type="module" src="./src/player.js"></script>
+  <script type="module" src="./src/game.js"></script>
+  <script type="module" src="./src/ui.js"></script>
+  <link rel="stylesheet" href="./src/styles.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/themes/light.css" />
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.20.0/cdn/shoelace-autoloader.js"></script>
+  <style>
+    .ui-window {
+        /* ...existing styles... */
+        transition: z-index 0s, opacity 0.3s ease;
+    }
+    
+    .ui-window.active {
+        z-index: 1001;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-screen" class="interactive" style="z-index: var(--z-loading); position: fixed; pointer-events: auto; opacity: 0; display: none;">
+    <div class="loader">Loading...</div>
+  </div>
+
+  <!-- Add pause overlay -->
+  <div class="game-paused"></div>
+
+  <div class="game-ui">
+    <!-- Single toolbar will be injected here by UIManager -->
+    <div id="hotbar"></div> <!-- Single hotbar container -->
+  </div>
+
+  <a-scene embedded
+           loading-screen
+           cursor="rayOrigin: mouse"
+           raycaster="objects: .interactive"
+           stats="false">
+    <a-assets>
+        <!-- Add your assets here -->
+    </a-assets>
+
+    <a-sky color="#FFFFFF"></a-sky>
+    
+    <a-entity id="player-rig" position="0 1 0" player-controls>
+        <a-camera wasd-controls="acceleration: 65" 
+             look-controls="pointerLockEnabled: true"
+             position="0 1.6 0">
+            <a-cursor raycaster="objects: .interactive"
+                 material="color: white; shader: flat"
+                 geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.02">
+            </a-cursor>
+        </a-camera>
+        <a-entity oculus-touch-controls="hand: left"
+              raycaster="objects: .interactive; showLine: true"
+              line="color: #FF0000"></a-entity>
+        <a-entity oculus-touch-controls="hand: right"
+              raycaster="objects: .interactive; showLine: true"
+              line="color: #FF0000"></a-entity>
+    </a-entity>
+
+    <a-entity id="world-container" chunk-manager></a-entity>
+  </a-scene>
+
+  <div id="feedback-popup" class="feedback-popup"></div>
+
+  <script type="module">
+    import { UIManager } from './src/ui.js';
+    import { GameInitializer } from './src/game.js';
+    import { useGameStore } from './src/managers.js';
+
+    async function initializeGame() {
+        try {
+            const uiManager = new UIManager();
+            window.uiManager = uiManager;
+            await uiManager.initialize();
+
+            const game = new GameInitializer();
+            window.game = game;
+            await game.initialize();
+        } catch (error) {
+            console.error('Initialization error:', error);
+            document.querySelector('.loader').textContent = 'Failed to initialize game';
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeGame);
+    } else {
+        initializeGame();
+    }
+  </script>
+</body>
+</html>

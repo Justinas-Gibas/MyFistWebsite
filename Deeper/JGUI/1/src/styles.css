@@ -1,0 +1,795 @@
+/* Core Variables */
+:root {
+    --ui-background: rgba(16, 16, 24, 0.95);
+    --ui-border: rgba(255, 255, 255, 0.15);
+    --ui-text: #ffffff;
+    --ui-primary: #4CAF50;
+    --hotbar-size: 50px;
+    --z-scene: 1;
+    --z-ui-base: 100;
+    --z-toolbar: 200;
+    --z-hotbar: 200;
+    --z-window: 300;
+    --z-modal: 400;
+    --z-loading: 500;
+}
+
+/* Essential UI Elements */
+.game-ui {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: var(--z-ui-base);
+}
+
+.game-container {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Loading Screen */
+#loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: var(--z-loading);
+}
+
+.loader {
+    color: var(--ui-text);
+    font-size: 20px;
+}
+
+/* Toolbar */
+.toolbar {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ui-background);
+    border: 1px solid var(--ui-border);
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    gap: 8px;
+    z-index: var(--z-toolbar);
+    user-select: none;
+    pointer-events: auto; /* Enable interactions */
+}
+
+.toolbar-handle {
+    cursor: move;
+    padding: 4px 8px;
+    color: var(--ui-text);
+    border-right: 1px solid var(--ui-border);
+}
+
+.toolbar-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+/* Prevent duplicate toolbars */
+.toolbar + .toolbar {
+    display: none !important; /* Prevent duplicate toolbars */
+}
+
+/* Clear existing hotbar styles and redefine */
+.hotbar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ui-background);
+    border: 1px solid var(--ui-border);
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    gap: 8px;
+    z-index: var(--z-hotbar);
+    pointer-events: auto; /* Enable interactions */
+}
+
+/* Remove any duplicate hotbar classes */
+.inventory-hotbar,
+.hotbar-duplicate {
+    display: none !important; /* Hide the duplicate hotbar in inventory */
+}
+
+.hotbar-slot {
+    width: var(--hotbar-size);
+    height: var(--hotbar-size);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.hotbar-slot.active {
+    border-color: var(--ui-primary);
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.slot-number {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 10px;
+    color: var(--ui-text);
+    opacity: 0.7;
+}
+
+/* Draggable elements */
+.draggable {
+    cursor: move;
+    user-select: none;
+    transition: transform 0.1s ease;
+}
+
+.dragging {
+    opacity: 0.8;
+    transition: none;
+}
+
+/* dat.GUI customization */
+.dg.main {
+    margin-right: 16px !important;
+}
+
+.dg .property-name {
+    width: 40% !important;
+}
+
+.ui-window {
+    display: none; /* Hide by default */
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--ui-background);
+    border: 1px solid var(--ui-border);
+    border-radius: 8px;
+    min-width: 200px;
+    max-width: 80vw; /* Limit maximum width */
+    max-height: 80vh;
+    overflow: auto;
+    z-index: var(--z-window);
+    pointer-events: auto; /* Enable interactions */
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.ui-window.visible {
+    display: block;
+}
+
+.ui-window.minimized {
+    height: auto;
+    min-height: 0;
+}
+
+.window-toolbar {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    background: var(--ui-background);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--border-radius);
+    z-index: var(--z-toolbar);
+}
+
+.tool-button {
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 4px;
+    color: var(--ui-text);
+    cursor: pointer;
+}
+
+.tool-button.active {
+    background: var(--ui-primary);
+}
+
+.window-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: rgba(0,0,0,0.2);
+    cursor: move;
+    user-select: none;
+}
+
+.window-content {
+    padding: 16px;
+    overflow: auto;
+    max-height: calc(90vh - 48px); /* Account for header */
+}
+
+.close-button {
+    background: none;
+    border: none;
+    color: var(--ui-text);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
+.close-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.ui-window.dragging {
+    opacity: 0.8;
+    transition: none;
+}
+
+.main-menu-button {
+    background: var(--ui-primary);
+    color: var(--ui-text);
+    border: none;
+    border-radius: 4px;
+    padding: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.main-menu-button:hover {
+    background: var(--ui-primary-hover);
+}
+
+.main-menu-button sl-icon {
+    font-size: 20px;
+}
+
+/* Update A-Frame scene container */
+.a-canvas {
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    z-index: var(--z-scene) !important; /* Override A-Frame's default z-index */
+}
+
+/* Add styles for interactive elements */
+.interactive {
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+/* Ensure proper window sizing for DevTools */
+#devtools-window {
+    width: auto;
+    min-width: 300px;
+    max-width: 400px;
+}
+
+/* DevTools Window Styles */
+#devtools-window .tab-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+#devtools-window .tab-buttons {
+    display: flex;
+    border-bottom: 1px solid var(--ui-border);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+#devtools-window .tab-button {
+    padding: 8px 16px;
+    background: none;
+    border: none;
+    color: var(--ui-text);
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+#devtools-window .tab-button:hover {
+    opacity: 1;
+}
+
+#devtools-window .tab-button.active {
+    opacity: 1;
+    border-bottom: 2px solid var(--ui-primary);
+}
+
+#devtools-window .tab-content {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    padding: 16px;
+    overflow: auto;
+}
+
+#devtools-window .tab-content.active {
+    display: block;
+    opacity: 1;
+}
+
+#devtools-window .debug-section {
+    margin-bottom: 24px;
+}
+
+#devtools-window .debug-section h3 {
+    font-size: 14px;
+    margin: 0 0 12px 0;
+    color: var(--ui-text);
+    opacity: 0.8;
+}
+
+#devtools-window .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+#devtools-window .metric {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 8px 12px;
+    border-radius: 4px;
+}
+
+#devtools-window .metric .label {
+    display: block;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+#devtools-window .metric .value {
+    display: block;
+    font-size: 14px;
+    margin-top: 4px;
+}
+
+#devtools-window .progress-bar {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    margin-top: 8px;
+}
+
+#devtools-window .progress-fill {
+    height: 100%;
+    background: var(--ui-primary);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+#devtools-window .flag-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+}
+
+/* Block placement preview */
+.block-preview {
+    position: fixed;
+    pointer-events: none;
+    border: 2px solid white;
+    opacity: 0.5;
+    z-index: var(--z-ui-base);
+}
+
+/* Block types */
+.item-icon {
+    width: 32px;
+    height: 32px;
+    background-size: contain;
+    image-rendering: pixelated;
+}
+
+.item-icon.dirt_0 { background-image: url('/assets/blocks/dirt.png'); }
+.item-icon.stone_0 { background-image: url('/assets/blocks/stone.png'); }
+.item-icon.grass_0 { background-image: url('/assets/blocks/grass.png'); }
+
+.item-count {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    font-size: 12px;
+    color: white;
+    text-shadow: 1px 1px 0 #000;
+}
+
+/* Breaking animation */
+.breaking-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    background-size: cover;
+}
+
+.breaking-stage-0 { background-image: url('/assets/breaking/break_0.png'); }
+.breaking-stage-1 { background-image: url('/assets/breaking/break_1.png'); }
+.breaking-stage-2 { background-image: url('/assets/breaking/break_2.png'); }
+.breaking-stage-3 { background-image: url('/assets/breaking/break_3.png'); }
+.breaking-stage-4 { background-image: url('/assets/breaking/break_4.png'); }
+.breaking-stage-5 { background-image: url('/assets/breaking/break_5.png'); }
+.breaking-stage-6 { background-image: url('/assets/breaking/break_6.png'); }
+.breaking-stage-7 { background-image: url('/assets/breaking/break_7.png'); }
+.breaking-stage-8 { background-image: url('/assets/breaking/break_8.png'); }
+.breaking-stage-9 { background-image: url('/assets/breaking/break_9.png'); }
+
+/* Item pickup animation */
+@keyframes pickup {
+    0% { transform: scale(1) translateY(0); opacity: 1; }
+    50% { transform: scale(1.2) translateY(-20px); opacity: 0.7; }
+    100% { transform: scale(0) translateY(-40px); opacity: 0; }
+}
+
+.pickup-animation {
+    animation: pickup 0.5s ease-out forwards;
+}
+
+/* Crafting UI */
+.crafting-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+}
+
+.crafting-slot {
+    width: 48px;
+    height: 48px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--ui-border);
+    position: relative;
+}
+
+.crafting-output {
+    width: 64px;
+    height: 64px;
+    margin: 16px auto;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid var(--ui-primary);
+    border-radius: 4px;
+}
+
+.slot-highlight {
+    position: absolute;
+    inset: 0;
+    border: 2px solid transparent;
+    pointer-events: none;
+    transition: border-color 0.2s;
+}
+
+.drag-over .slot-highlight {
+    border-color: var(--ui-primary);
+}
+
+.dragging {
+    opacity: 0.5;
+}
+
+/* Recipe Book */
+.recipe-book {
+    position: absolute;
+    right: -240px;
+    top: 0;
+    width: 220px;
+    background: var(--ui-background);
+    border-left: 1px solid var(--ui-border);
+    height: 100%;
+    padding: 16px;
+    transition: right 0.3s;
+}
+
+.recipe-book.open {
+    right: 0;
+}
+
+.recipe-list {
+    display: grid;
+    gap: 8px;
+    padding: 8px;
+}
+
+.recipe-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.recipe-item:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Notifications */
+.notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: var(--z-modal);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.notification {
+    background: var(--ui-background);
+    border: 1px solid var(--ui-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ui-text);
+    transform: translateX(120%);
+    transition: transform 0.3s ease;
+    pointer-events: auto;
+    max-width: 300px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.notification.visible {
+    transform: translateX(0);
+}
+
+.notification.success { border-color: #4CAF50; }
+.notification.warning { border-color: #FFC107; }
+.notification.error { border-color: #F44336; }
+
+/* Window Enhancements */
+.ui-window {
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.ui-window.minimized {
+    height: auto;
+    min-height: 0;
+}
+
+.window-resizer {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 15px;
+    height: 15px;
+    cursor: se-resize;
+    background: linear-gradient(135deg, transparent 50%, var(--ui-border) 50%);
+}
+
+.minimize-button {
+    background: none;
+    border: none;
+    color: var(--ui-text);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
+.minimize-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+/* Tooltips */
+sl-tooltip {
+    --sl-tooltip-background-color: var(--ui-background);
+    --sl-tooltip-color: var(--ui-text);
+    --sl-tooltip-border-radius: 4px;
+    --sl-tooltip-border: 1px solid var(--ui-border);
+    --sl-tooltip-padding: 8px 12px;
+    font-size: 12px;
+}
+
+/* Modern UI Components */
+.ui-window.modern {
+    background: none;
+    border: none;
+    box-shadow: none;
+}
+
+.ui-window.modern sl-card {
+    --sl-panel-background: var(--ui-background);
+    --sl-color-neutral-0: transparent;
+    --sl-panel-border-width: 1px;
+    --sl-panel-border-color: var(--ui-border);
+}
+
+.inventory-grid.modern {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    gap: 8px;
+    padding: 16px;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 16px;
+    padding: 16px;
+}
+
+.context-menu {
+    background: var(--ui-background);
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    padding: 4px;
+    z-index: var(--z-modal);
+}
+
+/* Inventory Slot Base Styles */
+.inventory-slot {
+    background: var(--ui-background);
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    position: relative;
+    user-select: none;
+    transition: all 0.2s ease;
+}
+
+.inventory-slot:hover {
+    border-color: var(--ui-primary);
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.inventory-slot.dragging {
+    opacity: 0.5;
+    border-style: dashed;
+}
+
+.slot-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.slot-number {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 10px;
+    color: var(--ui-text);
+    opacity: 0.7;
+}
+
+/* Hotbar specific styles */
+#hotbar {
+    display: flex;
+    gap: 4px;
+    padding: 8px;
+    background: var(--ui-background);
+    border: 1px solid var(--ui-border);
+    border-radius: 8px;
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: var(--z-hotbar);
+    pointer-events: auto;
+}
+
+#hotbar .inventory-slot.active {
+    border-color: var(--ui-primary);
+    box-shadow: 0 0 8px var(--ui-primary);
+}
+
+/* DevTools Styling */
+.metric-card {
+    background: var(--ui-background);
+    border: 1px solid var(--ui-border);
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 8px;
+}
+
+.metric-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.metric-header .label {
+    color: var(--ui-text);
+    opacity: 0.7;
+    font-size: 12px;
+}
+
+.metric-header .value {
+    color: var(--ui-text);
+    font-size: 14px;
+    font-family: monospace;
+}
+
+.metric-card .value {
+    font-family: monospace;
+    font-size: 14px;
+    color: var(--ui-text);
+    margin-top: 4px;
+}
+
+.metric-card[data-metric="position"] .value {
+    font-weight: bold;
+    color: #4CAF50;
+}
+
+.debug-section {
+    padding: 16px;
+}
+
+.debug-section h3 {
+    color: var(--ui-text);
+    font-size: 14px;
+    margin-bottom: 12px;
+    opacity: 0.8;
+}
+
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+}
+
+.progress-bar {
+    height: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--ui-primary);
+    transition: width 0.3s ease;
+}
+
+/* DevTools Tab Styling */
+sl-tab-group::part(base) {
+    background: transparent;
+}
+
+sl-tab::part(base) {
+    color: var(--ui-text);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+sl-tab[active]::part(base) {
+    color: var(--ui-text);
+    opacity: 1;
+    border-color: var(--ui-primary);
+}
+
+sl-tab-panel::part(base) {
+    padding: 0;
+}
+
+/* Remove floating debug window styles */
+.debug-window {
+    display: none; /* Hide floating debug text */
+}
