@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="author" content="Justinas Gibas" />
+    <meta name="description" content="JS Learn - A game for learning JavaScript.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#ffffff">
+    <title>Justinas Gibas - JS Learner</title>
+    <link rel="icon" type="image/svg+xml" href="./upper/JG.svg">
+    <link rel="icon" type="image/x-icon" href="./upper/JG_favicon.ico">
+    <!-- Add Prism.js for syntax highlighting -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism.min.css" rel="stylesheet" />
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar for topic navigation -->
+        <aside id="topic-sidebar">
+            <div class="sidebar-header">
+                <h2>Topics</h2>
+                <button id="toggle-sidebar" aria-label="Toggle sidebar">≡</button>
+            </div>
+            <div class="topic-list-container">
+                <ul id="topic-list">
+                    <!-- Topics will be populated by JS -->
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main content area -->
+        <main class="container">
+            <h1>Learn JavaScript by Doing!</h1>
+            
+            <div class="progress-bar-container">
+                <div id="progress-bar"></div>
+            </div>
+            
+            <!-- View mode selector -->
+            <div class="view-mode-selector">
+                <button class="view-mode-btn active" data-mode="learn">Learn</button>
+                <button class="view-mode-btn" data-mode="quiz">Quiz</button>
+                <button class="view-mode-btn" data-mode="practice">Practice</button>
+            </div>
+            
+            <!-- Learn mode -->
+            <div id="learn-mode" class="mode-container active-mode">
+                <section id="lesson-section">
+                    <div id="lesson-title"></div>
+                    <div id="lesson-text"></div>
+                </section>
+                <section id="editor-section">
+                    <textarea id="code-editor" rows="8" spellcheck="false"></textarea>
+                    <div class="button-row">
+                        <button id="run-btn">Run Code</button>
+                        <button id="hint-btn" class="secondary-btn">Hint</button>
+                    </div>
+                </section>
+                <section id="output-section">
+                    <h2>Output:</h2>
+                    <div id="output"></div>
+                </section>
+            </div>
+            
+            <!-- Quiz mode -->
+            <div id="quiz-mode" class="mode-container">
+                <section class="quiz-container">
+                    <h2 id="quiz-title">Quiz</h2>
+                    <div id="quiz-question"></div>
+                    <div id="quiz-options"></div>
+                    <div class="button-row">
+                        <button id="check-answer-btn" class="primary-btn">Check Answer</button>
+                        <button id="next-quiz-btn" class="secondary-btn" style="display: none;">Next Question</button>
+                    </div>
+                    <div id="quiz-feedback" class="feedback"></div>
+                </section>
+            </div>
+            
+            <!-- Practice mode -->
+            <div id="practice-mode" class="mode-container">
+                <section class="practice-container">
+                    <h2 id="practice-title">Practice Challenge</h2>
+                    <div id="practice-description"></div>
+                    <div id="practice-code-container">
+                        <div id="practice-code-start" class="code-block"></div>
+                        <textarea id="practice-code-middle" rows="4" spellcheck="false"></textarea>
+                        <div id="practice-code-end" class="code-block"></div>
+                    </div>
+                    <div class="button-row">
+                        <button id="run-practice-btn" class="primary-btn">Run & Verify</button>
+                        <button id="reset-practice-btn" class="secondary-btn">Reset</button>
+                    </div>
+                    <div id="practice-output" class="output-area"></div>
+                    <div id="practice-feedback" class="feedback"></div>
+                </section>
+            </div>
+
+            <section id="navigation-section">
+                <div class="button-row spread">
+                    <button id="back-btn" class="secondary-btn" disabled>Previous</button>
+                    <button id="next-btn" class="primary-btn" style="display:none;">Next</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="hint-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3>Hint</h3>
+            <div id="hint-text"></div>
+        </div>
+    </div>
+
+    <div id="completion-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3>Topic Completed!</h3>
+            <div id="completion-message"></div>
+            <button id="next-topic-btn" class="primary-btn">Next Topic</button>
+        </div>
+    </div>
+
+    <link rel="stylesheet" href="style.jslearn.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-javascript.min.js"></script>
+    <script src="jslearn.js"></script>
+</body>
+</html>
