@@ -99,6 +99,10 @@ export class LectureManager {
                 difficulty: 'advanced'
             }
         };
+
+        console.log('[Lecture] LectureManager initialized');
+        console.log(`[Lecture] Loaded ${this.completedLectures.size} completed lectures from storage.`);
+        console.log(`[Lecture] Lecture sequence loaded with ${this.lectureSequence.length} lectures.`);
     }
     
     /**
@@ -133,14 +137,21 @@ export class LectureManager {
      */
     markCurrentLectureCompleted() {
         if (this.currentLectureId) {
-            this.completedLectures.add(this.currentLectureId);
-            this.saveCompletedLectures();
-            
-            // Check for achievements
-            this.app.achievementSystem.checkLectureAchievements(
-                this.completedLectures.size,
-                this.lectureSequence.length
-            );
+            if (!this.completedLectures.has(this.currentLectureId)) {
+                this.completedLectures.add(this.currentLectureId);
+                this.saveCompletedLectures();
+                console.log(`[Lecture] Marked lecture as completed: ${this.currentLectureId}`);
+                
+                // Check for achievements
+                this.app.achievementSystem.checkLectureAchievements(
+                    this.completedLectures.size,
+                    this.lectureSequence.length
+                );
+            } else {
+                console.log(`[Lecture] Lecture already completed: ${this.currentLectureId}`);
+            }
+        } else {
+            console.warn('[Lecture] Cannot mark lecture completed: No current lecture ID.');
         }
     }
     
@@ -201,8 +212,10 @@ export class LectureManager {
     async loadNextLecture() {
         const nextLectureId = this.getNextLectureId();
         if (nextLectureId) {
+            console.log(`[Lecture] Loading next lecture: ${nextLectureId}`);
             return this.loadLecture(nextLectureId);
         }
+        console.log('[Lecture] Already at the last lecture.');
         return false;
     }
     
@@ -213,8 +226,10 @@ export class LectureManager {
     async loadPreviousLecture() {
         const prevLectureId = this.getPreviousLectureId();
         if (prevLectureId) {
+            console.log(`[Lecture] Loading previous lecture: ${prevLectureId}`);
             return this.loadLecture(prevLectureId);
         }
+        console.log('[Lecture] Already at the first lecture.');
         return false;
     }
     
@@ -426,7 +441,7 @@ export class LectureManager {
         // Final check for any remaining template variables
         const remainingTemplateVars = processedCode.match(templateVarRegex);
         if (remainingTemplateVars) {
-            console.warn("Some template variables were not replaced:", remainingTemplateVars);
+            console.warn("[Lecture] Some template variables were not replaced:", remainingTemplateVars);
             // Replace any remaining template variables with 0.0
             processedCode = processedCode.replace(templateVarRegex, "0.0");
         }
@@ -440,6 +455,7 @@ export class LectureManager {
      * @returns {Promise<boolean>} Whether the operation succeeded
      */
     async loadLecture(lectureId) {
+        console.log(`[Lecture] Attempting to load lecture: ${lectureId}`);
         try {
             // Get lecture metadata
             const metadata = this.lectureMetadata[lectureId];
@@ -454,17 +470,20 @@ export class LectureManager {
             const totalLectures = this.lectureSequence.length;
             
             // Load the lecture module dynamically
+            console.log(`[Lecture] Importing module for ${lectureId}...`);
             const lectureModule = await import(`../lectures/${lectureId}.js`);
             
-            if (!lectureModule.default) {
-                console.error(`Lecture module ${lectureId} does not have a default export`);
+            if (!lectureModule.default && !lectureModule.lesson) { // Check for both export patterns
+                console.error(`[Lecture] Lecture module ${lectureId} does not have a default or 'lesson' export`);
+                this.app.uiManager.showNotification(`Failed to load lecture module: ${lectureId}`, 'error');
                 return false;
             }
             
-            // Store the current lecture
-            this.currentLecture = lectureModule.default;
+            // Store the current lecture (handle both export patterns)
+            this.currentLecture = lectureModule.default || lectureModule.lesson; 
             this.currentLectureId = lectureId;
-            
+            console.log(`[Lecture] Successfully imported module for ${lectureId}`);
+
             // Prepare lecture data for UI
             const lectureData = {
                 ...this.currentLecture,
@@ -477,137 +496,92 @@ export class LectureManager {
             
             // Update UI
             this.app.uiManager.updateLectureInfo(lectureData);
+            this.app.uiManager.populateEditorsFromLecture(lectureData); // Populate editors
             
-            // Load lecture content
-            const lectureContent = document.getElementById('lecture-content');
-            if (lectureContent) {
-                lectureContent.innerHTML = lectureData.content || '';
+            // Load lecture content into the dedicated element (assuming it exists)
+            const lectureContentElement = document.getElementById('lecture-content-area'); // Adjust ID if needed
+            if (lectureContentElement && lectureData.content) {
+                 lectureContentElement.innerHTML = this.app.uiManager.convertMarkdownToHtml(lectureData.content);
+                 console.log(`[Lecture] Rendered markdown content for ${lectureId}`);
+            } else if (lectureContentElement) {
+                 lectureContentElement.innerHTML = '<p>No content available for this lecture.</p>';
+                 console.warn(`[Lecture] No content found for lecture ${lectureId}`);
+            } else {
+                 console.error('[Lecture] Lecture content area element not found.');
             }
-            
+
             // Set up controls if specified
-            if (lectureData.controls) {
-                this.app.uiManager.setupControls(
-                    lectureData.controls.map(control => ({
-                        ...control,
-                        onChange: (value) => {
-                            // Call the original onChange if provided
-                            if (control.onChange) {
-                                const fn = new Function('value', 'app', control.onChange);
-                                fn(value, this.app);
-                            }
-                        }
-                    }))
-                );
+            if (lectureData.controls && lectureData.controls.length > 0) {
+                console.log(`[Lecture] Setting up ${lectureData.controls.length} controls for ${lectureId}`);
+                this.app.uiManager.setupControlsFromLecture(lectureData); // Use dedicated function
+            } else {
+                console.log(`[Lecture] No controls defined for ${lectureId}. Clearing controls.`);
+                this.app.uiManager.clearControls(false); // Clear controls but don't switch tab
             }
             
             // Compile and set shaders if provided by the lecture
-            if (lectureData.examples && lectureData.examples.length > 0) {
-                // Get the first example's shaders
-                
-                const example = lectureData.examples[0];
-                
-                if (example.vertexShader && example.fragmentShader) {
-                    console.log(`Lecture ${lectureId}: Processing and compiling shaders...`);
-                    
-                    // Preprocess shaders to replace template variables with control values
-                    const processedVertexShader = this.preprocessShaderCode(
-                        example.vertexShader,
-                        lectureData.controls || []
-                    );
-                    
-                    const processedFragmentShader = this.preprocessShaderCode(
-                        example.fragmentShader,
-                        lectureData.controls || []
-                    );
-                    
-                    const compileResult = await this.app.shaderManager.compileShaders(
-                        processedVertexShader,
-                        processedFragmentShader,
-                        `Lecture_${lectureId}` // Add a label prefix
-                    );
-                    
-                    if (compileResult.success) {
-                        console.log(`Lecture ${lectureId}: Shaders compiled successfully. Updating pipeline...`);
-                        // Update the WebGPU pipeline with the compiled modules
-                        const pipelineUpdated = await this.app.webgpuManager.updatePipeline(
-                            compileResult.vertexShaderModule,
-                            compileResult.fragmentShaderModule,
-                            `Lecture_${lectureId}` // Pass label prefix
-                        );
-                        if (!pipelineUpdated) {
-                            console.error(`Lecture ${lectureId}: Failed to update pipeline after shader compilation.`);
-                            // Optionally show error to user via UI Manager
-                            this.app.uiManager?.showNotification("Failed to apply lecture shaders.", "error");
-                        }
-                    } else {
-                        console.error(`Lecture ${lectureId}: Shader compilation failed:`, compileResult.error);
-                        // Show error to user via UI Manager
-                        this.app.uiManager?.showNotification(`Shader Error: ${compileResult.error}`, "error", 15000); // Show for longer
-                        // Should we revert to default shaders or keep the broken pipeline?
-                        // Let's try reverting to default for now to keep rendering something.
-                        console.log(`Lecture ${lectureId}: Reverting to default pipeline due to shader error.`);
-                        await this.app.webgpuManager.createDefaultPipeline(); 
-                    }
-                }
-            } else if (lectureData.vertexShader && lectureData.fragmentShader) {
-                console.log(`Lecture ${lectureId}: Processing and compiling shaders...`);
-                
-                // Preprocess shaders to replace template variables with control values
-                const processedVertexShader = this.preprocessShaderCode(
-                    lectureData.vertexShader,
-                    lectureData.controls || []
-                );
-                
-                const processedFragmentShader = this.preprocessShaderCode(
-                    lectureData.fragmentShader,
-                    lectureData.controls || []
-                );
-                
-                const compileResult = await this.app.shaderManager.compileShaders(
-                    processedVertexShader,
-                    processedFragmentShader,
-                    `Lecture_${lectureId}` // Add a label prefix
-                );
-                
-                if (compileResult.success) {
-                    console.log(`Lecture ${lectureId}: Shaders compiled successfully. Updating pipeline...`);
-                    // Update the WebGPU pipeline with the compiled modules
-                    const pipelineUpdated = await this.app.webgpuManager.updatePipeline(
-                        compileResult.vertexShaderModule,
-                        compileResult.fragmentShaderModule,
-                        `Lecture_${lectureId}` // Pass label prefix
-                    );
-                    if (!pipelineUpdated) {
-                        console.error(`Lecture ${lectureId}: Failed to update pipeline after shader compilation.`);
-                        // Optionally show error to user via UI Manager
-                        this.app.uiManager?.showNotification("Failed to apply lecture shaders.", "error");
-                    }
-                } else {
-                    console.error(`Lecture ${lectureId}: Shader compilation failed:`, compileResult.error);
-                    // Show error to user via UI Manager
-                    this.app.uiManager?.showNotification(`Shader Error: ${compileResult.error}`, "error", 15000); // Show for longer
-                    // Should we revert to default shaders or keep the broken pipeline?
-                    // Let's try reverting to default for now to keep rendering something.
-                    console.log(`Lecture ${lectureId}: Reverting to default pipeline due to shader error.`);
-                    await this.app.webgpuManager.createDefaultPipeline(); 
-                }
-            } else {
-                console.log(`Lecture ${lectureId}: No specific shaders provided. Ensuring default pipeline is active.`);
-                // If the lecture doesn't provide shaders, ensure the default pipeline is active
-                // This might be redundant if createDefaultPipeline was already called, but safe to ensure.
-                await this.app.webgpuManager.createDefaultPipeline();
-            }
-            
+            await this.updateShadersForCurrentLecture(); // Use helper function
+
             // Call the lecture's init function if provided
             if (lectureData.init) {
                 const initFunction = new Function('app', lectureData.init);
                 initFunction(this.app);
             }
             
+            console.log(`[Lecture] Successfully loaded lecture: ${lectureId}`);
             return true;
         } catch (error) {
-            console.error(`Error loading lecture ${lectureId}:`, error);
+            console.error(`[Lecture] Error loading lecture ${lectureId}:`, error);
+            this.app.uiManager.showNotification(`Error loading lecture ${lectureId}: ${error.message}`, 'error');
             return false;
+        }
+    }
+
+    /**
+     * Helper function to compile and update shaders for the current lecture
+     */
+    async updateShadersForCurrentLecture() {
+        if (!this.currentLecture || !this.currentLectureId) {
+            console.warn('[Lecture] Cannot update shaders: No current lecture.');
+            return;
+        }
+
+        const lectureData = this.currentLecture;
+        const lectureId = this.currentLectureId;
+        let example = null;
+
+        if (lectureData.examples && lectureData.examples.length > 0) {
+            example = lectureData.examples[0]; // Use the first example by default
+        }
+
+        const vertexShaderSource = example?.vertexShader || lectureData.vertexShader;
+        const fragmentShaderSource = example?.fragmentShader || lectureData.fragmentShader;
+        const controls = lectureData.controls || [];
+
+        if (vertexShaderSource && fragmentShaderSource) {
+            console.log(`[Lecture] Processing and compiling shaders for ${lectureId}...`);
+            
+            const processedVertexShader = this.preprocessShaderCode(vertexShaderSource, controls);
+            const processedFragmentShader = this.preprocessShaderCode(fragmentShaderSource, controls);
+            
+            const compileResult = await this.app.shaderManager.compileShaders(
+                processedVertexShader,
+                processedFragmentShader,
+                `Lecture_${lectureId}`
+            );
+            
+            if (compileResult.success) {
+                console.log(`[Lecture] Shaders compiled successfully for ${lectureId}. Updating pipeline...`);
+                await this.app.webgpuManager.updatePipeline(compileResult.pipeline);
+            } else {
+                console.error(`[Lecture] Shader compilation failed for ${lectureId}:`, compileResult.error);
+                this.app.uiManager.showNotification(`Shader compilation failed for ${lectureId}. Check console.`, 'error');
+                // Optionally fall back to default shaders or show an error state
+                // await this.app.webgpuManager.createDefaultPipeline(); 
+            }
+        } else {
+            console.log(`[Lecture] No specific shaders provided for ${lectureId}. Ensuring default pipeline is active.`);
+            await this.app.webgpuManager.createDefaultPipeline(); // Ensure default is active if no lecture shaders
         }
     }
     
@@ -618,10 +592,12 @@ export class LectureManager {
      * @returns {boolean} Whether the challenge was completed
      */
     checkChallenge(condition, achievementId = null) {
+        console.log(`[Lecture] Checking challenge condition for lecture ${this.currentLectureId}`);
         try {
             const completed = condition(this.app);
             
             if (completed) {
+                console.log(`[Lecture] Challenge completed for lecture ${this.currentLectureId}`);
                 // Mark current lecture as completed if not already
                 if (!this.isLectureCompleted(this.currentLectureId)) {
                     this.markCurrentLectureCompleted();
@@ -636,9 +612,11 @@ export class LectureManager {
                 }
                 
                 return true;
+            } else {
+                console.log(`[Lecture] Challenge condition not met for lecture ${this.currentLectureId}`);
             }
         } catch (error) {
-            console.error('Error checking challenge:', error);
+            console.error('[Lecture] Error checking challenge:', error);
         }
         
         return false;

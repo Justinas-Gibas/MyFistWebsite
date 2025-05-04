@@ -19,17 +19,21 @@ export class UIManager {
         };
         this.controlValues = {};
         this.isFullscreen = false;
+        console.log('[UI] UIManager initialized');
     }
     
     /**
      * Set up all event listeners for UI interactions
      */
     setupEventListeners() {
+        console.log('[UI] Setting up event listeners');
         // Tab buttons
         const tabButtons = document.querySelectorAll('.tab-button');
         tabButtons.forEach(button => {
             button.addEventListener('click', () => {
-                this.setActiveTab(button.dataset.tab);
+                const tabId = button.dataset.tab;
+                console.log(`[UI] Tab clicked: ${tabId}`);
+                this.setActiveTab(tabId);
             });
         });
         
@@ -54,6 +58,7 @@ export class UIManager {
         const prevLectureBtn = document.getElementById('prev-lecture');
         if (prevLectureBtn) {
             prevLectureBtn.addEventListener('click', () => {
+                console.log('[UI] Previous lecture button clicked');
                 this.app.lectureManager.loadPreviousLecture();
             });
         }
@@ -61,6 +66,7 @@ export class UIManager {
         const nextLectureBtn = document.getElementById('next-lecture');
         if (nextLectureBtn) {
             nextLectureBtn.addEventListener('click', () => {
+                console.log('[UI] Next lecture button clicked');
                 this.app.lectureManager.loadNextLecture();
             });
         }
@@ -87,6 +93,7 @@ export class UIManager {
         
         // Keyboard shortcuts
         window.addEventListener('keydown', this.handleKeyboardShortcuts.bind(this));
+        console.log('[UI] Event listeners setup complete');
     }
     
     /**
@@ -94,6 +101,7 @@ export class UIManager {
      * @param {string} tabId - The ID of the tab to activate
      */
     setActiveTab(tabId) {
+        console.log(`[UI] Setting active tab to: ${tabId}`);
         // Update active tab state
         this.activeTab = tabId;
         
@@ -635,6 +643,7 @@ export class UIManager {
         slider.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
             valueDisplay.textContent = value.toFixed(2);
+            console.log(`[UI] Slider control changed: ${control.id} = ${value}`);
             this.controlValues[control.id] = value;
             
             // Call the control's onChange function if provided
@@ -705,6 +714,7 @@ export class UIManager {
         checkbox.addEventListener('change', (e) => {
             const isChecked = e.target.checked;
             valueDisplay.textContent = isChecked ? 'On' : 'Off';
+            console.log(`[UI] Checkbox control changed: ${control.id} = ${isChecked}`);
             this.controlValues[control.id] = isChecked ? 1.0 : 0.0;
             
             // Call the control's onChange function if provided
@@ -785,6 +795,7 @@ export class UIManager {
         colorPicker.addEventListener('input', (e) => {
             const hexColor = e.target.value;
             valueDisplay.textContent = hexColor;
+            console.log(`[UI] Color control changed: ${control.id} = ${hexColor}`);
             this.controlValues[control.id] = hexColor;
             
             // Update RGB components for shader use
@@ -873,6 +884,7 @@ export class UIManager {
         // Set up event listener
         select.addEventListener('change', (e) => {
             const value = e.target.value;
+            console.log(`[UI] Select control changed: ${control.id} = ${value}`);
             this.controlValues[control.id] = value;
             
             // Call the control's onChange function if provided
@@ -929,6 +941,7 @@ export class UIManager {
      * @param {any} value - The new control value
      */
     applyControlToShaders(controlId, value) {
+        console.log(`[UI] Applying control value to shaders: ${controlId} = ${value}`);
         // Get current code from editors
         const vertexCode = document.getElementById('vertex-editor')?.value || '';
         const fragmentCode = document.getElementById('fragment-editor')?.value || '';
@@ -1015,6 +1028,7 @@ export class UIManager {
      * @param {Object} lecture - Lecture data object
      */
     updateLectureInfo(lecture) {
+        console.log(`[UI] Updating lecture info for: ${lecture.id} (${lecture.title})`);
         // Update lecture number display
         const lectureNumber = document.getElementById('lecture-number');
         if (lectureNumber) {
@@ -1080,6 +1094,7 @@ export class UIManager {
      * @param {Object} lecture - Lecture data object
      */
     populateEditorsFromLecture(lecture) {
+        console.log(`[UI] Populating editors for lecture: ${lecture.id}`);
         // Determine which code to use:
         // 1. If lecture has examples, use the first example as default
         // 2. If lecture has direct shader properties, use those
@@ -1152,6 +1167,7 @@ export class UIManager {
      * @param {Object} lecture - Lecture data object 
      */
     setupControlsFromLecture(lecture) {
+        console.log(`[UI] Setting up controls for lecture: ${lecture.id}`);
         // Skip if lecture has no controls defined
         if (!lecture.controls || !Array.isArray(lecture.controls) || lecture.controls.length === 0) {
             // Try to extract potential controls from examples if not directly defined
@@ -1390,6 +1406,7 @@ export class UIManager {
      * This connects control changes to immediate shader recompilation
      */
     setupRealTimeControlUpdates() {
+        console.log('[UI] Setting up real-time control updates');
         // Debounce function to limit how often shaders are recompiled
         const debounce = (func, delay) => {
             let timeoutId;
