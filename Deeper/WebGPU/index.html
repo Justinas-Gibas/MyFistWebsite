@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Interactive WebGPU learning playground.">
+    <meta name="author" content="Justinas Gibas">
+    <title>WebGPU Explorer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Main Header -->
+        <header class="main-header">
+            <h1><i class="fas fa-cube"></i> WebGPU Explorer</h1>
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+                <div class="progress-text" id="progress-text">Lecture 1/12</div>
+            </div>
+            <div class="user-controls">
+                <button id="prev-lecture" class="nav-button"><i class="fas fa-arrow-left"></i></button>
+                <button id="next-lecture" class="nav-button"><i class="fas fa-arrow-right"></i></button>
+                <button id="help" class="nav-button"><i class="fas fa-question-circle"></i></button>
+                <button id="meniu" class="nav-button"><i class="fas fa-bars"></i></button>
+            </div>
+        </header>
+
+        <!-- Sidebar Navigation Menu -->
+        <nav class="sidebar" id="sidebar">
+
+            <ul class="settings-list">
+                <li><a href="#" class="settings-link"><i class="fas fa-cog"></i> Settings</a></li>
+            </ul>
+            
+            <!--reset progress / lectures / achievements button -->
+
+
+            <ul class="lecture-list">
+                <!--lectures will populate dynamically-->
+            </ul>
+        </nav>
+        
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Canvas Container (Main Actor) -->
+            <div class="canvas-container">
+                <canvas id="main-canvas"></canvas>
+                <div class="overlay" id="overlay">
+                    <div id="fps-counter" class="fps-counter">FPS: 60</div>
+                    <div class="achievement-popup" id="achievement-popup">
+                        <i class="fas fa-trophy"></i>
+                        <span id="achievement-text">Achievement Unlocked!</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tab System for Code/Controls -->
+            <div class="tabs-container">
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="vertex">Vertex Shader</button>
+                    <button class="tab-button" data-tab="fragment">Fragment Shader</button>
+                    <button class="tab-button" data-tab="js">JavaScript</button>
+                    <button class="tab-button" data-tab="controls">Controls</button>
+                    <button class="tab-button" data-tab="info">Info</button>
+                </div>
+                
+                <div class="tab-content">
+                    <!-- Vertex Shader Editor -->
+                    <div id="vertex-tab" class="tab-pane active">
+                        <div class="editor-header">
+                            <h3>Vertex Shader</h3>
+                            <!-- Reset button to reset code to lecture default-->
+                            <button id="resetcode" class="nav-button" title="a"><i class="fas fa-undo"></i></button>
+                            <!-- TRY to! Fix syntax button to fix common syntax errors in shaders -->
+                            <button id="fix-syntax" class="nav-button" title="Fix common syntax errors in shaders"><i class="fas fa-wrench"></i></button>
+                            <!-- Console button to open console for debugging -->
+                            <button id="console" class="nav-button" title="a"><i class="fas fa-terminal"></i></button>
+                            <!-- Run button to run the vertex shader code -->
+                            <button id="run-vertex" class="action-button" title="a"><i class="fas fa-play"></i> Run</button>
+                        </div>
+                        <div class="editor-container">
+                            <textarea id="vertex-editor" class="code-editor"></textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- Fragment Shader Editor -->
+                    <div id="fragment-tab" class="tab-pane">
+                        <div class="editor-header">
+                            <h3>Fragment Shader</h3>
+                            <button id="resetcode" class="nav-button"><i class="fas fa-undo"></i></button>
+                            <button id="fix-syntax" class="nav-button" title="Fix common syntax errors in shaders"><i class="fas fa-wrench"></i></button>
+                            <button id="run-fragment" class="action-button"><i class="fas fa-play"></i> Run</button>
+                        </div>
+                        <div class="editor-container">
+                            <textarea id="fragment-editor" class="code-editor"></textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- JavaScript Editor -->
+                    <div id="js-tab" class="tab-pane">
+                        <div class="editor-header">
+                            <h3>JavaScript</h3>
+                            <button id="resetcode" class="nav-button"><i class="fas fa-undo"></i></button>
+                            <button id="fix-syntax" class="nav-button" title="Fix common syntax errors in shaders"><i class="fas fa-wrench"></i></button>
+                            <button id="run-js" class="action-button"><i class="fas fa-play"></i> Run</button>
+                        </div>
+                        <div class="editor-container">
+                            <textarea id="js-editor" class="code-editor"></textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- Interactive Controls -->
+                    <div id="controls-tab" class="tab-pane">
+                        <h3>Experiment with Parameters</h3>
+                        <div class="controls-grid" id="controls-grid">
+                            <!-- Controls will be inserted here dynamically based on the current lecture -->
+                        </div>
+                    </div>
+                    
+                    <!-- Info & Help -->
+                    <div id="info-tab" class="tab-pane">
+                        <h3>Lecture Info</h3>
+                        <div class="info-content">
+                            <div id="lecture-title" class="lecture-title">Getting Started with WebGPU</div>
+                            <div id="lecture-description" class="lecture-description"></div>
+                            
+                            <h4>Libraries & Resources</h4>
+                            <div class="resources-grid" id="resources-grid">
+                                <!-- Resource links will go here -->
+                                <a href="https://www.w3.org/TR/webgpu/" class="resource-link" target="_blank">
+                                    <i class="fas fa-book"></i> WebGPU Specification
+                                </a>
+                                <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API" class="resource-link" target="_blank">
+                                    <i class="fas fa-graduation-cap"></i> MDN WebGPU
+                                </a>
+                                <a href="https://github.com/gpuweb/gpuweb/wiki/Implementation-Status" class="resource-link" target="_blank">
+                                    <i class="fas fa-check"></i> Browser Support
+                                </a>
+                            </div>
+                            
+                            <h4>Keyboard Shortcuts</h4>
+                            <div class="shortcuts-list">
+                                <div class="shortcut"><span>Ctrl+Enter</span> Run current code</div>
+                                <div class="shortcut"><span>Alt+Left/Right</span> Previous/Next lecture</div>
+                                <div class="shortcut"><span>F</span> Toggle fullscreen</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Lecture Notes Area -->
+        <div class="lecture-container">
+            <h2><i class="fas fa-graduation-cap"></i> <span id="lecture-number">Lecture 1</span>: <span id="lecture-name">Introduction to WebGPU</span></h2>
+            <div id="lecture-content" class="lecture-content">
+                <!-- Lecture content will go here -->
+            </div>
+            
+            <!-- Code Examples Display Section -->
+            <div id="code-examples" class="code-examples">
+                <h3>Example Code</h3>
+                <div class="code-tabs">
+                    <button class="code-tab active" data-code-tab="vertex-example">Vertex Shader</button>
+                    <button class="code-tab" data-code-tab="fragment-example">Fragment Shader</button>
+                    <button class="code-tab" data-code-tab="js-example">JavaScript</button>
+                </div>
+                <div class="code-examples-content">
+                    <pre id="vertex-example" class="code-example active"><code></code></pre>
+                    <pre id="fragment-example" class="code-example"><code></code></pre>
+                    <pre id="js-example" class="code-example"><code></code></pre>
+                </div>
+            </div>
+            
+            <div class="lecture-actions">
+                <button id="hint-btn" class="hint-button"><i class="fas fa-lightbulb"></i> Show Hint</button>
+                <div id="hint-content" class="hint-content" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <!-- Achievement System -->
+        <div id="achievements-panel" class="achievements-panel">
+            <div class="achievements-header">
+                <h3><i class="fas fa-trophy"></i> Achievements</h3>
+                <span id="achievements-count">0/10</span>
+            </div>
+            <div id="achievements-list" class="achievements-list">
+                <!-- Achievements will be dynamically added here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Load core scripts -->
+    <script type="module" src="./core/app.js"></script>
+    
+</body>
+</html>
