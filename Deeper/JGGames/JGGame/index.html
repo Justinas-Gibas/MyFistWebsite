@@ -1,212 +1,401 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JGGame3</title>
-    <script src="https://cdn.babylonjs.com/babylon.js"></script>
-    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
-    <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
-    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
-    <script src="https://cdn.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js"></script>
-    <script src="https://cdn.babylonjs.com/serializers/babylonjs.serializers.min.js"></script>
-    <script src="https://cdn.babylonjs.com/inspector/babylon.inspector.bundle.js"></script>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="simple HTML game with out any library(Vanilla JS)">
+        <title>JG Game</title>
+        <!--
+        Scripts will act as seperators for diferent files
+        -->
+    </head>
+    <!-- base styles-->
     <style>
+        /* Color variables */
+        :root {
+            --main-bg-color: #282c34;
+            --main-text-color: #61dafb;
+            --header-bg-color: #20232a;
+            --header-text-color: white;
+            --link-color: #61dafb;
+        }
+
         html, body {
+            /* Colors */
+            background-color: var(--main-bg-color);
+            color: var(--main-text-color);
             margin: 0;
             padding: 0;
             overflow: hidden;
             width: 100%;
             height: 100%;
         }
-        #renderCanvas {
-            width: 100%;
-            height: 100%;
-            display: block;
+
+        grid-cell {
+        background-color: rgba(31, 36, 37, 0.1);
+        transition: background-color 0.3s;
         }
+
+        .grid-cell:hover {
+            background-color: rgba(97, 218, 251, 0.3);
+        }
+        
     </style>
-</head>
-<body>
-    <canvas id="renderCanvas" touch-action="none"></canvas>
-    <script>
-        // Device detection
-        const deviceDetector = {
-            isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
-            isTablet: /iPad|Android(?!.*Mobile)/i.test(navigator.userAgent) || (screen.width > 768 && 'ontouchstart' in window),
-            isVRSupported: 'xr' in navigator,
-            isDesktop: !(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)),
-            hasTouchCapability: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
-            deviceType: function() {
-                if (this.isVRSupported) return "VR-capable";
-                if (this.isTablet) return "tablet";
-                if (this.isMobile) return "mobile";
-                return "desktop";
-            }
-        };
-        
-        console.log("Device detected:", deviceDetector.deviceType());
-        
-        const canvas = document.getElementById("renderCanvas");
-        const engine = new BABYLON.Engine(canvas, true, { stencil: true });
+    <body>
 
-        const createScene = async () => {
-            const scene = new BABYLON.Scene(engine);
+        <script>
+            /*
+            * 
+            */
+            // playground/testing section
+
+            var myName = "JG";
+            console.log("Hello " + myName + "!");
+            console.log("Welcome to " + document.title + "!");
             
-            // Enable physics
-            const havokInstance = await HavokPhysics();
-            const havokPlugin = new BABYLON.HavokPlugin(true, havokInstance);
-            scene.enablePhysics(new BABYLON.Vector3(0, -9.81, 0), havokPlugin);
+            // The meta description is used to provide a brief summary of the page's content.
+            console.log(document.querySelector('meta[name="description"]').getAttribute('content'));
+            console.log(document.getElementsByName('description')[0].getAttribute('content'));
+            // more ways to get the meta description
+            console.log(document.querySelector('meta[name="description"]').content);
+            console.log(document.getElementsByName('description')[0].content);
+            console.log(document.getElementsByTagName('meta')['description'].content);
             
-            // Environment setup
-            scene.createDefaultEnvironment({
-                createGround: false,
-                createSkybox: true,
-                skyboxSize: 100,
-                skyboxColor: new BABYLON.Color3(0.1, 0.1, 0.2),
-            });
+            // Additional logging for debugging
+            console.log("Current URL: " + window.location.href);
+            console.log("User Agent: " + navigator.userAgent);
+            console.log("Screen Width: " + window.screen.width);
+            console.log("Screen Height: " + window.screen.height);
+            console.log("Device Pixel Ratio: " + window.devicePixelRatio);
+            console.log("Viewport Width: " + window.innerWidth);
+            console.log("Viewport Height: " + window.innerHeight);
+    
+        </script>
+
+
+        <!--root -->
+
+        <h1>JG Game</h1>
+        <style>h1 {color: var(--main-text-color); text-align: center;}</style>
+
+        <p>Welcome to the JG Game!</p>
+        <style>p {color: var(--main-text-color); text-align: center;}</style>
+
+        <p>This is a simple HTML Game.</p>
+        <p>Move with WASD or Arrows.</p>
+
+        <script>
+            /*
+            * World.js
+            */
+            // --- Grid Logic ---
+            const worldGrid = {
+                cells: {},
+
+                createGridData(radius) {
+                    console.log(`Creating grid data with radius ${radius}...`);
+                    this.cells = {}; // Start with an empty grid data structure
+
+                    // Loop through coordinates around the center (0,0)
+                    for (let x = -radius; x <= radius; x++) {
+                        for (let y = -radius; y <= radius; y++) {
+                            // Create a unique key for this position (e.g., "0,0", "1,-1")
+                            const key = `${x},${y}`;
+                            // Store basic data for this grid position
+                            this.cells[key] = {
+                                x: x,       // The X coordinate
+                                y: y,       // The Y coordinate
+                                type: 'empty' // What's at this position (e.g., 'empty', 'tree', 'rock')
+                                // We can add more properties later (like resources, enemies, etc.)
+                            };
+                        }
+                    }
+                    console.log(`Grid data created. Total positions: ${Object.keys(this.cells).length}`);
+                    console.log('Grid data:', this.cells); // Optional: See the created data
+                },
+
+                // Function to get the data for a specific grid position
+                getCellData(x, y) {
+                    const key = `${x},${y}`;
+                    return this.cells[key]; // Returns the cell data object, or undefined if it doesn't exist
+                },  
+            };
+    
+            // New module for visualization
+            const gridVisualizer = {
+                cellSize: 50, // Visual cell size in pixels
+                container: null,
+                cellElements: {}, // Store references to cell elements
             
-            // Device-optimized camera setup
-            const camera = new BABYLON.ArcRotateCamera("Camera", Math.PI / 2, Math.PI / 3, 5, BABYLON.Vector3.Zero(), scene);
-            camera.attachControl(canvas, true);
-            camera.minZ = 0.1;
+                // Initialize the visualization system
+                init() {
+                    // Create container for all grid cells
+                    this.container = document.createElement('div');
+                    this.container.id = 'grid-container';
+                    this.container.style.position = 'absolute';
+                    this.container.style.width = '100%';
+                    this.container.style.height = '100%';
+                    this.container.style.overflow = 'hidden';
+                    document.body.appendChild(this.container);
+                },
             
-            // Device-specific camera settings
-            if (deviceDetector.isMobile) {
-                camera.wheelPrecision = 100; // Less sensitive for mobile
-                camera.panningSensibility = 150; // Adjust panning for touch
-                camera.lowerRadiusLimit = 4; // Keep mobile users from zooming in too close
-                camera.upperRadiusLimit = 15; // Limit max zoom out for performance
-            } else {
-                camera.wheelPrecision = 50;
-                camera.lowerRadiusLimit = 3;
-                camera.upperRadiusLimit = 20;
-            }
+                // Convert grid coordinates to screen coordinates (centered)
+                gridToScreenPosition(x, y) {
+                    const centerX = Math.floor(window.innerWidth / 2);
+                    const centerY = Math.floor(window.innerHeight / 2);
+
+                    return {
+                        left: centerX + (x * this.cellSize),
+                        top: centerY + (y * this.cellSize)
+                    };
+                },
             
-            // WebXR setup - only initialize if VR is supported
-            if (deviceDetector.isVRSupported) {
-                try {
-                    const xrHelper = await scene.createDefaultXRExperienceAsync({
-                        uiOptions: {
-                            sessionMode: "immersive-vr",
-                        },
-                        optionalFeatures: true,
-                    });
-                    console.log("VR experience initialized");
-                } catch (error) {
-                    console.log("VR initialization failed", error);
+                // Create visual representation of cells
+                renderGrid(gridData) {
+                    // Clear any existing cells
+                    this.container.innerHTML = '';
+                    this.cellElements = {};
+
+                    // Create visual elements for each cell in the grid data
+                    for (const key in gridData) {
+                        const cell = gridData[key];
+                        this.renderCell(cell);
+                    }
+                },
+            
+                // Create a visual representation of a single cell
+                renderCell(cellData) {
+                    const cellElement = document.createElement('div');
+                    cellElement.className = 'grid-cell';
+                    cellElement.style.position = 'absolute';
+                    cellElement.style.width = this.cellSize + 'px';
+                    cellElement.style.height = this.cellSize + 'px';
+                    cellElement.style.border = '1px solid #61dafb';
+
+                    // Position the cell using our conversion function
+                    const position = this.gridToScreenPosition(cellData.x, cellData.y);
+                    cellElement.style.left = position.left + 'px';
+                    cellElement.style.top = position.top + 'px';
+
+                    // Add coordinate text for debugging
+                    cellElement.innerHTML = `${cellData.x},${cellData.y}`;
+                    cellElement.style.fontSize = '10px';
+                    cellElement.style.display = 'flex';
+                    cellElement.style.alignItems = 'center';
+                    cellElement.style.justifyContent = 'center';
+
+                    // Highlight the center cell
+                    if (cellData.x === 0 && cellData.y === 0) {
+                        cellElement.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                    }
+
+                    // Store reference to this element
+                    this.cellElements[`${cellData.x},${cellData.y}`] = cellElement;
+
+                    // Add the cell to the container
+                    this.container.appendChild(cellElement);
                 }
+            };
+
+            // --- Player Logic ---
+            // redundant will use player.js
+            const player = {
+                x: 0,
+                y: 0,
+                initialize() {
+                    this.x = 0;
+                    this.y = 0;
+                    console.log(`Player initialized at grid position: ${this.x}, ${this.y}`);
+                },
+            };
+    
+           // --- Game Initialization ---
+            console.log("--- Initializing Game Logic ---");
+                    
+            // 1. Create the logical grid data
+            const gridRadius = 4; 
+            worldGrid.createGridData(gridRadius); // Only call once
+                    
+            // 2. Initialize the player
+            // this could be difrent script
+            //player.initialize(); 
+                    
+            // 3. Initialize and render the grid visualization 
+            gridVisualizer.init();
+            gridVisualizer.renderGrid(worldGrid.cells);
+                    
+            // 4. Check player's starting position 
+            const startingCellData = worldGrid.getCellData(player.x, player.y);
+            if (startingCellData) {
+                console.log(`Player starts on cell type: ${startingCellData.type}`);
+            } else {
+                console.error("Error: Player's starting position (0,0) doesn't exist!");
             }
             
-            // Performance optimizations based on device
-            if (deviceDetector.isMobile || deviceDetector.isTablet) {
-                engine.setHardwareScalingLevel(1.5); // Scale down for mobile
-                scene.postProcessesEnabled = false; // Disable post-processing for performance
-                scene.particlesEnabled = false; // Disable particles for performance
-            }
+            console.log("--- Initialization Complete ---");
+    
+        </script>
+
+
+        <!--script>
+
+            // world
             
-            // Enhanced lighting
-            const hemisphericLight = new BABYLON.HemisphericLight("hemisphericLight", new BABYLON.Vector3(0, 1, 0), scene);
-            hemisphericLight.intensity = 0.7;
+            //world = container for the game objects
+            // world will have cells that will be used to store the game objects and state
+            // world will be a grid of cells(map)
+            // cell will be able to store the game objects and state
+            // 
             
-            const pointLight = new BABYLON.PointLight("pointLight", new BABYLON.Vector3(0, 2, 0), scene);
-            pointLight.intensity = 0.8;
-            pointLight.diffuse = new BABYLON.Color3(1, 0.8, 0.5);
             
-            // Ground with physics
-            const ground = BABYLON.MeshBuilder.CreateGround("ground", { width: 20, height: 20 }, scene);
-            ground.physicsImpostor = new BABYLON.PhysicsImpostor(
-                ground, 
-                BABYLON.PhysicsImpostor.BoxImpostor, 
-                { mass: 0, restitution: 0.7 }, 
-                scene
-            );
+            // Set up world properties
+
+            // World Grid System
+            //const worldGrid = {
+            cell: null,
+            cells: {},
+            cellSize: 50,
+            worldOffset: { x: 0, y: 0 },
+            centerX: Math.floor(window.innerWidth / 2),
+            centerY: Math.floor(window.innerHeight / 2),
+
             
-            // Apply material to ground
-            const groundMaterial = new BABYLON.StandardMaterial("groundMaterial", scene);
-            groundMaterial.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2);
-            groundMaterial.specularColor = new BABYLON.Color3(0.1, 0.1, 0.1);
-            ground.material = groundMaterial;
+            // Create grid starting from center
+            createGrid(radius) {
+                // Clear existing cells
+                this.cells = {};
+
+                // Create cells in a square pattern around center
+                for(let x = -radius; x <= radius; x++) {
+                    for(let y = -radius; y <= radius; y++) {
+
+
+                        // Calculate cell position
+                        const cellX = this.centerX + (x * this.cellSize) - this.worldOffset.x;
+                        const cellY = this.centerY + (y * this.cellSize) - this.worldOffset.y;
+                        
+                        //
+                        
+                        
+                        // Set cell position
+                        
+                        const cell = this.visualizeCell(x, y);
+                        this.cells[`${x},${y}`] = cell;
+                        
+                        // Add coordinate text to cell (for debugging)
+                        cell.innerHTML = `${x},${y}`;
+                        cell.style.fontSize = '10px';
+                        cell.style.display = 'flex';
+                        cell.style.alignItems = 'center';
+                        cell.style.justifyContent = 'center';
+                        // Add coordinate text to cell (for debugging)
+                        cell.innerHTML = `${x},${y}`;   
+                        // Set cell position
+                        cell.style.left = cellX + 'px'; // Set the left position of the cell
+                        cell.style.top = cellY + 'px'; // Set the top position of the cell  
+                        
+                    }
+                }
+            },
             
-            // Create physics-enabled objects
-            const sphere = BABYLON.MeshBuilder.CreateSphere("sphere", { diameter: 1 }, scene);
-            sphere.position.y = 3;
-            sphere.physicsImpostor = new BABYLON.PhysicsImpostor(
-                sphere, 
-                BABYLON.PhysicsImpostor.SphereImpostor, 
-                { mass: 1, restitution: 0.7 }, 
-                scene
-            );
+            // Create a single cell
+            // visual part of code 
+            visualizeCell(x, y) {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                cell.style.position = 'absolute';
+                cell.style.width = this.cellSize + 'px';
+                cell.style.height = this.cellSize + 'px';
+                cell.style.border = '1px solid #61dafb';
+                return cell;
+            },
+        
             
-            // PBR material for the sphere
-            const sphereMaterial = new BABYLON.PBRMaterial("sphereMaterial", scene);
-            sphereMaterial.metallic = 0.3;
-            sphereMaterial.roughness = 0.4;
-            sphereMaterial.albedoColor = new BABYLON.Color3(0.206, 0.94, 1);
-            sphere.material = sphereMaterial;
-            
-            // Add a box with physics
-            const box = BABYLON.MeshBuilder.CreateBox("box", { size: 1 }, scene);
-            box.position = new BABYLON.Vector3(1, 5, 0);
-            box.physicsImpostor = new BABYLON.PhysicsImpostor(
-                box, 
-                BABYLON.PhysicsImpostor.BoxImpostor, 
-                { mass: 1, restitution: 0.5 }, 
-                scene
-            );
-            
-            // Add post-processing effects - only for desktop/high-end devices
-            if (!deviceDetector.isMobile && !deviceDetector.isTablet) {
-                const defaultPipeline = new BABYLON.DefaultRenderingPipeline("defaultPipeline", true, scene, [camera]);
-                defaultPipeline.fxaaEnabled = true;
-                defaultPipeline.bloomEnabled = true;
-                defaultPipeline.bloomThreshold = 0.15;
-                defaultPipeline.bloomWeight = 0.3;
-                defaultPipeline.depthOfFieldEnabled = true;
-                defaultPipeline.depthOfFieldBlurLevel = BABYLON.DepthOfFieldEffectBlurLevel.Low;
-                defaultPipeline.chromaticAberrationEnabled = true;
-                defaultPipeline.chromaticAberration.aberrationAmount = 0.01;
-            }
-            
-            // Debug inspector - only enable on desktop
-            if (deviceDetector.isDesktop) {
-                scene.debugLayer.show({
-                    embedMode: true,
-                    overlay: true
-                });
-            }
-            
-            // Add device-specific controls/UI
-            if (deviceDetector.hasTouchCapability) {
-                // Create a simple touch UI for mobile/tablet
-                const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
-                
-                const touchControlsInfo = new BABYLON.GUI.TextBlock();
-                touchControlsInfo.text = "Use one finger to rotate, two fingers to zoom";
-                touchControlsInfo.color = "white";
-                touchControlsInfo.fontSize = 16;
-                touchControlsInfo.height = "30px";
-                touchControlsInfo.top = "10px";
-                advancedTexture.addControl(touchControlsInfo);
-                
-                // Auto-hide after 5 seconds
-                setTimeout(() => {
-                    touchControlsInfo.isVisible = false;
-                }, 5000);
-            }
-            
-            return scene;
         };
 
-        createScene().then((scene) => {
-            engine.runRenderLoop(() => {
-                scene.render();
-            });
-        });
+        // Create a 5x5 grid (radius 2 creates a 5x5 grid)
+        worldGrid.createGrid(1);
 
-        window.addEventListener("resize", () => {
-            engine.resize();
-        });
-    </script>
-</body>
+        </script-->
+
+
+
+        <div id="player" style="width: 100%; height: 100%;"></div>
+        <script>
+            /*
+            .* Player.js
+            */
+            // --- Player Logic ---
+            // Initialize the game player
+            var playerElement = document.getElementById('player');
+            
+            
+            // Set up player properties
+            playerElement.style.backgroundColor = 'white';
+            playerElement.style.position = 'relative';
+            playerElement.style.width = '40px';
+            playerElement.style.height = '40px';
+            playerElement.style.zIndex = '1000'; // Set a high z-index value
+
+            //circular player shape
+            //playerElement.style.borderRadius = '50%';
+
+            // Set up player position (center of the screen)
+            playerElement.style.transform = 'translate(-50%, -50%)';
+            playerElement.style.top = '30%';
+            playerElement.style.left = '50%';
+        
+        </script>
+
+        <script>
+
+            // objects in the world
+            // we will use divs to represent the world objects
+            //resoures, trees, rocks, etc.
+
+            //set up tree properties
+
+            
+            // tree green color
+            var tree = document.createElement('div');
+            tree.style.position = 'absolute'; 
+            tree.style.width = '20px';
+            tree.style.height = '20px';
+            tree.style.backgroundColor = 'green'; // ground color
+
+            // Append the world element to the body
+            document.body.appendChild(tree);
+
+
+        </script>
+
+        <script>
+
+            // Set up player movement
+            // wasd keys for movement
+            // we want player to stay in the center of the screen
+            // so we will move the backgroiund instead of the player
+            // all cells will be moved in the opposite direction of the player
+            document.addEventListener('keydown', function(event) {
+                switch(event.key) {
+                    case 'w':
+                        playerElement.style.top = (parseInt(playerElement.style.top) - 10) + 'px';
+                        break;
+                    case 's':
+                        playerElement.style.top = (parseInt(playerElement.style.top) + 10) + 'px';
+                        break;
+                    case 'a':
+                        playerElement.style.left = (parseInt(playerElement.style.left) - 10) + 'px';
+                        break;
+                    case 'd':
+                        playerElement.style.left = (parseInt(playerElement.style.left) + 10) + 'px';
+                        break;
+                }
+            });
+
+        </script>
+
+    </body>
+    
+
 </html>

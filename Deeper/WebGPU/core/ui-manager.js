@@ -3,7 +3,11 @@
  * 
  * This module handles user interface interactions, tab management,
  * and control binding for the WebGPU Explorer.
+ * 
+ * this file is too long, reusle code should be moved to ui.js
  */
+
+import { UI } from './ui.js';
 
 export class UIManager {
     /**
@@ -133,13 +137,13 @@ export class UIManager {
         
         const vertexCode = editor.value;
         if (!vertexCode || vertexCode.trim() === '') {
-            this.showNotification('Vertex shader code is empty', 'error');
+            UI.showNotification('Vertex shader code is empty', 'error');
             return;
         }
 
         // Basic validation - check if the shader contains @vertex and main function
         if (!vertexCode.includes('@vertex') || !vertexCode.includes('fn main(')) {
-            this.showNotification('Shader must contain an @vertex fn main() entry point', 'error', 10000);
+            UI.showNotification('Shader must contain an @vertex fn main() entry point', 'error', 10000);
             return;
         }
         
@@ -169,20 +173,20 @@ export class UIManager {
                 );
 
                 if (pipelineUpdated) {
-                    this.showNotification('Vertex shader updated successfully!', 'success');
+                    UI.showNotification('Vertex shader updated successfully!', 'success');
                     // Check for achievements if implemented
                     if (this.app.achievementSystem?.checkShaderAchievements) {
                         this.app.achievementSystem.checkShaderAchievements(vertexCode, 'vertex');
                     }
                 } else {
-                    this.showNotification('Error updating pipeline with new vertex shader.', 'error');
+                    UI.showNotification('Error updating pipeline with new vertex shader.', 'error');
                 }
             } else {
-                this.showNotification(`Vertex Shader Error: ${compileResult.error}`, 'error', 10000);
+                UI.showNotification(`Vertex Shader Error: ${compileResult.error}`, 'error', 10000);
             }
         } catch (error) {
             console.error("Error in runVertexShader:", error);
-            this.showNotification(`Error: ${error.message}`, 'error');
+            UI.showNotification(`Error: ${error.message}`, 'error');
         }
     }
     
@@ -195,13 +199,13 @@ export class UIManager {
         
         const fragmentCode = editor.value;
         if (!fragmentCode || fragmentCode.trim() === '') {
-            this.showNotification('Fragment shader code is empty', 'error');
+            UI.showNotification('Fragment shader code is empty', 'error');
             return;
         }
 
         // Basic validation - check if the shader contains @fragment and main function
         if (!fragmentCode.includes('@fragment') || !fragmentCode.includes('fn main(')) {
-            this.showNotification('Shader must contain an @fragment fn main() entry point', 'error', 10000);
+            UI.showNotification('Shader must contain an @fragment fn main() entry point', 'error', 10000);
             return;
         }
         
@@ -231,20 +235,20 @@ export class UIManager {
                 );
 
                 if (pipelineUpdated) {
-                    this.showNotification('Fragment shader updated successfully!', 'success');
+                    UI.showNotification('Fragment shader updated successfully!', 'success');
                     // Check for achievements if implemented
                     if (this.app.achievementSystem?.checkShaderAchievements) {
                         this.app.achievementSystem.checkShaderAchievements(fragmentCode, 'fragment');
                     }
                 } else {
-                    this.showNotification('Error updating pipeline with new fragment shader.', 'error');
+                    UI.showNotification('Error updating pipeline with new fragment shader.', 'error');
                 }
             } else {
-                this.showNotification(`Fragment Shader Error: ${compileResult.error}`, 'error', 10000);
+                UI.showNotification(`Fragment Shader Error: ${compileResult.error}`, 'error', 10000);
             }
         } catch (error) {
             console.error("Error in runFragmentShader:", error);
-            this.showNotification(`Error: ${error.message}`, 'error');
+            UI.showNotification(`Error: ${error.message}`, 'error');
         }
     }
     
@@ -263,10 +267,10 @@ export class UIManager {
             const executeCode = new Function('app', jsCode);
             executeCode(this.app);
             
-            this.showNotification('JavaScript executed successfully!', 'success');
+            UI.showNotification('JavaScript executed successfully!', 'success');
         } catch (error) {
             console.error('Error executing JavaScript:', error);
-            this.showNotification(`Error: ${error.message}`, 'error');
+            UI.showNotification(`Error: ${error.message}`, 'error');
         }
     }
     
@@ -276,11 +280,7 @@ export class UIManager {
     toggleHint() {
         const hintContent = document.getElementById('hint-content');
         if (hintContent) {
-            if (hintContent.style.display === 'none') {
-                hintContent.style.display = 'block';
-            } else {
-                hintContent.style.display = 'none';
-            }
+            UI.toggleElement(hintContent);
         }
     }
     
@@ -289,32 +289,7 @@ export class UIManager {
      */
     toggleFullscreen() {
         const container = document.querySelector('.app-container');
-        
-        if (!document.fullscreenElement) {
-            // Enter fullscreen
-            if (container.requestFullscreen) {
-                container.requestFullscreen();
-            } else if (container.mozRequestFullScreen) { // Firefox
-                container.mozRequestFullScreen();
-            } else if (container.webkitRequestFullscreen) { // Chrome, Safari & Opera
-                container.webkitRequestFullscreen();
-            } else if (container.msRequestFullscreen) { // IE/Edge
-                container.msRequestFullscreen();
-            }
-            this.isFullscreen = true;
-        } else {
-            // Exit fullscreen
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            } else if (document.mozCancelFullScreen) {
-                document.mozCancelFullScreen();
-            } else if (document.webkitExitFullscreen) {
-                document.webkitExitFullscreen();
-            } else if (document.msExitFullscreen) {
-                document.msExitFullscreen();
-            }
-            this.isFullscreen = false;
-        }
+        this.isFullscreen = UI.toggleFullscreen(container);
     }
     
     /**
@@ -358,57 +333,6 @@ export class UIManager {
     }
     
     /**
-     * Show a temporary notification
-     * @param {string} message - Message to display
-     * @param {string} type - Notification type ('success', 'error', 'info')
-     */
-    showNotification(message, type = 'info') {
-        // Create notification element if it doesn't exist
-        let notification = document.getElementById('notification');
-        if (!notification) {
-            notification = document.createElement('div');
-            notification.id = 'notification';
-            document.body.appendChild(notification);
-            
-            // Style the notification
-            notification.style.position = 'fixed';
-            notification.style.bottom = '20px';
-            notification.style.left = '20px';
-            notification.style.padding = '10px 15px';
-            notification.style.borderRadius = '4px';
-            notification.style.fontSize = '14px';
-            notification.style.transition = 'opacity 0.3s ease';
-            notification.style.zIndex = '1000';
-        }
-        
-        // Set notification style based on type
-        switch (type) {
-            case 'success':
-                notification.style.backgroundColor = '#42d392';
-                notification.style.color = 'white';
-                break;
-            case 'error':
-                notification.style.backgroundColor = '#ff6347';
-                notification.style.color = 'white';
-                break;
-            case 'info':
-            default:
-                notification.style.backgroundColor = '#4a6bdf';
-                notification.style.color = 'white';
-                break;
-        }
-        
-        // Set message and show notification
-        notification.textContent = message;
-        notification.style.opacity = '1';
-        
-        // Hide after 3 seconds
-        setTimeout(() => {
-            notification.style.opacity = '0';
-        }, 3000);
-    }
-    
-    /**
      * Fixes common shader syntax errors in the currently active editor
      */
     fixCommonShaderErrors() {
@@ -426,7 +350,7 @@ export class UIManager {
                 shaderType = 'fragment';
                 break;
             default:
-                this.showNotification('Please select a shader tab (Vertex or Fragment) first', 'info');
+                UI.showNotification('Please select a shader tab (Vertex or Fragment) first', 'info');
                 return;
         }
         
@@ -434,47 +358,20 @@ export class UIManager {
         
         let code = editor.value;
         if (!code || code.trim() === '') {
-            this.showNotification('No code to fix', 'info');
+            UI.showNotification('No code to fix', 'info');
             return;
         }
         
-        // Store original code for comparison
-        const originalCode = code;
-        
-        // Fix 1: Add missing decimal points to numbers to ensure f32 type
-        code = code.replace(/\b(\d+)(?![\.|\w])/g, '$1.0');
-        
-        // Fix 2: Add parentheses around combined logical operators (&&, ||)
-        code = code.replace(/([^\(])(.*?)&&(.*?)(\|\|)(.*?)([^\)])/g, '$1(($2&&$3)$4($5))$6');
-        
-        // Fix 3: Fix hex color values (#RRGGBB) 
-        code = code.replace(/(vec4<f32>)\s*\(\s*#([0-9A-Fa-f]{6})\s*,/g, (match, vecType, hexColor) => {
-            // Convert hex color to RGB values
-            const r = parseInt(hexColor.substring(0, 2), 16) / 255;
-            const g = parseInt(hexColor.substring(2, 4), 16) / 255;
-            const b = parseInt(hexColor.substring(4, 6), 16) / 255;
-            return `${vecType}(${r}, ${g}, ${b},`;
-        });
-        
-        // Fix 4: Fix missing var initializers by converting let to var where needed
-        code = code.replace(/let\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=/g, 'var $1 =');
-        
-        // Fix 5: Add type annotations for common numeric variables
-        code = code.replace(/let\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(\d+\.\d+|\d+)/g, 'let $1: f32 = $2');
-        
-        // Fix 6: Fix vector construction without explicit types
-        code = code.replace(/vec(\d)\s*\(/g, 'vec$1<f32>(');
-        
-        // Fix 7: Fix matrix construction without explicit types
-        code = code.replace(/mat(\d)x(\d)\s*\(/g, 'mat$1x$2<f32>(');
+        // Use the UI utility to fix shader syntax
+        const result = UI.fixShaderSyntax(code);
         
         // Update the editor value if changes were made
-        if (code !== originalCode) {
-            editor.value = code;
-            this.editorStates[shaderType] = code;
-            this.showNotification('Common syntax issues fixed', 'success');
+        if (result.changed) {
+            editor.value = result.code;
+            this.editorStates[shaderType] = result.code;
+            UI.showNotification('Common syntax issues fixed', 'success');
         } else {
-            this.showNotification('No syntax issues found', 'info');
+            UI.showNotification('No syntax issues found', 'info');
         }
     }
     
@@ -913,29 +810,6 @@ export class UIManager {
     }
     
     /**
-     * Format a control value for display based on its type
-     * @param {any} value - The control value
-     * @param {string} type - The control type
-     * @returns {string} Formatted value for display
-     */
-    formatControlValue(value, type) {
-        switch (type) {
-            case 'float':
-            case 'number':
-            case 'range':
-                return parseFloat(value).toFixed(2);
-            case 'int':
-            case 'integer':
-                return parseInt(value, 10).toString();
-            case 'bool':
-            case 'checkbox':
-                return Boolean(value) ? 'On' : 'Off';
-            default:
-                return value ? value.toString() : '';
-        }
-    }
-    
-    /**
      * Apply a specific control value to shaders in real time
      * @param {string} controlId - The ID of the control
      * @param {any} value - The new control value
@@ -1066,7 +940,7 @@ export class UIManager {
         // Update main lecture content
         const lectureContent = document.getElementById('lecture-content');
         if (lectureContent) {
-            lectureContent.innerHTML = this.convertMarkdownToHtml(lecture.content);
+            lectureContent.innerHTML = UI.convertMarkdownToHtml(lecture.content);
         }
         
         // Update code examples section in the lecture UI
@@ -1337,89 +1211,14 @@ export class UIManager {
     }
     
     /**
-     * Simple Markdown to HTML converter
-     * @param {string} markdown - Markdown content
-     * @returns {string} HTML content
-     */
-    convertMarkdownToHtml(markdown) {
-        if (!markdown) return '';
-        
-        // This is a very basic markdown converter - for more complex conversions
-        // consider using a dedicated library like marked.js or showdown.js
-        
-        let html = markdown;
-        
-        // Headers
-        html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>');
-        html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
-        html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
-        
-        // Bold and italic
-        html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-        
-        // Lists
-        html = html.replace(/^\d+\. (.*$)/gm, '<ol><li>$1</li></ol>');
-        html = html.replace(/^- (.*$)/gm, '<ul><li>$1</li></ul>');
-        
-        // Links
-        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-        
-        // Code blocks
-        html = html.replace(/```([^`]*?)```/gs, function(match, codeContent) {
-            // Extract language if specified (e.g., ```javascript)
-            const firstLine = codeContent.trim().split('\n')[0];
-            let language = '';
-            let code = codeContent;
-            
-            if (firstLine && !firstLine.includes(' ') && firstLine.length < 20) {
-                language = firstLine;
-                code = codeContent.substring(firstLine.length).trim();
-            }
-            
-            return `<pre><code class="language-${language}">${code}</code></pre>`;
-        });
-        
-        // Inline code
-        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-        
-        // Line breaks (multiple empty lines -> one line break)
-        html = html.replace(/\n\n+/g, '\n\n');
-        
-        // Paragraphs
-        html = html.replace(/\n\n/g, '</p><p>');
-        html = html.replace(/^(.+)$/gm, '<p>$1</p>');
-        
-        // Fix nested paragraphs in lists
-        html = html.replace(/<\/li><\/[ou]l><p>/g, '</li></ol>');
-        html = html.replace(/<\/p><[ou]l><li>/g, '<ol><li>');
-        
-        // Fix nested paragraphs in other elements
-        html = html.replace(/<\/h(\d)><p>/g, '</h$1>');
-        html = html.replace(/<\/p><h(\d)>/g, '<h$1>');
-        
-        return html;
-    }
-    
-    /**
      * Set up real-time updates for shader rendering when controls change
      * This connects control changes to immediate shader recompilation
      */
     setupRealTimeControlUpdates() {
         console.log('[UI] Setting up real-time control updates');
-        // Debounce function to limit how often shaders are recompiled
-        const debounce = (func, delay) => {
-            let timeoutId;
-            return (...args) => {
-                clearTimeout(timeoutId);
-                timeoutId = setTimeout(() => {
-                    func.apply(this, args);
-                }, delay);
-            };
-        };
         
         // Function to update shaders with current control values
-        const updateShaders = debounce(async () => {
+        const updateShaders = UI.debounce(async () => {
             // Get current code from editors
             const vertexEditor = document.getElementById('vertex-editor');
             const fragmentEditor = document.getElementById('fragment-editor');
@@ -1489,7 +1288,7 @@ export class UIManager {
             });
             
             if (controlChanged) {
-                updateShaders();
+                updateShaders.call(this);
             }
         });
         
@@ -1507,10 +1306,10 @@ export class UIManager {
         // Also hook into direct control change event handlers
         const controlHandlers = {
             input: (event) => {
-                updateShaders();
+                updateShaders.call(this);
             },
             change: (event) => {
-                updateShaders();
+                updateShaders.call(this);
             }
         };
         

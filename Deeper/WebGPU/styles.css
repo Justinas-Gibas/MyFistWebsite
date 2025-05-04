@@ -167,9 +167,7 @@ body {
     position: fixed;
     right: 0;
     top: 50%;
-    transform: translateY(-50%);
-    width: 40px;
-    height: 40px;
+    transform: translateY(-50%);    
     background-color: var(--primary-color);
     color: white;
     display: flex;
