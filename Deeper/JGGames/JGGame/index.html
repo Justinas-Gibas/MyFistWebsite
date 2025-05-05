@@ -44,6 +44,113 @@
     <body>
 
         <script>
+
+            // Set up player movement
+            // wasd keys for movement
+            // we want player to stay in the center of the screen
+            // so we will move the backgroiund instead of the player
+            // all cells will be moved in the opposite direction of the player
+            //document.addEventListener('keydown', function(event) {
+            //    switch(event.key) {
+            //        case 'w':
+            //            playerElement.style.top = (parseInt(playerElement.style.top) - 10) + 'px';
+            //            break;
+            //        case 's':
+            //            playerElement.style.top = (parseInt(playerElement.style.top) + 10) + 'px';
+            //            break;
+            //        case 'a':
+            //            playerElement.style.left = (parseInt(playerElement.style.left) - 10) + 'px';
+            //            break;
+            //        case 'd':
+            //            playerElement.style.left = (parseInt(playerElement.style.left) + 10) + 'px';
+            //            break;
+            //    }
+            //});
+
+            // --- Player Movement ---
+            document.addEventListener('keydown', function (event) {
+                switch (event.key) {
+                    case 'w': // Move up
+                        player.move(0, -1);
+                        break;
+                    case 's': // Move down
+                        player.move(0, 1);
+                        break;
+                    case 'a': // Move left
+                        player.move(-1, 0);
+                        break;
+                    case 'd': // Move right
+                        player.move(1, 0);
+                        break;
+                }
+            });
+
+            document.addEventListener('keydown', function (event) {
+                switch (event.key) {
+                    case 'ArrowUp': // Scroll grid down
+                        worldGrid.updateOffset(0, -1);
+                        gridVisualizer.renderGrid(worldGrid.cells);
+                        break;
+                    case 'ArrowDown': // Scroll grid up
+                        worldGrid.updateOffset(0, 1);
+                        gridVisualizer.renderGrid(worldGrid.cells);
+                        break;
+                    case 'ArrowLeft': // Scroll grid right
+                        worldGrid.updateOffset(-1, 0);
+                        gridVisualizer.renderGrid(worldGrid.cells);
+                        break;
+                    case 'ArrowRight': // Scroll grid left
+                        worldGrid.updateOffset(1, 0);
+                        gridVisualizer.renderGrid(worldGrid.cells);
+                        break;
+                }
+            });
+
+        </script>
+
+        <script>
+
+            // objects in the world
+            // we will use divs to represent the world objects
+            //resoures, trees, rocks, etc.
+
+            //set up tree properties
+            
+                    
+           
+            
+            // tree green color
+            var tree = document.createElement('div');
+            tree.style.position = 'absolute'; 
+            tree.style.width = '20px';
+            tree.style.height = '20px';
+            tree.style.backgroundColor = 'green'; // ground color
+
+            // Append the world element to the body
+            document.body.appendChild(tree);
+
+            // Add grid coordinates and dataset attributes to tree
+            tree.dataset.gridX = 2; // Example: Place at grid position (2,2)
+            tree.dataset.gridY = 2;
+
+
+             // Position the tree based on grid coordinates
+             function updateTreePosition() {
+                const treeX = parseInt(tree.dataset.gridX);
+                const treeY = parseInt(tree.dataset.gridY);
+                //const treeX = 2;
+                //const treeY = 2;
+                const position = gridVisualizer.gridToScreenPosition(treeX, treeY);
+                tree.style.left = position.left + 15 + 'px'; // Center in cell
+                tree.style.top = position.top + 15 + 'px';  // Center in cell
+            }
+            
+            // Initial position
+            updateTreePosition();
+
+        </script>
+
+        <script>
             /*
             * 
             */
@@ -91,12 +198,14 @@
             // --- Grid Logic ---
             const worldGrid = {
                 cells: {},
+                offsetX: 0, // Horizontal offset
+                offsetY: 0, // Vertical offset
 
                 createGridData(radius) {
                     console.log(`Creating grid data with radius ${radius}...`);
                     this.cells = {}; // Start with an empty grid data structure
 
-                    // Loop through coordinates around the center (0,0)
+                    // Loop through coordinates around the center cell (0,0)
                     for (let x = -radius; x <= radius; x++) {
                         for (let y = -radius; y <= radius; y++) {
                             // Create a unique key for this position (e.g., "0,0", "1,-1")
@@ -111,17 +220,27 @@
                         }
                     }
                     console.log(`Grid data created. Total positions: ${Object.keys(this.cells).length}`);
-                    console.log('Grid data:', this.cells); // Optional: See the created data
+                    //console.log('Grid data:', this.cells); // Optional: See the created data
                 },
 
                 // Function to get the data for a specific grid position
                 getCellData(x, y) {
-                    const key = `${x},${y}`;
-                    return this.cells[key]; // Returns the cell data object, or undefined if it doesn't exist
-                },  
+                    const key = `${x - this.offsetX},${y - this.offsetY}`; // Adjust for offsets
+                    return this.cells[key];
+                }, 
+
+                // Update the grid's offset
+                updateOffset(dx, dy) {
+                    this.offsetX += dx;
+                    this.offsetY += dy;
+                    console.log(`Grid offset updated: (${this.offsetX}, ${this.offsetY})`);
+                    player.updateVisualPosition();
+                }
+
             };
     
             // New module for visualization
+            //
             const gridVisualizer = {
                 cellSize: 50, // Visual cell size in pixels
                 container: null,
@@ -139,14 +258,16 @@
                     document.body.appendChild(this.container);
                 },
             
-                // Convert grid coordinates to screen coordinates (centered)
+                // Convert grid coordinates to screen coordinates (centered)(div)
+                // why not use css grid system?
+                // this is a simple way to convert grid coordinates to screen coordinates
                 gridToScreenPosition(x, y) {
-                    const centerX = Math.floor(window.innerWidth / 2);
-                    const centerY = Math.floor(window.innerHeight / 2);
+                    const centerX = Math.floor(window.innerWidth / 2 - this.cellSize / 2);
+                    const centerY = Math.floor(window.innerHeight / 2 - this.cellSize / 2);
 
                     return {
-                        left: centerX + (x * this.cellSize),
-                        top: centerY + (y * this.cellSize)
+                        left: centerX + (x - worldGrid.offsetX) * this.cellSize,
+                        top: centerY + (y - worldGrid.offsetY) * this.cellSize
                     };
                 },
             
@@ -161,6 +282,16 @@
                         const cell = gridData[key];
                         this.renderCell(cell);
                     }
+
+                    // Update player position
+                    try {
+                        player.updateVisualPosition();
+                    } catch (error) {
+                        console.error("Error updating player position:", error);
+                    }
+
+                    // Update other world objects
+                    updateTreePosition();
                 },
             
                 // Create a visual representation of a single cell
@@ -173,6 +304,8 @@
                     cellElement.style.border = '1px solid #61dafb';
 
                     // Position the cell using our conversion function
+                    // lets  with out this
+
                     const position = this.gridToScreenPosition(cellData.x, cellData.y);
                     cellElement.style.left = position.left + 'px';
                     cellElement.style.top = position.top + 'px';
@@ -197,40 +330,26 @@
                 }
             };
 
-            // --- Player Logic ---
-            // redundant will use player.js
-            const player = {
-                x: 0,
-                y: 0,
-                initialize() {
-                    this.x = 0;
-                    this.y = 0;
-                    console.log(`Player initialized at grid position: ${this.x}, ${this.y}`);
-                },
-            };
+           ;
     
            // --- Game Initialization ---
             console.log("--- Initializing Game Logic ---");
                     
             // 1. Create the logical grid data
-            const gridRadius = 4; 
+            const gridRadius = 3; 
             worldGrid.createGridData(gridRadius); // Only call once
                     
             // 2. Initialize the player
-            // this could be difrent script
-            //player.initialize(); 
+            // from player.js
+            //player.initialize(); // Initialize player position (0,0)
                     
             // 3. Initialize and render the grid visualization 
             gridVisualizer.init();
             gridVisualizer.renderGrid(worldGrid.cells);
                     
             // 4. Check player's starting position 
-            const startingCellData = worldGrid.getCellData(player.x, player.y);
-            if (startingCellData) {
-                console.log(`Player starts on cell type: ${startingCellData.type}`);
-            } else {
-                console.error("Error: Player's starting position (0,0) doesn't exist!");
-            }
+            const startingCellData = worldGrid.getCellData(0, 0);
+            
             
             console.log("--- Initialization Complete ---");
     
@@ -323,14 +442,55 @@
         <div id="player" style="width: 100%; height: 100%;"></div>
         <script>
             /*
-            .* Player.js
+            * Player.js
+            * user input and pawn logic
             */
             // --- Player Logic ---
-            // Initialize the game player
+
+            const player = {
+                x: 0, // Player's grid X position
+                y: 0, // Player's grid Y position
+
+                initialize() {
+                    this.x = 0;
+                    this.y = 0;
+                    console.log(`Player initialized at grid position: ${this.x}, ${this.y}`);
+                    this.updateVisualPosition();
+                },
+
+                // Update player's visual position based on grid coordinates
+                updateVisualPosition() {
+                    const position = gridVisualizer.gridToScreenPosition(this.x, this.y);
+                    const playerElement = document.getElementById('player');
+                    playerElement.style.left = position.left + 6 /* to center in cell */ + 'px';
+                    playerElement.style.top = position.top + 6 /* to center in cell */ + 'px';
+                },
+            
+                // Move the player in the grid
+                move(dx, dy) {
+                    const newX = this.x + dx;
+                    const newY = this.y + dy;
+                
+                    // Check if the new position exists in the grid
+                    if (worldGrid.getCellData(newX, newY)) {
+                        this.x = newX;
+                        this.y = newY;
+                        console.log(`Player moved to grid position: ${this.x}, ${this.y}`);
+                        this.updateVisualPosition();
+                    } else {
+                        console.warn(`Cannot move to position: ${newX}, ${newY} (out of bounds)`);
+                    }
+                }
+            };
+
+            // Initialize the player
+            player.initialize();
+
+            // Initialize the game player pawn
             var playerElement = document.getElementById('player');
             
             
-            // Set up player properties
+            // Set up pawn properties
             playerElement.style.backgroundColor = 'white';
             playerElement.style.position = 'relative';
             playerElement.style.width = '40px';
@@ -340,60 +500,20 @@
             //circular player shape
             //playerElement.style.borderRadius = '50%';
 
-            // Set up player position (center of the screen)
-            playerElement.style.transform = 'translate(-50%, -50%)';
-            playerElement.style.top = '30%';
-            playerElement.style.left = '50%';
+            // we want to use world grid logic
+            // to pace the player in 0:0 cell
+            // and move 
+
+            // Set up player position
+            //playerElement.style.transform = 'translate(-50%, -50%)';
+            //playerElement.style.top = '30%';
+            //playerElement.style.left = '50%';
         
         </script>
 
-        <script>
+        
 
-            // objects in the world
-            // we will use divs to represent the world objects
-            //resoures, trees, rocks, etc.
-
-            //set up tree properties
-
-            
-            // tree green color
-            var tree = document.createElement('div');
-            tree.style.position = 'absolute'; 
-            tree.style.width = '20px';
-            tree.style.height = '20px';
-            tree.style.backgroundColor = 'green'; // ground color
-
-            // Append the world element to the body
-            document.body.appendChild(tree);
-
-
-        </script>
-
-        <script>
-
-            // Set up player movement
-            // wasd keys for movement
-            // we want player to stay in the center of the screen
-            // so we will move the backgroiund instead of the player
-            // all cells will be moved in the opposite direction of the player
-            document.addEventListener('keydown', function(event) {
-                switch(event.key) {
-                    case 'w':
-                        playerElement.style.top = (parseInt(playerElement.style.top) - 10) + 'px';
-                        break;
-                    case 's':
-                        playerElement.style.top = (parseInt(playerElement.style.top) + 10) + 'px';
-                        break;
-                    case 'a':
-                        playerElement.style.left = (parseInt(playerElement.style.left) - 10) + 'px';
-                        break;
-                    case 'd':
-                        playerElement.style.left = (parseInt(playerElement.style.left) + 10) + 'px';
-                        break;
-                }
-            });
-
-        </script>
+        
 
     </body>
     
