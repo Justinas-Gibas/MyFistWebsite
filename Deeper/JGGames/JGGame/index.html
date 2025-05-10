@@ -43,6 +43,8 @@
     </style>
     <body>
 
+        
+
         <script>
 
             // Set up player movement
@@ -101,6 +103,28 @@
                         break;
                     case 'ArrowRight': // Scroll grid left
                         worldGrid.updateOffset(1, 0);
+                        gridVisualizer.renderGrid(worldGrid.cells);
+                        break;
+                }
+            });
+
+            // IJKL controls for shifting grid cells
+            document.addEventListener('keydown', function (event) {
+                switch (event.key) {
+                    case 'i': // Shift grid cells upward
+                        worldGrid.shiftCells(0, -1);
+                        gridVisualizer.renderGrid(worldGrid.cells);
+                        break;
+                    case 'k': // Shift grid cells downward
+                        worldGrid.shiftCells(0, 1);
+                        gridVisualizer.renderGrid(worldGrid.cells);
+                        break;
+                    case 'j': // Shift grid cells leftward
+                        worldGrid.shiftCells(-1, 0);
+                        gridVisualizer.renderGrid(worldGrid.cells);
+                        break;
+                    case 'l': // Shift grid cells rightward
+                        worldGrid.shiftCells(1, 0);
                         gridVisualizer.renderGrid(worldGrid.cells);
                         break;
                 }
@@ -235,8 +259,106 @@
                     this.offsetY += dy;
                     console.log(`Grid offset updated: (${this.offsetX}, ${this.offsetY})`);
                     player.updateVisualPosition();
-                }
+                },
 
+                // Shift grid cells
+                shiftCells(dx, dy) {
+                    const newCells = {};
+                    
+                    // Move all existing cells to new positions
+                    for (const key in this.cells) {
+                        const cell = this.cells[key];
+                        const newX = cell.x + dx;
+                        const newY = cell.y + dy;
+                        const newKey = `${newX},${newY}`;
+                        
+                        // Transfer cell data to new position with updated coordinates
+                        newCells[newKey] = { 
+                            ...cell, 
+                            x: newX, 
+                            y: newY 
+                        };
+                    }
+                    
+                    // Determine boundaries to find where we need to generate new cells
+                    let minX = Infinity, maxX = -Infinity;
+                    let minY = Infinity, maxY = -Infinity;
+                    
+                    Object.values(newCells).forEach(cell => {
+                        minX = Math.min(minX, cell.x);
+                        maxX = Math.max(maxX, cell.x);
+                        minY = Math.min(minY, cell.y);
+                        maxY = Math.max(maxY, cell.y);
+                    });
+                    
+                    // Generate new cells along the edges created by the shift
+                    if (dx > 0) { // We moved right, generate new cells on left side
+                        for (let y = minY; y <= maxY; y++) {
+                            for (let x = minX - 1; x >= minX - dx; x--) {
+                                const key = `${x},${y}`;
+                                newCells[key] = this.generateCellData(x, y);
+                            }
+                        }
+                    } else if (dx < 0) { // We moved left, generate new cells on right side
+                        for (let y = minY; y <= maxY; y++) {
+                            for (let x = maxX + 1; x <= maxX - dx; x++) {
+                                const key = `${x},${y}`;
+                                newCells[key] = this.generateCellData(x, y);
+                            }
+                        }
+                    }
+                    
+                    if (dy > 0) { // We moved down, generate new cells on top
+                        for (let x = minX; x <= maxX; x++) {
+                            for (let y = minY - 1; y >= minY - dy; y--) {
+                                const key = `${x},${y}`;
+                                if (!newCells[key]) { // Avoid duplicating corner cells
+                                    newCells[key] = this.generateCellData(x, y);
+                                }
+                            }
+                        }
+                    } else if (dy < 0) { // We moved up, generate new cells on bottom
+                        for (let x = minX; x <= maxX; x++) {
+                            for (let y = maxY + 1; y <= maxY - dy; y++) {
+                                const key = `${x},${y}`;
+                                if (!newCells[key]) { // Avoid duplicating corner cells
+                                    newCells[key] = this.generateCellData(x, y);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Update the cells object with our new grid
+                    this.cells = newCells;
+                    console.log(`Grid cells shifted by (${dx}, ${dy}). New cell count: ${Object.keys(this.cells).length}`);
+                },
+                
+                // Generate cell data at a specific position
+                generateCellData(x, y) {
+                    // Here we could add procedural generation logic
+                    // For now, we'll create a simple cell with a random type
+                    const types = ['empty', 'grass', 'dirt', 'rock'];
+                    const typeIndex = Math.floor(Math.random() * 100);
+                    
+                    let type = 'empty'; // Default
+                    
+                    // Weight different types based on position and pseudo-random values
+                    if (typeIndex < 70) { // 70% chance of empty space
+                        type = 'empty';
+                    } else if (typeIndex < 85) { // 15% chance of grass
+                        type = 'grass';
+                    } else if (typeIndex < 95) { // 10% chance of dirt
+                        type = 'dirt';
+                    } else { // 5% chance of rock
+                        type = 'rock';
+                    }
+                    
+                    return {
+                        x: x,
+                        y: y,
+                        type: type
+                    };
+                }
             };
     
             // New module for visualization
@@ -304,22 +426,36 @@
                     cellElement.style.border = '1px solid #61dafb';
 
                     // Position the cell using our conversion function
-                    // lets  with out this
-
                     const position = this.gridToScreenPosition(cellData.x, cellData.y);
                     cellElement.style.left = position.left + 'px';
                     cellElement.style.top = position.top + 'px';
 
+                    // Style based on cell type
+                    switch(cellData.type) {
+                        case 'grass':
+                            cellElement.style.backgroundColor = 'rgba(0, 128, 0, 0.2)'; // Green for grass
+                            break;
+                        case 'dirt':
+                            cellElement.style.backgroundColor = 'rgba(139, 69, 19, 0.2)'; // Brown for dirt
+                            break;
+                        case 'rock':
+                            cellElement.style.backgroundColor = 'rgba(128, 128, 128, 0.3)'; // Gray for rock
+                            break;
+                        default:
+                            cellElement.style.backgroundColor = 'rgba(0, 0, 0, 0.05)'; // Almost transparent for empty
+                    }
+
                     // Add coordinate text for debugging
-                    cellElement.innerHTML = `${cellData.x},${cellData.y}`;
+                    cellElement.innerHTML = `${cellData.x},${cellData.y}<br>${cellData.type}`;
                     cellElement.style.fontSize = '10px';
                     cellElement.style.display = 'flex';
                     cellElement.style.alignItems = 'center';
                     cellElement.style.justifyContent = 'center';
+                    cellElement.style.textAlign = 'center';
 
                     // Highlight the center cell
                     if (cellData.x === 0 && cellData.y === 0) {
-                        cellElement.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                        cellElement.style.outline = '2px solid yellow';
                     }
 
                     // Store reference to this element

@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Persistent World Grid Game - Educational Template">
+    <title>Persistent World Exploration</title>
+    <style>
+        :root {
+            --main-bg-color: #282c34;
+            --main-text-color: #61dafb;
+            --grid-border-color: #61dafb;
+            --grid-hover-color: rgba(97, 218, 251, 0.3);
+            --cell-empty-color: rgba(0, 0, 0, 0.05);
+            --cell-grass-color: rgba(0, 128, 0, 0.2);
+            --cell-dirt-color: rgba(139, 69, 19, 0.2);
+            --cell-rock-color: rgba(128, 128, 128, 0.3);
+            --cell-water-color: rgba(0, 100, 255, 0.3);
+            --cell-forest-color: rgba(0, 64, 0, 0.3);
+            --cell-mountain-color: rgba(90, 90, 90, 0.4);
+            --player-color: white;
+        }
+
+        html, body {
+            background-color: var(--main-bg-color);
+            color: var(--main-text-color);
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+            font-family: Arial, sans-serif;
+        }
+
+        .grid-cell {
+            background-color: var(--cell-empty-color);
+            transition: background-color 0.2s;
+            position: absolute;
+            border: 1px solid rgba(97, 218, 251, 0.3);
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 10px;
+            user-select: none;
+        }
+
+        .grid-cell:hover {
+            background-color: var(--grid-hover-color);
+        }
+
+        #minimap {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 150px;
+            height: 150px;
+            background-color: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--grid-border-color);
+            z-index: 1000;
+        }
+
+        #minimap-player {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            background-color: white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .controls-legend {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 300px;
+            z-index: 1000;
+        }
+
+        .coordinates-display {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+
+        h1, p {
+            text-align: center;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+        <h1 id="T1">Persistent World Exploration</h1>
+        <p id="T2">Explore an infinite, persistent world using WASD keys</p>
+
+    <!-- Coordinate display -->
+    <div class="coordinates-display">
+        <p>Player Position: <span id="player-coords">0, 0</span></p>
+        <p>Chunks Loaded: <span id="chunks-loaded">0</span></p>
+    </div>
+
+    <!-- Controls legend -->
+    <div class="controls-legend">
+        <h3>Controls</h3>
+        <ul>
+            <li>WASD: Move player & explore the world</li>
+            <li>E: Interact with current cell</li>
+            <li>R: Toggle coordinates display</li>
+            <li>M: Toggle minimap</li>
+        </ul>
+    </div>
+
+    <!-- Minimap -->
+    <div id="minimap">
+        <div id="minimap-player"></div>
+    </div>
+
+    <script>
+    /**
+     * ===============================================
+     * PERSISTENT WORLD EXPLORATION GAME
+     * ===============================================
+     * 
+     * An educational template showing how to implement:
+     * - Procedural world generation
+     * - Chunk-based loading and memory management
+     * - Deterministic generation for persistent worlds
+     * - World exploration and minimap system
+     */
+
+    /**
+     * Game Configuration
+     */
+    const CONFIG = {
+        WORLD: {
+            CHUNK_SIZE: 3,           // How many cells per chunk (width/height)
+            VISIBLE_CHUNKS: 3,        // How many chunks to show around player (radius)
+            RENDER_DISTANCE: 1,       // Chunks to keep loaded beyond visible area
+            SEED: "explorergame2025", // RNG seed for consistent world generation
+        },
+        CELLS: {
+            SIZE: 40,                 // Visual size of cells in pixels
+            SHOW_COORDINATES: true,   // Show coordinates in cells
+            SHOW_TYPE: true,          // Show cell type in cells
+        },
+        PLAYER: {
+            START_X: 0,
+            START_Y: 0,
+            SIZE: 30,
+            MOVEMENT_SPEED: 1,        // How many cells to move per keypress
+        },
+        DEBUG: {
+            ENABLED: true,
+            SHOW_CHUNK_BORDERS: true,
+        }
+    };
+
+    /**
+     * WorldSeed - Handles deterministic procedural generation
+     * This makes our world generation reproducible and persistent
+     */
+    const WorldSeed = {
+        // Simple string hash function to get a numeric seed
+        hash(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32-bit integer
+            }
+            return hash;
+        },
+        
+        // Seeded random number generator
+        random(x, y, seed = CONFIG.WORLD.SEED) {
+            // Combine coordinates with seed for deterministic output
+            const combined = `${seed}_${x}_${y}`;
+            const hashValue = this.hash(combined);
+            
+            // Generate a float between 0 and 1
+            return (hashValue & 0xFFFFFFFF) / 0xFFFFFFFF;
+        },
+        
+        // Get consistent cell type for any world coordinates
+        getCellType(worldX, worldY) {
+            const value = this.random(worldX, worldY);
+            
+            // Create different biomes based on position and noise
+            const distFromOrigin = Math.sqrt(worldX * worldX + worldY * worldY);
+            const elevation = this.random(worldX, worldY, 'elevation') * 17;
+            const moisture = this.random(worldX, worldY, 'moisture') * 100;
+            
+            // Use elevation and moisture to determine terrain type
+            if (elevation < 3) {
+                return 'water';
+            } else if (elevation < 4) {
+                return 'sand';
+            } else if (elevation > 8) {
+                return 'mountain';
+            } else if (moisture > 6 && elevation < 7) {
+                return 'forest';
+            } else if (moisture > 4) {
+                return 'grass';
+            } else {
+                return 'dirt';
+            }
+        }
+    };
+
+    /**
+     * ChunkManager - Manages loading, unloading, and accessing chunks of the world
+     */
+    const ChunkManager = {
+        // Map of loaded chunks, keyed by "x,y" coordinates
+        chunks: new Map(),
+        
+        // Get the chunk coordinates for a world position
+        getChunkCoords(worldX, worldY) {
+            const chunkX = Math.floor(worldX / CONFIG.WORLD.CHUNK_SIZE);
+            const chunkY = Math.floor(worldY / CONFIG.WORLD.CHUNK_SIZE);
+            return { x: chunkX, y: chunkY };
+        },
+        
+        // Create a unique key for a chunk
+        getChunkKey(chunkX, chunkY) {
+            return `${chunkX},${chunkY}`;
+        },
+        
+        // Get a chunk by world coordinates, generating if needed
+        getChunkByWorldCoords(worldX, worldY) {
+            const { x, y } = this.getChunkCoords(worldX, worldY);
+            return this.getChunkByChunkCoords(x, y);
+        },
+        
+        // Get a chunk, generating it if it doesn't exist
+        getChunkByChunkCoords(chunkX, chunkY) {
+            const key = this.getChunkKey(chunkX, chunkY);
+            
+            if (!this.chunks.has(key)) {
+                this.chunks.set(key, this.generateChunk(chunkX, chunkY));
+            }
+            
+            return this.chunks.get(key);
+        },
+        
+        // Generate a new chunk with cells
+        generateChunk(chunkX, chunkY) {
+            const chunk = {
+                x: chunkX,
+                y: chunkY,
+                cells: {},
+                loaded: true,
+                visible: false,
+            };
+            
+            // Generate all cells in the chunk
+            for (let localX = 0; localX < CONFIG.WORLD.CHUNK_SIZE; localX++) {
+                for (let localY = 0; localY < CONFIG.WORLD.CHUNK_SIZE; localY++) {
+                    const worldX = chunkX * CONFIG.WORLD.CHUNK_SIZE + localX;
+                    const worldY = chunkY * CONFIG.WORLD.CHUNK_SIZE + localY;
+                    
+                    chunk.cells[`${localX},${localY}`] = {
+                        x: worldX,
+                        y: worldY,
+                        type: WorldSeed.getCellType(worldX, worldY),
+                        // Add other cell properties here (resources, entities, etc.)
+                    };
+                }
+            }
+            
+            return chunk;
+        },
+        
+        // Update chunks around player, loading and unloading as needed
+        updateChunksAroundPlayer(playerX, playerY) {
+            const playerChunk = this.getChunkCoords(playerX, playerY);
+            const loadDistance = CONFIG.WORLD.VISIBLE_CHUNKS + CONFIG.WORLD.RENDER_DISTANCE;
+            
+            // Map all chunks that should be kept
+            const chunksToKeep = new Set();
+            
+            // Load chunks in render distance
+            for (let xOffset = -loadDistance; xOffset <= loadDistance; xOffset++) {
+                for (let yOffset = -loadDistance; yOffset <= loadDistance; yOffset++) {
+                    const chunkX = playerChunk.x + xOffset;
+                    const chunkY = playerChunk.y + yOffset;
+                    const key = this.getChunkKey(chunkX, chunkY);
+                    
+                    chunksToKeep.add(key);
+                    
+                    // Check if chunk should be visible
+                    const isVisible = Math.abs(xOffset) <= CONFIG.WORLD.VISIBLE_CHUNKS && 
+                                      Math.abs(yOffset) <= CONFIG.WORLD.VISIBLE_CHUNKS;
+                    
+                    // Load chunk if needed
+                    if (!this.chunks.has(key)) {
+                        const chunk = this.generateChunk(chunkX, chunkY);
+                        chunk.visible = isVisible;
+                        this.chunks.set(key, chunk);
+                    } else {
+                        // Update visibility
+                        const chunk = this.chunks.get(key);
+                        chunk.visible = isVisible;
+                    }
+                }
+            }
+            
+            // Unload chunks outside render distance
+            for (const [key, chunk] of this.chunks.entries()) {
+                if (!chunksToKeep.has(key)) {
+                    this.chunks.delete(key);
+                }
+            }
+            
+            // Update UI counter
+            document.getElementById('chunks-loaded').textContent = this.chunks.size;
+        },
+        
+        // Get cell data by world coordinates
+        getCellByWorldCoords(worldX, worldY) {
+            const chunk = this.getChunkByWorldCoords(worldX, worldY);
+            if (!chunk) return null;
+            
+            const localX = ((worldX % CONFIG.WORLD.CHUNK_SIZE) + CONFIG.WORLD.CHUNK_SIZE) % CONFIG.WORLD.CHUNK_SIZE;
+            const localY = ((worldY % CONFIG.WORLD.CHUNK_SIZE) + CONFIG.WORLD.CHUNK_SIZE) % CONFIG.WORLD.CHUNK_SIZE;
+            
+            return chunk.cells[`${localX},${localY}`];
+        }
+    };
+
+    /**
+     * WorldRenderer - Handles rendering the world to the screen
+     */
+    const WorldRenderer = {
+        // Container for all grid cells
+        container: null,
+        
+        // Map of rendered cell elements
+        renderedCells: {},
+        
+        // Cache of cell coordinates that have been created
+        renderedCoords: new Set(),
+        
+        // Initialize the renderer
+        initialize() {
+            this.container = document.createElement('div');
+            this.container.id = 'world-container';
+            this.container.style.position = 'absolute';
+            this.container.style.width = '100%';
+            this.container.style.height = '100%';
+            this.container.style.overflow = 'hidden';
+            document.body.appendChild(this.container);
+            
+            // Setup minimap
+            this.initializeMinimap();
+        },
+        
+        // Setup minimap
+        initializeMinimap() {
+            this.minimap = document.getElementById('minimap');
+            this.minimapPlayer = document.getElementById('minimap-player');
+        },
+        
+        // Convert world coordinates to screen coordinates
+        worldToScreen(worldX, worldY) {
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+            
+            // Center player on screen, with appropriate offset for cell size
+            const screenX = centerX + (worldX - Player.x) * CONFIG.CELLS.SIZE;
+            const screenY = centerY + (worldY - Player.y) * CONFIG.CELLS.SIZE;
+            
+            return { x: screenX, y: screenY };
+        },
+        
+        // Create a visual element for a cell
+        createCellElement(cell) {
+            const { x, y } = cell;
+            
+            // Check if we've already rendered this cell
+            if (this.renderedCoords.has(`${x},${y}`)) {
+                return this.renderedCells[`${x},${y}`];
+            }
+            
+            // Create cell element
+            const element = document.createElement('div');
+            element.className = 'grid-cell';
+            element.style.width = `${CONFIG.CELLS.SIZE}px`;
+            element.style.height = `${CONFIG.CELLS.SIZE}px`;
+            
+            // Style based on cell type
+            switch (cell.type) {
+                case 'water':
+                    element.style.backgroundColor = 'var(--cell-water-color)';
+                    break;
+                case 'sand':
+                    element.style.backgroundColor = 'rgba(194, 178, 128, 0.3)';
+                    break;
+                case 'grass':
+                    element.style.backgroundColor = 'var(--cell-grass-color)';
+                    break;
+                case 'dirt':
+                    element.style.backgroundColor = 'var(--cell-dirt-color)';
+                    break;
+                case 'forest':
+                    element.style.backgroundColor = 'var(--cell-forest-color)';
+                    break;
+                case 'mountain':
+                    element.style.backgroundColor = 'var(--cell-mountain-color)';
+                    break;
+                default:
+                    element.style.backgroundColor = 'var(--cell-empty-color)';
+            }
+            
+            // Add labels if enabled
+            let cellLabel = '';
+            
+            if (CONFIG.CELLS.SHOW_COORDINATES) {
+                cellLabel += `${x},${y}`;
+            }
+            
+            if (CONFIG.CELLS.SHOW_TYPE) {
+                cellLabel += cellLabel ? `<br>${cell.type}` : cell.type;
+            }
+            
+            if (cellLabel) {
+                element.innerHTML = cellLabel;
+            }
+            
+            // Special styling for origin
+            if (x === 0 && y === 0) {
+                element.style.outline = '2px solid yellow';
+            }
+            
+            // Store for later updates
+            this.renderedCells[`${x},${y}`] = element;
+            this.renderedCoords.add(`${x},${y}`);
+            this.container.appendChild(element);
+            
+            return element;
+        },
+        
+        // Update the visual position of all rendered cells
+        updateCellPositions() {
+            for (const key in this.renderedCells) {
+                const [x, y] = key.split(',').map(Number);
+                const element = this.renderedCells[key];
+                
+                // Convert world position to screen position
+                const screenPos = this.worldToScreen(x, y);
+                
+                // Position on screen
+                element.style.left = `${screenPos.x - CONFIG.CELLS.SIZE / 2}px`;
+                element.style.top = `${screenPos.y - CONFIG.CELLS.SIZE / 2}px`;
+            }
+        },
+        
+        // Clear all rendered cells
+        clearRenderedCells() {
+            this.container.innerHTML = '';
+            this.renderedCells = {};
+            this.renderedCoords.clear();
+        },
+        
+        // Render visible chunks
+        renderVisibleChunks() {
+            // Optionally clear all cells first (more efficient to just update positions)
+            // this.clearRenderedCells();
+            
+            // Render all visible chunks
+            for (const chunk of ChunkManager.chunks.values()) {
+                if (chunk.visible) {
+                    // Render each cell in the chunk
+                    for (const key in chunk.cells) {
+                        const cell = chunk.cells[key];
+                        
+                        // Only create if it doesn't exist yet
+                        if (!this.renderedCells[`${cell.x},${cell.y}`]) {
+                            this.createCellElement(cell);
+                        }
+                    }
+                    
+                    // Add chunk border for debugging
+                    if (CONFIG.DEBUG.SHOW_CHUNK_BORDERS) {
+                        this.renderChunkBorder(chunk);
+                    }
+                }
+            }
+            
+            // Update positions of all cells
+            this.updateCellPositions();
+            
+            // Update minimap
+            this.updateMinimap();
+        },
+        
+        // Render a border around a chunk for debugging
+        renderChunkBorder(chunk) {
+            const worldX = chunk.x * CONFIG.WORLD.CHUNK_SIZE;
+            const worldY = chunk.y * CONFIG.WORLD.CHUNK_SIZE;
+            const chunkSize = CONFIG.WORLD.CHUNK_SIZE;
+            
+            // Create border for top edge
+            for (let i = 0; i < chunkSize; i++) {
+                const cell = ChunkManager.getCellByWorldCoords(worldX + i, worldY);
+                if (cell) {
+                    const element = this.renderedCells[`${cell.x},${cell.y}`];
+                    if (element) {
+                        element.style.borderTop = '2px solid rgba(255,255,255,0.3)';
+                    }
+                }
+            }
+            
+            // Create border for bottom edge
+            for (let i = 0; i < chunkSize; i++) {
+                const cell = ChunkManager.getCellByWorldCoords(worldX + i, worldY + chunkSize - 1);
+                if (cell) {
+                    const element = this.renderedCells[`${cell.x},${cell.y}`];
+                    if (element) {
+                        element.style.borderBottom = '2px solid rgba(255,255,255,0.3)';
+                    }
+                }
+            }
+            
+            // Create border for left edge
+            for (let i = 0; i < chunkSize; i++) {
+                const cell = ChunkManager.getCellByWorldCoords(worldX, worldY + i);
+                if (cell) {
+                    const element = this.renderedCells[`${cell.x},${cell.y}`];
+                    if (element) {
+                        element.style.borderLeft = '2px solid rgba(255,255,255,0.3)';
+                    }
+                }
+            }
+            
+            // Create border for right edge
+            for (let i = 0; i < chunkSize; i++) {
+                const cell = ChunkManager.getCellByWorldCoords(worldX + chunkSize - 1, worldY + i);
+                if (cell) {
+                    const element = this.renderedCells[`${cell.x},${cell.y}`];
+                    if (element) {
+                        element.style.borderRight = '2px solid rgba(255,255,255,0.3)';
+                    }
+                }
+            }
+        },
+        
+        // Update the minimap with current player position and surrounding terrain
+        updateMinimap() {
+            // Position player dot on minimap
+            const minimapCenter = {
+                x: this.minimap.offsetWidth / 2,
+                y: this.minimap.offsetHeight / 2
+            };
+            
+            this.minimapPlayer.style.left = `${minimapCenter.x}px`;
+            this.minimapPlayer.style.top = `${minimapCenter.y}px`;
+            
+            // We could also render terrain on the minimap
+            // but that's left as an exercise for students
+        }
+    };
+
+    /**
+     * Player - Manages player state and movement
+     */
+    const Player = {
+        x: CONFIG.PLAYER.START_X,
+        y: CONFIG.PLAYER.START_Y,
+        element: null,
+        
+        // Initialize player
+        initialize() {
+            // Create player element
+            this.element = document.createElement('div');
+            this.element.id = 'player';
+            this.element.style.position = 'absolute';
+            this.element.style.width = `${CONFIG.PLAYER.SIZE}px`;
+            this.element.style.height = `${CONFIG.PLAYER.SIZE}px`;
+            this.element.style.backgroundColor = 'var(--player-color)';
+            this.element.style.borderRadius = '0%';
+            this.element.style.zIndex = '1000';
+        
+            // Center player on screen
+            this.element.style.left = `${window.innerWidth / 2 - CONFIG.PLAYER.SIZE / 2 + /*header size*/ 0 }px`;
+            this.element.style.top = `${(window.innerHeight / 2 - CONFIG.PLAYER.SIZE / 2) + /*header size h1 + p*/  T1.getBoundingClientRect().height  + T2.getBoundingClientRect().height + 30}px`;
+            
+            document.body.appendChild(this.element);
+            
+            // Update coordinate display
+            this.updateCoordinatesDisplay();
+        },
+        
+        // Move the player by change in x and y
+        move(dx, dy) {
+            const newX = this.x + dx * CONFIG.PLAYER.MOVEMENT_SPEED;
+            const newY = this.y + dy * CONFIG.PLAYER.MOVEMENT_SPEED;
+            
+            // Check if new position is valid (e.g., not water)
+            const targetCell = ChunkManager.getCellByWorldCoords(newX, newY);
+            if (targetCell && targetCell.type !== 'water') { // Can't walk on water
+                this.x = newX;
+                this.y = newY;
+                
+                // Update UI coordinates
+                this.updateCoordinatesDisplay();
+                
+                // Update chunks around player
+                ChunkManager.updateChunksAroundPlayer(this.x, this.y);
+                
+                // Update rendered cells
+                WorldRenderer.renderVisibleChunks();
+                
+                return true;
+            }
+            
+            return false;
+        },
+        
+        // Update the coordinates display in UI
+        updateCoordinatesDisplay() {
+            document.getElementById('player-coords').textContent = `${this.x}, ${this.y}`;
+        }
+    };
+
+    /**
+     * Input - Handles player input
+     */
+    const Input = {
+        // Key state tracking
+        keys: {
+            w: false,
+            a: false,
+            s: false,
+            d: false
+        },
+        
+        // Initialize input handlers
+        initialize() {
+            // Key down listener
+            document.addEventListener('keydown', (event) => {
+                const key = event.key.toLowerCase();
+                
+                // Track WASD keys
+                if (key in this.keys) {
+                    this.keys[key] = true;
+                    event.preventDefault();
+                }
+                
+                // Handle special keys
+                if (key === 'e') {
+                    this.handleInteraction();
+                } else if (key === 'r') {
+                    this.toggleCoordinates();
+                } else if (key === 'm') {
+                    this.toggleMinimap();
+                }
+            });
+            
+            // Key up listener
+            document.addEventListener('keyup', (event) => {
+                const key = event.key.toLowerCase();
+                if (key in this.keys) {
+                    this.keys[key] = false;
+                }
+            });
+            
+            // Process movement on animation frame
+            this.startMovementLoop();
+        },
+        
+        // Start the movement processing loop
+        startMovementLoop() {
+            const processMovement = () => {
+                let dx = 0, dy = 0;
+                
+                // Calculate direction
+                if (this.keys.w) dy--;
+                if (this.keys.s) dy++;
+                if (this.keys.a) dx--;
+                if (this.keys.d) dx++;
+                
+                // Only move if direction changes
+                if (dx !== 0 || dy !== 0) {
+                    Player.move(dx, dy);
+                }
+                
+                requestAnimationFrame(processMovement);
+            };
+            
+            requestAnimationFrame(processMovement);
+        },
+        
+        // Handle interaction with current cell
+        handleInteraction() {
+            const currentCell = ChunkManager.getCellByWorldCoords(Player.x, Player.y);
+            if (currentCell) {
+                console.log(`Interacting with ${currentCell.type} at (${currentCell.x}, ${currentCell.y})`);
+                
+                // Add interaction based on cell type
+                switch (currentCell.type) {
+                    case 'forest':
+                        console.log("You gather some wood.");
+                        break;
+                    case 'mountain':
+                        console.log("You mine some stone.");
+                        break;
+                    case 'grass':
+                        console.log("You find some seeds.");
+                        break;
+                    // Add more interactions as desired
+                }
+            }
+        },
+        
+        // Toggle coordinate display
+        toggleCoordinates() {
+            CONFIG.CELLS.SHOW_COORDINATES = !CONFIG.CELLS.SHOW_COORDINATES;
+            WorldRenderer.clearRenderedCells();
+            WorldRenderer.renderVisibleChunks();
+        },
+        
+        // Toggle minimap
+        toggleMinimap() {
+            const minimap = document.getElementById('minimap');
+            minimap.style.display = minimap.style.display === 'none' ? 'block' : 'none';
+        }
+    };
+
+    /**
+     * Game - Main game controller
+     */
+    const Game = {
+        // Initialize the game
+        initialize() {
+            console.log("Initializing game...");
+            
+            // Initialize renderer
+            WorldRenderer.initialize();
+            
+            // Initialize player
+            Player.initialize();
+            
+            // Load chunks around player starting position
+            ChunkManager.updateChunksAroundPlayer(Player.x, Player.y);
+            
+            // Render visible chunks
+            WorldRenderer.renderVisibleChunks();
+            
+            // Initialize input handling
+            Input.initialize();
+            
+            // Handle window resizing
+            window.addEventListener('resize', () => {
+                WorldRenderer.updateCellPositions();
+            });
+            
+            console.log("Game initialized!");
+        }
+    };
+
+    // Start the game when the page is loaded
+    window.onload = () => {
+        Game.initialize();
+    };
+    </script>
+</body>
+</html>

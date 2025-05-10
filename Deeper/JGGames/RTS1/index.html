@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RTS Game</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui-overlay">
+            <div id="resources-panel">
+                <div class="resource" id="wood">Wood: <span>0</span></div>
+                <div class="resource" id="stone">Stone: <span>0</span></div>
+                <div class="resource" id="food">Food: <span>0</span></div>
+                <div class="resource" id="population">Population: <span>0</span></div>
+            </div>
+            <div id="building-panel">
+                <button data-building="house">Build House (10 wood)</button>
+                <button data-building="farm">Build Farm (15 wood)</button>
+                <button data-building="mine">Build Mine (20 wood, 10 stone)</button>
+                <button data-building="barracks">Build Barracks (30 wood, 20 stone)</button>
+            </div>
+            <div id="unit-panel">
+                <button data-unit="worker">Train Worker (10 food)</button>
+                <button data-unit="soldier">Train Soldier (20 food, 10 stone)</button>
+            </div>
+        </div>
+    </div>
+    <script src="engine/game.js"></script>
+    <script src="engine/renderer.js"></script>
+    <script src="engine/input.js"></script>
+    <script src="entities/unit.js"></script>
+    <script src="entities/building.js"></script>
+    <script src="entities/resource.js"></script>
+    <script src="systems/pathfinding.js"></script>
+    <script src="systems/ai.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

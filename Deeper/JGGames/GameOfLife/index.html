@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Thinking Grid Simulation</title>
+  <style>
+    canvas {
+      border: 1px solid black;
+    }
+    body {
+      font-family: monospace;
+      background: #111;
+      color: #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h1>Thinking Grid Simulation</h1>
+  <canvas id="gridCanvas"></canvas>
+  <p>Adjust parameters directly in HTML/JS file for experimentation.</p>
+
+  <script>
+    // ===== CONFIGURABLE PARAMETERS =====
+    const CELL_SIZE = 5;             // Pixel size of each grid cell
+    const GRID_WIDTH = 160;           // Number of cells horizontally
+    const GRID_HEIGHT = 160;          // Number of cells vertically
+    const TICK_INTERVAL = 100;       // Time between simulation steps (in milliseconds)
+
+    const canvas = document.getElementById("gridCanvas");
+    canvas.width = CELL_SIZE * GRID_WIDTH;
+    canvas.height = CELL_SIZE * GRID_HEIGHT;
+    const ctx = canvas.getContext("2d");
+
+    // ===== CELL STRUCTURE =====
+    // Create a new cell with randomized initial values
+    function createCell(x, y) {
+      return {
+        x, y,                                  // Position
+        state: Math.random() > 0.1 ? 1 : 0,    // Initially alive with 10% chance
+        influence: Math.random(),              // Influence factor (affects others)
+        threshold: 3 + Math.random(),          // Activation threshold
+        memory: [],                            // History of previous states
+      };
+    }
+
+    // Initialize the grid with cells
+    let grid = Array.from({ length: GRID_HEIGHT }, (_, y) =>
+      Array.from({ length: GRID_WIDTH }, (_, x) => createCell(x, y))
+    );
+
+    // ===== UTILITIES =====
+    // Get neighboring cells (wraps around edges)
+    function getNeighbors(x, y) {
+      const neighbors = [];
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue; // Skip the cell itself
+          const nx = (x + dx + GRID_WIDTH) % GRID_WIDTH;
+          const ny = (y + dy + GRID_HEIGHT) % GRID_HEIGHT;
+          neighbors.push(grid[ny][nx]);
+        }
+      }
+      return neighbors;
+    }
+
+    // ===== SIMULATION STEP =====
+    // Update the entire grid based on neighbor interactions
+    function updateGrid() {
+      // Create a copy of the grid to store updates
+      const newGrid = grid.map(row => row.map(cell => ({ ...cell })));
+
+      for (let y = 0; y < GRID_HEIGHT; y++) {
+        for (let x = 0; x < GRID_WIDTH; x++) {
+          const cell = grid[y][x];
+          const neighbors = getNeighbors(x, y);
+
+          // Get neighbors that are currently alive
+          const active = neighbors.filter(n => n.state === 1);
+
+          // Compute total influence from active neighbors
+          const totalInfluence = active.reduce((sum, n) => sum + n.influence, 0);
+
+          // Compute average threshold of active neighbors
+          const avgThreshold = active.reduce((sum, n) => sum + n.threshold, 0) / (active.length || 1);
+
+          // Adapt threshold based on neighbors
+          cell.threshold = cell.threshold * 0.4 + avgThreshold * 0.4 - 0.4 * Math.random();
+
+          // Store memory of previous state (capped at 10)
+          cell.memory.push(cell.state);
+          if (cell.memory.length > 10) cell.memory.shift();
+
+          // Core rule: activate if influence exceeds threshold
+          newGrid[y][x].state = totalInfluence > cell.threshold ? 1 : 0;
+        }
+      }
+      // Apply the new grid to replace the old one
+      grid = newGrid;
+    }
+
+    // ===== RENDERING =====
+    // Draw each cell to the canvas based on state and influence
+    function drawGrid() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let y = 0; y < GRID_HEIGHT; y++) {
+        for (let x = 0; x < GRID_WIDTH; x++) {
+          const cell = grid[y][x];
+          // If alive, use green with opacity based on influence; else black
+          const color = cell.state === 1 ? `rgba(0,255,0,${cell.influence})` : `rgba(0,0,0,1)`;
+          ctx.fillStyle = color;
+          ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+        }
+      }
+    }
+
+    // ===== MAIN LOOP =====
+    // Continuous loop for simulation and rendering
+    function loop() {
+      updateGrid();  // Update logic
+      drawGrid();    // Draw results
+      setTimeout(loop, TICK_INTERVAL); // Loop with delay
+    }
+
+    // Start simulation
+    loop();
+  </script>
+</body>
+</html>
