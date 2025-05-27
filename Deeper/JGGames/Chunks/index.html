@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voxel VR</title>
+  <script>window.AFRAME_STATS_DISABLE_COMPONENT_STATS = true;</script>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script type="importmap">
+  {
+      "imports": {
+          "three": "https://unpkg.com/three@0.147.0/build/three.module.js",
+          "taichi.js": "https://taichi.js.org/taichi.js/taichi.js"
+      }
+  }
+  </script>
+  <script type="module" src="./src/config.js"></script>
+  <script type="module" src="./src/generators.js"></script>
+  <script type="module" src="./src/managers.js"></script>
+  <script type="module" src="./src/components.js"></script>
+  <script type="module" src="./src/player.js"></script>
+  <script type="module" src="./src/game.js"></script>
+  <link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+  <div id="loading-screen">
+    <div class="loader">Loading...</div>
+  </div>
+
+  <div class="game-ui">
+    <!-- Remove the standalone button -->
+    
+    <!-- Updated toolbar with icon buttons -->
+    <div class="window-toolbar">
+      <button class="tool-button" id="debug-window-toggle" onclick="window.uiManager.toggleWindow('debug-window')" title="Debug">
+        <i class="fas fa-bug"></i>D
+      </button>
+      <button class="tool-button" data-window="inventory-panel" title="Inventory">
+        <i class="fas fa-backpack"></i>I
+      </button>
+      <button class="tool-button" data-window="main-menu" title="Menu">
+        <i class="fas fa-bars"></i>M
+      </button>
+      <div class="toolbar-separator"></div>
+      <!-- Additional buttons will be added dynamically -->
+    </div>
+
+    <div class="ui-window settings-panel" id="settings-panel">
+        <div class="window-header">
+            <span class="window-title">Settings</span>
+            <button class="action-button" onclick="toggleWindow('settings-panel')">×</button>
+        </div>
+        <div class="settings-group">
+            <div class="settings-group-title">Debug Options</div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="toggle-debug-window">
+                <span class="toggle-slider"></span>
+                Show Debug Window
+            </label>
+            <label class="toggle-switch">
+                <input type="checkbox" id="toggle-performance-window">
+                <span class="toggle-slider"></span>
+                Show Performance
+            </label>
+        </div>
+        <div class="settings-group">
+            <div class="settings-group-title">Rendering</div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="toggle-wireframe">
+                <span class="toggle-slider"></span>
+                Wireframe Mode
+            </label>
+            <label class="toggle-switch">
+                <input type="checkbox" id="toggle-chunk-bounds">
+                <span class="toggle-slider"></span>
+                Show Chunk Bounds
+            </label>
+        </div>
+        <div class="settings-group">
+            <div class="settings-group-title">Performance</div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="toggle-rs-stats">
+                <span class="toggle-slider"></span>
+                Show RS Stats
+            </label>
+        </div>
+    </div>
+
+    <div class="ui-window debug-window draggable" id="debug-window" style="display: none;">
+        <div class="window-header">
+            <span class="window-title">Debug Info</span>
+            <button class="action-button" onclick="uiManager.toggleWindow('debug-window', false)">×</button>
+        </div>
+        
+        <!-- Player Info -->
+        <div class="performance-metric">
+            <span class="metric-label">Player Position</span>
+            <span class="metric-value" id="player-position">0, 0, 0</span>
+        </div>
+        <div class="performance-metric">
+            <span class="metric-label">Current Chunk</span>
+            <span class="metric-value" id="player-chunk">0, 0</span>
+        </div>
+
+        <!-- World Info -->
+        <div class="performance-metric">
+            <span class="metric-label">Active Chunks</span>
+            <span class="metric-value" id="chunk-count">0</span>
+        </div>
+        <div class="performance-metric">
+            <span class="metric-label">Total Blocks</span>
+            <span class="metric-value" id="total-blocks">0</span>
+        </div>
+
+        <!-- Debug Flags -->
+        <div class="settings-group">
+            <div class="settings-group-title">Debug Flags</div>
+            <div class="settings-scroll-container">
+                <label class="toggle-switch">
+                    <input type="checkbox" id="flag-blocks" onchange="uiManager.toggleFlag('ENABLE_BLOCK_GENERATION')">
+                    <span class="toggle-slider"></span>
+                    Generate Blocks  <!-- Changed from "Show Blocks" to "Generate Blocks" -->
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="flag-chunks" onchange="uiManager.toggleFlag('ENABLE_CHUNK_GENERATION')" checked>
+                    <span class="toggle-slider"></span>
+                    Enable Chunks
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="flag-bounds" onchange="uiManager.toggleFlag('SHOW_CHUNK_BOUNDS')">
+                    <span class="toggle-slider"></span>
+                    Show Bounds
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="flag-wireframe" onchange="uiManager.toggleFlag('WIREFRAME_MODE')">
+                    <span class="toggle-slider"></span>
+                    Wireframe Mode
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="flag-shadows" onchange="uiManager.toggleFlag('ENABLE_SHADOWS')">
+                    <span class="toggle-slider"></span>
+                    Enable Shadows
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="flag-ao" onchange="uiManager.toggleFlag('ENABLE_AMBIENT_OCCLUSION')">
+                    <span class="toggle-slider"></span>
+                    Ambient Occlusion
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="flag-fog" onchange="uiManager.toggleFlag('ENABLE_FOG')">
+                    <span class="toggle-slider"></span>
+                    Enable Fog
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="flag-bloom" onchange="uiManager.toggleFlag('ENABLE_BLOOM')">
+                    <span class="toggle-slider"></span>
+                    Enable Bloom
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="flag-physics-debug" onchange="uiManager.toggleFlag('ENABLE_PHYSICS_DEBUG')">
+                    <span class="toggle-slider"></span>
+                    Physics Debug
+                </label>
+            </div>
+        </div>
+
+        <!-- Test Mode -->
+        <div class="settings-group">
+            <div class="settings-group-title">Test Mode</div>
+            <select id="test-mode" onchange="uiManager.setTestMode(this.value)">
+                <option value="EMPTY_CENTER">Empty Center Chunk</option>
+                <option value="CENTER_WITH_BLOCKS">Center with Blocks</option>
+                <option value="DYNAMIC_CHUNKS">Dynamic Chunks</option>
+                <option value="DYNAMIC_WITH_BLOCKS">Dynamic with Blocks</option>
+                <option value="TEXTURED">Full with Textures</option>
+            </select>
+
+            <!-- Single Texture Controls Section -->
+            <div class="settings-group">
+                <div class="settings-group-title">Texture Settings</div>
+                <div class="texture-controls">
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="toggle-textures" onchange="uiManager.toggleTextures(this.checked)">
+                        <span class="toggle-slider"></span>
+                        Enable Textures
+                    </label>
+                    <select id="texture-resolution" onchange="uiManager.setTextureResolution(this.value)">
+                        <option value="32">32x32</option>
+                        <option value="64" selected>64x64</option>
+                        <option value="128">128x128</option>
+                    </select>
+                    <button class="action-button" onclick="uiManager.generateTextures()">Generate Textures</button>
+                </div>
+            </div>
+
+            <!-- Add RStats Toggle -->
+            <div class="settings-group">
+                <div class="settings-group-title">Debug Tools</div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-rstats" onchange="uiManager.toggleRStats(this.checked)">
+                    <span class="toggle-slider"></span>
+                    Show Performance Stats
+                </label>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="quick-actions">
+            <button class="action-button" onclick="window.game.initializeWorld()">Regenerate World</button>
+            <button class="action-button" onclick="window.game.chunkManager.clear()">Clear Chunks</button>
+        </div>
+    </div>
+
+    <div class="ui-window main-menu draggable" id="main-menu" style="display: none;">
+        <div class="window-header">
+            <span class="window-title">Main Menu</span>
+            <button class="action-button" onclick="window.uiManager.toggleWindow('main-menu', false)">×</button>
+        </div>
+        <div class="menu-content">
+            <button class="menu-button" onclick="window.uiManager.startNewGame()">New Game</button>
+            <button class="menu-button" onclick="window.uiManager.toggleWindow('settings-panel')">Settings</button>
+            <button class="menu-button" onclick="window.uiManager.toggleWindow('debug-window')">Debug</button>
+            <button class="menu-button" onclick="window.uiManager.toggleInventory()">Inventory</button>
+            <div class="menu-separator"></div>
+            <button class="menu-button warning" onclick="window.uiManager.exitGame()">Exit Game</button>
+        </div>
+    </div>
+
+    <div class="ui-window performance-window" id="performance-window">
+        <div class="window-header">
+            <span class="window-title">Performance</span>
+            <button class="action-button" onclick="toggleWindow('performance-window')">×</button>
+        </div>
+        <div class="performance-metric">
+            <span class="metric-label">FPS</span>
+            <span class="metric-value" id="fps-counter">60</span>
+            <div class="progress-bar">
+                <div class="progress-fill" id="fps-bar" style="width: 100%"></div>
+            </div>
+        </div>
+        <div class="performance-metric">
+            <span class="metric-label">Memory</span>
+            <span class="metric-value" id="memory-usage">0 MB</span>
+            <div class="progress-bar">
+                <div class="progress-fill" id="memory-bar" style="width: 0%"></div>
+            </div>
+        </div>
+        <div class="performance-metric">
+            <span class="metric-label">Draw Calls</span>
+            <span class="metric-value" id="draw-calls">0</span>
+        </div>
+
+        <!-- Add R-stats toggle to performance section -->
+        <div class="settings-group">
+            <div class="settings-group-title">Performance Tools</div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="toggle-rstats" onchange="uiManager.toggleRStats(this.checked)">
+                <span class="toggle-slider"></span>
+                R-Stats Profiling
+            </label>
+            <label class="toggle-switch">
+                <input type="checkbox" id="toggle-fps-graph" onchange="uiManager.toggleFPSGraph(this.checked)">
+                <span class="toggle-slider"></span>
+                FPS Graph
+            </label>
+        </div>
+    </div>
+  </div>
+
+  <div id="inventory-panel" class="ui-panel inventory">
+    <div class="ui-header">
+      <span>Inventory</span>
+      <span class="ui-close" onclick="toggleInventory()">×</span>
+    </div>
+    <div class="ui-grid" id="inventory-grid">
+      <!-- Inventory slots will be generated by JavaScript -->
+    </div>
+  </div>
+
+  <div class="hotbar" id="hotbar">
+    <!-- Slots will be generated by UIManager -->
+  </div>
+
+  <header>
+    <h1>Welcome to Q-DimensionalField</h1>
+    <nav>
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main>
+    <section>
+      <h2>Introduction</h2>
+      <p>Q-DimensionalField is a VR/AR/XR game that uses voxel chunks to create a global server.</p>
+    </section>
+    <section>
+      <h2>Features</h2>
+      <ul>
+        <li>Immersive VR/AR/XR experience</li>
+        <li>Global server with voxel chunks</li>
+        <li>Cross-platform compatibility</li>
+      </ul>
+    </section>
+    <a-scene loading-screen stats="false">
+        <a-assets>
+            <!-- Add your assets here -->
+        </a-assets>
+
+        <a-sky color="#FFFFFF"></a-sky>
+        
+        <a-entity id="player-rig" position="0 1 0" player-controls>
+            <a-camera wasd-controls look-controls>
+                <a-cursor raycaster="objects: .interactive"></a-cursor>
+            </a-camera>
+            <a-entity oculus-touch-controls="hand: left"></a-entity>
+            <a-entity oculus-touch-controls="hand: right"></a-entity>
+        </a-entity>
+
+        <a-entity id="world-container" chunk-manager></a-entity>
+    </a-scene>
+    <div id="feedback-popup" class="feedback-popup"></div>
+  </main>
+  <footer>
+    <p>&copy; 2025 Q-DimensionalField. All rights reserved.</p>
+  </footer>
+  <script type="module">
+    import { UIManager } from './src/managers.js';
+    
+    // Initialize UI manager
+    const uiManager = new UIManager();
+    
+    // Expose UI manager globally for debug purposes
+    window.uiManager = uiManager;
+    
+    // Error handling
+    window.addEventListener('error', (event) => {
+        console.error('Global error:', event.error);
+        const feedback = document.getElementById('feedback-popup');
+        feedback.textContent = 'An error occurred. Please refresh the page.';
+        feedback.classList.add('visible');
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WAT in HTML - Minimal Demo</title>
+  <style>
+    body { 
+      margin: 0; 
+      background: linear-gradient(135deg, #1e3c72, #2a5298); 
+      color: #fff; 
+      font-family: 'Courier New', monospace; 
+      padding: 20px;
+    }
+    .container { max-width: 800px; margin: 0 auto; text-align: center; }
+    h1 { margin-bottom: 30px; }
+    
+    .wat-editor {
+      width: 100%;
+      height: 200px;
+      background: #1a1a1a;
+      color: #f8f8f2;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      margin: 20px 0;
+    }
+    
+    .button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-family: inherit;
+    }
+    
+    .button:hover { background: #45a049; }
+    .button:disabled { background: #666; cursor: not-allowed; }
+    
+    canvas { 
+      border: 2px solid #fff; 
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      background: rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 WAT in HTML - Minimal Demo</h1>
+    
+    <div class="status" id="status">Ready to compile WAT code</div>
+    
+    <textarea class="wat-editor" id="wat-editor">(module
+  ;; Simple pattern generator
+  (func $compute (param $x i32) (param $y i32) (param $t i32) (result i32)
+    local.get $x
+    local.get $y
+    i32.add
+    local.get $t
+    i32.add
+    
+    local.get $x
+    local.get $y
+    i32.mul
+    
+    i32.xor
+    i32.const 255
+    i32.and)
+  
+  (export "compute" (func $compute))
+)</textarea>
+    
+    <div>
+      <button class="button" onclick="compileAndRun()">Compile & Run</button>
+      <button class="button" onclick="stop()">Stop</button>
+    </div>
+    
+    <canvas id="canvas" width="400" height="400"></canvas>
+  </div>
+
+  <script>
+    let wabtInstance = null;
+    let wasmCompute = null;
+    let animationId = null;
+    
+    // Load wabt.js automatically
+    (async function loadWabt() {
+      try {
+        document.getElementById('status').textContent = 'Loading WebAssembly tools...';
+        
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/wabt@1.0.37/index.min.js';
+        document.head.appendChild(script);
+        
+        await new Promise(resolve => script.onload = resolve);
+        
+        // Wait for WabtModule to be available
+        while (!window.WabtModule) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        
+        wabtInstance = await window.WabtModule();
+        document.getElementById('status').textContent = 'Ready to compile WAT code';
+        
+      } catch (error) {
+        document.getElementById('status').textContent = 'Error loading WebAssembly tools';
+      }
+    })();
+    
+    async function compileAndRun() {
+      if (!wabtInstance) {
+        document.getElementById('status').textContent = 'WebAssembly tools not loaded yet';
+        return;
+      }
+      
+      try {
+        const watCode = document.getElementById('wat-editor').value;
+        
+        // Compile WAT to WASM
+        document.getElementById('status').textContent = 'Compiling WAT to WASM...';
+        const module = wabtInstance.parseWat('compute.wat', watCode);
+        const binary = module.toBinary({});
+        
+        // Create WebAssembly instance
+        const wasmModule = await WebAssembly.compile(binary.buffer);
+        const wasmInstance = await WebAssembly.instantiate(wasmModule);
+        wasmCompute = wasmInstance.exports.compute;
+        
+        document.getElementById('status').textContent = 'Running animation...';
+        startAnimation();
+        
+      } catch (error) {
+        document.getElementById('status').textContent = `Error: ${error.message}`;
+      }
+    }
+    
+    function startAnimation() {
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const { width, height } = canvas;
+      let time = 0;
+      
+      function render() {
+        const imageData = ctx.createImageData(width, height);
+        const data = imageData.data;
+        
+        let idx = 0;
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const value = wasmCompute(x, y, time);
+            data[idx++] = value;                           // Red
+            data[idx++] = (value * 2) & 255;               // Green
+            data[idx++] = ((value ^ time) * 3) & 255;      // Blue  
+            data[idx++] = 255;                             // Alpha
+          }
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        time = (time + 1) & 0xFF;
+        animationId = requestAnimationFrame(render);
+      }
+      
+      render();
+    }
+    
+    function stop() {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+        document.getElementById('status').textContent = 'Animation stopped';
+      }
+    }
+  </script>
+</body>
+</html>

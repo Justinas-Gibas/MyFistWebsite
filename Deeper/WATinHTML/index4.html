@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WAT in HTML - Interactive Demo</title>
+  <style>
+    body { 
+      margin: 0; 
+      background: #000;
+      color: #fff; 
+      font-family: 'Courier New', monospace; 
+      padding: 20px;
+    }
+    .container { max-width: 800px; margin: 0 auto; text-align: center; }
+    h1 { margin-bottom: 30px; color: #fff; }
+    
+    canvas { 
+      border: 2px solid #333; 
+      border-radius: 8px;
+      margin: 20px 0;
+      box-shadow: 0 4px 20px rgba(255,255,255,0.1);
+    }
+    
+    .controls {
+      background: #111;
+      border: 1px solid #333;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .control-group label {
+      margin-right: 10px;
+      min-width: 80px;
+      text-align: left;
+      color: #ccc;
+    }
+    .control-group input[type="range"] {
+      flex-grow: 1;
+      margin: 0 10px;
+    }
+    .control-group span {
+      min-width: 30px;
+      text-align: right;
+      color: #fff;
+      font-weight: bold;
+    }
+
+    .presets {
+      background: #111;
+      border: 1px solid #333;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    
+    .preset-title {
+      color: #ccc;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    
+    .button {
+      background: #222;
+      color: #fff;
+      border: 1px solid #444;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 3px;
+      font-family: inherit;
+      font-size: 12px;
+    }
+    
+    .button:hover { 
+      background: #333; 
+      border-color: #666;
+    }
+    .button:disabled { 
+      background: #111; 
+      color: #666;
+      cursor: not-allowed; 
+    }
+    
+    .button-primary { 
+      background: #333; 
+      border-color: #555;
+    }
+    .button-primary:hover { 
+      background: #444; 
+      border-color: #777;
+    }
+    
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      background: #111;
+      border: 1px solid #333;
+      color: #ccc;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🌌 WAT Pattern Generator</h1>
+    
+    <canvas id="canvas" width="512" height="512"></canvas>
+    
+    <div class="status" id="status">Ready to compile WAT code</div>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="param1">Multiplier A:</label>
+        <input type="range" id="param1" min="1" max="50" value="17">
+        <span id="param1-value">17</span>
+      </div>
+      <div class="control-group">
+        <label for="param2">Multiplier B:</label>
+        <input type="range" id="param2" min="1" max="50" value="13">
+        <span id="param2-value">13</span>
+      </div>
+      <div class="control-group">
+        <label for="param3">Time Scale:</label>
+        <input type="range" id="param3" min="1" max="10" value="3">
+        <span id="param3-value">3</span>
+      </div>
+    </div>
+    
+    <div class="presets">
+      <div class="preset-title">Pattern Presets:</div>
+      <button class="button button-primary" onclick="loadPreset('basic')">Basic XOR</button>
+      <button class="button" onclick="loadPreset('waves')">Wave Pattern</button>
+      <button class="button" onclick="loadPreset('spiral')">Spiral</button>
+      <button class="button" onclick="loadPreset('cellular')">Cellular</button>
+      <button class="button" onclick="loadPreset('plasma')">Plasma</button>
+    </div>
+    
+    <div>
+      <button class="button" onclick="stop()">Stop</button>
+    </div>
+  </div>
+
+  <script>
+    let wabtInstance = null;
+    let wasmCompute = null;
+    let animationId = null;
+    let currentWatCode = '';
+    
+    // DOM elements for sliders
+    let param1Slider, param2Slider, param3Slider;
+    let param1ValueDisplay, param2ValueDisplay, param3ValueDisplay;
+
+    // WAT code presets
+    const presets = {
+      basic: `(module
+  (func $compute (param $x i32) (param $y i32) (param $t i32) (param $p1 i32) (param $p2 i32) (param $p3 i32) (result i32)
+    local.get $x
+    local.get $p1
+    i32.mul
+    local.get $y
+    local.get $p2
+    i32.mul
+    i32.add
+    local.get $t
+    local.get $p3
+    i32.mul
+    i32.add
+    local.get $x
+    local.get $y
+    i32.xor
+    i32.xor
+    i32.const 255
+    i32.and)
+  (export "compute" (func $compute)))`,
+
+      waves: `(module
+  (func $compute (param $x i32) (param $y i32) (param $t i32) (param $p1 i32) (param $p2 i32) (param $p3 i32) (result i32)
+    (local $wave1 i32) (local $wave2 i32)
+    local.get $x
+    local.get $p1
+    i32.mul
+    local.get $t
+    local.get $p3
+    i32.mul
+    i32.add
+    i32.const 8
+    i32.shr_u
+    local.set $wave1
+    
+    local.get $y
+    local.get $p2
+    i32.mul
+    local.get $t
+    i32.add
+    i32.const 6
+    i32.shr_u
+    local.set $wave2
+    
+    local.get $wave1
+    local.get $wave2
+    i32.add
+    i32.const 255
+    i32.and)
+  (export "compute" (func $compute)))`,
+
+      spiral: `(module
+  (func $compute (param $x i32) (param $y i32) (param $t i32) (param $p1 i32) (param $p2 i32) (param $p3 i32) (result i32)
+    (local $dx i32) (local $dy i32) (local $dist i32)
+    local.get $x
+    i32.const 256
+    i32.sub
+    local.set $dx
+    
+    local.get $y
+    i32.const 256
+    i32.sub
+    local.set $dy
+    
+    local.get $dx
+    local.get $dx
+    i32.mul
+    local.get $dy
+    local.get $dy
+    i32.mul
+    i32.add
+    local.set $dist
+    
+    local.get $dist
+    local.get $p1
+    i32.div_u
+    local.get $t
+    local.get $p3
+    i32.mul
+    i32.add
+    local.get $x
+    local.get $y
+    i32.add
+    local.get $p2
+    i32.mul
+    i32.add
+    i32.const 255
+    i32.and)
+  (export "compute" (func $compute)))`,
+
+      cellular: `(module
+  (func $compute (param $x i32) (param $y i32) (param $t i32) (param $p1 i32) (param $p2 i32) (param $p3 i32) (result i32)
+    (local $seed i32) (local $noise i32)
+    local.get $x
+    local.get $p1
+    i32.mul
+    local.get $y
+    local.get $p2
+    i32.mul
+    i32.xor
+    local.get $t
+    local.get $p3
+    i32.mul
+    i32.add
+    local.set $seed
+    
+    local.get $seed
+    i32.const 12345
+    i32.mul
+    i32.const 1103515245
+    i32.add
+    local.set $noise
+    
+    local.get $noise
+    i32.const 16
+    i32.shr_u
+    local.get $noise
+    i32.const 8
+    i32.shr_u
+    i32.xor
+    i32.const 255
+    i32.and)
+  (export "compute" (func $compute)))`,
+
+      plasma: `(module
+  (func $compute (param $x i32) (param $y i32) (param $t i32) (param $p1 i32) (param $p2 i32) (param $p3 i32) (result i32)
+    (local $plasma1 i32) (local $plasma2 i32) (local $plasma3 i32)
+    local.get $x
+    local.get $p1
+    i32.mul
+    local.get $t
+    i32.add
+    i32.const 4
+    i32.shr_u
+    local.set $plasma1
+    
+    local.get $y
+    local.get $p2
+    i32.mul
+    local.get $t
+    local.get $p3
+    i32.mul
+    i32.add
+    i32.const 5
+    i32.shr_u
+    local.set $plasma2
+    
+    local.get $x
+    local.get $y
+    i32.add
+    local.get $t
+    i32.add
+    i32.const 3
+    i32.shr_u
+    local.set $plasma3
+    
+    local.get $plasma1
+    local.get $plasma2
+    i32.add
+    local.get $plasma3
+    i32.add
+    i32.const 3
+    i32.div_u
+    i32.const 255
+    i32.and)
+  (export "compute" (func $compute)))`
+    };
+
+    // Load wabt.js automatically
+    (async function loadWabt() {
+      try {
+        document.getElementById('status').textContent = 'Loading WebAssembly tools...';
+        
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/wabt@1.0.37/index.min.js';
+        document.head.appendChild(script);
+        
+        await new Promise(resolve => script.onload = resolve);
+        
+        // Wait for WabtModule to be available
+        while (!window.WabtModule) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        
+        wabtInstance = await window.WabtModule();
+        document.getElementById('status').textContent = 'Ready to compile WAT code';
+        
+      } catch (error) {
+        document.getElementById('status').textContent = 'Error loading WebAssembly tools';
+      }
+    })();
+    
+    function loadPreset(presetName) {
+      if (presets[presetName]) {
+        currentWatCode = presets[presetName];
+        document.getElementById('status').textContent = `Loaded ${presetName} preset. Compiling...`;
+        // Automatically compile and run when a preset is loaded
+        compileAndRun();
+      }
+    }
+    
+    async function compileAndRun() {
+      if (animationId) { // Stop any existing animation
+        stop();
+      }
+
+      if (!wabtInstance) {
+        document.getElementById('status').textContent = 'WebAssembly tools not loaded yet';
+        return;
+      }
+      
+      try {
+        const watCode = currentWatCode || presets.basic;
+        
+        // Compile WAT to WASM
+        document.getElementById('status').textContent = 'Compiling WAT to WASM...';
+        const module = wabtInstance.parseWat('compute.wat', watCode);
+        const binary = module.toBinary({});
+        
+        // Create WebAssembly instance
+        const wasmModule = await WebAssembly.compile(binary.buffer);
+        const wasmInstance = await WebAssembly.instantiate(wasmModule);
+        wasmCompute = wasmInstance.exports.compute;
+
+        if (typeof wasmCompute !== 'function') {
+          throw new Error("The 'compute' function was not found in the WASM module exports. Make sure it's defined and exported in your WAT code.");
+        }
+        
+        document.getElementById('status').textContent = 'Running animation...';
+        startAnimation();
+        
+      } catch (error) {
+        document.getElementById('status').textContent = `Error: ${error.message}`;
+        console.error("Compilation or Instantiation Error:", error);
+      }
+    }
+    
+    function startAnimation() {
+      if (!wasmCompute) {
+        document.getElementById('status').textContent = 'WASM module not ready.';
+        return;
+      }
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const { width, height } = canvas;
+      let time = 0;
+      
+      function render() {
+        const imageData = ctx.createImageData(width, height);
+        const data = imageData.data;
+
+        // Get current slider values
+        const p1 = parseInt(param1Slider.value);
+        const p2 = parseInt(param2Slider.value);
+        const p3 = parseInt(param3Slider.value);
+        
+        let idx = 0;
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const value = wasmCompute(x, y, time, p1, p2, p3); // Pass slider values
+            data[idx++] = value;                           // Red
+            data[idx++] = (value * 2) & 255;               // Green
+            data[idx++] = ((value ^ time) * 3) & 255;      // Blue  
+            data[idx++] = 255;                             // Alpha
+          }
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        time = (time + 1) & 0xFF;
+        animationId = requestAnimationFrame(render);
+      }
+      
+      render();
+    }
+    
+    function stop() {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+        document.getElementById('status').textContent = 'Animation stopped';
+      }
+    }
+
+    // Initialize sliders and their display
+    document.addEventListener('DOMContentLoaded', () => {
+      param1Slider = document.getElementById('param1');
+      param2Slider = document.getElementById('param2');
+      param3Slider = document.getElementById('param3');
+      param1ValueDisplay = document.getElementById('param1-value');
+      param2ValueDisplay = document.getElementById('param2-value');
+      param3ValueDisplay = document.getElementById('param3-value');
+
+      function updateSliderDisplay(slider, display) {
+        display.textContent = slider.value;
+      }
+
+      param1Slider.oninput = () => updateSliderDisplay(param1Slider, param1ValueDisplay);
+      param2Slider.oninput = () => updateSliderDisplay(param2Slider, param2ValueDisplay);
+      param3Slider.oninput = () => updateSliderDisplay(param3Slider, param3ValueDisplay);
+
+      // Initial display update
+      updateSliderDisplay(param1Slider, param1ValueDisplay);
+      updateSliderDisplay(param2Slider, param2ValueDisplay);
+      updateSliderDisplay(param3Slider, param3ValueDisplay);
+
+      // Load default preset and start animation automatically
+      loadPreset('basic');
+    });
+  </script>
+</body>
+</html>

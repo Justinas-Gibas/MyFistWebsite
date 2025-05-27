@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WAT in HTML - Interactive Demo</title>
+  <style>
+    body { 
+      margin: 0; 
+      background: linear-gradient(135deg, #1e3c72, #2a5298); 
+      color: #fff; 
+      font-family: 'Courier New', monospace; 
+      padding: 20px;
+    }
+    .container { max-width: 800px; margin: 0 auto; text-align: center; }
+    h1 { margin-bottom: 30px; }
+    
+    .controls {
+      background: rgba(0,0,0,0.2);
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .control-group label {
+      margin-right: 10px;
+      min-width: 80px;
+      text-align: left;
+    }
+    .control-group input[type="range"] {
+      flex-grow: 1;
+    }
+    .control-group span {
+      min-width: 30px;
+      text-align: right;
+    }
+
+    .wat-editor {
+      width: 100%;
+      height: 200px;
+      background: #1a1a1a;
+      color: #f8f8f2;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      margin: 20px 0;
+    }
+    
+    .button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-family: inherit;
+    }
+    
+    .button:hover { background: #45a049; }
+    .button:disabled { background: #666; cursor: not-allowed; }
+    
+    canvas { 
+      border: 2px solid #fff; 
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      background: rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 WAT in HTML - Interactive Demo</h1>
+    
+    <div class="status" id="status">Ready to compile WAT code</div>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="param1">Var A:</label>
+        <input type="range" id="param1" min="1" max="50" value="17">
+        <span id="param1-value">17</span>
+      </div>
+      <div class="control-group">
+        <label for="param2">Var B:</label>
+        <input type="range" id="param2" min="1" max="50" value="13">
+        <span id="param2-value">13</span>
+      </div>
+      <div class="control-group">
+        <label for="param3">Var C:</label>
+        <input type="range" id="param3" min="1" max="10" value="3">
+        <span id="param3-value">3</span>
+      </div>
+    </div>
+    
+    <textarea class="wat-editor" id="wat-editor">(module
+  ;; Interactive pattern generator
+  (func $compute (param $x i32) (param $y i32) (param $t i32) (param $p1 i32) (param $p2 i32) (param $p3 i32) (result i32)
+    (local $temp i32)
+    
+    ;; Use interactive parameters p1, p2, p3
+    local.get $x
+    local.get $p1 ;; Use param1
+    i32.mul
+    local.get $y
+    local.get $p2 ;; Use param2
+    i32.mul
+    i32.add
+    local.set $temp
+
+    local.get $temp
+    local.get $t
+    local.get $p3 ;; Use param3
+    i32.mul
+    i32.add
+    
+    ;; Some bitwise operations for visual complexity
+    local.get $x
+    local.get $y
+    i32.xor
+    i32.xor
+    
+    i32.const 255
+    i32.and)
+  
+  (export "compute" (func $compute))
+)</textarea>
+    
+    <div>
+      <button class="button" onclick="compileAndRun()">Compile & Run</button>
+      <button class="button" onclick="stop()">Stop</button>
+    </div>
+    
+    <canvas id="canvas" width="400" height="400"></canvas>
+  </div>
+
+  <script>
+    let wabtInstance = null;
+    let wasmCompute = null;
+    let animationId = null;
+    
+    // DOM elements for sliders
+    let param1Slider, param2Slider, param3Slider;
+    let param1ValueDisplay, param2ValueDisplay, param3ValueDisplay;
+
+    // Load wabt.js automatically
+    (async function loadWabt() {
+      try {
+        document.getElementById('status').textContent = 'Loading WebAssembly tools...';
+        
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/wabt@1.0.37/index.min.js';
+        document.head.appendChild(script);
+        
+        await new Promise(resolve => script.onload = resolve);
+        
+        // Wait for WabtModule to be available
+        while (!window.WabtModule) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        
+        wabtInstance = await window.WabtModule();
+        document.getElementById('status').textContent = 'Ready to compile WAT code';
+        
+      } catch (error) {
+        document.getElementById('status').textContent = 'Error loading WebAssembly tools';
+      }
+    })();
+    
+    async function compileAndRun() {
+      if (!wabtInstance) {
+        document.getElementById('status').textContent = 'WebAssembly tools not loaded yet';
+        return;
+      }
+      
+      try {
+        const watCode = document.getElementById('wat-editor').value;
+        
+        // Compile WAT to WASM
+        document.getElementById('status').textContent = 'Compiling WAT to WASM...';
+        const module = wabtInstance.parseWat('compute.wat', watCode);
+        const binary = module.toBinary({});
+        
+        // Create WebAssembly instance
+        const wasmModule = await WebAssembly.compile(binary.buffer);
+        const wasmInstance = await WebAssembly.instantiate(wasmModule);
+        wasmCompute = wasmInstance.exports.compute;
+
+        if (typeof wasmCompute !== 'function') {
+          throw new Error("The 'compute' function was not found in the WASM module exports. Make sure it's defined and exported in your WAT code.");
+        }
+        
+        document.getElementById('status').textContent = 'Running animation...';
+        startAnimation();
+        
+      } catch (error) {
+        document.getElementById('status').textContent = `Error: ${error.message}`;
+        console.error("Compilation or Instantiation Error:", error);
+      }
+    }
+    
+    function startAnimation() {
+      if (!wasmCompute) {
+        document.getElementById('status').textContent = 'WASM module not ready.';
+        return;
+      }
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const { width, height } = canvas;
+      let time = 0;
+      
+      function render() {
+        const imageData = ctx.createImageData(width, height);
+        const data = imageData.data;
+
+        // Get current slider values
+        const p1 = parseInt(param1Slider.value);
+        const p2 = parseInt(param2Slider.value);
+        const p3 = parseInt(param3Slider.value);
+        
+        let idx = 0;
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const value = wasmCompute(x, y, time, p1, p2, p3); // Pass slider values
+            data[idx++] = value;                           // Red
+            data[idx++] = (value * 2) & 255;               // Green
+            data[idx++] = ((value ^ time) * 3) & 255;      // Blue  
+            data[idx++] = 255;                             // Alpha
+          }
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        time = (time + 1) & 0xFF;
+        animationId = requestAnimationFrame(render);
+      }
+      
+      render();
+    }
+    
+    function stop() {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+        document.getElementById('status').textContent = 'Animation stopped';
+      }
+    }
+
+    // Initialize sliders and their display
+    document.addEventListener('DOMContentLoaded', () => {
+      param1Slider = document.getElementById('param1');
+      param2Slider = document.getElementById('param2');
+      param3Slider = document.getElementById('param3');
+      param1ValueDisplay = document.getElementById('param1-value');
+      param2ValueDisplay = document.getElementById('param2-value');
+      param3ValueDisplay = document.getElementById('param3-value');
+
+      function updateSliderDisplay(slider, display) {
+        display.textContent = slider.value;
+      }
+
+      param1Slider.oninput = () => updateSliderDisplay(param1Slider, param1ValueDisplay);
+      param2Slider.oninput = () => updateSliderDisplay(param2Slider, param2ValueDisplay);
+      param3Slider.oninput = () => updateSliderDisplay(param3Slider, param3ValueDisplay);
+
+      // Initial display update
+      updateSliderDisplay(param1Slider, param1ValueDisplay);
+      updateSliderDisplay(param2Slider, param2ValueDisplay);
+      updateSliderDisplay(param3Slider, param3ValueDisplay);
+    });
+  </script>
+</body>
+</html>

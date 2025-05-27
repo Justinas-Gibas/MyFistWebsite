@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Interactive WAT Compiler</title>
+  <style>
+    body { 
+      margin: 0; 
+      background: linear-gradient(135deg, #1e3c72, #2a5298); 
+      color: #fff; 
+      font-family: 'Courier New', monospace; 
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 { text-align: center; margin-bottom: 30px; }
+    
+    .step {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid #444;
+      border-radius: 8px;
+      margin: 20px 0;
+      padding: 20px;
+    }
+    
+    .step-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .step-title {
+      font-size: 18px;
+      font-weight: bold;
+    }
+    
+    .step-status {
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    
+    .status-pending { background: rgba(255, 193, 7, 0.2); border: 1px solid #ffc107; }
+    .status-loading { background: rgba(33, 150, 243, 0.2); border: 1px solid #2196f3; }
+    .status-success { background: rgba(76, 175, 80, 0.2); border: 1px solid #4CAF50; }
+    .status-error { background: rgba(244, 67, 54, 0.2); border: 1px solid #f44336; }
+    
+    .wat-editor {
+      width: 100%;
+      height: 300px;
+      background: #1a1a1a;
+      color: #f8f8f2;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      resize: vertical;
+    }
+    
+    .button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      margin: 5px;
+    }
+    
+    .button:hover { background: #45a049; }
+    .button:disabled { background: #666; cursor: not-allowed; }
+    
+    .button-secondary { background: #2196F3; }
+    .button-secondary:hover { background: #1976D2; }
+    
+    .output {
+      background: #1a1a1a;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 10px;
+      margin: 10px 0;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    canvas { 
+      border: 2px solid #fff; 
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      display: block;
+      margin: 20px auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Interactive WAT to WASM Compiler</h1>
+    
+    <!-- Step 1: Load wabt.js -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-title">Step 1: Load wabt.js Library</div>
+        <div class="step-status status-pending" id="step1-status">Pending</div>
+      </div>
+      <button class="button" id="load-wabt-btn" onclick="loadWabt()">Load wabt.js</button>
+      <div class="output" id="step1-output">Click "Load wabt.js" to start...</div>
+    </div>
+    
+    <!-- Step 2: Edit WAT Code -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-title">Step 2: Edit WAT Code</div>
+        <div class="step-status status-pending" id="step2-status">Ready</div>
+      </div>
+      <textarea class="wat-editor" id="wat-editor" placeholder="Loading WAT code..."></textarea>
+      <div>
+        <button class="button button-secondary" onclick="loadExampleWAT()">Load Example</button>
+        <button class="button button-secondary" onclick="validateWAT()">Validate Syntax</button>
+      </div>
+    </div>
+    
+    <!-- Step 3: Compile WAT to WASM -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-title">Step 3: Compile WAT to WASM</div>
+        <div class="step-status status-pending" id="step3-status">Waiting</div>
+      </div>
+      <button class="button" id="compile-btn" onclick="compileWAT()" disabled>Compile WAT to WASM</button>
+      <div class="output" id="step3-output">Load wabt.js first...</div>
+    </div>
+    
+    <!-- Step 4: Run Animation -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-title">Step 4: Run Animation</div>
+        <div class="step-status status-pending" id="step4-status">Waiting</div>
+      </div>
+      <button class="button" id="animate-btn" onclick="startAnimation()" disabled>Start Animation</button>
+      <button class="button button-secondary" onclick="stopAnimation()">Stop</button>
+      <canvas id="canvas" width="400" height="400"></canvas>
+      <div class="output" id="step4-output">Compile WASM first...</div>
+    </div>
+  </div>
+
+  <script>
+    let wabtInstance = null;
+    let wasmCompute = null;
+    let animationId = null;
+    
+    // Default WAT code
+    const defaultWATCode = `(module
+  ;; Simple pattern generator
+  (func $compute (param $x i32) (param $y i32) (param $t i32) (result i32)
+    ;; Basic pattern: (x + y + t) XOR (x * y)
+    local.get $x
+    local.get $y
+    i32.add
+    local.get $t
+    i32.add
+    
+    local.get $x
+    local.get $y
+    i32.mul
+    
+    i32.xor
+    i32.const 255
+    i32.and)
+  
+  (export "compute" (func $compute))
+)`;
+    
+    function updateStatus(step, status, message) {
+      const statusEl = document.getElementById(`step${step}-status`);
+      const outputEl = document.getElementById(`step${step}-output`);
+      
+      statusEl.className = `step-status status-${status}`;
+      statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+      
+      if (outputEl) {
+        outputEl.textContent = message;
+      }
+      
+      console.log(`Step ${step}: ${status} - ${message}`);
+    }
+    
+    async function loadWabt() {
+      updateStatus(1, 'loading', 'Loading wabt.js from CDN...');
+      
+      try {
+        // Remove any existing script
+        const existingScript = document.querySelector('script[src*="wabt"]');
+        if (existingScript) {
+          existingScript.remove();
+        }
+        
+        // Try multiple CDN sources
+        const cdnSources = [
+          'https://cdn.jsdelivr.net/npm/wabt@1.0.37/index.min.js',
+          'https://unpkg.com/wabt@1.0.37/index.js',
+          'https://cdn.jsdelivr.net/npm/wabt@1.0.34/index.js',
+          'https://unpkg.com/wabt@1.0.34/index.js'
+        ];
+        
+        for (let i = 0; i < cdnSources.length; i++) {
+          const cdnUrl = cdnSources[i];
+          updateStatus(1, 'loading', `Trying CDN ${i + 1}/${cdnSources.length}: ${cdnUrl}`);
+          
+          try {
+            // Load wabt.js
+            const script = document.createElement('script');
+            script.src = cdnUrl;
+            
+            const loadPromise = new Promise((resolve, reject) => {
+              script.onload = () => {
+                console.log(`✅ Script loaded from: ${cdnUrl}`);
+                resolve();
+              };
+              script.onerror = (e) => {
+                console.error(`❌ Script failed to load from: ${cdnUrl}`, e);
+                reject(new Error(`Failed to load from ${cdnUrl}`));
+              };
+              document.head.appendChild(script);
+            });
+            
+            await loadPromise;
+            updateStatus(1, 'loading', `Script loaded from ${cdnUrl}, checking for wabt...`);
+            
+            // Check what's available in window
+            console.log('🔍 Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('wabt')));
+            console.log('🔍 window.wabt type:', typeof window.wabt);
+            console.log('🔍 window.WabtModule type:', typeof window.WabtModule);
+            console.log('🔍 window.Wabt type:', typeof window.Wabt);
+            
+            // Wait for wabt to be available with timeout
+            let attempts = 0;
+            const maxAttempts = 100; // Increased timeout
+            
+            while (attempts < maxAttempts) {
+              // Try different possible global names
+              let wabtFunc = null;
+              if (typeof window.wabt === 'function') {
+                wabtFunc = window.wabt;
+                console.log('🎯 Found window.wabt function');
+              } else if (typeof window.WabtModule === 'function') {
+                wabtFunc = window.WabtModule;
+                console.log('🎯 Found window.WabtModule function');
+              } else if (typeof window.Wabt === 'function') {
+                wabtFunc = window.Wabt;
+                console.log('🎯 Found window.Wabt function');
+              }
+              
+              if (wabtFunc) {
+                updateStatus(1, 'loading', 'Initializing wabt...');
+                try {
+                  wabtInstance = await wabtFunc();
+                  console.log('✅ wabt initialized:', wabtInstance);
+                  console.log('✅ parseWat available:', typeof wabtInstance.parseWat);
+                  
+                  updateStatus(1, 'success', `wabt.js loaded successfully from ${cdnUrl}!`);
+                  
+                  // Enable next steps
+                  document.getElementById('compile-btn').disabled = false;
+                  updateStatus(3, 'pending', 'Ready to compile WAT code');
+                  
+                  return; // Success!
+                } catch (initError) {
+                  console.error('❌ wabt initialization failed:', initError);
+                  throw initError;
+                }
+              }
+              
+              // Log progress every 10 attempts
+              if (attempts % 10 === 0) {
+                console.log(`⏳ Waiting for wabt... attempt ${attempts}/${maxAttempts}`);
+                updateStatus(1, 'loading', `Waiting for wabt initialization... (${attempts}/${maxAttempts})`);
+              }
+              
+              await new Promise(resolve => setTimeout(resolve, 100));
+              attempts++;
+            }
+            
+            // If we get here, this CDN didn't work
+            throw new Error(`wabt failed to initialize from ${cdnUrl} after ${maxAttempts * 100}ms`);
+            
+          } catch (cdnError) {
+            console.warn(`❌ CDN ${cdnUrl} failed:`, cdnError.message);
+            // Remove the failed script
+            const failedScript = document.querySelector(`script[src="${cdnUrl}"]`);
+            if (failedScript) {
+              failedScript.remove();
+            }
+            // Continue to next CDN
+          }
+        }
+        
+        // If all CDNs failed, try manual fallback
+        updateStatus(1, 'loading', 'All CDNs failed, trying manual fallback...');
+        await tryManualFallback();
+        
+      } catch (error) {
+        updateStatus(1, 'error', `Failed to load wabt.js: ${error.message}`);
+        console.error('wabt loading error:', error);
+      }
+    }
+    
+    async function tryManualFallback() {
+      updateStatus(1, 'loading', 'Trying manual WASM compilation fallback...');
+      
+      // Create a mock wabt instance that can handle basic WAT compilation
+      wabtInstance = {
+        parseWat: function(filename, watCode) {
+          // Very basic WAT parser - only handles our specific pattern
+          if (!watCode.includes('func $compute') || !watCode.includes('export "compute"')) {
+            throw new Error('Only simple compute functions are supported in fallback mode');
+          }
+          
+          return {
+            toBinary: function() {
+              // Return a pre-compiled WASM binary for a simple compute function
+              // This is a working WASM binary for: (x + y + t) XOR (x * y) & 255
+              const wasmBytes = new Uint8Array([
+                0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x07, 0x01, 
+                0x60, 0x03, 0x7f, 0x7f, 0x7f, 0x01, 0x7f, 0x03, 0x02, 0x01, 0x00, 
+                0x07, 0x0b, 0x01, 0x07, 0x63, 0x6f, 0x6d, 0x70, 0x75, 0x74, 0x65, 
+                0x00, 0x00, 0x0a, 0x15, 0x01, 0x13, 0x00, 0x20, 0x00, 0x20, 0x01, 
+                0x6a, 0x20, 0x02, 0x6a, 0x20, 0x00, 0x20, 0x01, 0x6c, 0x73, 0x41, 
+                0xff, 0x01, 0x71, 0x0b
+              ]);
+              
+              return { buffer: wasmBytes };
+            }
+          };
+        }
+      };
+      
+      updateStatus(1, 'success', 'Manual fallback loaded - limited WAT support available');
+      
+      // Enable next steps
+      document.getElementById('compile-btn').disabled = false;
+      updateStatus(3, 'pending', 'Ready to compile WAT code (fallback mode)');
+    }
+    
+    function loadExampleWAT() {
+      document.getElementById('wat-editor').value = defaultWATCode;
+      updateStatus(2, 'success', 'Example WAT code loaded');
+    }
+    
+    function validateWAT() {
+      const watCode = document.getElementById('wat-editor').value.trim();
+      
+      if (!watCode) {
+        updateStatus(2, 'error', 'WAT code is empty');
+        return;
+      }
+      
+      if (!wabtInstance) {
+        updateStatus(2, 'error', 'wabt.js not loaded yet');
+        return;
+      }
+      
+      try {
+        const module = wabtInstance.parseWat('test.wat', watCode);
+        updateStatus(2, 'success', 'WAT syntax is valid!');
+      } catch (error) {
+        updateStatus(2, 'error', `Syntax error: ${error.message}`);
+      }
+    }
+    
+    async function compileWAT() {
+      if (!wabtInstance) {
+        updateStatus(3, 'error', 'wabt.js not loaded');
+        return;
+      }
+      
+      const watCode = document.getElementById('wat-editor').value.trim();
+      if (!watCode) {
+        updateStatus(3, 'error', 'No WAT code to compile');
+        return;
+      }
+      
+      try {
+        updateStatus(3, 'loading', 'Parsing WAT code...');
+        
+        const module = wabtInstance.parseWat('compute.wat', watCode);
+        updateStatus(3, 'loading', 'Generating WASM binary...');
+        
+        const binary = module.toBinary({});
+        updateStatus(3, 'loading', `Binary generated (${binary.buffer.byteLength} bytes), creating WebAssembly instance...`);
+        
+        const wasmModule = await WebAssembly.compile(binary.buffer);
+        const wasmInstance = await WebAssembly.instantiate(wasmModule);
+        
+        wasmCompute = wasmInstance.exports.compute;
+        
+        if (typeof wasmCompute !== 'function') {
+          throw new Error('No "compute" function exported from WASM module');
+        }
+        
+        // Test the function
+        const testResult = wasmCompute(10, 20, 5);
+        updateStatus(3, 'success', `WASM compiled successfully! Test: compute(10,20,5) = ${testResult}`);
+        
+        // Enable animation
+        document.getElementById('animate-btn').disabled = false;
+        updateStatus(4, 'pending', 'Ready to start animation');
+        
+      } catch (error) {
+        updateStatus(3, 'error', `Compilation failed: ${error.message}`);
+        console.error('Compilation error:', error);
+      }
+    }
+    
+    function startAnimation() {
+      if (!wasmCompute) {
+        updateStatus(4, 'error', 'No compiled WASM function available');
+        return;
+      }
+      
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const { width, height } = canvas;
+      
+      let time = 0;
+      let frameCount = 0;
+      
+      function render() {
+        const imageData = ctx.createImageData(width, height);
+        const data = imageData.data;
+        
+        let idx = 0;
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const value = wasmCompute(x, y, time);
+            
+            // Create colorful pattern
+            data[idx++] = value;                           // Red
+            data[idx++] = (value * 2) & 255;               // Green
+            data[idx++] = ((value ^ time) * 3) & 255;      // Blue  
+            data[idx++] = 255;                             // Alpha
+          }
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        time = (time + 1) & 0xFF;
+        frameCount++;
+        
+        if (frameCount % 60 === 0) {
+          updateStatus(4, 'success', `Animation running - Frame ${frameCount}, Time: ${time}`);
+        }
+        
+        animationId = requestAnimationFrame(render);
+      }
+      
+      updateStatus(4, 'loading', 'Starting animation...');
+      render();
+    }
+    
+    function stopAnimation() {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+        updateStatus(4, 'pending', 'Animation stopped');
+      }
+    }
+    
+    // Initialize
+    document.getElementById('wat-editor').value = defaultWATCode;
+    updateStatus(2, 'success', 'Default WAT code loaded - ready to edit');
+  </script>
+</body>
+</html>
