@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JGMAX UI - CSS Grid</title>
+    <style>
+        :root {
+            --color-background: #838383;
+            --color-border: #000000;
+            --color-text: #9e9e9e;
+            --color-primary: #5e5e5e;
+            --color-hover: #7a7a7a;
+            --color-active: #9e9e9e;
+            --hotbar-size: 60px;
+            --border-width: 1px;
+        }
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            display: grid;
+            grid-template-rows: var(--hotbar-size) 1fr var(--hotbar-size);
+            grid-template-columns: var(--hotbar-size) 1fr var(--hotbar-size);
+            grid-template-areas:
+                "top-left top-bar top-right"
+                "left-bar main-content right-bar"
+                "bottom-left bottom-bar bottom-right";
+        }
+        .grid-item {
+            border: var(--border-width) solid var(--color-border);
+            background-color: var(--color-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: var(--color-text);
+            overflow: hidden;
+            transition: background-color 0.2s ease;
+        }
+        .main-content-grid {
+            background-color: var(--color-background);
+            color: #333;
+            overflow: auto;
+            font-size: 24px;
+        }
+        .corner {
+            z-index: 10;
+            cursor: pointer;
+        }
+        .corner:hover {
+            background-color: var(--color-hover);
+        }
+        .top-left { grid-area: top-left; }
+        .top-bar { grid-area: top-bar; justify-content: flex-start; padding: 0 10px; }
+        .top-right { grid-area: top-right; }
+        .left-bar { grid-area: left-bar; writing-mode: vertical-lr; flex-direction: column; justify-content: flex-start; padding: 10px 0; }
+        .main-content-grid { grid-area: main-content; }
+        .right-bar { grid-area: right-bar; writing-mode: vertical-lr; flex-direction: column; justify-content: flex-start; padding: 10px 0; }
+        .bottom-left { grid-area: bottom-left; }
+        .bottom-bar { grid-area: bottom-bar; justify-content: space-between; padding: 0 10px; }
+        .bottom-right { grid-area: bottom-right; }
+
+        .grid-item > div, .grid-item > span {
+            border: 1px solid var(--color-border);
+            padding: 8px;
+            margin: 5px;
+            background-color: var(--color-primary);
+            color: var(--color-border);
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 20px;
+            transition: background-color 0.2s ease;
+        }
+        .grid-item > div:hover {
+            background-color: var(--color-hover);
+        }
+        .left-bar > div, .right-bar > div {
+            writing-mode: horizontal-tb;
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-item corner top-left" title="'Select' mode" onclick="handleSelectMode()">
+        <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: currentColor;">
+            <path d="M16 2a1 1 0 000 2h4V8a1 1 0 002 0V2m0 14a1 1 0 00-2 0v4H16a1 1 0 000 2h6M8 22a1 1 0 000-2H4V16A1 1 0 002 16v6M2 8A1 1 0 004 8V4H8A1 1 0 008 2H2"/>
+        </svg>
+    </div>
+    <div class="grid-item top-bar" title="Top Bar">
+        <div title="Create a new file" onclick="handleNew()">New</div>
+        <div title="Load an existing file" onclick="handleOpen()">Load</div>
+        <div title="Save current work" onclick="handleSave()">Save</div>
+    </div>
+    <div class="grid-item corner top-right" title="Close the application" onclick="handleClose()">☰✕≡</div>
+    <div class="grid-item left-bar" title="Tools">
+        <div title="Tool 1" onclick="handletool1()">Tool 1</div>
+        <div title="Tool 2" onclick="handletool2()">⚒ 🛠 ⛏</div>
+    </div>
+    <div class="grid-item main-content-grid">Main Content Area (CSS Grid)</div>
+    <div class="grid-item right-bar" title="Properties and Settings">
+        <div title="Property 1" onclick="handleProperty1()">Prop 1</div>
+        <div title="Property 2" onclick="handleProperty2()">⚙ ⛭ ⛯</div>
+    </div>
+    <div class="grid-item corner bottom-left" title="Undo Action" onclick="handleUndo()">◀</div>
+    <div class="grid-item bottom-bar" title="Actions and Status">
+        <div title="Left Action" onclick="handleLeftAction()">Test</div>
+        <span>Status: Ready ⌂ ⌘ + ✚🗑⌫✂</span>
+        <div title="Right Action">Test</div>
+    </div>
+    <div class="grid-item corner bottom-right" title="Redo Action" onclick="handleRedo()">▶</div>
+
+    <script>
+        function handleSelectMode() { console.log('Select mode action'); }
+        function handleNew() { console.log('New file action'); }
+        function handleOpen() { console.log('Open file action'); }
+        function handleSave() { console.log('Save file action'); }
+        function handleClose() { console.log('Close application action'); }
+        function handletool1() { console.log('Tool 1 action'); }
+        function handletool2() { console.log('Tool 2 action'); }
+        function handleProperty1() { console.log('Property 1 action'); }
+        function handleProperty2() { console.log('Property 2 action'); }
+        function handleUndo() { console.log('Undo action'); }
+        function handleRedo() { console.log('Redo action'); }
+        function handleLeftAction() { console.log('Left action'); }
+        console.log("CSS Grid version loaded");
+    </script>
+</body>
+</html>

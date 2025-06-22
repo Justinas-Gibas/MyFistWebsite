@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JGMAX UI - Absolute Positioning with Variables</title>
+    <style>
+        :root {
+            --color-background: #838383;
+            --color-border: #000000;
+            --color-text: #9e9e9e;
+            --color-primary: #5e5e5e;
+            --color-hover: #7a7a7a;
+            --color-active: #9e9e9e;
+            --hotbar-size: 60px;
+            --border-width: 1px;
+        }
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: var(--color-background);
+        }
+        .abs-item {
+            position: fixed;
+            border: var(--border-width) solid var(--color-border);
+            background-color: var(--color-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: var(--color-text);
+            z-index: 5;
+            overflow: hidden;
+            transition: background-color 0.2s ease;
+        }
+        .corner {
+            width: var(--hotbar-size);
+            height: var(--hotbar-size);
+            z-index: 10;
+            cursor: pointer;
+        }
+        .corner:hover {
+            background-color: var(--color-hover);
+        }
+        .top-left { top: 0; left: 0; }
+        .top-right { top: 0; right: 0; }
+        .bottom-left { bottom: 0; left: 0; }
+        .bottom-right { bottom: 0; right: 0; }
+
+        .top-bar {
+            top: 0;
+            left: var(--hotbar-size);
+            right: var(--hotbar-size);
+            height: var(--hotbar-size);
+            justify-content: flex-start;
+            padding: 0 10px;
+        }
+        .bottom-bar {
+            bottom: 0;
+            left: var(--hotbar-size);
+            right: var(--hotbar-size);
+            height: var(--hotbar-size);
+            justify-content: space-between;
+            padding: 0 10px;
+        }
+        .left-bar {
+            top: var(--hotbar-size);
+            left: 0;
+            bottom: var(--hotbar-size);
+            width: var(--hotbar-size);
+            writing-mode: vertical-lr;
+            flex-direction: column;
+            justify-content: flex-start;
+            padding: 10px 0;
+        }
+        .right-bar {
+            top: var(--hotbar-size);
+            right: 0;
+            bottom: var(--hotbar-size);
+            width: var(--hotbar-size);
+            writing-mode: vertical-lr;
+            flex-direction: column;
+            justify-content: flex-start;
+            padding: 10px 0;
+        }
+        .main-content-abs {
+            top: var(--hotbar-size);
+            left: var(--hotbar-size);
+            right: var(--hotbar-size);
+            bottom: var(--hotbar-size);
+            background-color: var(--color-background);
+            color: #333;
+            overflow: auto;
+            z-index: 1;
+            font-size: 24px;
+        }
+        .abs-item > div, .abs-item > span {
+            border: 1px solid var(--color-border);
+            padding: 8px;
+            margin: 5px;
+            background-color: var(--color-primary);
+            color: var(--color-border);
+            cursor: pointer;
+            white-space: nowrap;
+            font-size: 20px;
+            transition: background-color 0.2s ease;
+        }
+        .abs-item > div:hover {
+            background-color: var(--color-hover);
+        }
+        .left-bar > div, .right-bar > div {
+            writing-mode: horizontal-tb;
+        }
+    </style>
+</head>
+<body>
+    <div class="abs-item corner top-left" title="'Select' mode" onclick="handleSelectMode()">
+        <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: currentColor;">
+            <path d="M16 2a1 1 0 000 2h4V8a1 1 0 002 0V2m0 14a1 1 0 00-2 0v4H16a1 1 0 000 2h6M8 22a1 1 0 000-2H4V16A1 1 0 002 16v6M2 8A1 1 0 004 8V4H8A1 1 0 008 2H2"/>
+        </svg>
+    </div>
+    <div class="abs-item top-bar" title="Top Bar">
+        <div title="Create a new file" onclick="handleNew()">New</div>
+        <div title="Load an existing file" onclick="handleOpen()">Load</div>
+        <div title="Save current work" onclick="handleSave()">Save</div>
+    </div>
+    <div class="abs-item corner top-right" title="Close the application" onclick="handleClose()">☰✕≡</div>
+
+    <div class="abs-item left-bar" title="Tools">
+        <div title="Tool 1" onclick="handletool1()">Tool 1</div>
+        <div title="Tool 2" onclick="handletool2()">⚒ 🛠 ⛏</div>
+    </div>
+    <div class="abs-item main-content-abs">Main Content Area (Absolute Positioning with Variables)</div>
+    <div class="abs-item right-bar" title="Properties and Settings">
+        <div title="Property 1" onclick="handleProperty1()">Prop 1</div>
+        <div title="Property 2" onclick="handleProperty2()">⚙ ⛭ ⛯</div>
+    </div>
+
+    <div class="abs-item corner bottom-left" title="Undo Action" onclick="handleUndo()">◀</div>
+    <div class="abs-item bottom-bar" title="Actions and Status">
+        <div title="Left Action" onclick="handleLeftAction()">Test</div>
+        <span>Status: Ready ⌂ ⌘ + ✚🗑⌫✂</span>
+        <div title="Right Action">Test</div>
+    </div>
+    <div class="abs-item corner bottom-right" title="Redo Action" onclick="handleRedo()">▶</div>
+
+    <script>
+        function handleSelectMode() { console.log('Select mode action'); }
+        function handleNew() { console.log('New file action'); }
+        function handleOpen() { console.log('Open file action'); }
+        function handleSave() { console.log('Save file action'); }
+        function handleClose() { console.log('Close application action'); }
+        function handletool1() { console.log('Tool 1 action'); }
+        function handletool2() { console.log('Tool 2 action'); }
+        function handleProperty1() { console.log('Property 1 action'); }
+        function handleProperty2() { console.log('Property 2 action'); }
+        function handleUndo() { console.log('Undo action'); }
+        function handleRedo() { console.log('Redo action'); }
+        function handleLeftAction() { console.log('Left action'); }
+        console.log("Absolute Positioning with CSS Variables version loaded");
+    </script>
+</body>
+</html>

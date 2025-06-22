@@ -1,1224 +1,296 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>3D ML Annotator</title>
-  
-  <!-- Import maps to properly load ES modules for Three.js -->
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
-      }
-    }
-  </script>
-  
-  <script>
-    // Global variables that need to be shared between modules
-    window.boxes = [];
-    window.dataset = [];
-    window.model = null;
-    window.isInferenceRunning = false;
-    window.renderer = null;
-    window.cubes = [];
-    window.rotationEnabled = true;
-  </script>
-  
-  <script type="module">
-    import * as THREE from 'three';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JGAI - Image Labeling Tool</title>
+    <meta name="description" content="JGAI - Just Good AI is a platform for exploring and utilizing AI technologies responsibly and effectively.">
+    <meta name="keywords" content="AI, Artificial Intelligence, JGAI, Just Good AI, Machine Learning, Deep Learning, Responsible AI">
+    <meta name="author" content="Justinas Gibas">
+    <meta name="theme-color" content="#262626">
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    <link rel="stylesheet" href="styles.css">
     
-    // Make THREE available globally
-    window.THREE = THREE;
-    window.OrbitControls = OrbitControls;
-    console.log("Three.js modules loaded successfully:", THREE.REVISION);
-  </script>
-  
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.14.0/dist/tf.min.js"></script>
-  <script>
-    // Wait for the page to load before initializing TensorFlow
-    window.addEventListener('load', function() {
-      console.log("Setting up TensorFlow backend...");
-      tf.enableDebugMode();
-      tf.setBackend('webgpu')
-        .then(() => {
-          console.log("✅ WebGPU backend enabled");
-          document.getElementById('tfBackend').textContent = "WebGPU";
-        })
-        .catch((err) => {
-          console.warn("WebGPU not available, falling back to WebGL:", err);
-          tf.setBackend('webgl')
-            .then(() => {
-              console.log("✅ WebGL fallback activated");
-              // Log WebGL details
-              const gl = document.createElement('canvas').getContext('webgl');
-              console.log("WebGL Info:", {
-                vendor: gl.getParameter(gl.VENDOR),
-                renderer: gl.getParameter(gl.RENDERER),
-                version: gl.getParameter(gl.VERSION)
-              });
-              document.getElementById('tfBackend').textContent = "WebGL";
-            });
-        });
-
-      // Log available backends
-      console.log("Available TF backends:", tf.findBackendFactory());
-      
-      // Memory monitoring
-      setInterval(() => {
-        const memoryInfo = tf.memory();
-        document.getElementById('memoryUsage').textContent = 
-          `${(memoryInfo.numBytes / (1024 * 1024)).toFixed(2)} MB`;
-        
-        // Alert if memory usage is too high
-        if (memoryInfo.numBytes > 500 * 1024 * 1024) {
-          console.warn("High memory usage:", memoryInfo);
-        }
-      }, 5000);
-    });
-  </script>
-  <style>
-    body { 
-      margin: 0; 
-      overflow: hidden; 
-      font-family: Arial, sans-serif;
-    }
-    canvas { 
-      position: absolute; 
-      top: 0; 
-      left: 0; 
-      z-index: 1; 
-    }
-    #overlay { 
-      z-index: 2; 
-      pointer-events: none; 
-      position: absolute; 
-      top: 0; 
-      left: 0;
-    }
-    #ui {
-      z-index: 3;
-      position: absolute;
-      top: 10px; 
-      left: 10px;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      padding: 15px;
-      border-radius: 8px;
-      width: 250px;
-    }
-    #datasetList { 
-      max-height: 150px; 
-      overflow-y: auto; 
-      margin-top: 10px;
-      padding: 5px;
-      background: rgba(30, 30, 30, 0.8);
-      border-radius: 4px;
-    }
-    button {
-      background: #444;
-      color: white;
-      border: none;
-      padding: 8px 12px;
-      margin: 5px 0;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    button:hover {
-      background: #666;
-    }
-    button:disabled {
-      background: #333;
-      cursor: not-allowed;
-      opacity: 0.7;
-    }
-    input[type="text"] {
-      width: 100%;
-      padding: 5px;
-      margin: 5px 0;
-      box-sizing: border-box;
-    }
-    .annotation-controls {
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid #555;
-    }
-    #status {
-      margin-top: 10px;
-      padding: 5px;
-      background: rgba(30, 30, 30, 0.8);
-      border-radius: 4px;
-      min-height: 20px;
-    }
-    .dataset-entry {
-      display: flex;
-      justify-content: space-between;
-      padding: 3px 0;
-      border-bottom: 1px solid #555;
-    }
-    .toggle-button {
-      width: 60px;
-      text-align: center;
-    }
-    #inference-result {
-      position: absolute;
-      bottom: 20px;
-      left: 20px;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      padding: 10px;
-      border-radius: 5px;
-      font-size: 16px;
-      z-index: 3;
-      display: none;
-    }
-    .drawing-active #overlay {
-      pointer-events: auto;
-      cursor: crosshair;
-    }
-    #debugPanel {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      padding: 10px;
-      border-radius: 5px;
-      font-size: 14px;
-      z-index: 3;
-      max-width: 300px;
-      max-height: 300px;
-      overflow-y: auto;
-    }
-    .debug-row {
-      margin-bottom: 5px;
-      display: flex;
-      justify-content: space-between;
-    }
-    .debug-row span:first-child {
-      font-weight: bold;
-      margin-right: 10px;
-    }
-    #capturePreview {
-      position: absolute;
-      top: 10px;
-      left: 280px;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      border-radius: 5px;
-      z-index: 3;
-      display: none;
-      padding: 10px;
-    }
-    #previewTitle {
-      margin: 0 0 5px 0;
-      text-align: center;
-    }
-    #previewCanvas {
-      display: block;
-      margin: 0 auto;
-    }
-    .tab-container {
-      display: flex;
-      margin-bottom: 10px;
-    }
-    .tab {
-      padding: 5px 10px;
-      cursor: pointer;
-      border-radius: 3px 3px 0 0;
-      background: #333;
-      margin-right: 5px;
-    }
-    .tab.active {
-      background: #555;
-      font-weight: bold;
-    }
-    .tab-content {
-      display: none;
-    }
-    .tab-content.active {
-      display: block;
-    }
-    .detection-box {
-      position: absolute;
-      border: 2px solid;
-      z-index: 2;
-      pointer-events: none;
-    }
-    .detection-label {
-      position: absolute;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      font-size: 14px;
-      padding: 2px 5px;
-      border-radius: 3px;
-      z-index: 2;
-      pointer-events: none;
-    }
-  </style>
+    <!-- External Libraries -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body>
-  <div id="ui">
-    <div class="tab-container">
-      <div class="tab active" data-tab="scene">3D Scene</div>
-      <div class="tab" data-tab="annotation">Annotation</div>
-      <div class="tab" data-tab="training">Training</div>
-    </div>
-    
-    <div id="sceneTab" class="tab-content active">
-      <h3>3D Scene Control</h3>
-      <button id="rotateBtn" onclick="toggleRotation()">Pause Rotation</button>
-      <button id="resetViewBtn" onclick="resetView()">Reset View</button>
-      <div class="debug-row">
-        <span>FPS:</span>
-        <span id="fpsCounter">0</span>
-      </div>
-    </div>
-    
-    <div id="annotationTab" class="tab-content">
-      <h3>Annotation Tools</h3>
-      <label>Class Label: <input id="labelInput" type="text" placeholder="Enter object label" /></label>
-      
-      <div class="annotation-controls">
-        <button id="toggleDrawing">Enter Drawing Mode</button>
-        <button id="captureBtn" onclick="capture()">Capture Frame</button>
-        <button id="clearBtn" onclick="clearBoxes()">Clear Boxes</button>
-      </div>
-      
-      <div id="datasetList"></div>
-    </div>
-    
-    <div id="trainingTab" class="tab-content">
-      <h3>Model Training</h3>
-      <div class="model-controls">
-        <button id="trainBtn" onclick="train()">Train Model</button>
-        <button id="inferBtn" onclick="toggleInference()">Start Inference</button>
-        <button id="saveModelBtn" onclick="saveModel()">Save Model</button>
-        <button id="loadModelBtn" onclick="loadModel()">Load Model</button>
-      </div>
-      
-      <div class="debug-row">
-        <span>Dataset Size:</span>
-        <span id="datasetSize">0</span>
-      </div>
-      <div class="debug-row">
-        <span>Classes:</span>
-        <span id="classCount">0</span>
-      </div>
-    </div>
-    
-    <div id="status">Ready</div>
-  </div>
-  
-  <div id="debugPanel">
-    <h4>Debug Information</h4>
-    <div class="debug-row">
-      <span>TF Backend:</span>
-      <span id="tfBackend">-</span>
-    </div>
-    <div class="debug-row">
-      <span>Memory:</span>
-      <span id="memoryUsage">-</span>
-    </div>
-    <div class="debug-row">
-      <span>Log:</span>
-    </div>
-    <div id="debugLog" style="max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 12px;">
-    </div>
-    <button onclick="clearDebugLog()">Clear Log</button>
-  </div>
-  
-  <div id="capturePreview">
-    <h4 id="previewTitle">Captured Region</h4>
-    <canvas id="previewCanvas"></canvas>
-    <button onclick="closePreview()">Close Preview</button>
-  </div>
-  
-  <canvas id="overlay"></canvas>
-  <div id="inference-result"></div>
-  <div id="detectionBoxes"></div>
-  
-  <script type="module">
-    import * as THREE from 'three';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-    
-    // Global variables
-    let scene, camera, controls;
-    let isDrawing = false, startX, startY; 
-    let drawingMode = false;
-    let lastTime = 0, frameCount = 0;
-    let fpsInterval = setInterval(updateFPS, 1000);
-    
-    // Initialize 3D scene
-    function init() {
-      logDebug("Initializing 3D scene");
-      
-      // Scene setup
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x222222);
-      
-      // Camera setup
-      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.z = 5;
-      
-      // Renderer setup
-      window.renderer = new THREE.WebGLRenderer({ antialias: true });
-      window.renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(window.renderer.domElement);
-      logDebug("Renderer created with size: " + window.innerWidth + "x" + window.innerHeight);
-      
-      // Add orbit controls
-      controls = new OrbitControls(camera, window.renderer.domElement);
-      controls.enableDamping = true;
-      
-      // Add lighting
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-      scene.add(ambientLight);
-      
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      directionalLight.position.set(1, 1, 1);
-      scene.add(directionalLight);
-      
-      // Add some objects to the scene
-      createDemoObjects();
-      
-      // Setup overlay for annotations
-      setupOverlay();
-      
-      // Setup UI tabs
-      setupTabs();
-      
-      // Handle window resize
-      window.addEventListener('resize', onWindowResize, false);
-      
-      // Start animation loop
-      animate();
-      
-      logDebug("Scene initialization complete");
-    }
-    
-    // Create demo 3D objects
-    function createDemoObjects() {
-      // Create multiple cubes with different colors and positions
-      const colors = [0xff4444, 0x44ff44, 0x4444ff, 0xffff44, 0xff44ff];
-      const positions = [
-        [-2, 0, 0],
-        [2, 0, 0],
-        [0, 2, 0],
-        [0, -2, 0],
-        [0, 0, -2]
-      ];
-      
-      logDebug("Creating demo objects: " + colors.length + " cubes");
-      
-      // Create multiple objects
-      for (let i = 0; i < 5; i++) {
-        // Create geometry
-        const geometry = new THREE.BoxGeometry();
-        const material = new THREE.MeshStandardMaterial({ 
-          color: colors[i],
-          roughness: 0.4,
-          metalness: 0.2
-        });
-        
-        // Create cube and add to scene
-        const cube = new THREE.Mesh(geometry, material);
-        cube.position.set(...positions[i]);
-        cube.rotation.set(Math.random(), Math.random(), Math.random());
-        scene.add(cube);
-        window.cubes.push(cube);
-      }
-      
-      // Add a floor plane
-      const planeGeometry = new THREE.PlaneGeometry(10, 10);
-      const planeMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x999999,
-        side: THREE.DoubleSide,
-        roughness: 0.8
-      });
-      
-      const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-      plane.rotation.x = Math.PI / 2;
-      plane.position.y = -3;
-      scene.add(plane);
-    }
-    
-    // Setup UI tabs
-    function setupTabs() {
-      const tabs = document.querySelectorAll('.tab');
-      tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-          logDebug("Tab changed to: " + tab.dataset.tab);
-          // Remove active class from all tabs
-          tabs.forEach(t => t.classList.remove('active'));
-          // Add active class to clicked tab
-          tab.classList.add('active');
-          
-          // Hide all tab content
-          document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.remove('active');
-          });
-          
-          // Show selected tab content
-          document.getElementById(tab.dataset.tab + 'Tab').classList.add('active');
-        });
-      });
-    }
-    
-    // Setup canvas overlay for annotations
-    function setupOverlay() {
-      const overlay = document.getElementById('overlay');
-      overlay.width = window.innerWidth;
-      overlay.height = window.innerHeight;
-      
-      // Canvas context for drawing
-      const ctx = overlay.getContext('2d');
-      
-      // Toggle drawing mode button
-      document.getElementById('toggleDrawing').addEventListener('click', function() {
-        drawingMode = !drawingMode;
-        logDebug("Drawing mode toggled: " + (drawingMode ? "active" : "inactive"));
-        
-        if (drawingMode) {
-          this.textContent = 'Exit Drawing Mode';
-          document.body.classList.add('drawing-active');
-          controls.enabled = false;
-        } else {
-          this.textContent = 'Enter Drawing Mode';
-          document.body.classList.remove('drawing-active');
-          controls.enabled = true;
-        }
-      });
-      
-      // Drawing events
-      overlay.addEventListener('mousedown', e => {
-        if (!drawingMode) return;
-        logDebug("Started drawing at: " + e.offsetX + "," + e.offsetY);
-        isDrawing = true;
-        startX = e.offsetX;
-        startY = e.offsetY;
-      });
-      
-      overlay.addEventListener('mousemove', e => {
-        if (!isDrawing || !drawingMode) return;
-        const ctx = overlay.getContext('2d');
-        ctx.clearRect(0, 0, overlay.width, overlay.height);
-        drawBoxes();
-        
-        // Draw current box
-        ctx.strokeStyle = 'yellow';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        
-        const width = e.offsetX - startX;
-        const height = e.offsetY - startY;
-        ctx.strokeRect(startX, startY, width, height);
-        ctx.setLineDash([]);
-      });
-      
-      overlay.addEventListener('mouseup', e => {
-        if (!isDrawing || !drawingMode) return;
-        isDrawing = false;
-        
-        const x = Math.min(startX, e.offsetX);
-        const y = Math.min(startY, e.offsetY);
-        const w = Math.abs(e.offsetX - startX);
-        const h = Math.abs(e.offsetY - startY);
-        
-        logDebug("Finished drawing box: " + x + "," + y + " " + w + "x" + h);
-        
-        const label = document.getElementById('labelInput').value.trim();
-        if (label && w > 10 && h > 10) {
-          window.boxes.push({ x, y, w, h, label });
-          drawBoxes();
-          updateStatus(`Box added for "${label}"`);
-        } else if (!label) {
-          updateStatus("Please enter a label first");
-        } else {
-          updateStatus("Box too small, try again");
-        }
-      });
-    }
-    
-    // Draw annotation boxes on overlay
-    function drawBoxes() {
-      const overlay = document.getElementById('overlay');
-      const ctx = overlay.getContext('2d');
-      ctx.clearRect(0, 0, overlay.width, overlay.height);
-      
-      window.boxes.forEach((box, index) => {
-        // Generate a color based on the label to maintain consistency
-        const color = getColorForLabel(box.label);
-        
-        // Draw box
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(box.x, box.y, box.w, box.h);
-        
-        // Draw label background
-        ctx.fillStyle = color;
-        ctx.font = '14px Arial';
-        const textWidth = ctx.measureText(box.label).width + 10;
-        ctx.fillRect(box.x, box.y - 20, textWidth, 20);
-        
-        // Draw label text
-        ctx.fillStyle = 'white';
-        ctx.fillText(box.label, box.x + 5, box.y - 5);
-      });
-    }
-    
-    // Update status display
-    function updateStatus(message) {
-      document.getElementById('status').innerText = message;
-      logDebug("Status: " + message);
-    }
-    
-    // Handle window resize
-    function onWindowResize() {
-      logDebug("Window resized to: " + window.innerWidth + "x" + window.innerHeight);
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      window.renderer.setSize(window.innerWidth, window.innerHeight);
-      
-      // Update overlay
-      const overlay = document.getElementById('overlay');
-      overlay.width = window.innerWidth;
-      overlay.height = window.innerHeight;
-      drawBoxes();
-    }
-    
-    // Update FPS counter
-    function updateFPS() {
-      document.getElementById('fpsCounter').textContent = frameCount;
-      frameCount = 0;
-    }
-    
-    // Main animation loop
-    function animate(time) {
-      requestAnimationFrame(animate);
-      
-      // Calculate FPS
-      frameCount++;
-      
-      // Rotate cubes if enabled
-      if (window.rotationEnabled) {
-        window.cubes.forEach((cube, i) => {
-          cube.rotation.x += 0.005;
-          cube.rotation.y += 0.007;
-        });
-      }
-      
-      // Update controls
-      controls.update();
-      
-      // Render scene
-      window.renderer.render(scene, camera);
-    }
-    
-    // Initialize everything when page loads
-    document.addEventListener('DOMContentLoaded', init);
-    
-    // Make functions available globally
-    window.drawBoxes = drawBoxes;
-    window.updateStatus = updateStatus;
-    window.onWindowResize = onWindowResize;
-    
-    // Toggle cube rotation
-    window.toggleRotation = function() {
-      window.rotationEnabled = !window.rotationEnabled;
-      const rotateBtn = document.getElementById('rotateBtn');
-      rotateBtn.textContent = window.rotationEnabled ? 'Pause Rotation' : 'Resume Rotation';
-      logDebug("Rotation toggled: " + (window.rotationEnabled ? "active" : "paused"));
-    };
-    
-    // Reset camera view
-    window.resetView = function() {
-      camera.position.set(0, 0, 5);
-      camera.lookAt(0, 0, 0);
-      controls.reset();
-      logDebug("Camera view reset");
-    };
-    
-    // Clear all annotation boxes
-    window.clearBoxes = function() {
-      logDebug("Cleared " + window.boxes.length + " annotation boxes");
-      window.boxes = [];
-      drawBoxes();
-      updateStatus("Annotation boxes cleared");
-    };
-  </script>
+    <!-- Max-style App Layout -->
+    <div class="app-container">
+        <!-- Left Sidebar: Narrow Tool Selection Tabs -->
+        <aside class="toolbar">
+            <div class="toolbar-tabs">
+                <button class="toolbar-tab active" data-tool="select" title="Select Tool">
+                    <svg viewBox="0 0 24 24"><path d="M7,2L4,5H7V7H2V2H7M22,2V7H17V5H20L17,2H22M2,17H7V19H4L7,22H2V17M22,17V22H17L20,19H17V17H22Z"/></svg>
+                </button>
+                <button class="toolbar-tab" data-tool="box" title="Rectangle Tool">
+                    <svg viewBox="0 0 24 24"><path d="M2,4H4V2H10V4H12V2H18V4H20V10H18V12H20V18H18V20H12V18H10V20H4V18H2V12H4V10H2V4M16,16V8H8V16H16Z"/></svg>
+                </button>
+                <button class="toolbar-tab" data-tool="polygon" title="Polygon Tool">
+                    <svg viewBox="0 0 24 24"><path d="M2,2H6V4H4V6H2V2M22,2V6H20V4H18V2H22M2,18H4V20H6V22H2V18M18,20V22H22V18H20V20H18M8,3L10,7L8,11L12,9L16,11L14,7L16,3L12,5L8,3M11,13H13V15H11V13M11,17H13V23H11V17Z"/></svg>
+                </button>
+                <button class="toolbar-tab" data-tool="label" title="Label Manager">
+                    <svg viewBox="0 0 24 24"><path d="M17.63,5.84C17.27,5.33 16.67,5 16,5H5A2,2 0 0,0 3,7V17A2,2 0 0,0 5,19H16C16.67,19 17.27,18.66 17.63,18.15L22,12L17.63,5.84Z"/></svg>
+                </button>
+                <button class="toolbar-tab" data-tool="settings" title="Settings">
+                    <svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
+                </button>
+                <button class="toolbar-tab" data-tool="import" title="Import Image">
+                    <svg viewBox="0 0 24 24"><path d="M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M6,20H15L18,20V12L14,16L12,14L6,20M8,9A2,2 0 0,0 6,11A2,2 0 0,0 8,13A2,2 0 0,0 10,11A2,2 0 0,0 8,9Z"/></svg>
+                </button>
+                <button class="toolbar-tab" data-tool="export" title="Export Annotations">
+                    <svg viewBox="0 0 24 24"><path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/></svg>
+                </button>
+            </div>
+        </aside>
 
-  <script>
-    // Generate a consistent color for a label
-    function getColorForLabel(label) {
-      // Simple hash function to generate a color
-      let hash = 0;
-      for (let i = 0; i < label.length; i++) {
-        hash = label.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      
-      // Convert to RGB
-      const r = (hash & 0xFF0000) >> 16;
-      const g = (hash & 0x00FF00) >> 8;
-      const b = hash & 0x0000FF;
-      
-      return `rgb(${r}, ${g}, ${b})`;
-    }
-    
-    // Add debug message to log panel
-    function logDebug(message) {
-      const now = new Date();
-      const timestamp = now.toLocaleTimeString() + '.' + now.getMilliseconds().toString().padStart(3, '0');
-      
-      const logEntry = document.createElement('div');
-      logEntry.textContent = `[${timestamp}] ${message}`;
-      
-      const debugLog = document.getElementById('debugLog');
-      debugLog.appendChild(logEntry);
-      debugLog.scrollTop = debugLog.scrollHeight;
-      
-      // Keep log size reasonable
-      if (debugLog.children.length > 100) {
-        debugLog.removeChild(debugLog.children[0]);
-      }
-      
-      console.log(`[DEBUG] ${message}`);
-    }
-    
-    // Clear debug log
-    function clearDebugLog() {
-      document.getElementById('debugLog').innerHTML = '';
-      logDebug("Debug log cleared");
-    }
-    
-    let inferenceResult = document.getElementById('inference-result');
-    
-    // Capture annotated frames for dataset
-    function capture() {
-      logDebug("Capture function called");
-      const label = document.getElementById('labelInput').value.trim();
-      if (!label) {
-        updateStatus("Please enter a label first");
-        return;
-      }
-      
-      if (window.boxes.length === 0) {
-        updateStatus("Draw boxes before capturing");
-        return;
-      }
-      
-      logDebug(`Capturing ${window.boxes.length} annotations with label: ${label}`);
-      
-      // For each box, capture the region and add to dataset
-      window.boxes.forEach(box => {
-        const canvas = document.createElement('canvas');
-        canvas.width = box.w;
-        canvas.height = box.h;
-        const ctx = canvas.getContext('2d');
-        
-        try {
-          // Draw the portion of the renderer to the canvas
-          ctx.drawImage(window.renderer.domElement, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
-          
-          // Preview the capture
-          const previewCanvas = document.getElementById('previewCanvas');
-          previewCanvas.width = Math.min(250, box.w);
-          previewCanvas.height = Math.min(250, box.h) * (box.h / box.w);
-          const previewCtx = previewCanvas.getContext('2d');
-          previewCtx.drawImage(canvas, 0, 0, previewCanvas.width, previewCanvas.height);
-          
-          document.getElementById('previewTitle').textContent = `Captured: ${label}`;
-          document.getElementById('capturePreview').style.display = 'block';
-          
-          // Add to dataset
-          window.dataset.push({
-            img: canvas,
-            label: label,
-            timestamp: new Date().toISOString()
-          });
-          
-          // Update dataset size in UI
-          document.getElementById('datasetSize').textContent = window.dataset.length;
-          updateClassCount();
-          
-          // Add to UI
-          updateDatasetList();
-          
-        } catch (error) {
-          console.error("Capture error:", error);
-          logDebug(`ERROR capturing image: ${error.message}`);
-          updateStatus(`Capture failed: ${error.message}`);
-        }
-      });
-      
-      updateStatus(`Captured ${window.boxes.length} annotations`);
-    }
-    
-    // Close preview window
-    function closePreview() {
-      document.getElementById('capturePreview').style.display = 'none';
-    }
-    
-    // Update the count of unique classes in the dataset
-    function updateClassCount() {
-      const uniqueClasses = new Set(window.dataset.map(item => item.label));
-      document.getElementById('classCount').textContent = uniqueClasses.size;
-      logDebug(`Dataset has ${uniqueClasses.size} unique classes: ${[...uniqueClasses].join(', ')}`);
-      return uniqueClasses.size;
-    }
-    
-    // Remove an entry from the dataset
-    function removeDatasetEntry(index) {
-      window.dataset.splice(index, 1);
-      updateDatasetList();
-      document.getElementById('datasetSize').textContent = window.dataset.length;
-      updateClassCount();
-      updateStatus("Dataset entry removed");
-      logDebug(`Removed dataset entry at index ${index}, new size: ${window.dataset.length}`);
-    }
-    
-    // Update the dataset list in the UI
-    function updateDatasetList() {
-      const datasetList = document.getElementById('datasetList');
-      datasetList.innerHTML = '';
-      
-      window.dataset.forEach((entry, index) => {
-        const item = document.createElement('div');
-        item.className = 'dataset-entry';
-        item.innerHTML = `
-          <span>${entry.label} (${entry.img.width}x${entry.img.height})</span>
-          <button class="toggle-button" onclick="removeDatasetEntry(${index})">Remove</button>
-        `;
-        datasetList.appendChild(item);
-      });
-    }
-    
-    // Train the machine learning model
-    async function train() {
-      logDebug("Training requested");
-      
-      try {
-        // Check dataset size
-        if (window.dataset.length < 5) {
-          updateStatus("Need at least 5 samples to train");
-          return;
-        }
-        
-        // Check class count
-        const numClasses = updateClassCount();
-        if (numClasses < 2) {
-          updateStatus("Need at least 2 different classes to train");
-          logDebug("Training aborted: Only 1 class in dataset");
-          return;
-        }
-        
-        updateStatus("Preparing dataset...");
-        
-        // Get unique labels
-        const labels = [...new Set(window.dataset.map(d => d.label))];
-        const labelMap = Object.fromEntries(labels.map((l, i) => [l, i]));
-        
-        logDebug(`Training with ${window.dataset.length} samples across ${labels.length} classes`);
-        logDebug(`Labels: ${labels.join(', ')}`);
-        logDebug(`Label map: ${JSON.stringify(labelMap)}`);
-        
-        updateStatus("Converting images to tensors...");
-        
-        // Log the dataset details before conversion
-        window.dataset.forEach((d, i) => {
-          if (i < 5) { // Log just a few for brevity
-            logDebug(`Sample ${i}: ${d.label}, ${d.img.width}x${d.img.height}`);
-          }
-        });
-        
-        // Convert images to tensors with error checking
-        const imageTensors = [];
-        for (let i = 0; i < window.dataset.length; i++) {
-          try {
-            const d = window.dataset[i];
-            const tensor = tf.browser.fromPixels(d.img)
-              .resizeNearestNeighbor([64, 64]) // Standard size
-              .toFloat()
-              .div(255);
-            imageTensors.push(tensor);
-          } catch (err) {
-            logDebug(`Error converting image ${i}: ${err.message}`);
-            throw new Error(`Failed to convert image ${i}: ${err.message}`);
-          }
-        }
-        
-        // Stack tensors
-        const xs = tf.stack(imageTensors);
-        logDebug(`Image tensor shape: ${xs.shape}`);
-        
-        // Convert labels to one-hot encoding
-        const ys = tf.tensor1d(window.dataset.map(d => labelMap[d.label]), 'int32');
-        logDebug(`Label tensor shape: ${ys.shape}`);
-        
-        // Log the first few label indices for debugging
-        ys.array().then(arr => {
-          logDebug(`Label indices: ${arr.slice(0, 5).join(', ')}...`);
-        });
-        
-        const ysOneHot = tf.oneHot(ys, labels.length);
-        logDebug(`One-hot tensor shape: ${ysOneHot.shape}`);
-        
-        updateStatus("Building model...");
-        logDebug("Creating model architecture");
-        
-        // Create model architecture
-        window.model = tf.sequential();
-        
-        // Input layer with feature extraction
-        window.model.add(tf.layers.conv2d({
-          inputShape: [64, 64, 3],
-          filters: 16,
-          kernelSize: 3,
-          activation: 'relu',
-          kernelInitializer: 'glorotUniform'
-        }));
-        window.model.add(tf.layers.maxPooling2d({ poolSize: 2 }));
-        
-        // Second convolutional layer
-        window.model.add(tf.layers.conv2d({
-          filters: 32,
-          kernelSize: 3,
-          activation: 'relu'
-        }));
-        window.model.add(tf.layers.maxPooling2d({ poolSize: 2 }));
-        
-        // Third convolutional layer
-        window.model.add(tf.layers.conv2d({
-          filters: 32,
-          kernelSize: 3,
-          activation: 'relu'
-        }));
-        window.model.add(tf.layers.maxPooling2d({ poolSize: 2 }));
-        
-        // Flatten and dense layers
-        window.model.add(tf.layers.flatten());
-        window.model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
-        window.model.add(tf.layers.dropout({ rate: 0.25 }));
-        window.model.add(tf.layers.dense({ units: labels.length, activation: 'softmax' }));
-        
-        // Print model summary
-        window.model.summary();
-        
-        // Compile model
-        window.model.compile({
-          loss: 'categoricalCrossentropy',
-          optimizer: tf.train.adam(0.001),
-          metrics: ['accuracy']
-        });
-        
-        updateStatus("Training started...");
-        
-        // Train model
-        await window.model.fit(xs, ysOneHot, {
-          epochs: 10,
-          batchSize: Math.min(32, window.dataset.length),
-          validationSplit: 0.1,
-          callbacks: {
-            onEpochBegin: (epoch) => {
-              logDebug(`Starting epoch ${epoch + 1}/10`);
-            },
-            onEpochEnd: (epoch, logs) => {
-              const message = `Epoch ${epoch + 1}/10: loss=${logs.loss.toFixed(4)}, acc=${logs.acc.toFixed(4)}`;
-              updateStatus(message);
-              logDebug(message);
-            },
-            onBatchEnd: (batch, logs) => {
-              if (batch % 5 === 0) {
-                logDebug(`Batch ${batch}: loss=${logs.loss.toFixed(4)}`);
-              }
-            }
-          }
-        });
-        
-        // Store labels in the model
-        window.model.labels = labels;
-        logDebug(`Model trained successfully with labels: ${labels.join(', ')}`);
-        
-        // Enable inference button
-        document.getElementById('inferBtn').disabled = false;
-        
-        // Clean up tensors
-        tf.dispose([xs, ys, ysOneHot]);
-        
-        updateStatus("Training complete!");
-      } catch (error) {
-        console.error("Training error:", error);
-        logDebug(`ERROR in training: ${error.message}`);
-        updateStatus(`Training failed: ${error.message}`);
-      }
-    }
-    
-    // Toggle real-time inference
-    function toggleInference() {
-      logDebug(`Inference toggle requested. Current state: ${window.isInferenceRunning ? 'active' : 'inactive'}`);
-      
-      if (!window.model) {
-        updateStatus("Train model before inference");
-        return;
-      }
-      
-      window.isInferenceRunning = !window.isInferenceRunning;
-      const inferBtn = document.getElementById('inferBtn');
-      
-      if (window.isInferenceRunning) {
-        inferBtn.textContent = "Stop Inference";
-        inferBtn.style.background = "#aa4444";
-        inferenceResult.style.display = 'block';
-        updateStatus("Real-time inference started");
-        
-        // Start inference loop
-        inferenceLoop();
-      } else {
-        inferBtn.textContent = "Start Inference";
-        inferBtn.style.background = "";
-        inferenceResult.style.display = 'none';
-        updateStatus("Inference stopped");
-        
-        // Clear detection boxes
-        document.getElementById('detectionBoxes').innerHTML = '';
-      }
-    }
-    
-    // Run continuous inference in a loop
-    function inferenceLoop() {
-      if (!window.isInferenceRunning) return;
-      
-      runInference()
-        .then(() => {
-          // Schedule next inference with a small delay
-          setTimeout(inferenceLoop, 500);
-        })
-        .catch(err => {
-          logDebug(`ERROR in inference loop: ${err.message}`);
-          window.isInferenceRunning = false;
-          document.getElementById('inferBtn').textContent = "Start Inference";
-          document.getElementById('inferBtn').style.background = "";
-          updateStatus(`Inference error: ${err.message}`);
-        });
-    }
-    
-    // Run inference on current frame
-    async function runInference() {
-      if (!window.model || !window.isInferenceRunning) return;
-      
-      try {
-        logDebug("Running inference...");
-        
-        // Clear previous detection boxes
-        document.getElementById('detectionBoxes').innerHTML = '';
-        
-        // Create a snapshot of the entire scene
-        const canvas = document.createElement('canvas');
-        canvas.width = 512;  // Lower resolution for faster inference
-        canvas.height = 512;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(window.renderer.domElement, 0, 0, canvas.width, canvas.height);
-        
-        // Region proposal - for simplicity, we'll use a grid approach
-        // This is a simplified version of real object detection
-        const regions = generateRegions(canvas.width, canvas.height);
-        logDebug(`Generated ${regions.length} regions for detection`);
-        
-        // Run inference on each region
-        for (let i = 0; i < regions.length; i++) {
-          const region = regions[i];
-          
-          // Skip if region is too small
-          if (region.w < 64 || region.h < 64) continue;
-          
-          // Extract the region
-          const regionCanvas = document.createElement('canvas');
-          regionCanvas.width = region.w;
-          regionCanvas.height = region.h;
-          const regionCtx = regionCanvas.getContext('2d');
-          regionCtx.drawImage(canvas, region.x, region.y, region.w, region.h, 0, 0, region.w, region.h);
-          
-          // Convert to tensor
-          const tensor = tf.browser.fromPixels(regionCanvas)
-            .resizeNearestNeighbor([64, 64])
-            .toFloat()
-            .div(255)
-            .expandDims(0);
-          
-          // Run prediction
-          const prediction = window.model.predict(tensor);
-          const results = await prediction.data();
-          
-          // Get top prediction
-          let maxIndex = 0;
-          for (let j = 1; j < results.length; j++) {
-            if (results[j] > results[maxIndex]) {
-              maxIndex = j;
-            }
-          }
-          
-          const predictedClass = window.model.labels[maxIndex];
-          const confidence = results[maxIndex] * 100;
-          
-          // Only display high confidence predictions
-          if (confidence > 70) {
-            // Adjust coordinates from 512x512 to actual screen size
-            const scaleX = window.innerWidth / canvas.width;
-            const scaleY = window.innerHeight / canvas.height;
-            
-            const screenX = region.x * scaleX;
-            const screenY = region.y * scaleY;
-            const screenW = region.w * scaleX;
-            const screenH = region.h * scaleY;
-            
-            // Add detection box
-            addDetectionBox(screenX, screenY, screenW, screenH, predictedClass, confidence);
-            
-            logDebug(`Detection: ${predictedClass} (${confidence.toFixed(2)}%) at ${screenX},${screenY} ${screenW}x${screenH}`);
-          }
-          
-          // Clean up tensor
-          tf.dispose(tensor);
-          tf.dispose(prediction);
-        }
-        
-        // Display overall result
-        inferenceResult.innerHTML = `
-          <strong>Inference active</strong><br>
-          <span>Analyzing ${regions.length} regions</span>
-        `;
-        
-      } catch (error) {
-        console.error("Inference error:", error);
-        logDebug(`ERROR in inference: ${error.message}`);
-      }
-    }
-    
-    // Generate regions for object detection
-    function generateRegions(width, height) {
-      const regions = [];
-      const sizes = [
-        {w: 128, h: 128},
-        {w: 192, h: 192},
-        {w: 256, h: 256}
-      ];
-      
-      // Create sliding windows of different sizes
-      sizes.forEach(size => {
-        const stepX = size.w / 2;
-        const stepY = size.h / 2;
-        
-        for (let x = 0; x <= width - size.w; x += stepX) {
-          for (let y = 0; y <= height - size.h; y += stepY) {
-            regions.push({
-              x: Math.floor(x),
-              y: Math.floor(y),
-              w: size.w,
-              h: size.h
-            });
-          }
-        }
-      });
-      
-      return regions;
-    }
-    
-    // Add a detection box to the UI
-    function addDetectionBox(x, y, w, h, label, confidence) {
-      const container = document.getElementById('detectionBoxes');
-      
-      // Create box
-      const box = document.createElement('div');
-      box.className = 'detection-box';
-      box.style.left = `${x}px`;
-      box.style.top = `${y}px`;
-      box.style.width = `${w}px`;
-      box.style.height = `${h}px`;
-      box.style.borderColor = getColorForLabel(label);
-      
-      // Create label
-      const labelElement = document.createElement('div');
-      labelElement.className = 'detection-label';
-      labelElement.style.left = `${x}px`;
-      labelElement.style.top = `${y - 20}px`;
-      labelElement.style.backgroundColor = getColorForLabel(label);
-      labelElement.textContent = `${label} (${confidence.toFixed(0)}%)`;
-      
-      container.appendChild(box);
-      container.appendChild(labelElement);
-    }
-    
-    // Save trained model to browser storage
-    async function saveModel() {
-      if (!window.model) {
-        updateStatus("No trained model to save");
-        return;
-      }
-      
-      try {
-        logDebug("Saving model to local storage");
-        await window.model.save('localstorage://my-annotation-model');
-        
-        // Also save labels
-        localStorage.setItem('model-labels', JSON.stringify(window.model.labels));
-        logDebug(`Saved model with labels: ${window.model.labels.join(', ')}`);
-        
-        updateStatus("Model saved to browser storage");
-      } catch (error) {
-        console.error("Save model error:", error);
-        logDebug(`ERROR saving model: ${error.message}`);
-        updateStatus(`Save failed: ${error.message}`);
-      }
-    }
-    
-    // Load saved model from browser storage
-    async function loadModel() {
-      try {
-        updateStatus("Loading model...");
-        logDebug("Loading model from local storage");
-        
-        window.model = await tf.loadLayersModel('localstorage://my-annotation-model');
-        logDebug("Model loaded successfully");
-        
-        // Load labels
-        const labelsString = localStorage.getItem('model-labels');
-        if (labelsString) {
-          window.model.labels = JSON.parse(labelsString);
-          logDebug(`Loaded model with labels: ${window.model.labels.join(', ')}`);
-        } else {
-          throw new Error("No labels found for the model");
-        }
-        
-        updateStatus("Model loaded successfully");
-        
-        // Enable inference button
-        document.getElementById('inferBtn').disabled = false;
-      } catch (error) {
-        console.error("Load model error:", error);
-        logDebug(`ERROR loading model: ${error.message}`);
-        updateStatus(`Load failed: ${error.message}`);
-      }
-    }
-    
-    // Make functions available globally
-    window.getColorForLabel = getColorForLabel;
-    window.logDebug = logDebug;
-    window.clearDebugLog = clearDebugLog;
-    window.capture = capture;
-    window.closePreview = closePreview;
-    window.updateClassCount = updateClassCount;
-    window.removeDatasetEntry = removeDatasetEntry;
-    window.updateDatasetList = updateDatasetList;
-    window.train = train;
-    window.toggleInference = toggleInference;
-    window.inferenceLoop = inferenceLoop;
-    window.runInference = runInference;
-    window.generateRegions = generateRegions;
-    window.addDetectionBox = addDetectionBox;
-    window.saveModel = saveModel;
-    window.loadModel = loadModel;
-  </script>
+        <!-- Main Content Area -->
+        <main class="app-main">
+            <!-- Header with draggable controls and label selection -->
+            <div class="app-header" id="appHeader">
+                <div class="app-header-drag-handle">
+                    <div class="app-title">JGAI Labeling Tool</div>
+                </div>
+                <div class="header-tools">
+                    <div class="status-text" id="status-messages">Ready</div>
+                    <div class="annotation-counter" id="annotationCount">0</div>
+                </div>
+                <div class="label-selector">
+                    <div class="selected-label" id="selectedLabel">
+                        <span id="activeLabelDisplay">default_label</span>
+                        <svg viewBox="0 0 24 24"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
+                    </div>
+                    <div class="label-dropdown" id="labelDropdown">
+                        <div class="label-search">
+                            <input type="text" id="newLabelInput" placeholder="Search or add new label">
+                            <button id="addLabelBtn" class="label-add-btn">Add</button>
+                        </div>
+                        <ul id="labelList" class="label-list"></ul>
+                    </div>
+                </div>
+
+                
+            </div>
+
+            <!-- Workspace Area -->
+            <div class="app-workspace">
+                <!-- Import Screen -->
+                <div id="imageImportSection" class="import-section">
+                    <div class="import-card">
+                        <h2>Import Image</h2>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="imageLoader" accept="image/*" hidden>
+                            <button id="importBtn" class="btn">
+                                <svg viewBox="0 0 24 24"><path d="M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M6,20H15L18,20V12L14,16L12,14L6,20M8,9A2,2 0 0,0 6,11A2,2 0 0,0 8,13A2,2 0 0,0 10,11A2,2 0 0,0 8,9Z"/></svg>
+                                Choose Image
+                            </button>
+                        </div>
+                        <div id="dropZone" class="drop-zone">
+                            <p>Drag and drop an image here</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Canvas Container -->
+                <div id="canvasContainer" class="canvas-container" style="display: none;">
+                    <canvas id="annotationCanvas" class="annotation-canvas"></canvas>
+                    
+                    <!-- Floating Canvas Controls -->
+                    <div class="canvas-controls">
+                        <button id="zoomInBtn" class="canvas-control-btn" title="Zoom In">
+                            <svg viewBox="0 0 24 24"><path d="M15.5,14L20.5,19L19,20.5L14,15.5V14.71L13.73,14.43C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.43,13.73L14.71,14H15.5M9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14M12,10H10V12H9V10H7V9H9V7H10V9H12V10Z"/></svg>
+                        </button>
+                        <button id="zoomOutBtn" class="canvas-control-btn" title="Zoom Out">
+                            <svg viewBox="0 0 24 24"><path d="M15.5,14H14.71L14.43,13.73C15.41,12.59 16,11.11 16,9.5A6.5,6.5 0 0,0 9.5,3A6.5,6.5 0 0,0 3,9.5A6.5,6.5 0 0,0 9.5,16C11.11,16 12.59,15.41 13.73,14.43L14,14.71V15.5L19,20.5L20.5,19L15.5,14M9.5,14C7,14 5,12 5,9.5C5,7 7,5 9.5,5C12,5 14,7 14,9.5C14,12 12,14 9.5,14M7,9H12V10H7V9Z"/></svg>
+                        </button>
+                        <button id="fitBtn" class="canvas-control-btn" title="Fit to View">
+                            <svg viewBox="0 0 24 24"><path d="M10,21V19H6.41L10.91,14.5L9.5,13.09L5,17.59V14H3V21H10M14.5,10.91L19,6.41V10H21V3H14V5H17.59L13.09,9.5L14.5,10.91Z"/></svg>
+                        </button>
+                    </div>
+
+                    <!-- For polygon tool -->
+                    <div id="polygonControls" class="polygon-controls" style="display:none">
+                        <button id="finishPolygonBtn" class="btn btn-confirm">
+                            <svg viewBox="0 0 24 24"><path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/></svg>
+                            Finish Polygon
+                        </button>
+                        <button id="cancelPolygonBtn" class="btn btn-cancel">
+                            <svg viewBox="0 0 24 24"><path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/></svg>
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Sidebar: Selected Tool Panel -->
+        <aside id="toolPanel" class="tool-panel">
+            <!-- Dynamic content based on selected tool -->
+            <div class="tool-panel-header">
+                <h3 id="toolPanelTitle">Tool Options</h3>
+                <button class="tool-panel-toggle" id="toggleToolPanel">
+                    <svg class="icon-collapse" viewBox="0 0 24 24"><path d="M18.41,7.41L17,6L11,12L17,18L18.41,16.59L13.83,12L18.41,7.41M12.41,7.41L11,6L5,12L11,18L12.41,16.59L7.83,12L12.41,7.41Z"/></svg>
+                    <svg class="icon-expand" viewBox="0 0 24 24"><path d="M5.59,7.41L7,6L13,12L7,18L5.59,16.59L10.17,12L5.59,7.41M11.59,7.41L13,6L19,12L13,18L11.59,16.59L16.17,12L11.59,7.41Z"/></svg>
+                </button>
+            </div>
+
+            <!-- Panel Content Area for dynamic tool options -->
+            <div class="tool-panel-content">
+                <!-- Select Tool Panel -->
+                <div class="tool-options tool-select">
+                    <div class="panel-section">
+                        <h4>Annotations</h4>
+                        <ul id="annotationList" class="annotation-list"></ul>
+                    </div>
+                    <div class="panel-actions">
+                        <button id="deleteAnnotationBtn" class="btn btn-danger" disabled>
+                            <svg viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/></svg>
+                            Delete
+                        </button>
+                        <button id="clearAllBtn" class="btn btn-warning">
+                            <svg viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/></svg>
+                            Clear All
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Box Tool Panel -->
+                <div class="tool-options tool-box" style="display:none">
+                    <div class="panel-section">
+                        <h4>Rectangle Options</h4>
+                        <div class="option-group">
+                            <label for="boxLineWidth">Line Width</label>
+                            <input type="range" id="boxLineWidth" min="1" max="10" value="2">
+                        </div>
+                        <div class="color-picker">
+                            <label>Color</label>
+                            <div class="color-options">
+                                <button class="color-option active" data-color="#ef4444" style="background:#ef4444"></button>
+                                <button class="color-option" data-color="#f59e0b" style="background:#f59e0b"></button>
+                                <button class="color-option" data-color="#10b981" style="background:#10b981"></button>
+                                <button class="color-option" data-color="#3b82f6" style="background:#3b82f6"></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Polygon Tool Panel -->
+                <div class="tool-options tool-polygon" style="display:none">
+                    <div class="panel-section">
+                        <h4>Polygon Options</h4>
+                        <div class="option-group">
+                            <label for="polygonLineWidth">Line Width</label>
+                            <input type="range" id="polygonLineWidth" min="1" max="10" value="2">
+                        </div>
+                        <div class="option-group">
+                            <label for="polygonFill">Fill Opacity</label>
+                            <input type="range" id="polygonFill" min="0" max="100" value="20">
+                        </div>
+                        <div class="color-picker">
+                            <label>Color</label>
+                            <div class="color-options">
+                                <button class="color-option" data-color="#ef4444" style="background:#ef4444"></button>
+                                <button class="color-option" data-color="#f59e0b" style="background:#f59e0b"></button>
+                                <button class="color-option active" data-color="#10b981" style="background:#10b981"></button>
+                                <button class="color-option" data-color="#3b82f6" style="background:#3b82f6"></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Label Tool Panel -->
+                <div class="tool-options tool-label" style="display:none">
+                    <div class="panel-section">
+                        <h4>Label Management</h4>
+                        <div class="label-input-group">
+                            <input type="text" id="createLabelInput" placeholder="New label name">
+                            <button id="createLabelBtn" class="btn">Create</button>
+                        </div>
+                        <ul class="managed-label-list" id="managedLabelList"></ul>
+                    </div>
+                    <div class="panel-actions">
+                        <button id="deleteLabelBtn" class="btn btn-danger" disabled>
+                            <svg viewBox="0 0 24 24"><path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/></svg>
+                            Delete Label
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Settings Tool Panel -->
+                <div class="tool-options tool-settings" style="display:none">
+                    <div class="panel-section">
+                        <h4>Application Settings</h4>
+                        <div class="option-group">
+                            <label for="themeSelect">Interface Theme</label>
+                            <select id="themeSelect">
+                                <option value="dark">Dark Mode</option>
+                                <option value="light">Light Mode</option>
+                            </select>
+                        </div>
+                        <div class="option-group">
+                            <label for="snapGrid">Enable Snap Grid</label>
+                            <input type="checkbox" id="snapGrid">
+                        </div>
+                        <div class="option-group">
+                            <label for="autoSave">Auto-Save</label>
+                            <input type="checkbox" id="autoSave" checked>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Import Tool Panel -->
+                <div class="tool-options tool-import" style="display:none">
+                    <div class="panel-section">
+                        <h4>Import Options</h4>
+                        <div class="option-group">
+                            <label for="importFormat">Format</label>
+                            <select id="importFormat">
+                                <option value="image">Single Image</option>
+                                <option value="batch">Batch Import</option>
+                                <option value="annotations">Import Annotations</option>
+                            </select>
+                        </div>
+                        <div class="option-group">
+                            <button id="importFilesBtn" class="btn btn-block">
+                                <svg viewBox="0 0 24 24"><path d="M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M11,15V12H9V15H6L10,19L14,15H11Z"/></svg>
+                                Browse Files
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Export Tool Panel -->
+                <div class="tool-options tool-export" style="display:none">
+                    <div class="panel-section">
+                        <h4>Export Options</h4>
+                        <div class="option-group">
+                            <label for="exportFormat">Format</label>
+                            <select id="exportFormat">
+                                <option value="json">JSON</option>
+                                <option value="coco">COCO</option>
+                                <option value="yolo">YOLO</option>
+                                <option value="csv">CSV</option>
+                            </select>
+                        </div>
+                        <div class="option-group">
+                            <label for="includeImage">Include Images</label>
+                            <input type="checkbox" id="includeImage">
+                        </div>
+                        <div class="option-group">
+                            <button id="exportBtn" class="btn btn-primary btn-block">
+                                <svg viewBox="0 0 24 24"><path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/></svg>
+                                Export Annotations
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script src="scripts.js"></script>
 </body>
 </html>
+

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNN Playground</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        #snnCanvas { border: 1px solid black; margin-top: 20px; cursor: crosshair; }
+        .controls button { margin-right: 10px; padding: 5px 10px; }
+        .container { display: flex; }
+        .description { flex: 1; padding-right: 20px; }
+        .playground { flex: 2; }
+        .input-nodes-panel { margin-top: 15px; padding: 10px; border: 1px solid #ccc; }
+        .input-nodes-panel h3 { margin-top: 0; }
+        .input-node-control { margin-bottom: 5px; }
+        .input-node-control label { margin-right: 10px; }
+        .environment-controls { margin-bottom: 10px; }
+        .evolution-controls { margin: 10px 0; }
+        #bacteriaCanvas { border: 1px solid #888; margin-top: 10px; }
+        #statsGraph { border: 1px solid #ddd; }
+        #brainVisCanvas { border: 1px solid #ddd; }
+        .bacteria-info-panel { margin-top: 15px; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="description">
+            <h1>Welcome to SNN Playground</h1>
+            <p>
+
+        🎯 Goal
+To create an interactive, visual, and customizable simulation of spiking neural networks (SNNs) — inspired by the biology of real neurons — where individual neurons (or clusters) can be copied, tweaked, or interconnected in creative ways. The system should allow for:
+
+Copying neuron states ("neuron cloning")
+
+Running time-based neuron activity
+
+Observing learning behaviors
+
+Testing with toy inputs (like pixel sensors, sound spikes, etc.)
+
+This will serve as a relaxing and exploratory tool for personal learning, experimentation, and philosophical reflection on synthetic intelligence.
+
+🧪 Inspiration
+Traditional neural networks are static function approximators. Spiking networks introduce time, stochasticity, and neuron individuality.
+Let’s simulate intelligence more like biology: spike-by-spike.
+
+🔧 Technical Concepts
+Spiking Neurons (e.g., Leaky Integrate-and-Fire or Izhikevich models)
+
+Neurons accumulate potential over time.
+
+When a threshold is passed, they fire (“spike”).
+
+Spikes propagate through the network.
+
+Event-based Simulation
+
+Neurons react to discrete events rather than continuous data.
+
+Simulation ticks or a continuous time loop.
+
+Neuron Copy/Clone
+
+Ability to duplicate a single neuron's internal state (voltage, refractory time, connections).
+
+Enables "reproduction" or speculative branching of neuron types.
+
+Plasticity / Learning Rules
+
+Explore basic STDP (Spike-Timing Dependent Plasticity).
+
+Optional Hebbian learning or reinforcement modulation.
+
+Visual Playground UI
+
+Neurons are dots/circles.
+
+Spikes are lines or pulses.
+
+Time scrolls like a music sequencer or brainwave scanner.
+            </p>
+        </div>
+        <div class="playground">
+            <h2>SNN Simulation Environment</h2>
+            <div class="environment-controls">
+                <label for="numBrains">Number of Brains:</label>
+                <input type="number" id="numBrains" value="1" min="1" max="10" style="width: 50px;">
+                <button id="initEnvironmentBtn">Initialize Environment</button>
+            </div>
+            <div class="controls">
+                <button id="addNeuronBtn" disabled>Add Neuron</button>
+                <button id="startPauseBtn" disabled>Start All</button>
+                <button id="resetBtn" disabled>Reset All</button>
+                <button id="addInputNodeBtn" disabled>Add Input Node</button>
+            </div>
+            <canvas id="snnCanvas" width="600" height="400"></canvas>
+            <div id="inputNodesPanel" class="input-nodes-panel">
+                <h3>Input Nodes</h3>
+                <div id="inputNodeControlsContainer">
+                    <!-- Input node toggles will be added here by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+    <div id="bacteria-sim-section">
+        <h2>Bacteria Evolution Simulator <span style="font-size:0.7em; color:gray;">(Experimental)</span></h2>
+        <div style="display: flex; gap: 20px;">
+            <div style="flex: 2;">
+                <div class="environment-controls">
+                    <label for="numBacteria">Initial Population:</label>
+                    <input type="number" id="numBacteria" value="20" min="1" max="200" style="width: 60px;">
+                    <button id="initBacteriaSimBtn">Initialize</button>
+                    <button id="startBacteriaSimBtn" disabled>Start</button>
+                    <button id="resetBacteriaSimBtn" disabled>Reset</button>
+                </div>
+                <div class="evolution-controls" style="margin: 10px 0;">
+                    <label for="mutationRate">Mutation Rate:</label>
+                    <input type="range" id="mutationRate" min="0" max="100" value="10" style="width: 100px;">
+                    <span id="mutationRateValue">10%</span>
+                    
+                    <label for="foodSpawnRate" style="margin-left: 15px;">Food Spawn Rate:</label>
+                    <input type="range" id="foodSpawnRate" min="1" max="100" value="10" style="width: 100px;">
+                    <span id="foodSpawnRateValue">10%</span>
+
+                    <label for="energyCost" style="margin-left: 15px;">Energy Cost:</label>
+                    <input type="range" id="energyCost" min="1" max="100" value="20" style="width: 100px;">
+                    <span id="energyCostValue">20%</span>
+                </div>
+                <canvas id="bacteriaCanvas" width="600" height="400" style="border:1px solid #888; margin-top:10px;"></canvas>
+            </div>
+            <div style="flex: 1; padding: 10px; background: #f5f5f5; border-radius: 5px;">
+                <div id="bacteriaStats" style="font-size: 0.95em; color:#444;"></div>
+                <div id="selectedBacteriaInfo" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                    <h3 style="margin: 0 0 10px 0;">Selected Bacteria</h3>
+                    <div id="selectedBacteriaStats"></div>
+                    <div id="brainVisContainer" style="margin-top: 10px;">
+                        <canvas id="brainVisCanvas" width="200" height="150" style="border:1px solid #ddd;"></canvas>
+                    </div>
+                </div>
+                <div id="evolutionGraphs" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                    <h3 style="margin: 0 0 10px 0;">Evolution Progress</h3>
+                    <canvas id="statsGraph" width="200" height="100" style="border:1px solid #ddd;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+    <h2>Project Details</h2>
+    <p>
+🖥️ Implementation Sketch
+Component	Description
+Frontend	Web app (React or Canvas/WebGL) or desktop (Tauri/Rust or Electron)
+Backend	Rust/WASM or Python (for fast simulation of many neurons)
+Core Library	Use or extend libraries like Brian2 (Python) or write your own minimal SNN engine
+Features	Add / delete neurons, visualize spike trains, pause / resume simulation, edit synapses in real-time
+
+🧰 Stretch Goals
+Import sounds or images as input spikes.
+
+Let users paint spikes or time patterns.
+
+Evolution: neurons adapt, mutate, or die.
+
+Add GPT-based agent commentary to narrate brain behavior.
+
+💡 Vision
+This is not just an AI experiment. It’s a sandbox for exploring intelligence itself — one spike at a time.
+Let’s make a world where neurons are not numbers, but characters.
+
+    </p>
+    <script src="main.js" type="module"></script>
+</body>
+</html>

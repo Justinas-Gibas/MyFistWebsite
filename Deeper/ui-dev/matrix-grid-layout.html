@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JGMAX UI - Responsive Grid Template</title>
+    <style>
+        /* Responsive UI Template Variables */
+        :root {
+            --color-background: #000000;
+            --color-border: #00ff00;
+            --color-text: #9e9e9e;
+            --color-primary: #003300;
+            --color-hover: #004400;
+            --color-active: #00ff00;
+            
+            /* Responsive sizing */
+            --bar-size: clamp(3rem, 8vw, 4rem);
+            --button-size: clamp(2.5rem, 6vw, 3.5rem);
+            --button-gap: clamp(0.25rem, 1vw, 0.5rem);
+            --font-size-normal: clamp(0.875rem, 2vw, 1rem);
+            --font-size-large: clamp(1rem, 2.5vw, 1.25rem);
+            --border-width: clamp(1px, 0.1vw, 2px);
+        }
+
+        * {
+            user-select: none;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            display: grid;
+            grid-template-areas: 
+                "top-left    top-bar     top-right"
+                "left-bar    main        right-bar"
+                "bottom-left bottom-bar  bottom-right";
+            grid-template-rows: var(--bar-size) 1fr var(--bar-size);
+            grid-template-columns: var(--bar-size) 1fr var(--bar-size);
+            gap: 0;
+            background: #000;
+        }
+
+        .hotbar {
+            background-color: var(--color-primary);
+            border: var(--border-width) solid var(--color-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-large);
+            transition: background-color 0.2s ease;
+        }
+
+        .button {
+            margin: var(--button-gap);
+            border: var(--border-width) solid var(--color-border);
+            min-width: var(--button-size);
+            height: var(--button-size);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-normal);
+            color: var(--color-border);
+            cursor: pointer;
+            background-color: var(--color-primary);
+            transition: background-color 0.2s ease;
+            padding: 0 var(--button-gap);
+            white-space: nowrap;
+        }
+
+        .button:hover, .hotbar:hover {
+            background-color: var(--color-hover);
+        }
+
+        /* Grid Areas */
+        .top-left { grid-area: top-left; cursor: pointer; }
+        .top-bar { grid-area: top-bar; justify-content: flex-start; overflow: hidden; }
+        .top-right { grid-area: top-right; cursor: pointer; }
+        .left-bar { grid-area: left-bar; flex-direction: column; overflow: hidden; }
+        .right-bar { grid-area: right-bar; flex-direction: column; overflow: hidden; }
+        .bottom-left { grid-area: bottom-left; cursor: pointer; }
+        .bottom-bar { grid-area: bottom-bar; justify-content: space-between; overflow: hidden; }
+        .bottom-right { grid-area: bottom-right; cursor: pointer; }
+
+        .main-content {
+            grid-area: main;
+            background-color: var(--color-background);
+            border: var(--border-width) solid var(--color-border);
+            position: relative;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Matrix Rain Effect */
+        .matrix-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(20px, 1fr));
+            gap: 0;
+        }
+
+        .matrix-column {
+            position: relative;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .matrix-char {
+            position: absolute;
+            color: #00ff00;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 0 0 5px #00ff00;
+            opacity: 1;
+            transition: opacity 0.1s ease;
+            animation: fall linear infinite;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .matrix-char.bright {
+            color: #ffffff;
+            text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00;
+        }
+
+        .matrix-char.dim {
+            color: #003300;
+            opacity: 0.3;
+        }
+
+        @keyframes fall {
+            0% {
+                top: -20px;
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                top: 100vh;
+                opacity: 0;
+            }
+        }
+
+        .status-text {
+            color: var(--color-border);
+            font-size: var(--font-size-normal);
+            text-align: center;
+            padding: 0 var(--button-gap);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .icon {
+            width: 1.5em;
+            height: 1.5em;
+            fill: currentColor;
+        }
+
+        /* Mobile responsive adjustments */
+        @media (max-width: 768px) {
+            :root {
+                --bar-size: clamp(2.5rem, 10vw, 3rem);
+                --button-size: clamp(2rem, 8vw, 2.5rem);
+            }
+            
+            .status-text {
+                font-size: clamp(0.75rem, 2vw, 0.875rem);
+            }
+
+            .matrix-char {
+                font-size: 14px;
+            }
+        }
+
+        /* Large screen optimizations */
+        @media (min-width: 1200px) {
+            :root {
+                --bar-size: 4rem;
+                --button-size: 3.5rem;
+            }
+
+            .matrix-char {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top left corner -->
+    <div class="hotbar top-left" title="Select mode" onclick="handleSelectMode()">
+        <svg class="icon" viewBox="0 0 24 24"
+             style="fill: #00ff00;">
+            <path d="M16 2a1 1 0 000 2h4V8a1 1 0 002 0V2m0 14a1 1 0 00-2 0v4H16a1 1 0 000 2h6M8 22a1 1 0 000-2H4V16A1 1 0 002 16v6M2 8A1 1 0 004 8V4H8A1 1 0 008 2H2"/>
+        </svg>
+    </div>
+
+    <!-- Top bar -->
+    <div class="hotbar top-bar">
+        <div class="button" title="Create new" onclick="handleNew()">New</div>
+        <div class="button" title="Open file" onclick="handleOpen()">Open</div>
+        <div class="button" title="Save" onclick="handleSave()">Save</div>
+    </div>
+
+    <!-- Top right corner -->
+    <div class="hotbar top-right" title="Close" onclick="handleClose()">✕</div>
+
+    <!-- Left bar -->
+    <div class="hotbar left-bar">
+        <div class="button" title="Tool 1" onclick="handletool1()">T1</div>
+        <div class="button" title="Tool 2" onclick="handletool2()">⚒</div>
+    </div>
+
+    <!-- Main content with Matrix effect -->
+    <div class="main-content">
+        <div class="matrix-container" id="matrixContainer"></div>
+    </div>
+
+    <!-- Right bar -->
+    <div class="hotbar right-bar">
+        <div class="button" title="Properties" onclick="handleProperty1()">Props</div>
+        <div class="button" title="Settings" onclick="handleProperty2()">⚙</div>
+    </div>
+
+    <!-- Bottom left corner -->
+    <div class="hotbar bottom-left" title="Undo" onclick="handleUndo()">◀</div>
+
+    <!-- Bottom bar -->
+    <div class="hotbar bottom-bar">
+        <div class="button" title="Test action" onclick="handleLeftAction()">Test</div>
+        <div class="status-text">Matrix Mode Active</div>
+        <div class="button" title="Action">Action</div>
+    </div>
+
+    <!-- Bottom right corner -->
+    <div class="hotbar bottom-right" title="Redo" onclick="handleRedo()">▶</div>
+
+    <script>
+        // Matrix characters (mix of numbers, katakana, and symbols)
+        const matrixChars = '0123456789アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        
+        let columns = [];
+        let matrixContainer;
+
+        function initMatrix() {
+            matrixContainer = document.getElementById('matrixContainer');
+            const containerWidth = matrixContainer.offsetWidth;
+            const columnWidth = 20;
+            const numColumns = Math.floor(containerWidth / columnWidth);
+            
+            // Clear existing columns
+            matrixContainer.innerHTML = '';
+            columns = [];
+            
+            // Create columns
+            for (let i = 0; i < numColumns; i++) {
+                const column = document.createElement('div');
+                column.className = 'matrix-column';
+                matrixContainer.appendChild(column);
+                columns.push({
+                    element: column,
+                    drops: Math.random() * 20
+                });
+            }
+            
+            startMatrixAnimation();
+        }
+
+        function createMatrixChar(column, delay = 0) {
+            const char = document.createElement('div');
+            char.className = 'matrix-char';
+            char.textContent = matrixChars[Math.floor(Math.random() * matrixChars.length)];
+            
+            // Random character appearance
+            const rand = Math.random();
+            if (rand < 0.1) {
+                char.classList.add('bright');
+            } else if (rand > 0.7) {
+                char.classList.add('dim');
+            }
+            
+            // Random animation duration (speed)
+            const duration = 2 + Math.random() * 3;
+            char.style.animationDuration = `${duration}s`;
+            char.style.animationDelay = `${delay}s`;
+            
+            column.appendChild(char);
+            
+            // Remove character after animation
+            setTimeout(() => {
+                if (char.parentNode) {
+                    char.parentNode.removeChild(char);
+                }
+            }, (duration + delay) * 1000);
+        }
+
+        function startMatrixAnimation() {
+            function animate() {
+                columns.forEach((column, index) => {
+                    if (Math.random() < 0.1) { // 10% chance to drop a character
+                        createMatrixChar(column.element, Math.random() * 0.5);
+                    }
+                });
+                
+                setTimeout(animate, 100); // Continue animation
+            }
+            animate();
+        }
+
+        // Event handlers
+        const handlers = {
+            handleSelectMode: () => console.log('Select mode'),
+            handleNew: () => console.log('New'),
+            handleOpen: () => console.log('Open'),
+            handleSave: () => console.log('Save'),
+            handleClose: () => console.log('Close'),
+            handletool1: () => console.log('Tool 1'),
+            handletool2: () => console.log('Tool 2'),
+            handleProperty1: () => console.log('Properties'),
+            handleProperty2: () => console.log('Settings'),
+            handleUndo: () => console.log('Undo'),
+            handleRedo: () => console.log('Redo'),
+            handleLeftAction: () => console.log('Test action')
+        };
+
+        // Attach handlers to global scope
+        Object.assign(window, handlers);
+
+        // Initialize Matrix effect when page loads
+        window.addEventListener('load', initMatrix);
+        window.addEventListener('resize', () => {
+            clearTimeout(window.resizeTimer);
+            window.resizeTimer = setTimeout(initMatrix, 250);
+        });
+    </script>
+</body>
+</html>
