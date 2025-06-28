@@ -1,7 +1,7 @@
 // Global constants for GitHub details
 const username = "Justinas-Gibas"; // Replace with your GitHub username
 const repo = "MyFistWebsite"; // Replace with your repository name
-const branch = "ManoPirmasWebsaitas"; // Replace with your branch name
+const branch = "ManoKumscioWebsaitas"; // Replace with your branch name
 
 async function fetchFolderContents(path = "") {
   const apiURL = `https://api.github.com/repos/${username}/${repo}/contents/${path}?ref=${branch}`;
