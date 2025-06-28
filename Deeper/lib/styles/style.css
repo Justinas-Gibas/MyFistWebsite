@@ -68,7 +68,8 @@ body {
   text-decoration: underline;
 }
 
-/* Not needed but here to keep as a note */
+/* Header # seem not to work!! */
+/* Header styles */
 .header__title {
   font-size: 24px;
 }
@@ -171,13 +172,13 @@ body {
 
 /* Links styles */
 .link {
-  color: #333;
+  color: #284bbd;
   text-decoration: none;
   transition: all ease-in-out 0.2s;
 }
 
 .link:hover {
-  color: #666;
+  color: #d3d3d3;
 }
 
 .link--email:before,
@@ -221,6 +222,11 @@ body {
   text-decoration: underline;
 }
 
+/* Work section styles */
+.work-item__image, .work-item__video {
+                width: 100%;  
+            }
+
 /* Additional styles */
 .wrapper {
   position: relative;
@@ -245,6 +251,7 @@ body {
   background: #818181;
 }
 
+/* background image Author name styles */
 .author-name {
   position: fixed;
   top: 95%;
@@ -257,6 +264,7 @@ body {
   z-index: 999;
 }
 
+/* Specific component styles */
 .GLTFLoader {
   margin-top: 10vh;
   display: flex;

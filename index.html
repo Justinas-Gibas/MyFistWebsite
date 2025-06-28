@@ -11,6 +11,35 @@
     <link rel="icon" type="image/x-icon" href="./upper/JG_favicon.ico">
     <link rel="stylesheet" href="./Deeper/lib/styles/reset.css">
     <link rel="stylesheet" href="./Deeper/lib/styles/style.css">
+
+    <style>
+            .section__text {
+                color: lightgray;
+            }
+
+            .section__list {
+                color: lightgreen;
+            }
+
+            .contact-item__link {
+                color: lightblue;
+            }
+            .work-item__caption
+            {
+                color: rgba(211, 211, 211, 0.664);
+            }
+            .section__subtitle {
+                color: rgba(255, 255, 255, 0.795);
+            }
+
+            .work-item__image, .work-item__video {
+                width: 100%;
+                height: 48vh;
+                border-radius: 8px;
+            }
+    </style>
+
+
 </head>
 <body>
     <header class="header">
@@ -39,29 +68,29 @@
                     <li>Continuously learn new programming languages to broaden my creative capabilities.</li>
                     <li>Embark on global adventures, exploring diverse cultures and seeking inspiration for my digital creations.</li>
                 </ul>
-                <p class="section__text">Beyond my fluency in Lithuanian and English, I actively delve into programming languages such as HTML, CSS, JavaScript, and Python to enhance my proficiency in the digital realm.</p>
+                <p class="section__text">My journey into the digital realm has led me to actively delve into programming languages such as:<br>HTML, CSS, JavaScript, Python and now Rust</p>
+                <ul class="section__text">
+                    <!--nice grid to show data-->
+                    <li>JavaScript</li>
+                    <li>Python</li>
+                    <li>Rust</li>
+                </ul>
             </div>
         </section>        
         <section id="work" class="section">
             <div class="container">
                 <h2 class="section__title">Work</h2>
-                <h3 class="section__subtitle">My Work</h3>
+                <h3 class="section__subtitle">Version 2 of this website:</h3>
+                <button class="work__button" style="font-size: 30px; background-color: transparent; color: lightgreen;" onclick="window.location.assign('index1.html#work')">Click here to see full list</button>
+                <br><br>
+                
+                <br>
+                <h3 class="section__subtitle">Some of my Projects:</h3>
                 <figure class="work-item">
-                    <img src="./Deeper/lib/images/potw2046a.jpg" alt="A photo of me working on a dental model" class="work-item__image">
-                    <figcaption class="work-item__caption">A photo of me working on a dental model</figcaption>
-                </figure>
-                <figure class="work-item">
-                  <video src="./Deeper/lib/images/potw2046a.mp4" controls class="work-item__video" poster="./Deeper/lib/images/potw2046a.jpg">A video of me creating music using electronic devices</video>
-                  <figcaption class="work-item__caption">A video of me creating music using electronic devices</figcaption>
-                </figure>
-                <figure class="work-item">
-                  <img src="./Deeper/lib/images/potw2046a.jpg" alt="A photo of me coding on my laptop" class="work-item__image">
-                  <figcaption class="work-item__caption">A photo of me coding on my laptop</figcaption>
-                </figure>
-                <figure class="work-item">
-                    <a href="./Deeper/L2Web/L2Web.html" target="_self" class="contact-item__link">Link to L2Web project</a>
-                    <figcaption class="work-item__caption">L2Web, a website that is respons frendly</figcaption>
+                    <a href="./Deeper/L2Web/L2Web.html" target="_self" class="contact-item__link">L2Web</a>
+                    <figcaption class="work-item__caption">Visually Appealing Portfolio</figcaption>
                 </figure> 
+                <br>
                 <figure class="work-item">
                     <a href="./Deeper/GLTFLoader/GLTFLoader.html" target="_self" class="contact-item__link">GLTFLoader</a>
                     <figcaption class="work-item__caption">GLTFLoader project</figcaption>
@@ -81,7 +110,24 @@
                 <figure class="work-item">
                     <a href="./Deeper/VRSpace/VRSpace.html" target="_self" class="contact-item__link">VRSpace</a>
                     <figcaption class="work-item__caption">VRSpace for art</figcaption>
-                </figure>                
+                </figure> 
+                <br>
+                <br>
+                
+                <h3 class="section__subtitle">Gallery:</h3>
+                <figure class="work-item">
+                    <img src="./Deeper/lib/images/potw2046a.jpg" alt="A photo of me working on a dental model" class="work-item__image">
+                    <figcaption class="work-item__caption">A photo of me working on a dental model</figcaption>
+                </figure>
+                <figure class="work-item">
+                  <video src="./Deeper/lib/images/potw2046a.mp4" controls class="work-item__video" poster="./Deeper/lib/images/potw2046a.jpg">A video of me creating music using electronic devices</video>
+                  <figcaption class="work-item__caption">A video of me creating music using electronic devices</figcaption>
+                </figure>
+                <figure class="work-item">
+                  <img src="./Deeper/lib/images/potw2046a.jpg" alt="A photo of me coding on my laptop" class="work-item__image">
+                  <figcaption class="work-item__caption">A photo of me coding on my laptop</figcaption>
+                </figure>
+                              
             </div>
         </section>
         <section id="contact" class="section">
@@ -92,19 +138,19 @@
                 <ul class="contact-list">
                     <li class="contact-item">
                         <i class="fas fa-envelope"></i>
-                        <a href="mailto:justinas.gibas@example.com" class="contact-item__link">justinas.gibas@example.com</a>
+                        <a href="mailto:justas.gibas@gmail.com" class="contact-item__link">justas.gibas@gmail.com</a>
                     </li>
                     <li class="contact-item">
                         <i class="fab fa-linkedin"></i>
-                        <a href="https://www.linkedin.com/in/justinas-gibas" target="_blank" rel="noopener noreferrer" class="contact-item__link">LinkedIn</a>
+                        <a href="www.linkedin.com/in/justinas-gibas-4a8399244" target="_blank" rel="noopener noreferrer" class="contact-item__link">LinkedIn</a>
                     </li>
                     <li class="contact-item">
                         <i class="fab fa-github"></i>
-                        <a href="https://github.com/justinasgibas" target="_blank" rel="noopener noreferrer" class="contact-item__link">GitHub</a>
+                        <a href="https://github.com/justgibas" target="_blank" rel="noopener noreferrer" class="contact-item__link">GitHub</a>
                     </li>
                     <li class="contact-item">
                         <i class="fab fa-twitter"></i>
-                        <a href="https://twitter.com/justinasgibas" target="_blank" rel="noopener noreferrer" class="contact-item__link">Twitter</a>
+                        <a href="https://twitter.com/justgibas" target="_blank" rel="noopener noreferrer" class="contact-item__link">Twitter</a>
                     </li>
                 </ul>
             </div>
@@ -112,7 +158,7 @@
     </main>
     <footer class="footer">
         <div class="container">
-            <p class="footer__text">© 2023 Justinas Gibas. All rights reserved.</p>
+            <p class="footer__text">© 2025 Justinas Gibas. All rights reserved.</p>
         </div>
     </footer>
     <div class="author-name"></div>
