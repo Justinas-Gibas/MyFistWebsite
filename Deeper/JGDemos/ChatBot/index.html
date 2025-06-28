@@ -1,111 +1,466 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>API Tester</title>
-  <style>
-    /* Basic styling */
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f4f4f4;
-      margin: 0;
-      padding: 20px;
-    }
-    .container {
-      max-width: 600px;
-      margin: auto;
-      background: #fff;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-    }
-    h1 {
-      text-align: center;
-      color: #333;
-    }
-    label {
-      display: block;
-      margin-bottom: 10px;
-      font-weight: bold;
-    }
-    input[type="text"] {
-      width: 100%;
-      padding: 10px;
-      margin-bottom: 20px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-    }
-    button {
-      display: block;
-      width: 100%;
-      padding: 10px;
-      background: #007bff;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #0056b3;
-    }
-    .result {
-      margin-top: 20px;
-      padding: 15px;
-      background: #e9ecef;
-      border-radius: 4px;
-      word-wrap: break-word;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>API Tester 0.1.0</h1>
-    <label for="prompt">Enter Prompt:</label>
-    <input type="text" id="prompt" placeholder="Type your prompt here..." />
-    <button id="testApiBtn">Test API</button>
-    <div id="result" class="result" style="display:none;"></div>
-  </div>
+  <meta charset="UTF-8">
+  <title>Local + GPT-3.5 Chat</title>
+  <!-- 1) TensorFlow.js and QnA Model (Local BERT QnA) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/qna"></script>
 
-  <script>
-    document.getElementById("testApiBtn").addEventListener("click", function () {
-      const promptValue = document.getElementById("prompt").value.trim();
-      const resultDiv = document.getElementById("result");
+  <!-- 2) Transformers.js for local text-generation (DistilGPT2, etc.) -->
+  <!-- We use type="module" so we can import from the CDN -->
+  <script type="module">
+    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers/dist/transformers.min.js';
 
-      if (!promptValue) {
-        alert("Please enter a prompt.");
+    // ---------- CSS ------------
+    const style = document.createElement('style');
+    style.textContent = `
+      * {
+        margin: 0; padding: 0; box-sizing: border-box;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      header {
+        background-color: #6200ee;
+        color: #fff;
+        padding: 10px;
+        text-align: center;
+      }
+      #main-container {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+      #left-panel, #right-panel {
+        min-width: 200px;
+        overflow-y: auto;
+        padding: 10px;
+      }
+      #left-panel {
+        width: 20%;
+        border-right: 1px solid #ccc;
+        background-color: #f7f7f7;
+      }
+      #right-panel {
+        width: 20%;
+        background-color: #fafafa;
+      }
+      #center-panel {
+        width: 60%;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid #ccc;
+      }
+      #system-prompt {
+        width: 100%;
+        resize: vertical;
+        padding: 8px;
+      }
+      #progress-container {
+        width: 100%;
+        height: 20px;
+        background-color: #ddd;
+      }
+      #progress-bar {
+        width: 0;
+        height: 100%;
+        background-color: #4caf50;
+        text-align: center;
+        color: #fff;
+        font-size: 12px;
+        transition: width 0.5s;
+      }
+      #chat-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        border-top: 1px solid #ccc;
+        border-bottom: 1px solid #ccc;
+        background-color: #fff;
+      }
+      .chat-bubble {
+        padding: 10px;
+        border-radius: 10px;
+        margin: 5px 0;
+        word-wrap: break-word;
+        max-width: 80%;
+      }
+      .chat-bubble.you {
+        background-color: #e1f5fe;
+        text-align: left;
+      }
+      .chat-bubble.chatbot {
+        background-color: #c8e6c9;
+        text-align: right;
+        margin-left: auto;
+      }
+      .chat-bubble.system {
+        background-color: #fff3e0;
+        text-align: center;
+        margin: 0 auto;
+        font-style: italic;
+      }
+      .chat-controls {
+        display: flex;
+        padding: 10px;
+        background-color: #f1f1f1;
+        border-top: 1px solid #ccc;
+        align-items: center;
+      }
+      .chat-controls input[type="text"] {
+        flex: 1;
+        padding: 8px;
+        margin-right: 10px;
+      }
+      .chat-controls button,
+      .chat-controls select {
+        margin-right: 5px;
+        padding: 8px;
+      }
+      #left-panel label {
+        display: block;
+        margin-top: 10px;
+        font-weight: bold;
+      }
+      #left-panel input[type="text"],
+      #left-panel select {
+        width: 100%;
+        padding: 6px;
+        margin-top: 5px;
+      }
+      #right-panel pre {
+        background: #eef;
+        padding: 10px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+    `;
+    document.head.appendChild(style);
+
+    // ---------- HTML Structure ------------
+    const body = document.body;
+    body.innerHTML = `
+      <header>
+        <h1>Local + GPT‑3.5 Chat</h1>
+      </header>
+      <div id="main-container">
+        <div id="left-panel">
+          <h2>Settings</h2>
+          <label for="model-select">Select Model:</label>
+          <select id="model-select">
+            <option value="distilgpt2">Local DistilGPT2 (transformers.js)</option>
+            <option value="gpt3">OpenAI GPT‑3.5</option>
+            <option value="bert">Local BERT (tfjs QnA)</option>
+          </select>
+
+          <label for="openai-api-key">OpenAI API Key:</label>
+          <input type="text" id="openai-api-key" placeholder="sk-..." />
+
+          <button id="load-model">Load Model</button>
+          <button id="reset-chat">Reset Chat</button>
+          <hr />
+
+          <h3>Status & Info</h3>
+          <p id="model-status">Model Status: <strong>Not Loaded</strong></p>
+          <p id="error-logs" style="color: red;"></p>
+        </div>
+
+        <div id="center-panel">
+          <textarea id="system-prompt" rows="3" placeholder="Enter system prompt here..." aria-label="System prompt"></textarea>
+          <div id="progress-container">
+            <div id="progress-bar">Loading Model (0%)</div>
+          </div>
+          <div id="chat-container"></div>
+          <div class="chat-controls">
+            <input type="text" id="user-input" placeholder="Ask a question..." aria-label="Question input">
+            <button id="ask-button">Ask</button>
+          </div>
+        </div>
+
+        <div id="right-panel">
+          <h2>Console Logs</h2>
+          <pre id="console-logs">No logs yet.</pre>
+        </div>
+      </div>
+    `;
+
+    // ---------- JS Logic ------------
+    // We keep references to important DOM elements after we inject them
+    const chatContainer    = document.getElementById("chat-container");
+    const userInput        = document.getElementById("user-input");
+    const progressBar      = document.getElementById("progress-bar");
+    const askButton        = document.getElementById("ask-button");
+    const resetChatButton  = document.getElementById("reset-chat");
+    const loadModelButton  = document.getElementById("load-model");
+    const modelSelect      = document.getElementById("model-select");
+    const systemPrompt     = document.getElementById("system-prompt");
+    const openAiKeyInput   = document.getElementById("openai-api-key");
+    const modelStatus      = document.getElementById("model-status");
+    const errorLogs        = document.getElementById("error-logs");
+    const consoleLogs      = document.getElementById("console-logs");
+
+    // Cache for loaded models
+    let models = {};
+    // Current model selection
+    let currentModel = modelSelect.value;
+
+    // Helper to log messages in right-panel
+    function logMessage(message, isError=false) {
+      console.log(message); // real console
+      consoleLogs.textContent += message + "\n";
+      if (isError) {
+        errorLogs.textContent = message;
+      }
+    }
+
+    // Append chat bubbles
+    function appendChatBubble(text, role) {
+      const bubble = document.createElement("div");
+      bubble.className = `chat-bubble ${role}`;
+      bubble.textContent = text;
+      chatContainer.appendChild(bubble);
+      chatContainer.scrollTop = chatContainer.scrollHeight; 
+    }
+
+    // Progress bar update
+    function updateProgressBar(progress) {
+      progressBar.style.width = `${progress}%`;
+      progressBar.textContent = `Loading Model (${progress}%)`;
+    }
+
+    // Simulate loading progress for demonstration
+    async function simulateLoadingProgress(duration, callback) {
+      const steps = 10;
+      const stepTime = duration / steps;
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        updateProgressBar(progress.toFixed(0));
+        if (progress >= 100) {
+          clearInterval(interval);
+          callback();
+        }
+      }, stepTime);
+    }
+
+    // Disable/enable controls
+    function disableControls(disable) {
+      userInput.disabled        = disable;
+      askButton.disabled        = disable;
+      modelSelect.disabled      = disable;
+      loadModelButton.disabled  = disable;
+      openAiKeyInput.disabled   = disable;
+    }
+
+    // Load the currently selected model
+    async function loadModel() {
+      currentModel = modelSelect.value;
+      logMessage(`Loading model: ${currentModel}`);
+
+      // If the model is already loaded/cached, just notify
+      if (models[currentModel]) {
+        appendChatBubble(`Chatbot: Using cached ${currentModel} model.`, 'chatbot');
+        modelStatus.innerHTML = `<strong>${currentModel}</strong> (cached)`;
         return;
       }
-      
-      resultDiv.style.display = "block";
-      resultDiv.innerHTML = "Loading...";
 
-      // Call your secure Vercel API endpoint.
-      fetch("https://haveno-vercel.vercel.app/api/openai/generate-answer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: promptValue })
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error("API error: " + response.status);
+      disableControls(true);
+      modelStatus.innerHTML = `<strong>Loading ${currentModel}...</strong>`;
+      errorLogs.textContent = "";
+
+      // Simulate a progress bar to show user feedback 
+      // (the actual download might happen at a different pace).
+      simulateLoadingProgress(3000, async () => {
+        try {
+          let newModel = null;
+          if (currentModel === 'bert') {
+            // 1) Local BERT QnA (TensorFlow.js)
+            newModel = await qna.load();
+            models[currentModel] = newModel;
+            appendChatBubble(`Chatbot: Local BERT model loaded.`, 'chatbot');
+            modelStatus.innerHTML = `<strong>${currentModel}</strong> (loaded)`;
+            logMessage("Local BERT model loaded successfully.");
+
+          } else if (currentModel === 'distilgpt2') {
+            // 2) Local DistilGPT2 (transformers.js)
+            // This will begin downloading the weights (~300MB).
+            // NOTE: This can take a while and will use significant memory/CPU.
+            appendChatBubble("Chatbot: Downloading DistilGPT2 (may take time)...", 'chatbot');
+            logMessage("Downloading DistilGPT2 model... Please wait.");
+            newModel = await pipeline('text-generation', 'Xenova/distilgpt2');
+            models[currentModel] = newModel;
+            appendChatBubble(`Chatbot: DistilGPT2 is loaded locally.`, 'chatbot');
+            modelStatus.innerHTML = `<strong>${currentModel}</strong> (loaded)`;
+            logMessage("DistilGPT2 loaded successfully.");
+
+          } else if (currentModel === 'gpt3') {
+            // 3) GPT-3.5 (OpenAI API)
+            const apiKey = openAiKeyInput.value.trim();
+            if (!apiKey) {
+              const msg = "OpenAI API key is required for GPT‑3.5. Please enter it.";
+              appendChatBubble("Chatbot: " + msg, 'chatbot');
+              logMessage(msg, true);
+              modelStatus.innerHTML = `<strong>GPT‑3.5</strong> (no key)`;
+            } else {
+              // We store a dummy object as a placeholder 
+              models[currentModel] = { openai: true };
+              appendChatBubble(`Chatbot: GPT‑3.5 ready (API).`, 'chatbot');
+              modelStatus.innerHTML = `<strong>GPT‑3.5</strong> (ready)`;
+              logMessage("GPT‑3.5 is ready to use via OpenAI API.");
+            }
+
+          } else {
+            appendChatBubble("Chatbot: Unsupported model selected.", 'chatbot');
+            logMessage("Unsupported model selected.", true);
+            modelStatus.innerHTML = "Unsupported model";
+          }
+        } catch (error) {
+          appendChatBubble("Chatbot: Model loading failed.", 'chatbot');
+          modelStatus.innerHTML = "Loading failed";
+          logMessage("Error loading model: " + error.message, true);
+          console.error("Error loading model:", error);
+        } finally {
+          disableControls(false);
         }
-        return response.json();
-      })
-      .then(data => {
-        if (data.content) {
-          resultDiv.innerHTML = "<strong>Answer:</strong><br>" + data.content;
-        } else if (data.error) {
-          resultDiv.innerHTML = "<strong>Error:</strong><br>" + data.error;
-        } else {
-          resultDiv.innerHTML = "<strong>Error:</strong><br>Unexpected response.";
-        }
-      })
-      .catch(error => {
-        resultDiv.innerHTML = "<strong>Error:</strong><br>" + error.message;
       });
+    }
+
+    // Main function to ask a question or prompt
+    async function askQuestion() {
+      const question = userInput.value.trim();
+      if (!question) {
+        appendChatBubble("Chatbot: No question or prompt entered.", 'chatbot');
+        return;
+      }
+      appendChatBubble("You: " + question, 'you');
+      userInput.value = "";
+
+      try {
+        const answer = await getAnswer(question);
+        appendChatBubble("Chatbot: " + answer, 'chatbot');
+      } catch (error) {
+        appendChatBubble("Chatbot: Error answering the question.", 'chatbot');
+        logMessage("Error answering: " + error.message, true);
+        console.error("Error:", error);
+      }
+    }
+
+    // Get an answer from the selected model
+    async function getAnswer(question) {
+      // System or context prompt
+      const systemText = systemPrompt.value.trim() || "Default context or system prompt";
+
+      // Ensure model is loaded
+      if (!models[currentModel]) {
+        const msg = "Chatbot: The model is not loaded or no API key is provided.";
+        logMessage(msg, true);
+        return msg;
+      }
+
+      if (currentModel === 'bert') {
+        // Local QnA via TensorFlow.js
+        try {
+          const localModel = models[currentModel];
+          const answers = await localModel.findAnswers(question, systemText);
+          if (answers.length === 0) {
+            return "No answer found. Please rephrase your question.";
+          }
+          return answers[0].text;
+        } catch (error) {
+          logMessage("Error in local BERT QnA: " + error.message, true);
+          throw error;
+        }
+
+      } else if (currentModel === 'distilgpt2') {
+        // Local DistilGPT2 text generation
+        try {
+          const generator = models[currentModel];
+          // text-generation pipeline expects a prompt + some config 
+          // e.g. { max_new_tokens: 50, do_sample: true, ... }
+          const out = await generator(question, { max_new_tokens: 50 });
+          // The output is typically an array of objects { generated_text: '...' }
+          return out[0].generated_text;
+        } catch (error) {
+          logMessage("Error in DistilGPT2 generation: " + error.message, true);
+          throw error;
+        }
+
+      } else if (currentModel === 'gpt3') {
+        // OpenAI GPT-3.5
+        const apiKey = openAiKeyInput.value.trim();
+        if (!apiKey) {
+          logMessage("No OpenAI API key provided.", true);
+          return "OpenAI API key required. Please enter it in the left panel.";
+        }
+        try {
+          const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: "gpt-3.5-turbo",
+              messages: [
+                { role: "system", content: systemText },
+                { role: "user", content: question }
+              ],
+              max_tokens: 200,
+              temperature: 0.7
+            }),
+          });
+
+          if (!response.ok) {
+            const errMsg = `OpenAI API Error: ${response.status} ${response.statusText}`;
+            logMessage(errMsg, true);
+            return errMsg;
+          }
+
+          const data = await response.json();
+          return data.choices[0].message.content;
+        } catch (error) {
+          logMessage("Error calling OpenAI: " + error.message, true);
+          throw error;
+        }
+      } else {
+        return "Selected model is not implemented.";
+      }
+    }
+
+    // Event listeners
+    askButton.addEventListener("click", askQuestion);
+    userInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        askQuestion();
+      }
     });
+
+    loadModelButton.addEventListener("click", loadModel);
+
+    resetChatButton.addEventListener("click", () => {
+      chatContainer.innerHTML = "";
+      appendChatBubble("System: Chat reset.", 'system');
+      logMessage("Chat reset by user.");
+      modelStatus.innerHTML = "Model Status: <strong>Not Loaded</strong>";
+      models = {};
+    });
+
+    modelSelect.addEventListener("change", (e) => {
+      currentModel = e.target.value;
+      appendChatBubble(`Chatbot: Switched to ${currentModel}. Load it if not loaded.`, 'chatbot');
+      modelStatus.innerHTML = `<strong>${currentModel}</strong> (not loaded yet)`;
+      logMessage(`Model changed to: ${currentModel}`);
+    });
+
+    // Initial system message
+    appendChatBubble("System: Welcome! Select a model on the left, click 'Load Model', then ask a question or prompt.", 'system');
+    logMessage("Page loaded. Waiting for user input...");
   </script>
+</head>
+<body>
 </body>
 </html>

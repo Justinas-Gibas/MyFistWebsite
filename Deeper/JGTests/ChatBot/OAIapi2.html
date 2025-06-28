@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>API Tester</title>
+  <style>
+    /* Basic styling */
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    label {
+      display: block;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      background: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e9ecef;
+      border-radius: 4px;
+      word-wrap: break-word;
+    }
+    .rate-limit-info {
+      margin-bottom: 15px;
+      padding: 10px;
+      background: #fff3cd;
+      border: 1px solid #ffeaa7;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #856404;
+    }
+    .rate-limit-exceeded {
+      background: #f8d7da;
+      border-color: #f5c6cb;
+      color: #721c24;
+    }
+    .reset-instructions {
+      background: #d1ecf1;
+      border-color: #bee5eb;
+      color: #0c5460;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+    button:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+    .cooldown-timer {
+      font-size: 14px;
+      color: #6c757d;
+      margin-top: 5px;
+    }
+    .reset-button {
+      background: #dc3545;
+      margin-top: 10px;
+      font-size: 14px;
+      padding: 8px 16px;
+      width: auto;
+      display: inline-block;
+    }
+    .reset-button:hover {
+      background: #c82333;
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>API Tester 0.1.0</h1>
+    <div id="rateLimitInfo" class="rate-limit-info"></div>
+    <label for="prompt">Enter Prompt:</label>
+    <input type="text" id="prompt" placeholder="Type your prompt here..." />
+    <button id="testApiBtn">Test API</button>
+    <div id="cooldownTimer" class="cooldown-timer" style="display:none;"></div>
+    <button id="resetButton" class="reset-button hidden">Reset Cache</button>
+    <div id="result" class="result" style="display:none;"></div>
+  </div>
+
+  <script>
+    const HOUR_DELAY = 60 * 60 * 1000; // 1 hour in milliseconds
+    const THROTTLE_DELAY = 2000; // 2 seconds between requests
+    const STORAGE_KEY = 'apiTester_lastRequestTime';
+    
+    let lastRequestTime = parseInt(localStorage.getItem(STORAGE_KEY)) || 0;
+    let currentThrottleTime = 0;
+    
+    function formatTimeRemaining(milliseconds) {
+      const minutes = Math.floor(milliseconds / (1000 * 60));
+      const seconds = Math.floor((milliseconds % (1000 * 60)) / 1000);
+      
+      if (minutes > 0) {
+        return `${minutes} minute${minutes !== 1 ? 's' : ''} and ${seconds} second${seconds !== 1 ? 's' : ''}`;
+      }
+      return `${seconds} second${seconds !== 1 ? 's' : ''}`;
+    }
+    
+    function updateRateLimitInfo() {
+      const rateLimitDiv = document.getElementById("rateLimitInfo");
+      const resetButton = document.getElementById("resetButton");
+      const currentTime = Date.now();
+      const timeSinceLastRequest = currentTime - lastRequestTime;
+      
+      if (lastRequestTime > 0 && timeSinceLastRequest < HOUR_DELAY) {
+        const remainingTime = HOUR_DELAY - timeSinceLastRequest;
+        const timeString = formatTimeRemaining(remainingTime);
+        
+        rateLimitDiv.innerHTML = `
+          <strong>Hourly limit active!</strong><br>
+          Next request available in: <strong>${timeString}</strong><br>
+          You can make one request per hour to prevent API abuse.
+        `;
+        rateLimitDiv.classList.add('rate-limit-exceeded');
+        
+        // Show reset instructions and button
+        rateLimitDiv.innerHTML += `
+          <div class="reset-instructions">
+            <strong>To reset immediately:</strong><br>
+            • Use the "Reset Cache" button below, or<br>
+            • Clear your browser's localStorage/cookies, or<br>
+            • Use incognito/private browsing mode
+          </div>
+        `;
+        resetButton.classList.remove('hidden');
+      } else {
+        rateLimitDiv.innerHTML = `Ready to make a request. <strong>Next request will start 1-hour cooldown.</strong>`;
+        rateLimitDiv.classList.remove('rate-limit-exceeded');
+        resetButton.classList.add('hidden');
+      }
+    }
+    
+    function startCooldownTimer(remainingTime) {
+      const button = document.getElementById("testApiBtn");
+      const timerDiv = document.getElementById("cooldownTimer");
+      
+      button.disabled = true;
+      timerDiv.style.display = "block";
+      
+      const interval = setInterval(() => {
+        remainingTime -= 100;
+        const seconds = Math.ceil(remainingTime / 1000);
+        timerDiv.textContent = `Please wait ${seconds} seconds before next request...`;
+        
+        if (remainingTime <= 0) {
+          clearInterval(interval);
+          button.disabled = false;
+          timerDiv.style.display = "none";
+        }
+      }, 100);
+    }
+    
+    // Initialize rate limit info on page load
+    updateRateLimitInfo();
+    
+    // Update timer every minute to show accurate remaining time
+    setInterval(updateRateLimitInfo, 60000);
+    
+    document.getElementById("testApiBtn").addEventListener("click", function () {
+      const promptValue = document.getElementById("prompt").value.trim();
+      const resultDiv = document.getElementById("result");
+      const currentTime = Date.now();
+      
+      // Check 1-hour rate limit
+      const timeSinceLastRequest = currentTime - lastRequestTime;
+      if (lastRequestTime > 0 && timeSinceLastRequest < HOUR_DELAY) {
+        const remainingTime = HOUR_DELAY - timeSinceLastRequest;
+        const timeString = formatTimeRemaining(remainingTime);
+        alert(`Please wait ${timeString} before making another request.`);
+        return;
+      }
+      
+      // Check throttling (2-second delay between rapid requests)
+      const timeSinceThrottle = currentTime - currentThrottleTime;
+      if (timeSinceThrottle < THROTTLE_DELAY) {
+        const remainingTime = THROTTLE_DELAY - timeSinceThrottle;
+        startCooldownTimer(remainingTime);
+        return;
+      }
+
+      if (!promptValue) {
+        alert("Please enter a prompt.");
+        return;
+      }
+      
+      // Update request tracking
+      currentThrottleTime = currentTime;
+      lastRequestTime = currentTime;
+      localStorage.setItem(STORAGE_KEY, lastRequestTime.toString());
+      updateRateLimitInfo();
+      
+      resultDiv.style.display = "block";
+      resultDiv.innerHTML = "Loading...";
+
+      // Call your secure Vercel API endpoint.
+      fetch("https://haveno-vercel.vercel.app/api/openai/generate-answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: promptValue })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("API error: " + response.status);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.content) {
+          resultDiv.innerHTML = "<strong>Answer:</strong><br>" + data.content;
+        } else if (data.error) {
+          resultDiv.innerHTML = "<strong>Error:</strong><br>" + data.error;
+        } else {
+          resultDiv.innerHTML = "<strong>Error:</strong><br>Unexpected response.";
+        }
+      })
+      .catch(error => {
+        resultDiv.innerHTML = "<strong>Error:</strong><br>" + error.message;
+      });
+    });
+    
+    // Reset cache button functionality
+    document.getElementById("resetButton").addEventListener("click", function() {
+      if (confirm("Are you sure you want to reset the cache? This will allow you to make another request immediately.")) {
+        localStorage.removeItem(STORAGE_KEY);
+        lastRequestTime = 0;
+        updateRateLimitInfo();
+        alert("Cache reset successfully! You can now make a new request.");
+      }
+    });
+    
+    // Allow Enter key to submit
+    document.getElementById("prompt").addEventListener("keypress", function(event) {
+      if (event.key === "Enter") {
+        document.getElementById("testApiBtn").click();
+      }
+    });
+  </script>
+</body>
+</html>
