@@ -14,6 +14,14 @@
     <link rel="stylesheet" href="./Deeper/lib/styles/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
     <style>
+        /* color Vars */
+        :root {
+            --primary-color: #00d9ff;
+            --secondary-color: #ff4081;
+            --accent-color: #ffff00;
+            --background-color: #0f2027;
+            --text-color: #ffffff;
+        }
         body {
             font-family: 'Roboto', sans-serif;
             background: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);
@@ -45,13 +53,13 @@
             padding: 0px;
         }
         .nav-link {
-            color: #00d9ff;
+            color: var(--primary-color);
             text-decoration: none;
             font-weight: 700;
             transition: color 0.3s;
         }
         .nav-link:hover {
-            color: #ff4081;
+            color: var(--secondary-color);
         }
         .main.wrapper {
             margin: 2rem auto;
@@ -67,13 +75,13 @@
         }
         .section__title {
             font-size: 2rem;
-            color: #00d9ff;
+            color: var(--primary-color);
             text-align: center;
             margin-bottom: 1rem;
         }
         .section__subtitle {
             font-size: 1.5rem;
-            color: #ff4081;
+            color: var(--secondary-color);
             text-align: center;
             margin-bottom: 1rem;
         }
@@ -106,7 +114,7 @@
             transition: color 0.3s;
         }
         .contact-item__link:hover {
-            color: #ff4081;
+            color: var(--secondary-color);
         }
         .footer {
             background: rgba(0, 0, 0, 0.7);
@@ -152,7 +160,13 @@
         <h2 class="section__title"></h2>
         <section id="work" class="section">
             <div id="projects-section" class="container">
-                <h3 class="section__subtitle">GitHub Repo</h3>            
+                <h3 class="section__subtitle">My Work</h3>
+                <figure class="work-item"
+                        style="display: flex; align-items: baseline; flex-direction: column; flex-wrap: wrap; align-content: center;">
+                    <a href="./upper/L2Web/L2Web.html" target="_self" class="contact-item__link">L2Web</a>
+                    <figcaption class="work-item__caption">Visually Appealing Portfolio</figcaption>
+                </figure> 
+
             </div>
         </section>
         <h2 class="section__title"></h2>
