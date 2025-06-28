@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import { FontLoader } from '../lib/loaders/FontLoader.js';
-import { TextGeometry } from '../lib/utils/TextGeometry.js';
-import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
-import { RGBELoader } from '../lib/loaders/RGBELoader.js';
-import { OrbitControls } from '../lib/controls/OrbitControls.js';
-import { XRButton } from '../lib/webxr/XRButton.js';
-import { Sky } from '../lib/utils/Sky.js';
-import Stats from '../lib/libs/stats.module.js';
+import { FontLoader } from '../../lib/loaders/FontLoader.js';
+import { TextGeometry } from '../../lib/utils/TextGeometry.js';
+import { GLTFLoader } from '../../lib/loaders/GLTFLoader.js';
+import { RGBELoader } from '../../lib/loaders/RGBELoader.js';
+import { OrbitControls } from '../../lib/controls/OrbitControls.js';
+import { XRButton } from '../../lib/webxr/XRButton.js';
+import { Sky } from '../../lib/utils/Sky.js';
+import Stats from '../../lib/libs/stats.module.js';
 
 const stats = new Stats();
 document.body.appendChild(stats.dom);
