@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Tap to BPM</title>
+</head>
+<body>
+    <h1>Welcome to Tap to BPM</h1>
+    <p>Tap the button or spacebar to start the BPM counter.</p>
+    <p>keep tapping to get a more accurate BPM.</p>
+    <button id="tapButton">Tap</button>
+    <p id="bpmDisplay">BPM: 0</p>
+    <div id="metronome" class="metronome"></div>
+    <p id="averageBpm">Average BPM: 0</p>
+    <p id="tapCount">Taps: 0</p>
+    <div id="tapVisualization" class="tap-visualization"></div>
+    
+    <div class="settings-panel">
+        <h3>Settings</h3>
+        <label>Tap History Size: <input type="range" id="historySize" min="3" max="20" value="8"> <span id="historySizeValue">8</span></label><br>
+        <label><input type="checkbox" id="soundFeedback"> Sound Feedback</label><br>
+        <button id="exportData">Export Tap Data</button>
+        <button id="resetAll">Reset All</button>
+    </div>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        #tapButton {
+            padding: 15px 30px;
+            font-size: 18px;
+            border: 2px solid #007cba;
+            background: #007cba;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.1s ease;
+        }
+        #tapButton:hover {
+            background: #005a87;
+        }
+        .tap-animation {
+            transform: scale(0.95);
+            background: #005a87 !important;
+        }
+        #bpmDisplay {
+            font-size: 28px;
+            margin-top: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+        .metronome {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #ff4444;
+            margin: 15px auto;
+            opacity: 0.3;
+            transition: opacity 0.1s;
+            box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+        }
+        #tapCount {
+            font-size: 18px;
+            color: #666;
+            margin: 5px 0;
+        }
+        #averageBpm {
+            font-size: 22px;
+            color: #333;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        .settings-panel {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            max-width: 400px;
+            margin: 30px auto;
+            background: #f9f9f9;
+        }
+        .settings-panel label {
+            display: block;
+            margin: 10px 0;
+            text-align: left;
+        }
+        .settings-panel button {
+            margin: 5px;
+            padding: 8px 16px;
+            border: 1px solid #007cba;
+            background: white;
+            color: #007cba;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .settings-panel button:hover {
+            background: #007cba;
+            color: white;
+        }
+        .tap-visualization {
+            height: 60px;
+            margin: 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            max-width: 500px;
+        }
+        .tap-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #007cba;
+            margin: 2px;
+            opacity: 0.7;
+            animation: tapFade 3s ease-out forwards;
+        }
+        @keyframes tapFade {
+            0% { transform: scale(1.5); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.3; }
+        }
+    </style>
+
+    <script>
+        // Enhanced variables for better precision and UX
+        let tapTimes = [];
+        let maxHistory = 8;
+        let bpm = 0;
+        let tapCount = 0;
+        let audioContext = null;
+        
+        const tapButton = document.getElementById('tapButton');
+        const bpmDisplay = document.getElementById('bpmDisplay');
+        const averageBpmDisplay = document.getElementById('averageBpm');
+        const tapCountDisplay = document.getElementById('tapCount');
+        const metronome = document.getElementById('metronome');
+        const tapVisualization = document.getElementById('tapVisualization');
+        const historySlider = document.getElementById('historySize');
+        const historySizeValue = document.getElementById('historySizeValue');
+
+        // Initialize audio context on first user interaction
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // Sound feedback with better tone
+        function playTick() {
+            if (!audioContext || !document.getElementById('soundFeedback').checked) return;
+            
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.frequency.value = 1000;
+            oscillator.type = 'sine';
+            gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.08);
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.08);
+        }
+
+        // Calculate average BPM with decimal precision
+        function calculateAverageBPM() {
+            if (tapTimes.length < 2) return 0;
+            let intervals = [];
+            for (let i = 1; i < tapTimes.length; i++) {
+                intervals.push(tapTimes[i] - tapTimes[i-1]);
+            }
+            const avgInterval = intervals.reduce((a, b) => a + b) / intervals.length;
+            return Math.round((60000 / avgInterval) * 100) / 100; // Two decimal places
+        }
+
+        // Visual metronome feedback
+        function blinkMetronome() {
+            if (bpm > 0) {
+                metronome.style.opacity = '1';
+                setTimeout(() => metronome.style.opacity = '0.3', 150);
+            }
+        }
+
+        // Add visual tap dot
+        function addTapVisualization() {
+            const dot = document.createElement('div');
+            dot.className = 'tap-dot';
+            tapVisualization.appendChild(dot);
+            
+            // Remove old dots to prevent overflow
+            const dots = tapVisualization.querySelectorAll('.tap-dot');
+            if (dots.length > 20) {
+                dots[0].remove();
+            }
+        }
+
+        // Enhanced BPM update function
+        function updateBPM() {
+            initAudioContext(); // Initialize audio on first interaction
+            
+            const currentTime = performance.now();
+            
+            // Add to tap history
+            tapTimes.push(currentTime);
+            if (tapTimes.length > maxHistory) {
+                tapTimes.shift();
+            }
+            
+            tapCount++;
+            
+            if (tapTimes.length >= 2) {
+                // Calculate instant BPM with decimal precision
+                const timeDiff = currentTime - tapTimes[tapTimes.length - 2];
+                bpm = Math.round((60000 / timeDiff) * 100) / 100;
+                
+                // Calculate average BPM
+                const avgBPM = calculateAverageBPM();
+                
+                // Update displays
+                bpmDisplay.textContent = `BPM: ${bpm}`;
+                averageBpmDisplay.textContent = `Average BPM: ${avgBPM}`;
+                
+                // Visual feedback
+                blinkMetronome();
+            }
+            
+            tapCountDisplay.textContent = `Taps: ${tapCount}`;
+            
+            // Button animation
+            tapButton.classList.add('tap-animation');
+            setTimeout(() => tapButton.classList.remove('tap-animation'), 100);
+            
+            // Visual tap feedback
+            addTapVisualization();
+            
+            // Sound feedback
+            playTick();
+        }
+
+        // Data export functionality
+        function exportTapData() {
+            const data = {
+                tapTimes: tapTimes,
+                currentBPM: bpm,
+                averageBPM: calculateAverageBPM(),
+                tapCount: tapCount,
+                historySize: maxHistory,
+                timestamp: new Date().toISOString()
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `bpm-data-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Reset all data (user-initiated only)
+        function resetAll() {
+            tapTimes = [];
+            bpm = 0;
+            tapCount = 0;
+            bpmDisplay.textContent = 'BPM: 0';
+            averageBpmDisplay.textContent = 'Average BPM: 0';
+            tapCountDisplay.textContent = 'Taps: 0';
+            tapVisualization.innerHTML = '';
+            metronome.style.opacity = '0.3';
+        }
+
+        // Event listeners
+        tapButton.addEventListener('click', updateBPM);
+        
+        document.addEventListener('keydown', (event) => {
+            if (event.code === 'Space') {
+                event.preventDefault();
+                updateBPM();
+            }
+        });
+
+        // Settings event listeners
+        historySlider.addEventListener('input', (e) => {
+            maxHistory = parseInt(e.target.value);
+            historySizeValue.textContent = maxHistory;
+            // Trim existing history if needed
+            if (tapTimes.length > maxHistory) {
+                tapTimes = tapTimes.slice(-maxHistory);
+            }
+        });
+
+        document.getElementById('exportData').addEventListener('click', exportTapData);
+        document.getElementById('resetAll').addEventListener('click', resetAll);
+    </script>
+</body>
+</html>
