@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Litegraph Example</title>
+  <script src="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/build/litegraph.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/css/litegraph.css" />
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+    #mycanvas {
+      width: 100vw;
+      height: 100vh;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="mycanvas"></canvas>
+
+  <script>
+    // Create graph
+    const graph = new LGraph();
+
+    // Create canvas
+    const canvas = new LGraphCanvas("#mycanvas", graph);
+
+    // Create a test node
+    const nodeConst = LiteGraph.createNode("basic/const");
+    nodeConst.pos = [100, 100];
+    nodeConst.setValue(5);
+    graph.add(nodeConst);
+
+    const nodeWatch = LiteGraph.createNode("basic/watch");
+    nodeWatch.pos = [400, 100];
+    graph.add(nodeWatch);
+
+    nodeConst.connect(0, nodeWatch, 0); // connect slot 0 from const to slot 0 of watch
+
+    graph.start(); // Start running the graph
+  </script>
+</body>
+</html>
