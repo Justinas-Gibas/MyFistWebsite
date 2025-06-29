@@ -1,0 +1,46 @@
+<!-- This file is a test for creating a line with text in the middle using CSS -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Line with Text</title>
+  <link rel="icon" type="image/x-icon" href="../../../upper/JG_favicon.ico">
+  <style>
+  .line-with-text {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 20px 0;
+  }
+  .line-with-text::before,
+  .line-with-text::after {
+    content: 'Text';
+    flex: 1;
+    border-bottom: 5px solid #ccc;
+  }
+  /* This is the line that is left of the text */
+  .line-with-text:not(:empty)::before {
+    margin-right: .25em;
+  }
+  /* This is the line that is right of the text */
+  .line-with-text:not(:empty)::after {
+    margin-left: .25em;
+  }
+</style>
+</head>
+<body>
+<div class="line-with-text">
+  <br><br><br><br>
+  <span>Text <br> Text Text</span>
+</div>
+<br><br><br><br>
+<div class="line-with-text">
+  <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="10">
+  <line x1="1" y1="1" x2="100%" y2="1" stroke="black" stroke-width="10"/>
+</svg>
+  <span>Text</span>
+</div>
+</body>
+</html>
+<!-- This is a simple HTML file that demonstrates how to create a line with text in the middle and use SVG files for cutom line. -->

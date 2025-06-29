@@ -166,9 +166,6 @@
       isDragging: false,
       longPressHandled: false,
       lastTapTime: 0,
-      // New states for multi-select
-      longPressReady: false,
-      isMultiSelecting: false,
       // Hover simulation
       virtualCursor: { x: 0, y: 0 },
       isHovering: false,
@@ -282,8 +279,7 @@
         buttons: options.buttons || 0,
         bubbles: true,
         cancelable: true,
-        view: window,
-        ctrlKey: options.ctrlKey || false
+        view: window
       });
       
       // Add canvas-relative coordinates that LiteGraph uses
@@ -325,8 +321,6 @@
       touchState.startPosition = null;
       touchState.startTime = null;
       touchState.longPressHandled = false;
-      touchState.longPressReady = false;
-      touchState.isMultiSelecting = false;
     }
 
     // Handle touch start
@@ -368,9 +362,29 @@
       
       touchState.longPressTimeout = setTimeout(() => {
         if (!touchState.isDragging) {
-          updateDebug("Long Press Ready -> Drag to multi-select or release for menu");
-          touchState.longPressReady = true;
-          // Don't show menu yet, wait for touch end or move
+          updateDebug("Long Press -> trying right-click approaches");
+          showTouchPoint(touch.clientX, touch.clientY, "rgba(255, 252, 0, 0.9)");
+          
+          // Try multiple approaches to trigger context menu
+          
+          // Approach 1: Right mouse button down + up
+          const rightMouseDown = createPointerEvent('mousedown', touch, { button: 2, buttons: 2 });
+          const rightMouseUp = createPointerEvent('mouseup', touch, { button: 2, buttons: 0 });
+          canvas.canvas.dispatchEvent(rightMouseDown);
+          
+          setTimeout(() => {
+            canvas.canvas.dispatchEvent(rightMouseUp);
+            
+            // Approach 2: Context menu event (as fallback)
+            setTimeout(() => {
+              const contextEvent = createPointerEvent('contextmenu', touch, { button: 2 });
+              canvas.canvas.dispatchEvent(contextEvent);
+              updateDebug("Dispatched: mousedown(right) -> mouseup(right) -> contextmenu");
+            }, 10);
+          }, 10);
+          
+          touchState.longPressHandled = true;
+          cleanupTouchState();
         }
       }, LONG_PRESS_DURATION);
 
@@ -388,28 +402,7 @@
       // Always update virtual cursor position for hover simulation
       updateVirtualCursor(touch.clientX, touch.clientY);
 
-      const hasMoved = deltaX > MOVE_THRESHOLD || deltaY > MOVE_THRESHOLD;
-
-      // Check for multi-select drag
-      if (touchState.longPressReady && hasMoved) {
-        updateDebug(`Multi-select drag started`);
-        touchState.isMultiSelecting = true;
-        touchState.isDragging = true;
-        touchState.longPressReady = false; // Consume the long press state
-
-        if (touchState.indicator && touchState.indicator.parentNode) {
-          document.body.removeChild(touchState.indicator);
-          touchState.indicator = null;
-        }
-
-        // Start drag with mousedown + ctrlKey
-        const startTouch = { clientX: touchState.startPosition.x, clientY: touchState.startPosition.y };
-        const mouseDownEvent = createPointerEvent('mousedown', startTouch, { buttons: 1, ctrlKey: true });
-        canvas.canvas.dispatchEvent(mouseDownEvent);
-        updateDebug(`Dispatched mousedown for multi-select drag`);
-      }
-      // Check for normal drag
-      else if (!touchState.isDragging && hasMoved) {
+      if (!touchState.isDragging && (deltaX > MOVE_THRESHOLD || deltaY > MOVE_THRESHOLD)) {
         updateDebug(`Drag started (Δx=${deltaX}, Δy=${deltaY})`);
         touchState.isDragging = true;
         
@@ -431,10 +424,7 @@
       }
 
       if (touchState.isDragging) {
-        const mouseMoveEvent = createPointerEvent('mousemove', touch, { 
-          buttons: 1, 
-          ctrlKey: touchState.isMultiSelecting 
-        });
+        const mouseMoveEvent = createPointerEvent('mousemove', touch, { buttons: 1 });
         canvas.canvas.dispatchEvent(mouseMoveEvent);
         if (DEBUG_MODE) {
           showTouchPoint(touch.clientX, touch.clientY, "rgba(0, 0, 255, 0.3)");
@@ -459,28 +449,10 @@
       updateDebug(`Touch End at (${touch.clientX.toFixed(0)}, ${touch.clientY.toFixed(0)})`);
       showTouchPoint(touch.clientX, touch.clientY, "rgba(255, 0, 0, 0.7)");
 
-      if (touchState.isMultiSelecting) {
-        updateDebug("Multi-select drag ended -> mouseup");
-        const mouseUpEvent = createPointerEvent('mouseup', touch, { ctrlKey: true });
-        canvas.canvas.dispatchEvent(mouseUpEvent);
-      } else if (touchState.isDragging) {
+      if (touchState.isDragging) {
         updateDebug("Drag ended -> mouseup");
         const mouseUpEvent = createPointerEvent('mouseup', touch);
         canvas.canvas.dispatchEvent(mouseUpEvent);
-      } else if (touchState.longPressReady) {
-        // This was a long press without a drag -> context menu
-        updateDebug("Long Press tap -> context menu");
-        const rightMouseDown = createPointerEvent('mousedown', touch, { button: 2, buttons: 2 });
-        const rightMouseUp = createPointerEvent('mouseup', touch, { button: 2 });
-        const contextEvent = createPointerEvent('contextmenu', touch, { button: 2 });
-        
-        canvas.canvas.dispatchEvent(rightMouseDown);
-        setTimeout(() => {
-          canvas.canvas.dispatchEvent(rightMouseUp);
-          setTimeout(() => canvas.canvas.dispatchEvent(contextEvent), 10);
-        }, 10);
-        
-        touchState.longPressHandled = true;
       } else {
         // Single tap - dispatch proper sequence and keep cursor active
         updateDebug("Single tap -> mousedown + mouseup + click + cursor positioned");
@@ -519,7 +491,7 @@
       
       if (touchState.isDragging) {
         const touch = e.changedTouches[0];
-        const mouseUpEvent = createPointerEvent('mouseup', touch, { ctrlKey: touchState.isMultiSelecting });
+        const mouseUpEvent = createPointerEvent('mouseup', touch);
         canvas.canvas.dispatchEvent(mouseUpEvent);
       }
       

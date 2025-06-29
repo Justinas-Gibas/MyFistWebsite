@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Litegraph Demo</title>
+  <script src="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/build/litegraph.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/css/litegraph.css" />
+  <link rel="icon" type="image/x-icon" href="../../../upper/JG_favicon.ico">
+
+
+  <style>
+    html, body { 
+      margin: 0; 
+      height: 100%; 
+      overflow: hidden; 
+      font-family: Arial, sans-serif;
+    }
+    canvas { 
+      width: 100vw; 
+      height: 100vh; 
+      display: block; 
+      background: #1e1e1e; 
+      touch-action: none; /* Prevent default touch behaviors */
+    }
+    
+    .right-click-indicator {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1000;
+      border: 3px solid rgba(55, 250, 55, 0.7);
+      background: radial-gradient(circle, rgba(55, 250, 55, 0.9) 0%, transparent 0%);
+      transform: translate(-50%, -50%);
+      transition: all 0.1s ease-out;
+    }
+    
+    @keyframes countdown {
+      from {
+        transform: translate(-50%, -50%) scale(0.1);
+        opacity: 0.1;
+      }
+      to {
+        transform: translate(-50%, -50%) scale(1.61);
+        opacity: 0.9;
+      }
+    }
+
+    /* Debug overlay */
+    .debug-overlay {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      z-index: 2000;
+      max-width: 300px;
+    }
+
+    .touch-debug {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(255, 0, 0, 0.5);
+      pointer-events: none;
+      z-index: 1500;
+      transform: translate(-50%, -50%);
+    }
+  </style>  
+</head>
+<body>
+  <canvas id="graphcanvas" style='border: 1px solid'></canvas>
+  <script>
+    /**
+     * Sets up the canvas to be high-DPI aware and responsive.
+     * @returns {void}
+     */
+    function setupCanvas() {
+      const canvas = document.getElementById('graphcanvas');
+      const dpr = window.devicePixelRatio || 1;
+      
+      // Set canvas size based on viewport
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      
+      // Scale the canvas back down using CSS
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      
+      // Scale the drawing context so everything draws at the higher resolution
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+    }
+
+    // Initial setup
+    setupCanvas();
+    
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      setupCanvas();
+      if (window.canvas) window.canvas.resize();
+    });
+
+    // --- Litegraph setup (unchanged) ---
+    // Create graph and canvas
+    const graph = new LGraph();
+    const canvas = new LGraphCanvas("#graphcanvas", graph);
+    window.canvas = canvas; // Store reference for resize
+
+    // Create a constant node
+    const constA = LiteGraph.createNode("basic/const");
+    constA.pos = [100, 100];
+    constA.setValue(3);
+    graph.add(constA);
+
+    const constB = LiteGraph.createNode("basic/const");
+    constB.pos = [100, 200];
+    constB.setValue(7);
+    graph.add(constB);
+
+    // Custom add node
+    function AddNode() {
+      this.addInput("A", "number");
+      this.addInput("B", "number");
+      this.addOutput("Sum", "number");
+    }
+    AddNode.title = "Add";
+    AddNode.prototype.onExecute = function() {
+      const a = this.getInputData(0) || 0;
+      const b = this.getInputData(1) || 0;
+      this.setOutputData(0, a + b);
+    };
+    LiteGraph.registerNodeType("math/add", AddNode);
+
+    const adder = LiteGraph.createNode("math/add");
+    adder.pos = [300, 150];
+    graph.add(adder);
+
+    // Watch the result
+    const watcher = LiteGraph.createNode("basic/watch");
+    watcher.pos = [500, 150];
+    graph.add(watcher);
+
+    // Connect the nodes
+    constA.connect(0, adder, 0);
+    constB.connect(0, adder, 1);
+    adder.connect(0, watcher, 0);
+
+    // Start the graph
+    graph.start();
+    window.canvas.resize();
+  </script>
+
+
+  <!-- Enhanced touch support with debugging -->
+  <script>
+    /** @type {boolean} Enables or disables debug mode. */
+    const DEBUG_MODE = true;
+
+    // Add comprehensive mouse logging state
+    let mouseLoggingState = {
+      contextMenuOpen: false,
+      lastMouseEvent: null,
+      eventSequence: [],
+      mouseButtonsDown: new Set()
+    };
+
+    /**
+     * Creates a floating debug overlay for logging touch/mouse events.
+     * Enhanced with mouse event controls.
+     * @returns {void}
+     */
+    function createDebugOverlay() {
+      if (!DEBUG_MODE) return;
+      const overlay = document.createElement("div");
+      overlay.id = "debug-overlay";
+      overlay.className = "debug-overlay";
+      overlay.innerHTML = `
+        Touch Debug: Ready<br/>
+        Tap to test, Hold for right-click<br/>
+        <button onclick="clearMouseLog()">Clear Log</button>
+        <button onclick="toggleMouseLogging()">Toggle Mouse Log</button>
+        <div id="mouse-log-status">Mouse Logging: ON</div>
+      `;
+      document.body.appendChild(overlay);
+      
+      // Add clear log function to global scope
+      window.clearMouseLog = function() {
+        mouseLoggingState.eventSequence = [];
+        updateDebug("Log cleared");
+      };
+      
+      // Add toggle function
+      window.toggleMouseLogging = function() {
+        const status = document.getElementById('mouse-log-status');
+        if (status.textContent.includes('ON')) {
+          status.textContent = 'Mouse Logging: OFF';
+          DEBUG_MODE = false;
+        } else {
+          status.textContent = 'Mouse Logging: ON';
+          DEBUG_MODE = true;
+        }
+      };
+    }
+
+    /**
+     * Logs detailed mouse event information
+     * @param {MouseEvent} e - The mouse event
+     * @param {string} phase - Event phase (capture/bubble)
+     * @param {string} source - Event source (document/canvas)
+     * @returns {void}
+     */
+    function logMouseEvent(e, phase, source) {
+      if (!DEBUG_MODE) return;
+      
+      const eventInfo = {
+        type: e.type,
+        timestamp: Date.now(),
+        phase: phase,
+        source: source,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        button: e.button,
+        buttons: e.buttons,
+        which: e.which,
+        altKey: e.altKey,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        metaKey: e.metaKey,
+        isTrusted: e.isTrusted,
+        target: e.target.tagName || 'unknown',
+        defaultPrevented: e.defaultPrevented,
+        bubbles: e.bubbles,
+        cancelable: e.cancelable
+      };
+      
+      // Track button states
+      if (e.type === 'mousedown') {
+        mouseLoggingState.mouseButtonsDown.add(e.button);
+      } else if (e.type === 'mouseup') {
+        mouseLoggingState.mouseButtonsDown.delete(e.button);
+      }
+      
+      // Special handling for context menu events
+      if (e.type === 'contextmenu') {
+        mouseLoggingState.contextMenuOpen = true;
+        console.log('🚨 CONTEXT MENU TRIGGERED!', eventInfo);
+        updateDebug(`CONTEXT MENU: button=${e.button}, prevented=${e.defaultPrevented}`);
+      }
+      
+      // Log event sequence
+      mouseLoggingState.eventSequence.push(eventInfo);
+      if (mouseLoggingState.eventSequence.length > 50) {
+        mouseLoggingState.eventSequence.shift(); // Keep last 50 events
+      }
+      
+      // Console logging with emoji indicators
+      const emoji = {
+        'mousedown': '⬇️',
+        'mouseup': '⬆️',
+        'mousemove': '➡️',
+        'click': '👆',
+        'contextmenu': '📋',
+        'dblclick': '👆👆',
+        'wheel': '🎡'
+      };
+      
+      console.log(`${emoji[e.type] || '❓'} ${phase.toUpperCase()} ${source}: ${e.type} ` +
+                  `at (${e.clientX}, ${e.clientY}) btn=${e.button} btns=${e.buttons} ` +
+                  `trusted=${e.isTrusted} prevented=${e.defaultPrevented}`);
+      
+      mouseLoggingState.lastMouseEvent = eventInfo;
+    }
+
+    /**
+     * Enhanced debug update with mouse event info
+     * @param {string} message - The message to display.
+     * @returns {void}
+     */
+    function updateDebug(message) {
+      if (!DEBUG_MODE) return;
+      const overlay = document.getElementById("debug-overlay");
+      if (overlay) {
+        const timestamp = new Date().toLocaleTimeString();
+        const lines = overlay.innerHTML.split('<br/>');
+        // Keep header and buttons, only rotate the log messages
+        const headerLines = lines.slice(0, 4); // Keep first 4 lines (header + buttons)
+        const logLines = lines.slice(4);
+        
+        if (logLines.length > 8) logLines.shift();
+        const newContent = [...headerLines, ...logLines, `${timestamp}: ${message}`].join('<br/>');
+        overlay.innerHTML = newContent;
+      }
+      console.log(`Touch Debug: ${message}`);
+    }
+
+    /**
+     * Shows a visual touch point and (optionally) a label near the touch location.
+     * This is the logic responsible for drawing text near touch events.
+     * @param {number} x - X coordinate (clientX)
+     * @param {number} y - Y coordinate (clientY)
+     * @param {string} color - Background color of the point.
+     * @param {string} label - Optional label to show below the point.
+     * @returns {void}
+     */
+    function showTouchPoint(x, y, color = "rgba(255, 0, 0, 0.5)", label = "") {
+      if (!DEBUG_MODE) return;
+      const point = document.createElement("div");
+      point.className = "touch-debug";
+      point.style.left = `${x}px`;
+      point.style.top = `${y}px`;
+      point.style.background = color;
+      // --- Draw text near touch event ---
+      if (label) {
+        point.innerHTML = `<div style="color: white; font-size: 10px; margin-top: 25px;">${label}</div>`;
+      }
+      document.body.appendChild(point);
+      setTimeout(() => {
+        if (point.parentNode) document.body.removeChild(point);
+      }, 1500);
+    }
+
+    createDebugOverlay();
+
+    /**
+     * Returns the canvas-relative coordinates for a given clientX/clientY.
+     * @param {number} clientX
+     * @param {number} clientY
+     * @returns {{x: number, y: number, clientX: number, clientY: number}}
+     */
+    function getCanvasCoordinates(clientX, clientY) {
+      const rect = canvas.canvas.getBoundingClientRect();
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top,
+        clientX,
+        clientY
+      };
+    }
+
+    /**
+     * Creates a MouseEvent with coordinates and button info.
+     * Used to simulate mouse events from touch events.
+     * @param {string} type - Event type (mousedown, mouseup, etc.)
+     * @param {number} clientX
+     * @param {number} clientY
+     * @param {number} button - Mouse button (0=left, 2=right)
+     * @returns {MouseEvent}
+     */
+    function createMouseEvent(type, clientX, clientY, button = 0) {
+      const buttons = (type === "mousedown" || (type === "mousemove" && touchState.isDragging)) ? 1 : 0;
+      return new MouseEvent(type, {
+        clientX, clientY, button, buttons,
+        bubbles: true, cancelable: true, view: window,
+        detail: type === "click" ? 1 : 0
+      });
+    }
+
+    /**
+     * Creates a visual indicator for long-press (right-click) feedback.
+     * @param {number} x - X coordinate
+     * @param {number} y - Y coordinate
+     * @returns {HTMLDivElement}
+     */
+    function createRightClickIndicator(x, y) {
+      const indicator = document.createElement("div");
+      indicator.className = "right-click-indicator";
+      indicator.style.left = `${x}px`;
+      indicator.style.top = `${y}px`;
+      indicator.style.width = "60px";
+      indicator.style.height = "60px";
+      indicator.style.animation = `countdown ${LONG_PRESS_DURATION}ms linear forwards`;
+      document.body.appendChild(indicator);
+      return indicator;
+    }
+
+    /**
+     * Resets all touch state and removes any visual indicators.
+     * @returns {void}
+     */
+    function cleanupRightClickState() {
+      if (touchState.rightClickTimeout) {
+        clearTimeout(touchState.rightClickTimeout);
+        touchState.rightClickTimeout = null;
+      }
+      if (touchState.indicator) {
+        document.body.removeChild(touchState.indicator);
+        touchState.indicator = null;
+      }
+      touchState.isMoving = false;
+      touchState.isDragging = false;
+      touchState.startTime = null;
+      touchState.startPosition = null;
+      touchState.currentTouch = null;
+    }
+
+    // --- Touch state ---
+    /**
+     * @typedef {Object} TouchState
+     * @property {boolean} isMoving - True if finger moved past threshold.
+     * @property {boolean} isDragging - True if dragging node.
+     * @property {number|null} rightClickTimeout - Timeout for long-press.
+     * @property {HTMLElement|null} indicator - Visual indicator for long-press.
+     * @property {number|null} startTime - Timestamp of touchstart.
+     * @property {{x:number,y:number}|null} startPosition - Start position.
+     * @property {{x:number,y:number}|null} currentTouch - Current position.
+     * @property {string|null} lastTouchType - Last touch event type.
+     */
+    let touchState = {
+      isMoving: false,
+      rightClickTimeout: null,
+      indicator: null,
+      startTime: null,
+      startPosition: null,
+      isDragging: false,
+      lastTouchType: null,
+      currentTouch: null
+    };
+
+    const LONG_PRESS_DURATION = 800;
+    const MOVE_THRESHOLD = 8;
+
+    // --- Touch event handlers ---
+
+    /**
+     * Handles touchstart: begins drag or starts right-click timer.
+     */
+    canvas.canvas.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        touchState.isMoving = false;
+        touchState.isDragging = false;
+        touchState.startTime = Date.now();
+        touchState.startPosition = { x: touch.clientX, y: touch.clientY };
+        touchState.currentTouch = { x: touch.clientX, y: touch.clientY };
+        touchState.lastTouchType = "start";
+
+        updateDebug(`TOUCH START: (${touch.clientX}, ${touch.clientY})`);
+        showTouchPoint(touch.clientX, touch.clientY, "rgba(0, 255, 0, 0.8)", "START");
+
+        // Simulate mousedown for Litegraph node drag
+        const mouseDownEvent = createMouseEvent("mousedown", touch.clientX, touch.clientY, 0);
+        canvas.canvas.dispatchEvent(mouseDownEvent);
+        updateDebug(`Sent: mousedown at (${touch.clientX}, ${touch.clientY})`);
+
+        // Start long-press timer for right-click
+        touchState.indicator = createRightClickIndicator(touch.clientX, touch.clientY);
+        touchState.rightClickTimeout = setTimeout(() => {
+          if (!touchState.isMoving && touchState.indicator && touchState.currentTouch) {
+            updateDebug("LONG PRESS DETECTED - Triggering context menu");
+            // End drag (if any)
+            const mouseUpEvent = createMouseEvent("mouseup", touchState.currentTouch.x, touchState.currentTouch.y, 0);
+            canvas.canvas.dispatchEvent(mouseUpEvent);
+            // Simulate right-click
+            const contextEvent = new MouseEvent("contextmenu", {
+              clientX: touchState.currentTouch.x,
+              clientY: touchState.currentTouch.y,
+              button: 2, // Right button
+              bubbles: true,
+              cancelable: true,
+              view: window
+            });
+            canvas.canvas.dispatchEvent(contextEvent);
+            showTouchPoint(touchState.currentTouch.x, touchState.currentTouch.y, "rgba(255, 255, 0, 0.9)", "RCLICK");
+            cleanupRightClickState();
+          }
+        }, LONG_PRESS_DURATION);
+      }
+      e.preventDefault();
+    }, { passive: false });
+
+    /**
+     * Handles touchmove: updates drag state, cancels right-click if moved.
+     */
+    canvas.canvas.addEventListener("touchmove", (e) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        touchState.currentTouch = { x: touch.clientX, y: touch.clientY };
+        touchState.lastTouchType = "move";
+        // Check for drag threshold
+        if (touchState.startPosition) {
+          const deltaX = Math.abs(touch.clientX - touchState.startPosition.x);
+          const deltaY = Math.abs(touch.clientY - touchState.startPosition.y);
+          if (deltaX > MOVE_THRESHOLD || deltaY > MOVE_THRESHOLD) {
+            if (!touchState.isMoving) {
+              touchState.isMoving = true;
+              touchState.isDragging = true;
+              updateDebug(`DRAG STARTED: Δx=${deltaX}, Δy=${deltaY}`);
+            }
+            // Cancel right-click if dragging
+            if (touchState.rightClickTimeout) {
+              clearTimeout(touchState.rightClickTimeout);
+              touchState.rightClickTimeout = null;
+              updateDebug("Right-click cancelled due to movement");
+            }
+            if (touchState.indicator) {
+              document.body.removeChild(touchState.indicator);
+              touchState.indicator = null;
+            }
+          }
+        }
+        // Simulate mousemove for dragging
+        const mouseMoveEvent = createMouseEvent("mousemove", touch.clientX, touch.clientY, 0);
+        canvas.canvas.dispatchEvent(mouseMoveEvent);
+        if (DEBUG_MODE && touchState.isDragging) {
+          showTouchPoint(touch.clientX, touch.clientY, "rgba(0, 0, 255, 0.5)", "DRAG");
+        }
+      }
+      e.preventDefault();
+    }, { passive: false });
+
+    /**
+     * Handles touchend: ends drag, triggers click if tap, cleans up state.
+     */
+    canvas.canvas.addEventListener("touchend", (e) => {
+      const endTouch = e.changedTouches[0];
+      touchState.lastTouchType = "end";
+      updateDebug(`TOUCH END - Moving: ${touchState.isMoving}, Dragging: ${touchState.isDragging}`);
+      showTouchPoint(endTouch.clientX, endTouch.clientY, "rgba(255, 0, 0, 0.8)", "END");
+      const endX = endTouch.clientX;
+      const endY = endTouch.clientY;
+      // Always send mouseup
+      const mouseUpEvent = createMouseEvent("mouseup", endX, endY, 0);
+      canvas.canvas.dispatchEvent(mouseUpEvent);
+      updateDebug(`Sent: mouseup at (${endX}, ${endY})`);
+      // If not a drag, send click
+      if (!touchState.isMoving && touchState.startTime) {
+        const duration = Date.now() - touchState.startTime;
+        if (duration < 500) {
+          updateDebug(`QUICK TAP: ${duration}ms - sending click`);
+          showTouchPoint(endX, endY, "rgba(0, 255, 255, 0.9)", "CLICK");
+          const clickEvent = createMouseEvent("click", endX, endY, 0);
+          canvas.canvas.dispatchEvent(clickEvent);
+          updateDebug(`Sent: click at (${endX}, ${endY})`);
+        }
+      }
+      cleanupRightClickState();
+      e.preventDefault();
+    }, { passive: false });
+
+    /**
+     * Handles touchcancel: aborts drag, cleans up state.
+     */
+    canvas.canvas.addEventListener("touchcancel", (e) => {
+      const cancelTouch = e.changedTouches[0];
+      updateDebug("TOUCH CANCELLED");
+      showTouchPoint(cancelTouch.clientX, cancelTouch.clientY, "rgba(128, 128, 128, 0.8)", "CANCEL");
+      const mouseUpEvent = createMouseEvent("mouseup", cancelTouch.clientX, cancelTouch.clientY, 0);
+      canvas.canvas.dispatchEvent(mouseUpEvent);
+      cleanupRightClickState();
+      e.preventDefault();
+    }, { passive: false });
+
+    // --- Debug: log all mouse events on canvas ---
+    if (DEBUG_MODE) {
+      ['mousedown', 'mouseup', 'mousemove', 'click', 'contextmenu', 'dblclick'].forEach(eventType => {
+        canvas.canvas.addEventListener(eventType, (e) => {
+          console.log(`🖱️  Mouse Event: ${eventType.toUpperCase()} at (${e.clientX}, ${e.clientY}) button:${e.button} buttons:${e.buttons}`);
+          if (eventType === 'contextmenu') {
+            console.log('🔍 Context menu triggered - this should show Litegraph right-click menu');
+          }
+          if (eventType === 'click') {
+            console.log('🔍 Click event - check if this interferes with Litegraph');
+          }
+        });
+        // ...existing code...
+      });
+      if (canvas && canvas.canvas) {
+        console.log('🔧 Canvas element ready for touch simulation');
+        console.log('🔧 Canvas rect:', canvas.canvas.getBoundingClientRect());
+      }
+    }
+  </script>
+</body>
+</html>

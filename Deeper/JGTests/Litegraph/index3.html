@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Litegraph Demo</title>
+  <script src="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/build/litegraph.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/css/litegraph.css" />
+  <link rel="icon" type="image/x-icon" href="../../../upper/JG_favicon.ico">
+
+
+  <style>
+    html, body { 
+      margin: 0; 
+      height: 100%; 
+      overflow: hidden; 
+      font-family: Arial, sans-serif;
+    }
+    canvas { 
+      width: 100vw; 
+      height: 100vh; 
+      display: block; 
+      background: #1e1e1e; 
+      touch-action: none; /* Prevent default touch behaviors */
+    }
+    
+    .right-click-indicator {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1000;
+      border: 3px solid rgba(55, 250, 55, 0.7);
+      background: radial-gradient(circle, rgba(55, 250, 55, 0.9) 0%, transparent 0%);
+      transform: translate(-50%, -50%);
+      transition: all 0.1s ease-out;
+    }
+    
+    @keyframes countdown {
+      from {
+        transform: translate(-50%, -50%) scale(0.1);
+        opacity: 0.1;
+      }
+      to {
+        transform: translate(-50%, -50%) scale(1.61);
+        opacity: 0.9;
+      }
+    }
+
+    /* Debug overlay */
+    .debug-overlay {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      z-index: 2000;
+      max-width: 300px;
+    }
+
+    .touch-debug {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: rgba(255, 0, 0, 0.5);
+      pointer-events: none;
+      z-index: 1500;
+      transform: translate(-50%, -50%);
+    }
+  </style>  
+</head>
+<body>
+  <canvas id="graphcanvas" style='border: 1px solid'></canvas>
+  <script>
+    // Responsive canvas setup
+    function setupCanvas() {
+      const canvas = document.getElementById('graphcanvas');
+      const dpr = window.devicePixelRatio || 1;
+      
+      // Set canvas size based on viewport
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      
+      // Scale the canvas back down using CSS
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      
+      // Scale the drawing context so everything draws at the higher resolution
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+    }
+
+    // Initial setup
+    setupCanvas();
+    
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      setupCanvas();
+      if (window.canvas) {
+        window.canvas.resize();
+      }
+    });
+
+    // Create graph and canvas
+    const graph = new LGraph();
+    const canvas = new LGraphCanvas("#graphcanvas", graph);
+    window.canvas = canvas; // Store reference for resize
+
+    // Create a constant node
+    const constA = LiteGraph.createNode("basic/const");
+    constA.pos = [100, 100];
+    constA.setValue(3);
+    graph.add(constA);
+
+    const constB = LiteGraph.createNode("basic/const");
+    constB.pos = [100, 200];
+    constB.setValue(7);
+    graph.add(constB);
+
+    // Custom add node
+    function AddNode() {
+      this.addInput("A", "number");
+      this.addInput("B", "number");
+      this.addOutput("Sum", "number");
+    }
+    AddNode.title = "Add";
+    AddNode.prototype.onExecute = function() {
+      const a = this.getInputData(0) || 0;
+      const b = this.getInputData(1) || 0;
+      this.setOutputData(0, a + b);
+    };
+    LiteGraph.registerNodeType("math/add", AddNode);
+
+    const adder = LiteGraph.createNode("math/add");
+    adder.pos = [300, 150];
+    graph.add(adder);
+
+    // Watch the result
+    const watcher = LiteGraph.createNode("basic/watch");
+    watcher.pos = [500, 150];
+    graph.add(watcher);
+
+    // Connect the nodes
+    constA.connect(0, adder, 0);
+    constB.connect(0, adder, 1);
+    adder.connect(0, watcher, 0);
+
+    // Start the graph
+    graph.start();
+    window.canvas.resize();
+  </script>
+
+
+  <!-- Enhanced touch support with debugging -->
+  <!-- Simulate invisible cursor points to enable hover -->
+  <script>
+    // Debug mode toggle
+    const DEBUG_MODE = true; // Set to false to disable debugging
+
+    // Touch state management
+    let touchState = {
+      longPressTimeout: null,
+      indicator: null,
+      startPosition: null,
+      isDragging: false,
+      longPressHandled: false
+    };
+
+    const LONG_PRESS_DURATION = 500; // ms
+    const MOVE_THRESHOLD = 10; // pixels
+
+    // Debug functions
+    function createDebugOverlay() {
+      if (!DEBUG_MODE) return;
+      const overlay = document.createElement("div");
+      overlay.id = "debug-overlay";
+      overlay.className = "debug-overlay";
+      overlay.innerHTML = "Touch Debug: Ready";
+      document.body.appendChild(overlay);
+    }
+
+    function updateDebug(message) {
+      if (!DEBUG_MODE) return;
+      const overlay = document.getElementById("debug-overlay");
+      if (overlay) {
+        const timestamp = new Date().toLocaleTimeString();
+        overlay.innerHTML = `${timestamp}: ${message}<br>` + overlay.innerHTML.split('<br>').slice(0, 10).join('<br>');
+      }
+    }
+
+    function showTouchPoint(x, y, color = "rgba(255, 0, 0, 0.5)") {
+      if (!DEBUG_MODE) return;
+      const point = document.createElement("div");
+      point.className = "touch-debug";
+      point.style.left = `${x}px`;
+      point.style.top = `${y}px`;
+      point.style.background = color;
+      document.body.appendChild(point);
+      
+      setTimeout(() => {
+        if (point.parentNode) {
+          document.body.removeChild(point);
+        }
+      }, 1000);
+    }
+
+    // Initialize debug overlay
+    createDebugOverlay();
+
+    // Helper function to get proper canvas coordinates
+    function getCanvasCoordinates(clientX, clientY) {
+      const rect = canvas.canvas.getBoundingClientRect();
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top,
+        clientX: clientX,
+        clientY: clientY
+      };
+    }
+
+    // Helper function to create mouse event with proper coordinates
+    function createMouseEvent(type, touch, options = {}) {
+      const coords = getCanvasCoordinates(touch.clientX, touch.clientY);
+      return new MouseEvent(type, {
+        clientX: coords.clientX,
+        clientY: coords.clientY,
+        button: options.button || 0,
+        buttons: options.buttons || 0,
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        ...options
+      });
+    }
+
+    function createRightClickIndicator(x, y) {
+      const indicator = document.createElement("div");
+      indicator.className = "right-click-indicator";
+      indicator.style.left = `${x}px`;
+      indicator.style.top = `${y}px`;
+      indicator.style.width = "60px";
+      indicator.style.height = "60px";
+      indicator.style.animation = `countdown ${LONG_PRESS_DURATION}ms linear forwards`;
+      
+      document.body.appendChild(indicator);
+      return indicator;
+    }
+
+    function cleanupTouchState() {
+      if (touchState.longPressTimeout) {
+        clearTimeout(touchState.longPressTimeout);
+        touchState.longPressTimeout = null;
+      }
+      if (touchState.indicator) {
+        if (touchState.indicator.parentNode) {
+            document.body.removeChild(touchState.indicator);
+        }
+        touchState.indicator = null;
+      }
+      touchState.isDragging = false;
+      touchState.startPosition = null;
+      touchState.longPressHandled = false;
+    }
+
+    // Handle touch start
+    canvas.canvas.addEventListener("touchstart", (e) => {
+      if (e.touches.length !== 1) {
+        cleanupTouchState();
+        return;
+      }
+      e.preventDefault();
+
+      const touch = e.touches[0];
+      cleanupTouchState(); // Clean up any previous state
+
+      touchState.startPosition = { x: touch.clientX, y: touch.clientY };
+      updateDebug(`Touch Start at (${touch.clientX.toFixed(0)}, ${touch.clientY.toFixed(0)})`);
+      showTouchPoint(touch.clientX, touch.clientY, "rgba(0, 255, 0, 0.7)");
+
+      touchState.indicator = createRightClickIndicator(touch.clientX, touch.clientY);
+      
+      touchState.longPressTimeout = setTimeout(() => {
+        updateDebug("Long Press triggered -> contextmenu");
+        showTouchPoint(touch.clientX, touch.clientY, "rgba(255, 252, 0, 0.9)");
+        
+        const contextEvent = createMouseEvent("contextmenu", touch, { button: 2 });
+        canvas.canvas.dispatchEvent(contextEvent);
+        
+        touchState.longPressHandled = true;
+        cleanupTouchState();
+      }, LONG_PRESS_DURATION);
+
+    }, { passive: false });
+
+    // Handle touch move
+    canvas.canvas.addEventListener("touchmove", (e) => {
+      if (e.touches.length !== 1 || !touchState.startPosition) return;
+      e.preventDefault();
+
+      const touch = e.touches[0];
+      const deltaX = Math.abs(touch.clientX - touchState.startPosition.x);
+      const deltaY = Math.abs(touch.clientY - touchState.startPosition.y);
+
+      if (!touchState.isDragging && (deltaX > MOVE_THRESHOLD || deltaY > MOVE_THRESHOLD)) {
+        updateDebug(`Drag started`);
+        touchState.isDragging = true;
+        
+        // Cancel long press
+        clearTimeout(touchState.longPressTimeout);
+        if (touchState.indicator && touchState.indicator.parentNode) {
+          document.body.removeChild(touchState.indicator);
+          touchState.indicator = null;
+        }
+
+        // Start drag by sending a mousedown at the start position
+        const startTouch = { clientX: touchState.startPosition.x, clientY: touchState.startPosition.y };
+        const mouseDownEvent = createMouseEvent("mousedown", startTouch, { buttons: 1 });
+        canvas.canvas.dispatchEvent(mouseDownEvent);
+        updateDebug(`Dispatched mousedown for drag`);
+      }
+
+      if (touchState.isDragging) {
+        const mouseMoveEvent = createMouseEvent("mousemove", touch, { buttons: 1 });
+        canvas.canvas.dispatchEvent(mouseMoveEvent);
+        if (DEBUG_MODE) {
+          showTouchPoint(touch.clientX, touch.clientY, "rgba(0, 0, 255, 0.5)");
+        }
+      }
+    }, { passive: false });
+
+    // Handle touch end 
+    canvas.canvas.addEventListener("touchend", (e) => {
+      if (!touchState.startPosition || touchState.longPressHandled) {
+        cleanupTouchState();
+        return;
+      }
+      e.preventDefault();
+
+      const touch = e.changedTouches[0];
+      updateDebug(`Touch End at (${touch.clientX.toFixed(0)}, ${touch.clientY.toFixed(0)})`);
+      showTouchPoint(touch.clientX, touch.clientY, "rgba(255, 0, 0, 0.7)");
+
+      if (touchState.isDragging) {
+        updateDebug("Drag ended -> mouseup");
+        const mouseUpEvent = createMouseEvent("mouseup", touch, { button: 0 });
+        canvas.canvas.dispatchEvent(mouseUpEvent);
+      } else {
+        updateDebug("Tap detected -> click");
+        showTouchPoint(touch.clientX, touch.clientY, "rgba(0, 255, 255, 0.7)");
+        const clickEvent = createMouseEvent("click", touch, { button: 0 });
+        canvas.canvas.dispatchEvent(clickEvent);
+      }
+      
+      cleanupTouchState();
+    }, { passive: false });
+
+    // Handle touch cancel
+    canvas.canvas.addEventListener("touchcancel", (e) => {
+      updateDebug("Touch Cancelled");
+      if (e.changedTouches.length > 0) {
+        const touch = e.changedTouches[0];
+        showTouchPoint(touch.clientX, touch.clientY, "rgba(0, 0, 0, 1.0)");
+      }
+      cleanupTouchState();
+      e.preventDefault();
+    }, { passive: false });
+
+    // Additional mouse event logging for debugging
+    if (DEBUG_MODE) {
+      ['mousedown', 'mouseup', 'mousemove', 'click', 'contextmenu'].forEach(eventType => {
+        canvas.canvas.addEventListener(eventType, (e) => {
+          updateDebug(`Mouse Event: ${e.type} at (${e.clientX}, ${e.clientY}), button: ${e.button}, buttons: ${e.buttons}`);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
+          canvas.canvas.dispatchEvent(clickEvent);
+        }
+      }
+      
+      // Clean up state
+      cleanupRightClickState();
+      
+      e.preventDefault();
+    }, { passive: false });
+
+    // Handle touch cancel
+    canvas.canvas.addEventListener("touchcancel", (e) => {
+      updateDebug("Touch Cancelled");
+      showTouchPoint(e.changedTouches[0].clientX, e.changedTouches[0].clientY, "rgba(0, 0, 0, 1.0)");
+      cleanupRightClickState();
+      e.preventDefault();
+    }, { passive: false });
+
+    // Additional mouse event logging for debugging
+    if (DEBUG_MODE) {
+      ['mousedown', 'mouseup', 'mousemove', 'click', 'contextmenu'].forEach(eventType => {
+        canvas.canvas.addEventListener(eventType, (e) => {
+          console.log(`Mouse Event: ${eventType} at (${e.clientX}, ${e.clientY})`);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

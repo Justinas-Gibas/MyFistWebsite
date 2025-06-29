@@ -1,0 +1,20 @@
+<style>
+.line-with-text {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+}
+.line-with-text::before,
+.line-with-text::after {
+  content: 'Text';
+  flex: 1;
+  border-bottom: 1px solid #ccc;
+}
+.line-with-text:not(:empty)::before {
+  margin-right: .25em;
+}
+.line-with-text:not(:empty)::after {
+  margin-left: .25em;
+}
+</style>
