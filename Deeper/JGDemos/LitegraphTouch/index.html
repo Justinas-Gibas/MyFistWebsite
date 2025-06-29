@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Litegraph Demo</title>
+  <title>Litegraph Touch Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
   <script src="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/build/litegraph.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/css/litegraph.css" />
   <link rel="icon" type="image/x-icon" href="../../../upper/JG_favicon.ico">
@@ -32,7 +33,52 @@
       transform: translate(-50%, -50%);
       transition: all 0.1s ease-out;
     }
+
+    /* Info panel styles */
+    .info-panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(71, 71, 71, 0.226);
+      color: rgb(255, 255, 255);
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 12px;
+      z-index: 100;
+      max-width: 300px;
+      transition: all 0.3s ease; /* Add smooth transition */
+    }
     
+    .info-panel.collapsed {
+      padding: 8px 15px;
+      max-height: 50px;
+    }
+    
+    .info-panel.collapsed .panel-content {
+      display: none;
+    }
+    
+    .info-panel h3 {
+      margin: 0 0 10px 0;
+      color: rgba(55, 252, 55, 0.9);
+      cursor: pointer; /* Make title clickable */
+    }
+    
+    .info-panel.collapsed h3 {
+      margin: 0;
+    }
+    
+    .toggle-btn {
+      background: rgba(55, 255, 55, 0.9);
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    
+    /* Right-click countdown animation */
     @keyframes countdown {
       from {
         transform: translate(-50%, -50%) scale(0.1);
@@ -47,13 +93,13 @@
     /* Debug overlay */
     .debug-overlay {
       position: fixed;
-      top: 10px;
-      left: 10px;
+      bottom: 10px;
+      right: 10px;
       background: rgba(0, 0, 0, 0.8);
       color: white;
       padding: 10px;
       border-radius: 5px;
-      font-size: 12px;
+      font-size: 9px;
       z-index: 2000;
       max-width: 300px;
     }
@@ -72,6 +118,20 @@
 </head>
 <body>
   <canvas id="graphcanvas" style='border: 1px solid'></canvas>
+  <div class="info-panel" id="infoPanel">
+    <h3 onclick="toggleInfoPanel()">Touch Controls: <span id="collapseIcon">▼</span></h3>
+    <div class="panel-content">
+      <ul>
+        <li><strong>Single Tap:</strong> Select/Click</li>
+        <li><strong>Double Tap Background:</strong> Open search</li>
+        <li><strong>Drag:</strong> Move nodes/canvas</li>
+        <li><strong>Long Press:</strong> Node menu</li>
+        <li><strong>Long Press + Drag(Background):</strong> Multi-select</li>
+        <li><strong>Long Press + Drag(Node):</strong> Node multi-drag</li>
+      </ul>
+      <button class="toggle-btn" onclick="toggleInfoPanel()">Collapse</button>
+    </div>
+  </div>
   <script>
     // Responsive canvas setup
     function setupCanvas() {
@@ -109,12 +169,12 @@
 
     // Create a constant node
     const constA = LiteGraph.createNode("basic/const");
-    constA.pos = [100, 100];
+    constA.pos = [10, 260];
     constA.setValue(3);
     graph.add(constA);
 
     const constB = LiteGraph.createNode("basic/const");
-    constB.pos = [100, 200];
+    constB.pos = [10, 340];
     constB.setValue(7);
     graph.add(constB);
 
@@ -133,12 +193,12 @@
     LiteGraph.registerNodeType("math/add", AddNode);
 
     const adder = LiteGraph.createNode("math/add");
-    adder.pos = [300, 150];
+    adder.pos = [50, 420];
     graph.add(adder);
 
     // Watch the result
     const watcher = LiteGraph.createNode("basic/watch");
-    watcher.pos = [500, 150];
+    watcher.pos = [220, 420];
     graph.add(watcher);
 
     // Connect the nodes
@@ -149,6 +209,25 @@
     // Start the graph
     graph.start();
     window.canvas.resize();
+
+    // Collapse/Expand info panel
+    function toggleInfoPanel() {
+      const infoPanel = document.getElementById('infoPanel');
+      const collapseIcon = document.getElementById('collapseIcon');
+      const closeBtn = document.querySelector('.toggle-btn:last-child');
+      
+      if (infoPanel.classList.contains('collapsed')) {
+        // Expand
+        infoPanel.classList.remove('collapsed');
+        collapseIcon.textContent = '▼';
+        closeBtn.textContent = 'Collapse';
+      } else {
+        // Collapse
+        infoPanel.classList.add('collapsed');
+        collapseIcon.textContent = '►';
+        closeBtn.textContent = 'Expand';
+      }
+    }
   </script>
 
 
@@ -166,16 +245,44 @@
       isDragging: false,
       longPressHandled: false,
       lastTapTime: 0,
+      // New states for multi-select
+      longPressReady: false,
+      isMultiSelecting: false,
       // Hover simulation
       virtualCursor: { x: 0, y: 0 },
       isHovering: false,
-      hoverTimeout: null
+      hoverTimeout: null,
+      // Node-specific states
+      startedOnNode: false,
+      startedOnBackground: false,
+      lastTapNode: null,
+      isNodeMultiDrag: false,
+      isBackgroundMultiSelect: false
     };
 
     const LONG_PRESS_DURATION = 600; // ms
     const MOVE_THRESHOLD = 10; // pixels
     const DOUBLE_TAP_DELAY = 300; // ms
     const HOVER_UPDATE_INTERVAL = 16; // ms (~60fps)
+
+    // Helper function to check if touch is on a node
+    function getTouchTarget(x, y) {
+      const rect = canvas.canvas.getBoundingClientRect();
+      const canvasX = x - rect.left;
+      const canvasY = y - rect.top;
+      
+      // Convert to graph coordinates
+      const graphPos = canvas.convertCanvasToOffset([canvasX, canvasY]);
+      
+      // Check if we're over a node
+      const node = graph.getNodeOnPos(graphPos[0], graphPos[1]);
+      return {
+        node: node,
+        isOnNode: !!node,
+        graphX: graphPos[0],
+        graphY: graphPos[1]
+      };
+    }
 
     // Debug functions
     function createDebugOverlay() {
@@ -279,7 +386,11 @@
         buttons: options.buttons || 0,
         bubbles: true,
         cancelable: true,
-        view: window
+        view: window,
+        ctrlKey: options.ctrlKey || false,
+        shiftKey: options.shiftKey || false,
+        altKey: options.altKey || false,
+        metaKey: options.metaKey || false
       });
       
       // Add canvas-relative coordinates that LiteGraph uses
@@ -321,6 +432,12 @@
       touchState.startPosition = null;
       touchState.startTime = null;
       touchState.longPressHandled = false;
+      touchState.longPressReady = false;
+      touchState.isMultiSelecting = false;
+      touchState.startedOnNode = false;
+      touchState.startedOnBackground = false;
+      touchState.isNodeMultiDrag = false;
+      touchState.isBackgroundMultiSelect = false;
     }
 
     // Handle touch start
@@ -333,58 +450,58 @@
 
       const touch = e.touches[0];
       const currentTime = Date.now();
+      const touchTarget = getTouchTarget(touch.clientX, touch.clientY);
+      
       cleanupTouchState();
 
       touchState.startPosition = { x: touch.clientX, y: touch.clientY };
       touchState.startTime = currentTime;
+      touchState.startedOnNode = touchTarget.isOnNode;
+      touchState.startedOnBackground = !touchTarget.isOnNode;
       
       // Always update virtual cursor position on touch start
       updateVirtualCursor(touch.clientX, touch.clientY);
       
-      updateDebug(`Touch Start at (${touch.clientX.toFixed(0)}, ${touch.clientY.toFixed(0)})`);
-      showTouchPoint(touch.clientX, touch.clientY, "rgba(0, 255, 0, 0.7)");
+      updateDebug(`Touch Start at (${touch.clientX.toFixed(0)}, ${touch.clientY.toFixed(0)}) - ${touchTarget.isOnNode ? 'ON NODE' : 'ON BACKGROUND'}`);
+      showTouchPoint(touch.clientX, touch.clientY, touchTarget.isOnNode ? "rgba(255, 165, 0, 0.7)" : "rgba(0, 255, 0, 0.7)");
 
-      // Check for double tap
+      // Check for double tap on node for shift+click multi-select
       const timeSinceLastTap = currentTime - touchState.lastTapTime;
       if (timeSinceLastTap < DOUBLE_TAP_DELAY) {
-        updateDebug("Double tap detected -> opening search");
-        showTouchPoint(touch.clientX, touch.clientY, "rgba(255, 0, 255, 0.9)");
-        
-        // Trigger double click for search menu
-        const dblClickEvent = createPointerEvent('dblclick', touch);
-        canvas.canvas.dispatchEvent(dblClickEvent);
-        touchState.lastTapTime = 0;
-        return;
+        if (touchTarget.isOnNode && touchState.lastTapNode === touchTarget.node) {
+          updateDebug("Double tap on NODE detected -> shift+click multi-select");
+          showTouchPoint(touch.clientX, touch.clientY, "rgba(255, 255, 0, 0.9)");
+          
+          // Trigger shift+click for node multi-select
+          const shiftClickEvent = createPointerEvent('mousedown', touch, { buttons: 1, shiftKey: true });
+          canvas.canvas.dispatchEvent(shiftClickEvent);
+          setTimeout(() => {
+            const shiftClickUpEvent = createPointerEvent('mouseup', touch, { shiftKey: true });
+            canvas.canvas.dispatchEvent(shiftClickUpEvent);
+          }, 10);
+          
+          touchState.lastTapTime = 0;
+          touchState.lastTapNode = null;
+          return;
+        } else if (!touchTarget.isOnNode) {
+          // Double tap on background - open search as before
+          updateDebug("Double tap on BACKGROUND detected -> opening search");
+          showTouchPoint(touch.clientX, touch.clientY, "rgba(255, 0, 255, 0.9)");
+          
+          const dblClickEvent = createPointerEvent('dblclick', touch);
+          canvas.canvas.dispatchEvent(dblClickEvent);
+          touchState.lastTapTime = 0;
+          return;
+        }
       }
 
-      // Start long press timer for context menu
+      // Start long press timer
       touchState.indicator = createRightClickIndicator(touch.clientX, touch.clientY);
       
       touchState.longPressTimeout = setTimeout(() => {
         if (!touchState.isDragging) {
-          updateDebug("Long Press -> trying right-click approaches");
-          showTouchPoint(touch.clientX, touch.clientY, "rgba(255, 252, 0, 0.9)");
-          
-          // Try multiple approaches to trigger context menu
-          
-          // Approach 1: Right mouse button down + up
-          const rightMouseDown = createPointerEvent('mousedown', touch, { button: 2, buttons: 2 });
-          const rightMouseUp = createPointerEvent('mouseup', touch, { button: 2, buttons: 0 });
-          canvas.canvas.dispatchEvent(rightMouseDown);
-          
-          setTimeout(() => {
-            canvas.canvas.dispatchEvent(rightMouseUp);
-            
-            // Approach 2: Context menu event (as fallback)
-            setTimeout(() => {
-              const contextEvent = createPointerEvent('contextmenu', touch, { button: 2 });
-              canvas.canvas.dispatchEvent(contextEvent);
-              updateDebug("Dispatched: mousedown(right) -> mouseup(right) -> contextmenu");
-            }, 10);
-          }, 10);
-          
-          touchState.longPressHandled = true;
-          cleanupTouchState();
+          updateDebug(`Long Press Ready -> ${touchState.startedOnNode ? 'Node multi-drag' : 'Background multi-select'} or release for menu`);
+          touchState.longPressReady = true;
         }
       }, LONG_PRESS_DURATION);
 
@@ -402,8 +519,47 @@
       // Always update virtual cursor position for hover simulation
       updateVirtualCursor(touch.clientX, touch.clientY);
 
-      if (!touchState.isDragging && (deltaX > MOVE_THRESHOLD || deltaY > MOVE_THRESHOLD)) {
-        updateDebug(`Drag started (Δx=${deltaX}, Δy=${deltaY})`);
+      const hasMoved = deltaX > MOVE_THRESHOLD || deltaY > MOVE_THRESHOLD;
+
+      // Handle long press + drag scenarios
+      if (touchState.longPressReady && hasMoved) {
+        if (touchState.startedOnBackground) {
+          // Long press on background + drag = ctrl+shift multi-select
+          updateDebug(`Background multi-select drag started (ctrl+shift)`);
+          touchState.isBackgroundMultiSelect = true;
+          touchState.isDragging = true;
+          touchState.longPressReady = false;
+
+          if (touchState.indicator && touchState.indicator.parentNode) {
+            document.body.removeChild(touchState.indicator);
+            touchState.indicator = null;
+          }
+
+          const startTouch = { clientX: touchState.startPosition.x, clientY: touchState.startPosition.y };
+          const mouseDownEvent = createPointerEvent('mousedown', startTouch, { buttons: 1, ctrlKey: true, shiftKey: true });
+          canvas.canvas.dispatchEvent(mouseDownEvent);
+          updateDebug(`Dispatched mousedown for background multi-select (ctrl+shift)`);
+        } else if (touchState.startedOnNode) {
+          // Long press on node + drag = shift multi-drag
+          updateDebug(`Node multi-drag started (shift)`);
+          touchState.isNodeMultiDrag = true;
+          touchState.isDragging = true;
+          touchState.longPressReady = false;
+
+          if (touchState.indicator && touchState.indicator.parentNode) {
+            document.body.removeChild(touchState.indicator);
+            touchState.indicator = null;
+          }
+
+          const startTouch = { clientX: touchState.startPosition.x, clientY: touchState.startPosition.y };
+          const mouseDownEvent = createPointerEvent('mousedown', startTouch, { buttons: 1, shiftKey: true });
+          canvas.canvas.dispatchEvent(mouseDownEvent);
+          updateDebug(`Dispatched mousedown for node multi-drag (shift)`);
+        }
+      }
+      // Check for normal drag
+      else if (!touchState.isDragging && hasMoved) {
+        updateDebug(`Normal drag started (Δx=${deltaX}, Δy=${deltaY})`);
         touchState.isDragging = true;
         
         // Cancel long press
@@ -416,18 +572,31 @@
           touchState.indicator = null;
         }
 
-        // Start drag with mousedown at start position
+        // Start normal drag
         const startTouch = { clientX: touchState.startPosition.x, clientY: touchState.startPosition.y };
         const mouseDownEvent = createPointerEvent('mousedown', startTouch, { buttons: 1 });
         canvas.canvas.dispatchEvent(mouseDownEvent);
-        updateDebug(`Dispatched mousedown for drag`);
+        updateDebug(`Dispatched mousedown for normal drag`);
       }
 
       if (touchState.isDragging) {
-        const mouseMoveEvent = createPointerEvent('mousemove', touch, { buttons: 1 });
+        let mouseMoveOptions = { buttons: 1 };
+        
+        if (touchState.isBackgroundMultiSelect) {
+          mouseMoveOptions.ctrlKey = true;
+          mouseMoveOptions.shiftKey = true;
+        } else if (touchState.isNodeMultiDrag) {
+          mouseMoveOptions.shiftKey = true;
+        }
+        
+        const mouseMoveEvent = createPointerEvent('mousemove', touch, mouseMoveOptions);
         canvas.canvas.dispatchEvent(mouseMoveEvent);
+        
         if (DEBUG_MODE) {
-          showTouchPoint(touch.clientX, touch.clientY, "rgba(0, 0, 255, 0.3)");
+          let color = "rgba(0, 0, 255, 0.3)";
+          if (touchState.isBackgroundMultiSelect) color = "rgba(255, 0, 255, 0.3)";
+          else if (touchState.isNodeMultiDrag) color = "rgba(255, 255, 0, 0.3)";
+          showTouchPoint(touch.clientX, touch.clientY, color);
         }
       }
     }, { passive: false });
@@ -442,6 +611,7 @@
 
       const touch = e.changedTouches[0];
       const currentTime = Date.now();
+      const touchTarget = getTouchTarget(touch.clientX, touch.clientY);
       
       // Always update virtual cursor to final position
       updateVirtualCursor(touch.clientX, touch.clientY);
@@ -449,10 +619,32 @@
       updateDebug(`Touch End at (${touch.clientX.toFixed(0)}, ${touch.clientY.toFixed(0)})`);
       showTouchPoint(touch.clientX, touch.clientY, "rgba(255, 0, 0, 0.7)");
 
-      if (touchState.isDragging) {
-        updateDebug("Drag ended -> mouseup");
+      if (touchState.isBackgroundMultiSelect) {
+        updateDebug("Background multi-select drag ended -> mouseup (ctrl+shift)");
+        const mouseUpEvent = createPointerEvent('mouseup', touch, { ctrlKey: true, shiftKey: true });
+        canvas.canvas.dispatchEvent(mouseUpEvent);
+      } else if (touchState.isNodeMultiDrag) {
+        updateDebug("Node multi-drag ended -> mouseup (shift)");
+        const mouseUpEvent = createPointerEvent('mouseup', touch, { shiftKey: true });
+        canvas.canvas.dispatchEvent(mouseUpEvent);
+      } else if (touchState.isDragging) {
+        updateDebug("Normal drag ended -> mouseup");
         const mouseUpEvent = createPointerEvent('mouseup', touch);
         canvas.canvas.dispatchEvent(mouseUpEvent);
+      } else if (touchState.longPressReady) {
+        // This was a long press without a drag -> context menu
+        updateDebug("Long Press tap -> context menu");
+        const rightMouseDown = createPointerEvent('mousedown', touch, { button: 2, buttons: 2 });
+        const rightMouseUp = createPointerEvent('mouseup', touch, { button: 2 });
+        const contextEvent = createPointerEvent('contextmenu', touch, { button: 2 });
+        
+        canvas.canvas.dispatchEvent(rightMouseDown);
+        setTimeout(() => {
+          canvas.canvas.dispatchEvent(rightMouseUp);
+          setTimeout(() => canvas.canvas.dispatchEvent(contextEvent), 10);
+        }, 10);
+        
+        touchState.longPressHandled = true;
       } else {
         // Single tap - dispatch proper sequence and keep cursor active
         updateDebug("Single tap -> mousedown + mouseup + click + cursor positioned");
@@ -475,7 +667,9 @@
           }, 10);
         }, 10);
         
+        // Store tap info for potential double-tap detection
         touchState.lastTapTime = currentTime;
+        touchState.lastTapNode = touchTarget.node;
       }
       
       cleanupTouchState();
@@ -491,7 +685,16 @@
       
       if (touchState.isDragging) {
         const touch = e.changedTouches[0];
-        const mouseUpEvent = createPointerEvent('mouseup', touch);
+        let mouseUpOptions = {};
+
+        if (touchState.isBackgroundMultiSelect) {
+          mouseUpOptions.ctrlKey = true;
+          mouseUpOptions.shiftKey = true;
+        } else if (touchState.isNodeMultiDrag) {
+          mouseUpOptions.shiftKey = true;
+        }
+        
+        const mouseUpEvent = createPointerEvent('mouseup', touch, mouseUpOptions);
         canvas.canvas.dispatchEvent(mouseUpEvent);
       }
       

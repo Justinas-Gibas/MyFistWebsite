@@ -1,0 +1,184 @@
+<html>
+<head>
+	<link rel="stylesheet" type="text/css" href="../../../lib/Litegraph/litegraph.css">
+	<script type="text/javascript" src="../../../lib/Litegraph/litegraph.js"></script>
+	<style>
+		body {
+			margin: 0;
+			padding: 20px;
+			font-family: Arial, sans-serif;
+			background-color: #525252;
+		}
+		
+		.controls {
+			margin-bottom: 20px;
+			text-align: center;
+		}
+		
+		button {
+			padding: 10px 20px;
+			font-size: 16px;
+			background-color: #000000;
+			color: white;
+			border: none;
+			border-radius: 5px;
+			cursor: pointer;
+		}
+		
+		button:hover {
+			background-color: #363636;
+		}
+		
+		.graphs-container {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+			gap: 20px;
+			max-width: 100%;
+		}
+		
+		.graph-container {
+			
+			border-radius: 8px;
+			padding: 15px;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+		}
+		
+		.graph-title {
+			text-align: center;
+			margin-bottom: 10px;
+			font-weight: bold;
+			color: #ffffff;
+		}
+		
+		.graph-controls {
+			margin-bottom: 10px;
+		}
+		
+		.graph-controls button {
+			font-size: 12px;
+			padding: 5px 10px;
+			margin: 0 5px;
+			background-color: #dc3545;
+		}
+		
+		.graph-controls button:hover {
+			background-color: #c82333;
+		}
+		
+		canvas {
+			border: 1px solid #333;
+			border-radius: 4px;
+		}
+	</style>
+</head>
+<body>
+	<div class="controls">
+		<button id="createNewGraph">Create New Graph</button>
+		<button id="clearAllGraphs">Clear All Graphs</button>
+	</div>
+	
+	<div id="graphsContainer" class="graphs-container">
+		<!-- Graphs will be dynamically added here -->
+	</div>
+
+	<script>
+        // Initialize graph counter and storage for graph
+        // would be better to give uuid to each graph and its canvas
+		let graphCounter = 0;
+        // Array to hold graph instances. we need this 
+		let graphs = [];
+        // Graph name or ID to keep track of data
+        let graphName = '';
+
+		function createNewGraph() {
+			graphCounter++;
+			const graphId = `graph${graphCounter}`;
+			const canvasId = `canvas${graphCounter}`;
+			
+			// Create container elements
+			const container = document.createElement('div');
+			container.className = 'graph-container';
+			container.id = `container${graphCounter}`;
+			
+			const title = document.createElement('div');
+			title.className = 'graph-title';
+			title.textContent = `Graph ${graphCounter}`;
+			
+			const controls = document.createElement('div');
+			controls.className = 'graph-controls';
+			
+			const deleteBtn = document.createElement('button');
+			deleteBtn.textContent = 'Delete';
+			deleteBtn.onclick = () => deleteGraph(graphCounter);
+			
+			const canvas = document.createElement('canvas');
+			canvas.id = canvasId;
+			canvas.width = 400;
+			canvas.height = 300;
+			
+			// Assemble container
+			controls.appendChild(deleteBtn);
+			container.appendChild(title);
+			container.appendChild(controls);
+			container.appendChild(canvas);
+			
+			// Add to DOM
+			document.getElementById('graphsContainer').appendChild(container);
+			
+			// Create LiteGraph instance
+			const graph = new LGraph();
+			const graphCanvas = new LGraphCanvas(`#${canvasId}`, graph);
+			
+			// Add some default nodes
+			const nodeConst = LiteGraph.createNode("basic/const");
+			nodeConst.pos = [10, 50];
+			graph.add(nodeConst);
+			nodeConst.setValue(Math.round(Math.random() * 100) / 10);
+			
+			const nodeWatch = LiteGraph.createNode("basic/watch");
+			nodeWatch.pos = [250, 150];
+			graph.add(nodeWatch)
+            ;
+			nodeConst.connect(0, nodeWatch, 0);
+
+			graph.start();
+			
+			// Store graph reference
+			graphs[graphCounter] = {
+				graph: graph,
+				canvas: graphCanvas,
+				container: container
+			};
+		}
+		
+		function deleteGraph(graphId) {
+			if (graphs[graphId]) {
+				// Stop the graph
+				graphs[graphId].graph.stop();
+				
+				// Remove from DOM
+				graphs[graphId].container.remove();
+				
+				// Clean up reference
+				delete graphs[graphId];
+			}
+		}
+		
+		function clearAllGraphs() {
+			Object.keys(graphs).forEach(graphId => {
+				deleteGraph(parseInt(graphId));
+			});
+			graphCounter = 0;
+		}
+		
+		// Event listeners
+		document.getElementById('createNewGraph').addEventListener('click', createNewGraph);
+		document.getElementById('clearAllGraphs').addEventListener('click', clearAllGraphs);
+		
+		// Create initial graph
+		createNewGraph();
+	</script>
+</body>
+</html>
