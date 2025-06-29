@@ -12,6 +12,17 @@
     <link rel="stylesheet" href="./Deeper/lib/styles/reset.css">
     <link rel="stylesheet" href="./Deeper/lib/styles/style.css">
 
+    <!-- Add this to your HTML head -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+      }
+    }
+    </script>
+
     <style>
             .section__text {
                 color: lightgray;
@@ -127,17 +138,17 @@
                 <br>
                 
                 <h3 class="section__subtitle">Gallery:</h3>
-                // Image
+                <!-- Image --> 
                 <figure class="work-item">
                     <img src="./Deeper/lib/images/potw2046a.jpg" alt="Photo of radio observatory with long exposure of milky way" class="work-item__image">
                     <figcaption class="work-item__caption">I like this image Author: John Doe</figcaption>
                 </figure>
-                // Video
+                <!-- Video -->
                 <figure class="work-item">
-                  <video src="./Deeper/lib/images/TimeBeast_MP4_.5_loop.mp4" controls class="work-item__video" poster="./Deeper/lib/images/potw2046a.jpg">A video of me creating music using electronic devices</video>
+                  <video src="./Deeper/lib/images/TimeBeast_MP4_.5_loop.mp4" controls class="work-item__video" poster="./Deeper/lib/images/TimeBeast_MP4_.5_loop.mp4">A video of human animal like creature</video>
                   <figcaption class="work-item__caption">Concept Art: Character/Avatar Design</figcaption>
                 </figure>
-                // Audio with settings to loop
+                <!-- Audio with settings to loop -->
                 <figure class="work-item">
                     <audio controls class="work-item__audio">
                         <source src="./Deeper/lib/004_1.WAW" type="audio/mpeg">
@@ -145,11 +156,57 @@
                     </audio>
                     <figcaption class="work-item__caption">My playing Bass Guitar Recorded using loop pedal</figcaption>
                 </figure>
-                // 3D Model Viewer: my own prepared .js file/module for easy use
+                <!-- Canvas -->
                 <figure class="work-item">
-                    <a href="./Deeper/JGTests/3DModelViewer/index.html" target="_self" class="contact-item__link">3D Model Viewer</a>
+                  <canvas class="work-item__canvas">text</canvas>
+                  <figcaption class="work-item__caption">Graph</figcaption>
+                </figure>
+
+                <!-- iframe-->
+                <figure class="work-item">
+                    <iframe src="./Deeper/lib/models/TimeBeast01.gltf" frameborder="0" class="work-item__iframe"></iframe>
                     <figcaption class="work-item__caption">3D Model Viewer</figcaption>
                 </figure>
+                <!-- object -->
+                <figure class="work-item">
+                    <object data="./Deeper/lib/models/TimeBeast01.gltf" type="model/gltf+json" class="work-item__object">
+                        <p>Your browser does not support 3D models.</p>
+                    </object>
+                    <figcaption class="work-item__caption">3D Model Viewer</figcaption>
+                </figure>
+                <!-- embed -->
+                <figure class="work-item">
+                    <embed src="./Deeper/lib/models/TimeBeast01.gltf" type="model/gltf+json" class="work-item__embed">
+                    <figcaption class="work-item__caption">embed </figcaption>
+                </figure>
+
+                <!-- Chrome model-viewer -->
+                <figure class="work-item">
+                    <model-viewer src="./Deeper/lib/models/TimeBeast01.gltf" alt="3D Model" auto-rotate camera-controls></model-viewer>
+                    <figcaption class="work-item__caption">3D Model Viewer Only works on Chrome</figcaption>
+                </figure>
+
+                <!-- Three.js -->
+                <!-- Then use it like native HTML -->
+                <model-3d src="./Deeper/lib/models/TimeBeast01.gltf" 
+                          width="100%" 
+                          height="400px" 
+                          controls 
+                          auto-rotate>
+                </model-3d>
+
+                <!-- JG 3D viewer my own prepared .js file/module for easy use>
+                <figure class="work-item">
+                    <a script type="module" href="./Deeper/lib/models/TimeBeast01.gltf" target="_self" class="work-item__3D">JG 3D Model Viewer</a>
+                    <figcaption class="work-item__caption">JG 3D Model Viewer</figcaption>
+                    <!script>
+                        import { create3DViewer } from './Deeper/3DViewer.js';
+                        console.log("3D Viewer script loaded");
+                        //create3DViewer('id,path,options');
+                        create3DViewer('this,path,options');
+                    </script>
+                </figure-->
+
             </div>
         </section>
         <section id="contact" class="section">
