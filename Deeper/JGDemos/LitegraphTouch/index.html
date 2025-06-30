@@ -14,6 +14,11 @@
       height: 100%; 
       overflow: hidden; 
       font-family: Arial, sans-serif;
+      /* Prevent text selection on mobile */
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
     }
     canvas { 
       width: 100vw; 
@@ -166,6 +171,7 @@
     const graph = new LGraph();
     const canvas = new LGraphCanvas("#graphcanvas", graph);
     window.canvas = canvas; // Store reference for resize
+
 
     // Create a constant node
     const constA = LiteGraph.createNode("basic/const");
