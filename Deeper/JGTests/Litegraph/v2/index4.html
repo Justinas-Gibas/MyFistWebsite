@@ -179,153 +179,13 @@
       startedOnBackground: false,
       lastTapNode: null,
       isNodeMultiDrag: false,
-      isBackgroundMultiSelect: false,
-      // Multi-touch states for zooming and panning
-      multiTouch: {
-        isActive: false,
-        touches: [],
-        initialDistance: 0,
-        initialScale: 1,
-        initialCenter: { x: 0, y: 0 },
-        currentDistance: 0,
-        isPanning: false,
-        isZooming: false,
-        lastCenter: { x: 0, y: 0 },
-        panStartOffset: { x: 0, y: 0 }
-      }
+      isBackgroundMultiSelect: false
     };
 
     const LONG_PRESS_DURATION = 600; // ms
     const MOVE_THRESHOLD = 10; // pixels
     const DOUBLE_TAP_DELAY = 300; // ms
     const HOVER_UPDATE_INTERVAL = 16; // ms (~60fps)
-    const MIN_ZOOM_DISTANCE = 30; // Minimum distance between touches to start zooming
-    const ZOOM_SENSITIVITY = 0.005; // Zoom sensitivity factor
-    const MIN_SCALE = 0.1; // Minimum zoom level
-    const MAX_SCALE = 5.0; // Maximum zoom level
-
-    // Multi-touch helper functions
-    function getTouchDistance(touch1, touch2) {
-      const dx = touch1.clientX - touch2.clientX;
-      const dy = touch1.clientY - touch2.clientY;
-      return Math.sqrt(dx * dx + dy * dy);
-    }
-
-    function getTouchCenter(touch1, touch2) {
-      return {
-        x: (touch1.clientX + touch2.clientX) / 2,
-        y: (touch1.clientY + touch2.clientY) / 2
-      };
-    }
-
-    function initMultiTouch(touches) {
-      if (touches.length !== 2) return false;
-      
-      const touch1 = touches[0];
-      const touch2 = touches[1];
-      
-      touchState.multiTouch.isActive = true;
-      touchState.multiTouch.touches = [touch1, touch2];
-      touchState.multiTouch.initialDistance = getTouchDistance(touch1, touch2);
-      touchState.multiTouch.currentDistance = touchState.multiTouch.initialDistance;
-      touchState.multiTouch.initialCenter = getTouchCenter(touch1, touch2);
-      touchState.multiTouch.lastCenter = { ...touchState.multiTouch.initialCenter };
-      touchState.multiTouch.initialScale = canvas.ds.scale || 1;
-      touchState.multiTouch.isPanning = false;
-      touchState.multiTouch.isZooming = false;
-      
-      // Store initial canvas offset for panning
-      touchState.multiTouch.panStartOffset = {
-        x: canvas.ds.offset[0],
-        y: canvas.ds.offset[1]
-      };
-      
-      updateDebug(`Multi-touch initialized: distance=${touchState.multiTouch.initialDistance.toFixed(0)}, center=(${touchState.multiTouch.initialCenter.x.toFixed(0)}, ${touchState.multiTouch.initialCenter.y.toFixed(0)})`);
-      return true;
-    }
-
-    function updateMultiTouch(touches) {
-      if (!touchState.multiTouch.isActive || touches.length !== 2) return;
-      
-      const touch1 = touches[0];
-      const touch2 = touches[1];
-      const currentDistance = getTouchDistance(touch1, touch2);
-      const currentCenter = getTouchCenter(touch1, touch2);
-      
-      // Calculate distance and center changes
-      const distanceChange = currentDistance - touchState.multiTouch.initialDistance;
-      const centerDeltaX = currentCenter.x - touchState.multiTouch.lastCenter.x;
-      const centerDeltaY = currentCenter.y - touchState.multiTouch.lastCenter.y;
-      
-      // Determine if we're zooming or panning
-      const isZoomGesture = Math.abs(distanceChange) > MIN_ZOOM_DISTANCE;
-      const isPanGesture = Math.abs(centerDeltaX) > 5 || Math.abs(centerDeltaY) > 5;
-      
-      if (isZoomGesture && !touchState.multiTouch.isPanning) {
-        touchState.multiTouch.isZooming = true;
-        
-        // Calculate zoom factor
-        const scaleFactor = currentDistance / touchState.multiTouch.initialDistance;
-        let newScale = touchState.multiTouch.initialScale * scaleFactor;
-        
-        // Clamp scale
-        newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale));
-        
-        // Apply zoom around the center point
-        const rect = canvas.canvas.getBoundingClientRect();
-        const canvasCenter = {
-          x: currentCenter.x - rect.left,
-          y: currentCenter.y - rect.top
-        };
-        
-        // Convert to graph coordinates for zoom center
-        const graphCenter = canvas.convertCanvasToOffset([canvasCenter.x, canvasCenter.y]);
-        
-        // Apply the zoom
-        canvas.ds.scale = newScale;
-        canvas.setZoom(newScale, [graphCenter[0], graphCenter[1]]);
-        
-        updateDebug(`Zooming: scale=${newScale.toFixed(2)}, factor=${scaleFactor.toFixed(2)}`);
-        
-        if (DEBUG_MODE) {
-          showTouchPoint(currentCenter.x, currentCenter.y, "rgba(0, 255, 0, 0.8)");
-        }
-      }
-      
-      if (isPanGesture && !touchState.multiTouch.isZooming) {
-        touchState.multiTouch.isPanning = true;
-        
-        // Calculate pan delta in graph coordinates
-        const panDeltaX = centerDeltaX / canvas.ds.scale;
-        const panDeltaY = centerDeltaY / canvas.ds.scale;
-        
-        // Apply panning
-        canvas.ds.offset[0] -= panDeltaX;
-        canvas.ds.offset[1] -= panDeltaY;
-        canvas.setDirty(true, true);
-        
-        updateDebug(`Panning: delta=(${panDeltaX.toFixed(1)}, ${panDeltaY.toFixed(1)}), offset=(${canvas.ds.offset[0].toFixed(1)}, ${canvas.ds.offset[1].toFixed(1)})`);
-        
-        if (DEBUG_MODE) {
-          showTouchPoint(currentCenter.x, currentCenter.y, "rgba(255, 165, 0, 0.8)");
-        }
-      }
-      
-      // Update tracking variables
-      touchState.multiTouch.currentDistance = currentDistance;
-      touchState.multiTouch.lastCenter = currentCenter;
-    }
-
-    function cleanupMultiTouch() {
-      if (touchState.multiTouch.isActive) {
-        updateDebug(`Multi-touch ended: was ${touchState.multiTouch.isZooming ? 'zooming' : ''}${touchState.multiTouch.isPanning ? 'panning' : ''}`);
-      }
-      
-      touchState.multiTouch.isActive = false;
-      touchState.multiTouch.touches = [];
-      touchState.multiTouch.isPanning = false;
-      touchState.multiTouch.isZooming = false;
-    }
 
     // Helper function to check if touch is on a node
     function getTouchTarget(x, y) {
@@ -500,22 +360,10 @@
       touchState.startedOnBackground = false;
       touchState.isNodeMultiDrag = false;
       touchState.isBackgroundMultiSelect = false;
-      
-      // Also cleanup multi-touch state
-      cleanupMultiTouch();
     }
 
     // Handle touch start
     canvas.canvas.addEventListener("touchstart", (e) => {
-      // Handle multi-touch gestures (2 fingers)
-      if (e.touches.length === 2) {
-        e.preventDefault();
-        cleanupTouchState(); // Clean up any single-touch state
-        initMultiTouch(e.touches);
-        return;
-      }
-      
-      // Handle single touch
       if (e.touches.length !== 1) {
         cleanupTouchState();
         return;
@@ -583,14 +431,6 @@
 
     // Handle touch move
     canvas.canvas.addEventListener("touchmove", (e) => {
-      // Handle multi-touch move
-      if (e.touches.length === 2 && touchState.multiTouch.isActive) {
-        e.preventDefault();
-        updateMultiTouch(e.touches);
-        return;
-      }
-      
-      // Handle single touch move
       if (e.touches.length !== 1 || !touchState.startPosition || touchState.longPressHandled) return;
       e.preventDefault();
 
@@ -685,29 +525,6 @@
 
     // Handle touch end 
     canvas.canvas.addEventListener("touchend", (e) => {
-      // Handle multi-touch end
-      if (touchState.multiTouch.isActive) {
-        e.preventDefault();
-        
-        // If we still have 2+ touches, continue multi-touch
-        if (e.touches.length >= 2) {
-          updateMultiTouch(e.touches);
-          return;
-        }
-        
-        // Otherwise, end multi-touch mode
-        cleanupMultiTouch();
-        
-        // If there's still one touch remaining, we could transition to single-touch mode
-        // but for simplicity, we'll just clean up completely
-        if (e.touches.length === 1) {
-          updateDebug("Multi-touch ended, single touch remaining");
-          // Could initialize single touch here if desired
-        }
-        return;
-      }
-      
-      // Handle single touch end
       if (!touchState.startPosition || touchState.longPressHandled) {
         cleanupTouchState();
         return;
@@ -788,11 +605,6 @@
         showTouchPoint(touch.clientX, touch.clientY, "rgba(0, 0, 0, 1.0)");
       }
       
-      // Handle multi-touch cancel
-      if (touchState.multiTouch.isActive) {
-        cleanupMultiTouch();
-      }
-      
       if (touchState.isDragging) {
         const touch = e.changedTouches[0];
         let mouseUpOptions = {};
@@ -848,7 +660,7 @@
         updateDebug(`Found context methods: ${contextMethods.join(', ')}`);
       }
       
-      updateDebug("Enhanced touch support loaded - Single touch, Multi-touch zoom/pan, Hover simulation enabled");
+      updateDebug("Hover simulation enabled - virtual cursor follows all touch interactions");
     }
   </script>
 </body>
