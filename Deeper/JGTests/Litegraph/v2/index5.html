@@ -179,13 +179,22 @@
       startedOnBackground: false,
       lastTapNode: null,
       isNodeMultiDrag: false,
-      isBackgroundMultiSelect: false
+      isBackgroundMultiSelect: false,
+      // Two-finger touch states
+      isTwoFingerGesture: false,
+      initialDistance: 0,
+      initialScale: 1,
+      initialPanOffset: { x: 0, y: 0 },
+      lastTwoFingerCenter: null
     };
 
     const LONG_PRESS_DURATION = 600; // ms
     const MOVE_THRESHOLD = 10; // pixels
     const DOUBLE_TAP_DELAY = 300; // ms
     const HOVER_UPDATE_INTERVAL = 16; // ms (~60fps)
+    const MIN_ZOOM_SCALE = 0.2;
+    const MAX_ZOOM_SCALE = 4.0;
+    const ZOOM_SENSITIVITY = 0.005; // Adjust this to control zoom speed
 
     // Helper function to check if touch is on a node
     function getTouchTarget(x, y) {
@@ -360,10 +369,36 @@
       touchState.startedOnBackground = false;
       touchState.isNodeMultiDrag = false;
       touchState.isBackgroundMultiSelect = false;
+      // Reset two-finger states
+      touchState.isTwoFingerGesture = false;
+      touchState.lastTwoFingerCenter = null;
     }
 
     // Handle touch start
     canvas.canvas.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        cleanupTouchState(); // Clean up any single-touch state
+
+        touchState.isTwoFingerGesture = true;
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+
+        const dx = t1.clientX - t2.clientX;
+        const dy = t1.clientY - t2.clientY;
+        touchState.initialDistance = Math.sqrt(dx * dx + dy * dy);
+        touchState.initialScale = canvas.scale;
+
+        const centerX = (t1.clientX + t2.clientX) / 2;
+        const centerY = (t1.clientY + t2.clientY) / 2;
+        touchState.lastTwoFingerCenter = { x: centerX, y: centerY };
+        
+        touchState.initialPanOffset = { x: canvas.offset[0], y: canvas.offset[1] };
+
+        updateDebug(`Two-finger gesture started. Initial distance: ${touchState.initialDistance.toFixed(2)}`);
+        return;
+      }
+
       if (e.touches.length !== 1) {
         cleanupTouchState();
         return;
@@ -431,6 +466,45 @@
 
     // Handle touch move
     canvas.canvas.addEventListener("touchmove", (e) => {
+      if (touchState.isTwoFingerGesture) {
+        if (e.touches.length !== 2) return;
+        e.preventDefault();
+
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+
+        // --- Zooming ---
+        const dx = t1.clientX - t2.clientX;
+        const dy = t1.clientY - t2.clientY;
+        const currentDistance = Math.sqrt(dx * dx + dy * dy);
+        let scaleChange = (currentDistance - touchState.initialDistance) * ZOOM_SENSITIVITY;
+        let newScale = touchState.initialScale + scaleChange;
+        newScale = Math.max(MIN_ZOOM_SCALE, Math.min(MAX_ZOOM_SCALE, newScale));
+
+        // --- Panning ---
+        const currentCenter = { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
+        const panDelta = {
+            x: currentCenter.x - touchState.lastTwoFingerCenter.x,
+            y: currentCenter.y - touchState.lastTwoFingerCenter.y
+        };
+
+        // Apply pan delta to canvas offset
+        canvas.offset[0] += panDelta.x / canvas.scale;
+        canvas.offset[1] += panDelta.y / canvas.scale;
+
+        // --- Apply Zoom centered on touch midpoint ---
+        const rect = canvas.canvas.getBoundingClientRect();
+        const zoomPoint = [currentCenter.x - rect.left, currentCenter.y - rect.top];
+        canvas.zoom(newScale - canvas.scale, zoomPoint);
+
+        updateDebug(`Zoom: ${newScale.toFixed(2)}, Pan: (${canvas.offset[0].toFixed(0)}, ${canvas.offset[1].toFixed(0)})`);
+        
+        // Update state for next move event
+        touchState.lastTwoFingerCenter = currentCenter;
+        graph.setDirtyCanvas(true, true);
+        return;
+      }
+
       if (e.touches.length !== 1 || !touchState.startPosition || touchState.longPressHandled) return;
       e.preventDefault();
 
@@ -525,6 +599,14 @@
 
     // Handle touch end 
     canvas.canvas.addEventListener("touchend", (e) => {
+      if (touchState.isTwoFingerGesture) {
+        if (e.touches.length < 2) {
+          updateDebug("Two-finger gesture ended.");
+          cleanupTouchState();
+        }
+        return;
+      }
+
       if (!touchState.startPosition || touchState.longPressHandled) {
         cleanupTouchState();
         return;
