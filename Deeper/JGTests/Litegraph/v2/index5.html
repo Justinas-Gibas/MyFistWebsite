@@ -179,23 +179,13 @@
       startedOnBackground: false,
       lastTapNode: null,
       isNodeMultiDrag: false,
-      isBackgroundMultiSelect: false,
-      // Two-finger touch states
-      isTwoFingerGesture: false,
-      twoFingerStart: null,
-      initialDistance: 0,
-      initialScale: 1,
-      initialPanOffset: { x: 0, y: 0 },
-      lastTwoFingerCenter: null
+      isBackgroundMultiSelect: false
     };
 
     const LONG_PRESS_DURATION = 600; // ms
     const MOVE_THRESHOLD = 10; // pixels
     const DOUBLE_TAP_DELAY = 300; // ms
     const HOVER_UPDATE_INTERVAL = 16; // ms (~60fps)
-    const MIN_ZOOM_SCALE = 0.1;
-    const MAX_ZOOM_SCALE = 4.0;
-    const ZOOM_SENSITIVITY = 0.001; // Adjust this to control zoom speed
 
     // Helper function to check if touch is on a node
     function getTouchTarget(x, y) {
@@ -370,45 +360,15 @@
       touchState.startedOnBackground = false;
       touchState.isNodeMultiDrag = false;
       touchState.isBackgroundMultiSelect = false;
-      // Reset two-finger states
-      touchState.isTwoFingerGesture = false;
-      touchState.twoFingerStart = null;
-      touchState.initialDistance = 0;
-      touchState.initialScale = 1;
-      touchState.initialPanOffset = { x: 0, y: 0 };
-      touchState.lastTwoFingerCenter = null;
     }
 
     // Handle touch start
     canvas.canvas.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-
-      // Handle two-finger gestures
-      if (e.touches.length === 2) {
-        updateDebug("Two-finger gesture started");
-        cleanupTouchState();
-        
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        
-        touchState.isTwoFingerGesture = true;
-        touchState.initialDistance = getTouchDistance(touch1, touch2);
-        touchState.initialScale = canvas.ds.scale || 1;
-        touchState.initialPanOffset = { 
-          x: canvas.ds.offset[0] || 0, 
-          y: canvas.ds.offset[1] || 0 
-        };
-        touchState.lastTwoFingerCenter = getTouchCenter(touch1, touch2);
-        
-        updateDebug(`Two-finger start: distance=${touchState.initialDistance.toFixed(0)}, scale=${touchState.initialScale.toFixed(2)}`);
-        return;
-      }
-
-      // Handle single finger (existing logic)
       if (e.touches.length !== 1) {
         cleanupTouchState();
         return;
       }
+      e.preventDefault();
 
       const touch = e.touches[0];
       const currentTime = Date.now();
@@ -471,53 +431,8 @@
 
     // Handle touch move
     canvas.canvas.addEventListener("touchmove", (e) => {
-      e.preventDefault();
-
-      // Handle two-finger gestures
-      if (e.touches.length === 2 && touchState.isTwoFingerGesture) {
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        
-        const currentDistance = getTouchDistance(touch1, touch2);
-        const currentCenter = getTouchCenter(touch1, touch2);
-        
-        // Calculate zoom
-        const distanceRatio = currentDistance / touchState.initialDistance;
-        let newZoom = touchState.initialScale * distanceRatio;
-        newZoom = Math.max(MIN_ZOOM_SCALE, Math.min(MAX_ZOOM_SCALE, newZoom));
-        
-        // Calculate pan based on center movement
-        let panDeltaX = 0;
-        let panDeltaY = 0;
-        if (touchState.lastTwoFingerCenter) {
-          panDeltaX = (currentCenter.x - touchState.lastTwoFingerCenter.x) / newZoom;
-          panDeltaY = (currentCenter.y - touchState.lastTwoFingerCenter.y) / newZoom;
-        }
-        
-        // Apply zoom and pan to LiteGraph canvas
-        canvas.ds.scale = newZoom;
-        canvas.ds.offset[0] = touchState.initialPanOffset.x + panDeltaX;
-        canvas.ds.offset[1] = touchState.initialPanOffset.y + panDeltaY;
-        
-        // Update the canvas display
-        canvas.setDirty(true, true);
-        
-        // Update debug info
-        if (DEBUG_MODE && Math.random() < 0.1) { // Reduce debug spam
-          updateDebug(`Zoom: ${newZoom.toFixed(2)}x, Pan: (${canvas.ds.offset[0].toFixed(0)}, ${canvas.ds.offset[1].toFixed(0)})`);
-          
-          // Show visual indicators for both touch points
-          showTouchPoint(touch1.clientX, touch1.clientY, "rgba(0, 255, 255, 0.6)");
-          showTouchPoint(touch2.clientX, touch2.clientY, "rgba(0, 255, 255, 0.6)");
-          showTouchPoint(currentCenter.x, currentCenter.y, "rgba(255, 255, 0, 0.8)");
-        }
-        
-        touchState.lastTwoFingerCenter = currentCenter;
-        return;
-      }
-
-      // Handle single finger (existing logic)
       if (e.touches.length !== 1 || !touchState.startPosition || touchState.longPressHandled) return;
+      e.preventDefault();
 
       const touch = e.touches[0];
       const deltaX = Math.abs(touch.clientX - touchState.startPosition.x);
@@ -610,20 +525,11 @@
 
     // Handle touch end 
     canvas.canvas.addEventListener("touchend", (e) => {
-      e.preventDefault();
-
-      // Handle end of two-finger gesture
-      if (touchState.isTwoFingerGesture) {
-        updateDebug("Two-finger gesture ended");
-        cleanupTouchState();
-        return;
-      }
-
-      // Handle single finger (existing logic)
       if (!touchState.startPosition || touchState.longPressHandled) {
         cleanupTouchState();
         return;
       }
+      e.preventDefault();
 
       const touch = e.changedTouches[0];
       const currentTime = Date.now();
@@ -718,28 +624,6 @@
       e.preventDefault();
     }, { passive: false });
 
-    // Two-finger gesture helper functions
-    function getTouchDistance(touch1, touch2) {
-      const dx = touch1.clientX - touch2.clientX;
-      const dy = touch1.clientY - touch2.clientY;
-      return Math.sqrt(dx * dx + dy * dy);
-    }
-
-    function getTouchCenter(touch1, touch2) {
-      return {
-        x: (touch1.clientX + touch2.clientX) / 2,
-        y: (touch1.clientY + touch2.clientY) / 2
-      };
-    }
-
-    function convertScreenToCanvas(screenX, screenY) {
-      const rect = canvas.canvas.getBoundingClientRect();
-      return {
-        x: screenX - rect.left,
-        y: screenY - rect.top
-      };
-    }
-
     // Optional: Add pointer event support as fallback
     if (window.PointerEvent) {
       updateDebug("Pointer events supported");
@@ -777,7 +661,6 @@
       }
       
       updateDebug("Hover simulation enabled - virtual cursor follows all touch interactions");
-      updateDebug("Two-finger zoom/pan enabled - simultaneous zoom and pan support added");
     }
   </script>
 </body>
