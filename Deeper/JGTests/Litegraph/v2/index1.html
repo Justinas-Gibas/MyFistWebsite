@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Litegraph Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <script src="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/build/litegraph.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/css/litegraph.css" />
   <link rel="icon" type="image/x-icon" href="../../../upper/JG_favicon.ico">
@@ -13,6 +14,11 @@
       height: 100%; 
       overflow: hidden; 
       font-family: Arial, sans-serif;
+      /* Prevent text selection on mobile */
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
     }
     canvas { 
       width: 100vw; 
@@ -183,6 +189,7 @@
     }
     
     setupMobileOptimizations();
+    
   </script>
 
 
@@ -213,10 +220,9 @@
       lastTapNode: null,
       isNodeMultiDrag: false,
       isBackgroundMultiSelect: false,
-      // Zoom states
-      isZooming: false,
       initialDistance: 0,
       initialScale: 1,
+      isPinching: false,
       zoomCenter: { x: 0, y: 0 }
     };
 
@@ -224,8 +230,24 @@
     const MOVE_THRESHOLD = 10; // pixels
     const DOUBLE_TAP_DELAY = 300; // ms
     const HOVER_UPDATE_INTERVAL = 16; // ms (~60fps)
-    const MIN_ZOOM = 0.3; // Minimum zoom level
-    const MAX_ZOOM = 3.0; // Maximum zoom level
+    
+    const MIN_ZOOM_SCALE = 0.2;
+    const MAX_ZOOM_SCALE = 3.0;
+
+    // Helper function to get distance between two touches
+    function getTouchDistance(touch1, touch2) {
+      const dx = touch1.clientX - touch2.clientX;
+      const dy = touch1.clientY - touch2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    // Helper function to get center point between two touches
+    function getTouchCenter(touch1, touch2) {
+      return {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2
+      };
+    }
 
     // Helper function to check if touch is on a node
     function getTouchTarget(x, y) {
@@ -517,7 +539,7 @@
         let newScale = touchState.initialScale * scaleMultiplier;
         
         // Clamp scale to min/max values
-        newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newScale));
+        const clampedScale = Math.max(MIN_ZOOM_SCALE, Math.min(MAX_ZOOM_SCALE, newScale));;
         
         // Apply zoom with center point
         const rect = canvas.canvas.getBoundingClientRect();
@@ -784,7 +806,7 @@
       }
       
       updateDebug("Hover simulation enabled - virtual cursor follows all touch interactions");
-      updateDebug(`Mobile zoom enabled - Range: ${MIN_ZOOM}x to ${MAX_ZOOM}x`);
+      updateDebug(`Mobile zoom enabled - Range: ${MIN_ZOOM_SCALE}x to ${MAX_ZOOM_SCALE}x`);
     }
   </script>
 </body>

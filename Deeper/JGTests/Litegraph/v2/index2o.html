@@ -157,6 +157,20 @@
     graph.start();
     window.canvas.resize();
     
+    // Fix LiteGraph's non-passive mousewheel event listener
+    setTimeout(() => {
+      // Override LiteGraph's mousewheel handler to use passive events
+      const originalAddEventListener = canvas.canvas.addEventListener;
+      canvas.canvas.addEventListener = function(type, listener, options) {
+        if (type === 'mousewheel' || type === 'wheel') {
+          // Make wheel events passive to improve performance
+          const passiveOptions = typeof options === 'object' ? 
+            { ...options, passive: true } : { passive: true };
+          return originalAddEventListener.call(this, type, listener, passiveOptions);
+        }
+        return originalAddEventListener.call(this, type, listener, options);
+      };
+    }, 100);
   </script>
 
   <!-- Enhanced touch support with debugging -->
@@ -486,8 +500,6 @@
         // Calculate new scale
         const scaleChange = currentDistance / touchState.initialDistance;
         const newScale = touchState.initialScale * scaleChange;
-
-        // Clamp scale to min/max values
         const clampedScale = Math.max(MIN_ZOOM_SCALE, Math.min(MAX_ZOOM_SCALE, newScale));
         
         // Apply zoom centered on the pinch point
