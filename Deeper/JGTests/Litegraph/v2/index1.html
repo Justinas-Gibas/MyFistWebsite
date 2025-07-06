@@ -503,31 +503,45 @@
         
         const currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
         const currentCenter = getTouchCenter(e.touches[0], e.touches[1]);
-        
-        // Calculate new scale
+          
+        // Calculate scale change
         const scaleMultiplier = currentDistance / touchState.initialDistance;
-        let newScale = touchState.initialScale * scaleMultiplier;
+        const scaleDelta = scaleMultiplier - 1; // How much we've changed since start
+          
+        // Convert scale change to wheel delta
+        // Positive scaleDelta = zoom in (wheel up), negative = zoom out (wheel down)
+        const wheelDelta = scaleDelta * 1000; // Adjust sensitivity as needed
+          
+        // Create wheel event at the center of the two touches
+        const rect = canvas.canvas.getBoundingClientRect();
+        const centerX = currentCenter.x - rect.left;
+        const centerY = currentCenter.y - rect.top;
+          
+        const wheelEvent = new WheelEvent('wheel', {
+          clientX: currentCenter.x,
+          clientY: currentCenter.y,
+          deltaY: -wheelDelta, // Negative because wheel up = negative deltaY
+          deltaMode: WheelEvent.DOM_DELTA_PIXEL,
+          bubbles: true,
+          cancelable: true,
+          view: window
+        });
         
-        // Clamp scale to min/max values
-        //const clampedScale = Math.max(MIN_ZOOM_SCALE, Math.min(MAX_ZOOM_SCALE, newScale));;
+        // Add canvas-relative coordinates
+        wheelEvent.canvasX = centerX;
+        wheelEvent.canvasY = centerY;
+        wheelEvent.layerX = centerX;
+        wheelEvent.layerY = centerY;
+        wheelEvent.offsetX = centerX;
+        wheelEvent.offsetY = centerY;
         
-        // Apply zoom with center point
-        //const rect = canvas.canvas.getBoundingClientRect();
-        //const centerX = currentCenter.x - rect.left;
-        //const centerY = currentCenter.y - rect.top;
+        // Dispatch the wheel event
+        canvas.canvas.dispatchEvent(wheelEvent);
         
-        // Convert to canvas coordinates
-        //const canvasCenter = canvas.convertCanvasToOffset([centerX, centerY]);
+        // Update initial distance for next frame
+        touchState.initialDistance = currentDistance;
         
-        // Calculate offset adjustment to zoom towards center point
-        const scaleDiff = newScale / canvas.ds.scale;
-        canvas.ds.offset[0] = canvas.ds.offset[0] * scaleDiff;
-        canvas.ds.offset[1] = canvas.ds.offset[1] * scaleDiff;
-
-        canvas.ds.scale = newScale;
-        canvas.setDirty(true, true);
-        
-        updateDebug(`Zooming - Scale: ${newScale.toFixed(2)}, Distance: ${currentDistance.toFixed(0)}`);
+        updateDebug(`Simulating wheel at center (${centerX.toFixed(0)}, ${centerY.toFixed(0)}) - Delta: ${wheelDelta.toFixed(0)}`);
         
         if (DEBUG_MODE) {
           showTouchPoint(currentCenter.x, currentCenter.y, "rgba(0, 255, 255, 0.8)");

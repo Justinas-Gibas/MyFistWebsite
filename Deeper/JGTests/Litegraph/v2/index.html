@@ -494,14 +494,14 @@
         //const rect = canvas.canvas.getBoundingClientRect();
         //const screenCenterX = rect.width / 2;
         //const screenCenterY = rect.height / 2;
-        const canvasCenter = [0, 0]; // Use a fixed center for simplicity
+        const Center = [100, 100]; // Use a fixed center for simplicity
     
         
         // Calculate offset adjustment to zoom towards center point
         const scaleDiff = newScale / canvas.ds.scale;
-        canvas.ds.offset[0] = canvas.ds.offset[0] * scaleDiff + canvasCenter[0] * (1 - scaleDiff);
-        canvas.ds.offset[1] = canvas.ds.offset[1] * scaleDiff + canvasCenter[1] * (1 - scaleDiff);
-        
+        canvas.ds.offset[0] = canvas.ds.offset[0] * scaleDiff + Center[0] * (1 - scaleDiff);
+        canvas.ds.offset[1] = canvas.ds.offset[1] * scaleDiff + Center[1] * (1 - scaleDiff);
+
         canvas.ds.scale = newScale;
         canvas.setDirty(true, true);
         
