@@ -193,39 +193,6 @@
     const DOUBLE_TAP_DELAY = 300; // ms
     const HOVER_UPDATE_INTERVAL = 30; // ms (~30fps)
 
-    // Helper function to calculate distance between two touches
-    function getTouchDistance(touch1, touch2) {
-      const dx = touch1.clientX - touch2.clientX;
-      const dy = touch1.clientY - touch2.clientY;
-      return Math.sqrt(dx * dx + dy * dy);
-    }
-
-    // Helper function to get center point between two touches
-    function getTouchCenter(touch1, touch2) {
-      return {
-        x: (touch1.clientX + touch2.clientX) / 2,
-        y: (touch1.clientY + touch2.clientY) / 2
-      };
-    }
-    // Helper function to check if touch is on a node
-    function getTouchTarget(x, y) {
-      const rect = canvas.canvas.getBoundingClientRect();
-      const canvasX = x - rect.left;
-      const canvasY = y - rect.top;
-      
-      // Convert to graph coordinates
-      const graphPos = canvas.convertCanvasToOffset([canvasX, canvasY]);
-      
-      // Check if we're over a node
-      const node = graph.getNodeOnPos(graphPos[0], graphPos[1]);
-      return {
-        node: node,
-        isOnNode: !!node,
-        graphX: graphPos[0],
-        graphY: graphPos[1]
-      };
-    }
-
     // Debug functions
     function createDebugOverlay() {
       if (!DEBUG_MODE) return;
@@ -314,6 +281,25 @@
       }
     }
 
+    // Helper function to check if touch is on a node
+    function getTouchTarget(x, y) {
+      const rect = canvas.canvas.getBoundingClientRect();
+      const canvasX = x - rect.left;
+      const canvasY = y - rect.top;
+      
+      // Convert to graph coordinates
+      const graphPos = canvas.convertCanvasToOffset([canvasX, canvasY]);
+      
+      // Check if we're over a node
+      const node = graph.getNodeOnPos(graphPos[0], graphPos[1]);
+      return {
+        node: node,
+        isOnNode: !!node,
+        graphX: graphPos[0],
+        graphY: graphPos[1]
+      };
+    }
+
     // Helper function to create pointer event from touch
     function createPointerEvent(type, touch, options = {}) {
       const rect = canvas.canvas.getBoundingClientRect();
@@ -386,6 +372,21 @@
       touchState.initialScale = 1;
     }
 
+    // Helper function to calculate distance between two touches
+    function getTouchDistance(touch1, touch2) {
+      const dx = touch1.clientX - touch2.clientX;
+      const dy = touch1.clientY - touch2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    // Helper function to get center point between two touches
+    function getTouchCenter(touch1, touch2) {
+      return {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2
+      };
+    }
+
     // Handle touch start
     canvas.canvas.addEventListener("touchstart", (e) => {
       // Handle pinch-to-zoom (two fingers)
@@ -396,7 +397,13 @@
         touchState.isZooming = true;
         touchState.initialDistance = getTouchDistance(e.touches[0], e.touches[1]);
         touchState.initialScale = canvas.ds.scale;
-        touchState.zoomCenter = getTouchCenter(e.touches[0], e.touches[1]);
+
+        // Convert zoom center to canvas coordinates immediately
+        const screenCenter = getTouchCenter(e.touches[0], e.touches[1]);
+        const rect = canvas.canvas.getBoundingClientRect();
+        const centerX = screenCenter.x - rect.left;
+        const centerY = screenCenter.y - rect.top;
+        touchState.zoomCenter = canvas.convertCanvasToOffset([centerX, centerY]);
         
         updateDebug(`Pinch-to-zoom started - Distance: ${touchState.initialDistance.toFixed(0)}, Scale: ${touchState.initialScale.toFixed(2)}`);
         return;
@@ -603,6 +610,15 @@
 
     // Handle touch end 
     canvas.canvas.addEventListener("touchend", (e) => {
+      // Handle end of pinch-to-zoom
+      if (touchState.isZooming) {
+        e.preventDefault();
+        updateDebug(`Pinch-to-zoom ended - Final scale: ${canvas.ds.scale.toFixed(2)}`);
+        cleanupTouchState();
+        return;
+      }
+      
+      // Handle single touch end (existing code)
       if (!touchState.startPosition || touchState.longPressHandled) {
         cleanupTouchState();
         return;

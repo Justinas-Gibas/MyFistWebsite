@@ -300,8 +300,8 @@
         const panDeltaY = centerDeltaY / canvas.ds.scale;
         
         // Apply panning
-        canvas.ds.offset[0] -= panDeltaX;
-        canvas.ds.offset[1] -= panDeltaY;
+        canvas.ds.offset[0] += panDeltaX;
+        canvas.ds.offset[1] += panDeltaY;
         canvas.setDirty(true, true);
         
         updateDebug(`Panning: delta=(${panDeltaX.toFixed(1)}, ${panDeltaY.toFixed(1)}), offset=(${canvas.ds.offset[0].toFixed(1)}, ${canvas.ds.offset[1].toFixed(1)})`);
