@@ -494,7 +494,7 @@
         //const rect = canvas.canvas.getBoundingClientRect();
         //const screenCenterX = rect.width / 2;
         //const screenCenterY = rect.height / 2;
-        const canvasCenter = [500, 500]; // Use a fixed center for simplicity
+        const canvasCenter = [0, 0]; // Use a fixed center for simplicity
     
         
         // Calculate offset adjustment to zoom towards center point
@@ -506,9 +506,9 @@
         canvas.setDirty(true, true);
         
         updateDebug(`Zooming - Scale: ${newScale.toFixed(2)}, Distance: ${currentDistance.toFixed(0)}`);
-        showTouchPoint(currentCenter.x, currentCenter.y, "rgba(0, 255, 255, 0.8)");
-        
-        
+        showTouchPoint(canvasCenter[0], canvasCenter[1], "rgba(0, 255, 255, 0.8)");
+
+
         return;
       }
       
