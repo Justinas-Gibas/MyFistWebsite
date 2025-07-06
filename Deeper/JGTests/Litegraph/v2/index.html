@@ -150,6 +150,8 @@
     // Start the graph
     graph.start();
     window.canvas.resize();
+
+    
   </script>
 
 
@@ -179,14 +181,32 @@
       startedOnBackground: false,
       lastTapNode: null,
       isNodeMultiDrag: false,
-      isBackgroundMultiSelect: false
+      isBackgroundMultiSelect: false,
+      initialDistance: 0,
+      initialScale: 1,
+      isPinching: false,
+      zoomCenter: { x: 0, y: 0 }
     };
 
     const LONG_PRESS_DURATION = 600; // ms
     const MOVE_THRESHOLD = 10; // pixels
     const DOUBLE_TAP_DELAY = 300; // ms
-    const HOVER_UPDATE_INTERVAL = 16; // ms (~60fps)
+    const HOVER_UPDATE_INTERVAL = 30; // ms (~30fps)
 
+    // Helper function to calculate distance between two touches
+    function getTouchDistance(touch1, touch2) {
+      const dx = touch1.clientX - touch2.clientX;
+      const dy = touch1.clientY - touch2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    // Helper function to get center point between two touches
+    function getTouchCenter(touch1, touch2) {
+      return {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2
+      };
+    }
     // Helper function to check if touch is on a node
     function getTouchTarget(x, y) {
       const rect = canvas.canvas.getBoundingClientRect();
@@ -360,10 +380,28 @@
       touchState.startedOnBackground = false;
       touchState.isNodeMultiDrag = false;
       touchState.isBackgroundMultiSelect = false;
+      // Reset zoom states
+      touchState.isZooming = false;
+      touchState.initialDistance = 0;
+      touchState.initialScale = 1;
     }
 
     // Handle touch start
     canvas.canvas.addEventListener("touchstart", (e) => {
+      // Handle pinch-to-zoom (two fingers)
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        cleanupTouchState();
+        
+        touchState.isZooming = true;
+        touchState.initialDistance = getTouchDistance(e.touches[0], e.touches[1]);
+        touchState.initialScale = canvas.ds.scale;
+        touchState.zoomCenter = getTouchCenter(e.touches[0], e.touches[1]);
+        
+        updateDebug(`Pinch-to-zoom started - Distance: ${touchState.initialDistance.toFixed(0)}, Scale: ${touchState.initialScale.toFixed(2)}`);
+        return;
+      }
+
       if (e.touches.length !== 1) {
         cleanupTouchState();
         return;
@@ -431,6 +469,46 @@
 
     // Handle touch move
     canvas.canvas.addEventListener("touchmove", (e) => {
+      // Handle pinch-to-zoom (two fingers)
+      if (e.touches.length === 2 && touchState.isZooming) {
+        e.preventDefault();
+        
+        const currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
+        const currentCenter = getTouchCenter(e.touches[0], e.touches[1]);
+        
+        // Calculate new scale
+        const scaleMultiplier = currentDistance / touchState.initialDistance;
+        let newScale = touchState.initialScale * scaleMultiplier;
+        
+        // Clamp scale to min/max values
+        //const clampedScale = Math.max(MIN_ZOOM_SCALE, Math.min(MAX_ZOOM_SCALE, newScale));;
+        
+        // Apply zoom with center point
+        const rect = canvas.canvas.getBoundingClientRect();
+        const centerX = currentCenter.x - rect.left;
+        const centerY = currentCenter.y - rect.top;
+        
+        // Convert to canvas coordinates
+        const canvasCenter = canvas.convertCanvasToOffset([centerX, centerY]);
+        
+        // Calculate offset adjustment to zoom towards center point
+        const scaleDiff = newScale / canvas.ds.scale;
+        canvas.ds.offset[0] = canvas.ds.offset[0] * scaleDiff + canvasCenter[0] * (1 - scaleDiff);
+        canvas.ds.offset[1] = canvas.ds.offset[1] * scaleDiff + canvasCenter[1] * (1 - scaleDiff);
+        
+        canvas.ds.scale = newScale;
+        canvas.setDirty(true, true);
+        
+        updateDebug(`Zooming - Scale: ${newScale.toFixed(2)}, Distance: ${currentDistance.toFixed(0)}`);
+        
+        if (DEBUG_MODE) {
+          showTouchPoint(currentCenter.x, currentCenter.y, "rgba(0, 255, 255, 0.8)");
+        }
+        
+        return;
+      }
+      
+        // Handle single touch move (existing code)
       if (e.touches.length !== 1 || !touchState.startPosition || touchState.longPressHandled) return;
       e.preventDefault();
 
@@ -662,6 +740,8 @@
       
       updateDebug("Hover simulation enabled - virtual cursor follows all touch interactions");
     }
+
   </script>
+  
 </body>
 </html>

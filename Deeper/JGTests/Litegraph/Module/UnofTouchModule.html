@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LiteGraph Touch Module Test</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+  <!--<script src="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/build/litegraph.js"></script>-->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/css/litegraph.css" />
+  <script src="TouchModule.js"></script>
+  <link rel="icon" type="image/x-icon" href="../../../upper/JG_favicon.ico">
+
+  <style>
+    /* Color vars */
+    html, body { 
+      margin: 0; 
+      height: 100%; 
+      overflow: hidden; 
+      font-family: Arial, sans-serif;
+    }
+    canvas { 
+      width: 100vw; 
+      height: 100vh; 
+      display: block; 
+      background: #1e1e1e; 
+      touch-action: none;
+    }
+    
+    .info-panel {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(71, 71, 71, 0.226);
+      color: rgb(255, 255, 255);
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 12px;
+      z-index: 100;
+      max-width: 300px;
+      transition: all 0.3s ease; /* Add smooth transition */
+    }
+    
+    .info-panel.collapsed {
+      padding: 8px 15px;
+      max-height: 50px;
+    }
+    
+    .info-panel.collapsed .panel-content {
+      display: none;
+    }
+    
+    .info-panel h3 {
+      margin: 0 0 10px 0;
+      color: rgba(55, 252, 55, 0.9);
+      cursor: pointer; /* Make title clickable */
+    }
+    
+    .info-panel.collapsed h3 {
+      margin: 0;
+    }
+    
+    .toggle-btn {
+      background: rgba(55, 255, 55, 0.9);
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+  </style>  
+</head>
+<body>
+  <canvas id="graphcanvas" style='border: 1px solid'></canvas>
+  
+  <div class="info-panel" id="infoPanel">
+    <h3 onclick="toggleInfoPanel()">Touch Controls: <span id="collapseIcon">▼</span></h3>
+    <div class="panel-content">
+      <ul>
+        <li><strong>Single Tap:</strong> Select/Click</li>
+        <li><strong>Double Tap Background:</strong> Open search</li>
+        <li><strong>Drag:</strong> Move nodes/canvas</li>
+        <li><strong>Long Press:</strong> Node menu</li>
+        <li><strong>Long Press + Drag(Background):</strong> Multi-select</li>
+        <li><strong>Long Press + Drag(Node):</strong> Node multi-drag</li>
+      </ul>
+      <button class="toggle-btn" onclick="toggleTouchModule()">Disable Touch</button>
+      <button class="toggle-btn" onclick="toggleInfoPanel()">Collapse</button>
+    </div>
+  </div>
+
+  <script type="module">
+    // Import LiteGraph
+    import { LGraph, LGraphCanvas, LiteGraph } from "../../../lib/Litegraph/fork1/litegraph.js";
+
+
+    let touchModule = null;
+    let touchEnabled = true;
+
+    // Responsive canvas setup
+    function setupCanvas() {
+      const canvas = document.getElementById('graphcanvas');
+      const dpr = window.devicePixelRatio || 1;
+      
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+    }
+
+    // Initial setup
+    setupCanvas();
+    
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      setupCanvas();
+      if (window.canvas) {
+        window.canvas.resize();
+      }
+    });
+
+    // Create graph and canvas
+    const graph = new LGraph();
+    const canvas = new LGraphCanvas("#graphcanvas", graph);
+    window.canvas = canvas;
+
+    // Create sample nodes
+    const constA = LiteGraph.createNode("basic/const");
+    constA.pos = [100, 100];
+    constA.setValue(3);
+    graph.add(constA);
+
+    const constB = LiteGraph.createNode("basic/const");
+    constB.pos = [100, 200];
+    constB.setValue(7);
+    graph.add(constB);
+
+    // Custom add node
+    function AddNode() {
+      this.addInput("A", "number");
+      this.addInput("B", "number");
+      this.addOutput("Sum", "number");
+    }
+    AddNode.title = "Add";
+    AddNode.prototype.onExecute = function() {
+      const a = this.getInputData(0) || 0;
+      const b = this.getInputData(1) || 0;
+      this.setOutputData(0, a + b);
+    };
+    LiteGraph.registerNodeType("math/add", AddNode);
+
+    const adder = LiteGraph.createNode("math/add");
+    adder.pos = [300, 150];
+    graph.add(adder);
+
+    const watcher = LiteGraph.createNode("basic/watch");
+    watcher.pos = [500, 150];
+    graph.add(watcher);
+
+    // Connect the nodes
+    constA.connect(0, adder, 0);
+    constB.connect(0, adder, 1);
+    adder.connect(0, watcher, 0);
+
+    // Start the graph
+    graph.start();
+    canvas.resize();
+
+    // Initialize touch module
+    function initTouchModule() {
+      if (!touchModule) {
+        touchModule = new LiteGraphTouchModule();
+      }
+      touchModule.attach(canvas);
+      touchEnabled = true;
+      console.log('Touch module enabled');
+    }
+
+    function toggleTouchModule() {
+      const btn = document.querySelector('.toggle-btn');
+      
+      if (touchEnabled) {
+        if (touchModule) {
+          touchModule.detach();
+        }
+        touchEnabled = false;
+        btn.textContent = 'Enable Touch';
+        btn.style.background = '#ff4444';
+        console.log('Touch module disabled');
+      } else {
+        initTouchModule();
+        btn.textContent = 'Disable Touch';
+        btn.style.background = '#37fa37';
+      }
+    }
+
+    // Collapse/Expand info panel
+    function toggleInfoPanel() {
+      const infoPanel = document.getElementById('infoPanel');
+      const collapseIcon = document.getElementById('collapseIcon');
+      const closeBtn = document.querySelector('.toggle-btn:last-child');
+      
+      if (infoPanel.classList.contains('collapsed')) {
+        // Expand
+        infoPanel.classList.remove('collapsed');
+        collapseIcon.textContent = '▼';
+        closeBtn.textContent = 'Collapse';
+      } else {
+        // Collapse
+        infoPanel.classList.add('collapsed');
+        collapseIcon.textContent = '►';
+        closeBtn.textContent = 'Expand';
+      }
+    }
+    
+    // Auto-initialize touch module on load
+    initTouchModule();
+  </script>
+</body>
+</html>

@@ -309,7 +309,10 @@
         bubbles: true,
         cancelable: true,
         view: window,
-        ctrlKey: options.ctrlKey || false
+        ctrlKey: options.ctrlKey || false,
+        shiftKey: options.shiftKey || false,
+        altKey: options.altKey || false,
+        metaKey: options.metaKey || false
       });
       
       // Add canvas-relative coordinates that LiteGraph uses

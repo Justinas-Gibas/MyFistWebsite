@@ -38,6 +38,11 @@
       transform: translate(-50%, -50%);
       transition: all 0.1s ease-out;
     }
+    .graphmenu-entry.event,
+    .litemenu-entry.event {
+    border-left: 18px solid rgb(90, 37, 37);
+    padding-left: 22px;
+}
     
     @keyframes countdown {
       from {
@@ -155,41 +160,6 @@
     // Start the graph
     graph.start();
     window.canvas.resize();
-    
-    // Apply mobile optimizations after canvas is ready
-    function setupMobileOptimizations() {
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
-                     || window.innerWidth < 768;
-      
-      if (isMobile) {
-        // Increase default zoom for mobile (makes everything bigger)
-        canvas.ds.scale = 1.5; // Default is 1.0, increase to 1.5x
-        
-        // Adjust node rendering scale
-        LiteGraph.NODE_TITLE_HEIGHT = 24; // Default is 16
-        LiteGraph.NODE_SLOT_HEIGHT = 20;  // Default is 15
-        
-        // Make connection points larger for touch
-        LiteGraph.LINK_THICKNESS = 4;    // Default is 2
-        
-        // Adjust text sizes
-        canvas.title_text_font = "bold 14px Arial";     // Default is "bold 12px Arial"
-        canvas.inner_text_font = "normal 12px Arial";   // Default is "normal 10px Arial"
-        
-        // Increase minimum node size for easier touch interaction
-        LiteGraph.NODE_MIN_WIDTH = 120;  // Default is 80
-        
-        // Set initial zoom to show nodes at a comfortable size
-        canvas.ds.offset[0] = -50;  // Pan slightly to center content
-        canvas.ds.offset[1] = -50;
-        
-        console.log("Mobile optimizations applied - Scale:", canvas.ds.scale);
-        canvas.setDirty(true, true);
-      }
-    }
-    
-    setupMobileOptimizations();
-    
   </script>
 
 
