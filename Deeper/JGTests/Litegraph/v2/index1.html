@@ -509,7 +509,7 @@
         let newScale = touchState.initialScale * scaleMultiplier;
         
         // Clamp scale to min/max values
-        const clampedScale = Math.max(MIN_ZOOM_SCALE, Math.min(MAX_ZOOM_SCALE, newScale));;
+        //const clampedScale = Math.max(MIN_ZOOM_SCALE, Math.min(MAX_ZOOM_SCALE, newScale));;
         
         // Apply zoom with center point
         const rect = canvas.canvas.getBoundingClientRect();
@@ -517,13 +517,13 @@
         const centerY = currentCenter.y - rect.top;
         
         // Convert to canvas coordinates
-        const canvasCenter = canvas.convertCanvasToOffset([centerX, centerY]);
+        //const canvasCenter = canvas.convertCanvasToOffset([centerX, centerY]);
         
         // Calculate offset adjustment to zoom towards center point
         const scaleDiff = newScale / canvas.ds.scale;
-        canvas.ds.offset[0] = canvas.ds.offset[0] * scaleDiff + canvasCenter[0] * (1 - scaleDiff);
-        canvas.ds.offset[1] = canvas.ds.offset[1] * scaleDiff + canvasCenter[1] * (1 - scaleDiff);
-        
+        canvas.ds.offset[0] = canvas.ds.offset[0] * scaleDiff + currentCenter[0] * (1 - scaleDiff);
+        canvas.ds.offset[1] = canvas.ds.offset[1] * scaleDiff + currentCenter[1] * (1 - scaleDiff);
+
         canvas.ds.scale = newScale;
         canvas.setDirty(true, true);
         

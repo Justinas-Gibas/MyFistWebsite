@@ -510,6 +510,7 @@
         
         canvas.setDirty(true, true);
         updateDebug(`Pinching: scale=${clampedScale.toFixed(2)} (${(scaleChange * 100).toFixed(0)}%)`);
+        showTouchPoint(currentCenter.x, currentCenter.y, "rgba(0, 255, 0, 0.5)");
         return;
       }
 
