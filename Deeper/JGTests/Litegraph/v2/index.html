@@ -491,10 +491,10 @@
         //const clampedScale = Math.max(MIN_ZOOM_SCALE, Math.min(MAX_ZOOM_SCALE, newScale));;
         
            // Get screen center in canvas coordinates
-        const rect = canvas.canvas.getBoundingClientRect();
-        const screenCenterX = rect.width / 2;
-        const screenCenterY = rect.height / 2;
-        const canvasCenter = canvas.convertCanvasToOffset([screenCenterX, screenCenterY]);
+        //const rect = canvas.canvas.getBoundingClientRect();
+        //const screenCenterX = rect.width / 2;
+        //const screenCenterY = rect.height / 2;
+        const canvasCenter = [500, 500]; // Use a fixed center for simplicity
     
         
         // Calculate offset adjustment to zoom towards center point
@@ -506,10 +506,8 @@
         canvas.setDirty(true, true);
         
         updateDebug(`Zooming - Scale: ${newScale.toFixed(2)}, Distance: ${currentDistance.toFixed(0)}`);
+        showTouchPoint(currentCenter.x, currentCenter.y, "rgba(0, 255, 255, 0.8)");
         
-        if (DEBUG_MODE) {
-          showTouchPoint(currentCenter.x, currentCenter.y, "rgba(0, 255, 255, 0.8)");
-        }
         
         return;
       }
