@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NPM Top Downloaded Packages (Paginated)</title>
+  <style>
+    /* Base styles */
+    body {
+      margin: 0;
+      padding: 1em;
+      font-family: sans-serif;
+      background-color: #111;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Responsive container */
+    .container {
+      width: 100%;
+      max-width: 600px;
+    }
+
+    h1 {
+      font-size: 1.5em;
+      text-align: center;
+      margin-bottom: 1em;
+    }
+
+    /* Package list styles */
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      width: 100%;
+    }
+
+    li {
+      background: #222;
+      margin: 0.5em 0;
+      padding: 1em;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Package name and number */
+    .package {
+      font-weight: bold;
+      font-size: 1.1em;
+    }
+
+    /* Link to npm page */
+    .link {
+      display: inline-block;
+      margin-top: 0.5em;
+      color: #6cf;
+      text-decoration: none;
+      font-size: 0.9em;
+    }
+    .link:hover {
+      text-decoration: underline;
+    }
+
+    /* Load more button */
+    #load-more {
+      background: #ff00ff20;
+      color: #fff;
+      border: none;
+      padding: 0.8em 1.2em;
+      font-size: 1em;
+      border-radius: 6px;
+      cursor: pointer;
+      margin: 1.5em 0;
+      width: 100%;
+      max-width: 600px;
+    }
+    #load-more:disabled {
+      background: #555;
+      cursor: default;
+    }
+
+    /* Mobile adjustments */
+    @media (max-width: 480px) {
+      li { padding: 0.8em; }
+      .package { font-size: 1em; }
+      .link { font-size: 0.85em; }
+      #load-more { font-size: 0.9em; padding: 0.6em 1em; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Top Downloaded NPM Packages</h1>
+    <ul id="package-list"></ul>
+    <button id="load-more">Load More</button>
+  </div>
+
+  <script type="module">
+    import { npmTopDownloads } from 'https://esm.sh/npm-high-impact@1?bundle';
+
+    const listEl = document.getElementById('package-list');
+    const loadMoreBtn = document.getElementById('load-more');
+    const pageSize = 10;       // Number of items per page
+    let currentPage = 0;        // Current page index (zero-based)
+
+    /**
+     * Renders a page of package entries.
+     * @param {number} page - The page number to render.
+     */
+    function renderPage(page) {
+      const start = page * pageSize;
+      const end = start + pageSize;
+      const slice = npmTopDownloads.slice(start, end);
+
+      // For first page, clear any existing entries
+      if (page === 0) {
+        listEl.innerHTML = '';
+      }
+
+      slice.forEach((pkgName, idx) => {
+        const li = document.createElement('li');
+        const number = start + idx + 1;
+        // Construct list item with number, name, and link
+        li.innerHTML = `
+          <span class="package">${number}. ${pkgName}</span>
+          <a class="link" href="https://www.npmjs.com/package/${pkgName}" target="_blank" rel="noopener noreferrer">
+            Read more on npmjs.com
+          </a>
+        `;
+        listEl.appendChild(li);
+      });
+
+      // If we've reached the end of the list, disable the button
+      if (end >= npmTopDownloads.length) {
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.textContent = 'No More Packages';
+      }
+    }
+
+    // Initial render of page 0
+    renderPage(currentPage);
+
+    // Load more on button click
+    loadMoreBtn.addEventListener('click', () => {
+      currentPage += 1;
+      renderPage(currentPage);
+    });
+  </script>
+</body>
+</html>

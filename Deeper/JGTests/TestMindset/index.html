@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔬 FunctionForge - AI-Powered Function Tester</title>
+    <style>
+        /* TODO: Consider moving to external CSS for better performance and caching */
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --success: #059669;
+            --warning: #d97706;
+            --danger: #dc2626;
+            --dark: #1f2937;
+            --light: #f8fafc;
+            --border: #e5e7eb;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'SF Pro Display', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: var(--dark);
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            min-height: 100vh;
+        }
+        
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .header {
+            grid-column: 1 / -1;
+            text-align: center;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            margin-bottom: 20px;
+        }
+        
+        .ai-config {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            margin-bottom: 20px;
+        }
+        
+        .ai-config h3 {
+            color: white;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            align-items: end;
+        }
+        
+        .config-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .config-label {
+            font-weight: 600;
+            font-size: 0.875rem;
+            opacity: 0.9;
+        }
+        
+        .config-input {
+            padding: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 14px;
+        }
+        
+        .config-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .config-input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .config-select {
+            padding: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .config-select option {
+            background: var(--dark);
+            color: white;
+        }
+        
+        .api-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.875rem;
+            padding: 6px 12px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            margin-top: 8px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        
+        .status-connected { background: #10b981; }
+        .status-disconnected { background: #ef4444; }
+        .status-testing { background: #f59e0b; animation: pulse 2s infinite; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .code-input {
+            width: 100%;
+            height: 300px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 14px;
+            padding: 16px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            resize: vertical;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            line-height: 1.5;
+        }
+        
+        .code-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 4px;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+        
+        .btn-success { background: var(--success); color: white; }
+        .btn-warning { background: var(--warning); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        
+        .results {
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 16px;
+            border-radius: 12px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .ai-guidance {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 16px;
+            border-radius: 12px;
+            margin: 16px 0;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin: 16px 0;
+        }
+        
+        .stat {
+            text-align: center;
+            padding: 12px;
+            background: var(--light);
+            border-radius: 8px;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 16px;
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: #6b7280;
+            border-bottom: 2px solid transparent;
+        }
+        
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        
+        .complexity-meter {
+            width: 100%;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+        
+        .complexity-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        
+        .complexity-low { background: var(--success); }
+        .complexity-medium { background: var(--warning); }
+        .complexity-high { background: var(--danger); }
+        
+        /* HACK: Better mobile responsiveness needed */
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="panel header">
+            <h1>🔬 FunctionForge</h1>
+            <p>AI-Powered Function Testing | Drop any function, get enterprise-grade tests instantly</p>
+        </div>
+        
+        <div class="panel ai-config">
+            <h3>🤖 AI Configuration</h3>
+            <div class="config-grid">
+                <div class="config-group">
+                    <label class="config-label">AI Provider</label>
+                    <select id="aiProvider" class="config-select" onchange="forge.onProviderChange()">
+                        <option value="">Select Provider</option>
+                        <option value="openai">OpenAI (GPT-4/3.5)</option>
+                        <option value="anthropic">Anthropic (Claude)</option>
+                        <option value="google">Google (Gemini)</option>
+                        <option value="azure">Azure OpenAI</option>
+                        <option value="local">Local Model</option>
+                        <option value="custom">Custom Model</option>
+                    </select>
+                </div>
+                
+                <div class="config-group">
+                    <label class="config-label">Model</label>
+                    <select id="aiModel" class="config-select" onchange="forge.onModelChange()">
+                        <option value="">Select Model</option>
+                    </select>
+                </div>
+                
+                <div class="config-group">
+                    <label class="config-label">Custom Model (Optional)</label>
+                    <input 
+                        id="customModel" 
+                        type="text" 
+                        class="config-input" 
+                        placeholder="e.g., gpt-4-turbo-preview"
+                        onchange="forge.onCustomModelChange()"
+                    />
+                </div>
+            </div>
+            
+            <div style="margin-top: 16px;">
+                <div class="config-group">
+                    <label class="config-label">API Key</label>
+                    <input 
+                        id="apiKey" 
+                        type="password" 
+                        class="config-input" 
+                        placeholder="Enter your API key (stored locally only)"
+                        onchange="forge.onApiKeyChange()"
+                    />
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
+                    <div class="api-status" id="apiStatus">
+                        <div class="status-dot status-disconnected"></div>
+                        <span>Not Connected</span>
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="forge.testConnection()" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);">
+                        🔧 Test Connection
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>🚀 Function Input</h2>
+            <textarea 
+                id="functionInput" 
+                class="code-input" 
+                placeholder="// Paste your function here or write a new one
+function myFunction(param1, param2) {
+    // Your code here
+    return param1 + param2;
+}
+
+// Multiple functions are supported!
+function anotherFunction(data) {
+    return data.filter(x => x > 0);
+}"
+                spellcheck="false"
+            ></textarea>
+            
+            <div style="margin-top: 16px;">
+                <button class="btn btn-primary" onclick="forge.analyzeAndTest()">
+                    🔬 Analyze & Test
+                </button>
+                <button class="btn btn-success" onclick="forge.quickTest()">
+                    ⚡ Quick Test
+                </button>
+                <button class="btn btn-warning" onclick="forge.stressTest()">
+                    💪 Stress Test
+                </button>
+                <button class="btn btn-danger" onclick="forge.securityTest()">
+                    🛡️ Security Test
+                </button>
+            </div>
+            
+            <div class="ai-guidance" id="aiGuidance">
+                💡 <strong>AI Mentor:</strong> Configure your AI provider above to unlock intelligent code analysis and suggestions!
+            </div>
+        </div>
+        
+        <div class="panel">
+            <div class="tabs">
+                <button class="tab active" onclick="forge.switchTab('results')">📊 Results</button>
+                <button class="tab" onclick="forge.switchTab('analysis')">🔍 Analysis</button>
+                <button class="tab" onclick="forge.switchTab('suggestions')">💡 AI Insights</button>
+            </div>
+            
+            <div id="resultsTab">
+                <div class="stats">
+                    <div class="stat">
+                        <div class="stat-value" id="testCount">0</div>
+                        <div class="stat-label">Tests Generated</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="passRate">0%</div>
+                        <div class="stat-label">Pass Rate</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="coverage">0%</div>
+                        <div class="stat-label">Coverage</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value" id="complexity">0</div>
+                        <div class="stat-label">Complexity</div>
+                    </div>
+                </div>
+                
+                <div id="testResults" class="results">
+                    🎬 Test results will appear here...
+                    
+Ready to forge some tests! 🔥
+                </div>
+            </div>
+            
+            <div id="analysisTab" style="display: none;">
+                <div id="functionAnalysis" class="results">
+                    📈 Function analysis will appear here...
+                </div>
+            </div>
+            
+            <div id="suggestionsTab" style="display: none;">
+                <div id="aiSuggestions" class="results">
+                    🤖 AI suggestions will appear here...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load modules in dependency order -->
+    <script src="./modules/TypeInferenceEngine.js"></script>
+    <script src="./modules/EdgeCaseGenerator.js"></script>
+    <script src="./modules/ExpectationBuilder.js"></script>
+    <script src="./modules/TestSuite.js"></script>
+    <script src="./modules/AutoTestGen.js"></script>
+    <script src="./main.js"></script>
+</body>
+</html>
