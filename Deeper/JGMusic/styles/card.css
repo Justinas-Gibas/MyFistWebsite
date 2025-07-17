@@ -1,0 +1,95 @@
+/* Card Styles */
+    .file-item {
+      background-color: #444;
+      color: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .file-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+    }
+
+/* Card Header */
+    .file-card-header {
+      position: relative;
+      height: 200px;
+      overflow: hidden;
+    }
+
+    .file-artwork {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s;
+    }
+
+    .file-item:hover .file-artwork {
+      transform: scale(1.05);
+    }
+
+    .play-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .file-item:hover .play-overlay {
+      opacity: 1;
+    }
+
+    .play-btn {
+      background-color: var(--accent-color);
+      color: var(--alt-text-color);
+      opacity: 1;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 0px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .play-btn:hover {
+      transform: scale(1.1);
+    }
+
+/* Card Content */
+    .file-card-content {
+      padding: 15px;
+    }
+
+    .file-name {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #fff;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+      font-size: 14px;
+      color: #aaa;
+    }
+
+    .file-duration {
+      color: var(--accent-color);
+    }

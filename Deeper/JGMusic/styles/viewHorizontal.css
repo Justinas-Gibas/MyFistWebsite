@@ -1,0 +1,17 @@
+    /* Horizontal View */
+    .horizontal-view #file-list {
+      display: flex;
+      overflow-x: auto;
+      gap: 20px;
+      padding-bottom: 10px;
+    }
+
+    .horizontal-view .file-item {
+      min-width: 300px;
+      flex-shrink: 0;
+    }
+    
+/* Horizontal View Specific Styles */
+    .horizontal-view .file-card-header {
+      height: 180px;
+    }

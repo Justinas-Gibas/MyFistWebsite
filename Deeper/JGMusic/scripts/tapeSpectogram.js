@@ -1,0 +1,221 @@
+/**
+ * @fileoverview Tape Spectrogram Script
+ * @description Visualizes audio frequency data as a tape-style spectrogram
+ * @author Justinas Gibas
+ * @since 2025-07-17
+ * 
+ * 
+ */
+
+
+    // Minimal Spectrogram Core Code
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let audioCtx, analyser, dataArray, source;
+    
+    // Core color generation function - this is what creates the heat map colors
+    function getColor(value) {
+      const intensity = Math.pow(value / 255, 0.6); // Enhance contrast
+      
+      if (intensity < 0.005) return '#000000'; // Black for silence
+      
+      // Heat map: dark blue -> orange -> yellow -> white
+      if (intensity < 0.2) {
+        const r = Math.floor(intensity * 5 * 30);
+        const g = Math.floor(intensity * 5 * 50);
+        const b = Math.floor(intensity * 5 * 100);
+        return `rgb(${r},${g},${b})`;
+      } else if (intensity < 0.4) {
+        const t = (intensity - 0.2) * 5;
+        const r = Math.floor(30 + t * 180);
+        const g = Math.floor(50 + t * 80);
+        const b = Math.floor(100 - t * 80);
+        return `rgb(${r},${g},${b})`;
+      } else if (intensity < 0.7) {
+        const t = (intensity - 0.4) / 0.3;
+        const r = Math.floor(210 + t * 45);
+        const g = Math.floor(130 + t * 125);
+        const b = Math.floor(20 + t * 50);
+        return `rgb(${r},${g},${b})`;
+      } else {
+        const t = (intensity - 0.7) / 0.3;
+        const val = Math.floor(255 * (0.8 + t * 0.2));
+        return `rgb(${val},${val},${val})`;
+      }
+    }
+    
+    // Process frequency data to emphasize low frequencies
+    function processFrequencies(rawData) {
+      const bands = 256;
+      const processed = new Array(bands).fill(0);
+      
+      for (let i = 0; i < bands; i++) {
+        // Logarithmic mapping to emphasize low frequencies
+        const logIndex = Math.pow(i / bands, 2.8) * (rawData.length - 1);
+        const index = Math.floor(logIndex);
+        const fraction = logIndex - index;
+        
+        if (index < rawData.length - 1) {
+          processed[i] = rawData[index] * (1 - fraction) + rawData[index + 1] * fraction;
+        } else {
+          processed[i] = rawData[index] || 0;
+        }
+      }
+      
+      return processed;
+    }
+    
+    // Main visualization loop
+    function draw() {
+      if (!analyser) return requestAnimationFrame(draw);
+      
+      analyser.getByteFrequencyData(dataArray);
+      
+      // Shift existing image left
+      const imageData = ctx.getImageData(1, 0, canvas.width - 1, canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear entire canvas first
+      ctx.putImageData(imageData, 0, 0);
+      
+      // Process and draw new frequency column
+      const frequencies = processFrequencies(dataArray);
+      const barHeight = canvas.height / frequencies.length;
+      
+      for (let i = 0; i < frequencies.length; i++) {
+        const value = frequencies[i] * 1.8;
+        const y = Math.floor(canvas.height - ((i + 1) * barHeight));
+        
+        ctx.fillStyle = getColor(value);
+        ctx.fillRect(canvas.width - 1, y, 1, Math.ceil(barHeight));
+      }
+      
+      requestAnimationFrame(draw);
+    }
+    
+    // Initialize audio processing
+    function initAudio(audioBuffer) {
+      if (!audioCtx) audioCtx = new AudioContext();
+      
+      // Stop any existing source
+      if (source) source.stop();
+      
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+      
+      source = audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.loop = true;
+      source.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      source.start();
+      
+      draw();
+    }
+    // END Minimal Spectrogram Core Code
+    
+    // Load audio file from PC
+    document.getElementById('fileInput').addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      try {
+        if (!audioCtx) audioCtx = new AudioContext();
+        
+        const arrayBuffer = await file.arrayBuffer();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        initAudio(audioBuffer);
+        stopButton.disabled = false;
+      } catch (error) {
+        console.error('Error loading audio file:', error);
+        alert('Error loading audio file. Please try a different file.');
+      }
+    });
+    
+    // Frequency generator variables
+    let oscillator = null;
+    let gainNode = null;
+    let isPlaying = false;
+    
+    // Get slider elements
+    const frequencySlider = document.getElementById('frequencySlider');
+    const frequencyValue = document.getElementById('frequencyValue');
+    const toneButton = document.getElementById('toneButton');
+    const stopButton = document.getElementById('stopButton');
+
+    // Frequency scaling functions
+    function sliderToFrequency(sliderValue) {
+      // Logarithmic scale: 20Hz to 20kHz
+      const minFreq = Math.log(20);
+      const maxFreq = Math.log(20000);
+      const scale = (maxFreq - minFreq) / (20000 - 20);
+      return Math.round(Math.exp(minFreq + scale * (sliderValue - 20)));
+    }
+
+    // Initialize frequency display
+    frequencyValue.textContent = sliderToFrequency(frequencySlider.value);
+    
+    // Update frequency display when slider changes
+    frequencySlider.addEventListener('input', (e) => {
+      const frequency = sliderToFrequency(e.target.value);
+      frequencyValue.textContent = frequency;
+      if (oscillator && isPlaying) {
+        oscillator.frequency.value = frequency;
+      }
+    });
+    
+    // Tone button
+    toneButton.addEventListener('click', () => {
+      if (!audioCtx) audioCtx = new AudioContext();
+      
+      if (!analyser) {
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.connect(audioCtx.destination);
+        draw();
+      }
+      if (isPlaying) {
+        oscillator.stop();
+        oscillator = null;
+        gainNode = null;
+        isPlaying = false;
+        toneButton.textContent = 'Play Tone';
+      } else {
+        // Create oscillator for tone generation
+        oscillator = audioCtx.createOscillator();
+        gainNode = audioCtx.createGain();
+        
+        oscillator.type = 'triangle'; // Default wave type
+        oscillator.frequency.value = frequencySlider.value;
+        gainNode.gain.value = 0.005; // Low volume
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(analyser);
+        
+        oscillator.start();
+        isPlaying = true;
+        
+        // lets change play to stop button
+        toneButton.textContent = 'Stop Tone';
+        // stop all audio button enable
+        stopButton.disabled = false;
+      }
+    });
+    
+    // Stop all button
+    stopButton.addEventListener('click', () => {
+      if (oscillator) {
+        oscillator.stop();
+        oscillator = null;
+        gainNode = null;
+        isPlaying = false;
+      }
+      // stop mp3 file
+      if (source) {
+        source.stop();
+        source = null;
+      }
+      stopButton.disabled = true;
+    });
+    

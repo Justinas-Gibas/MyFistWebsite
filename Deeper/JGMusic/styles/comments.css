@@ -1,0 +1,53 @@
+/* Comments styles */
+    .comments-section {
+      background-color: #555;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 4px;
+    }
+    .comments-section strong {
+      display: block;
+      margin-bottom: 5px;
+      color: #aaa;
+    }
+    .comments-list {
+      max-height: 150px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+    .comment {
+      background-color: #666;
+      color: yellow;
+      padding: 5px;
+      margin: 5px 0;
+      border-radius: 3px;
+      font-size: 18px;
+    }
+    .comment-input {
+      width: 100%;
+      padding: 8px;
+      border-radius: 4px;
+      margin-top: 5px;
+      border: 1px solid #777;
+      box-sizing: border-box;
+      background-color: #333;
+      color: #fff;
+    }
+    .post-comment-btn {
+      background-color: var(--accent-color);
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin-top: 5px;
+      cursor: pointer;
+      color: var(--alt-text-color);
+      font-weight: bold;
+    }
+    .post-comment-btn:hover {
+      background-color: #00cccc;
+    }
+
+    /* List View Comments */
+    .list-view .comments-section {
+      display: none; /* Hide comments in list view for cleaner look */
+    }

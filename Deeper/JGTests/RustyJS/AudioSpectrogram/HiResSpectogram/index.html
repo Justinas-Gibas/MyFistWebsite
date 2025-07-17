@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rusty Music Visualizer</title>
+  <style>
+    body { margin: 0; background: #111; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+    #controls { margin: 1em; display: flex; gap: 1em; flex-wrap: wrap; }
+    canvas { background: #222; image-rendering: pixelated; }
+    .slider { display: flex; flex-direction: column; align-items: center; }
+    .slider input { width: 150px; }
+  </style>
+</head>
+<body>
+  <h2>Rust-Inspired Music Visualizer</h2>
+  <div id="controls">
+    <input type="file" id="fileInput" accept="audio/*" />
+    <div class="slider">
+      <label for="freqSlider">Tone Frequency</label>
+      <input type="range" id="freqSlider" min="20" max="20000" value="440" />
+      <span id="freqValue">440 Hz</span>
+    </div>
+    <div class="slider">
+      <label for="waveSelect">Waveform</label>
+      <select id="waveSelect">
+        <option value="sine">Sine</option>
+        <option value="square">Square</option>
+        <option value="sawtooth">Sawtooth</option>
+        <option value="triangle">Triangle</option>
+    </select>
+    </div>
+    <button id="toggleTone">Start Tone</button>
+  </div>
+  <canvas id="tape" width="800" height="400"></canvas>
+
+  <script>
+    const canvas = document.getElementById('tape');
+    const ctx = canvas.getContext('2d');
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+
+    const fileInput = document.getElementById('fileInput');
+    const freqSlider = document.getElementById('freqSlider');
+    const freqValue = document.getElementById('freqValue');
+    const waveSelect = document.getElementById('waveSelect');
+    const toggleTone = document.getElementById('toggleTone');
+
+    let audioCtx = null;
+    let analyser = null;
+    let dataArray = null;
+    let sourceNode = null;
+    let oscillator = null;
+    let animationId = null;
+
+    function setupAudio(buffer) {
+      if (animationId) cancelAnimationFrame(animationId);
+      if (sourceNode) sourceNode.disconnect();
+      audioCtx = new AudioContext();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      sourceNode = audioCtx.createBufferSource();
+      sourceNode.buffer = buffer;
+      sourceNode.loop = true;
+      sourceNode.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      sourceNode.start();
+
+      draw();
+    }
+
+    fileInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const arrayBuffer = await file.arrayBuffer();
+      if (!audioCtx) audioCtx = new AudioContext();
+      const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+      setupAudio(decoded);
+    };
+
+    function draw() {
+      analyser.getByteFrequencyData(dataArray);
+      const imageData = ctx.getImageData(0, 0, WIDTH, HEIGHT - 1);
+      ctx.putImageData(imageData, 0, 1);
+      const sliceWidth = WIDTH / dataArray.length;
+      for (let i = 0; i < dataArray.length; i++) {
+        const v = dataArray[i];
+        ctx.fillStyle = `rgb(${v}, ${v}, ${v})`;
+        ctx.fillRect(i * sliceWidth, 0, sliceWidth, 1);
+      }
+      animationId = requestAnimationFrame(draw);
+    }
+
+    let toneOn = false;
+    toggleTone.onclick = () => {
+      if (!audioCtx) audioCtx = new AudioContext();
+      if (!analyser) {
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 1024;
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.connect(audioCtx.destination);
+        draw();
+      }
+      if (!toneOn) {
+        oscillator = audioCtx.createOscillator();
+        oscillator.type = waveSelect.value;
+        oscillator.frequency.setValueAtTime(freqSlider.value, audioCtx.currentTime);
+        oscillator.connect(analyser);
+        oscillator.start();
+        toggleTone.textContent = 'Stop Tone';
+      } else {
+        oscillator.stop();
+        toggleTone.textContent = 'Start Tone';
+      }
+      toneOn = !toneOn;
+    };
+
+    freqSlider.oninput = () => {
+      freqValue.textContent = `${freqSlider.value} Hz`;
+      if (oscillator) oscillator.frequency.setValueAtTime(freqSlider.value, audioCtx.currentTime);
+    };
+
+    waveSelect.onchange = () => {
+      if (oscillator) oscillator.type = waveSelect.value;
+    };
+  </script>
+</body>
+</html>

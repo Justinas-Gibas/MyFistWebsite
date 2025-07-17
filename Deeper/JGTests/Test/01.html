@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            --background-color: #333;
+            --text-color: #fff;
+            --link-color: #7c0;
+            --link-hover-color: #05b;
+        }
+
+        .hoverefect01 {
+            transition: all 0.3s ease;
+            color: var(--link-color);
+            transform: scale(1);
+        }
+        .hoverefect01:hover {
+            color: var(--link-hover-color);
+            transform: scale(1.1);
+        }
+
+    </style>
+</head>
+
+<body>
+    Body:
+    <header>
+    Header:
+    </header>
+    <main>
+    Main:
+    </main>
+    <footer>
+    Footer:
+    </footer>
+</body>
+
+<script>
+    document.querySelector('body').style.backgroundColor = 'var(--background-color)';
+    document.querySelector('body').style.color = 'var(--text-color)';
+    document.querySelector('body').appendChild(document.createTextNode('This is the body content.'));
+    
+    document.querySelector('header').style.color = 'var(--link-color)';
+    document.querySelector('header').appendChild(document.createElement('button'));
+    document.querySelector('header button').textContent = 'Click Me';
+    document.querySelector('header button').addEventListener('click', function() {
+        alert('Button clicked!');
+    });
+    //hover effect
+    document.querySelector('header button').style.backgroundColor = 'var(--link-color)';
+    document.querySelector('header button').addEventListener('mouseover', function() {
+        this.style.backgroundColor = 'var(--link-hover-color)';
+    });
+    document.querySelector('header button').addEventListener('mouseout', function() {
+        this.style.backgroundColor = 'var(--link-color)';
+    });
+
+    document.querySelector('main').style.color = 'var(--text-color)';
+    document.querySelector('main').appendChild(document.createTextNode('This is the main content.'));
+
+    document.querySelector('main').appendChild(document.createElement('div'));
+    document.querySelector('main div').textContent = 'This is a div inside main.';
+
+    document.querySelector('main div').id = 'my-div';
+    document.querySelector('#my-div').style.color = 'var(--link-color)';
+    
+    
+    document.querySelector('main').appendChild(document.createElement('canvas'));
+    document.querySelector('main canvas').style.backgroundColor = 'var(--link-color)';
+    
+    document.querySelector('main').appendChild(document.createElement('span'));
+    document.querySelector('span').appendChild(document.createTextNode('This is canvas.'));
+    document.querySelector('span').className = 'hoverefect01';
+
+    document.querySelector('footer').style.color = 'var(--link-color)';
+    document.querySelector('footer').appendChild(document.createTextNode(Date().toString()));
+</script>
+
+<!--script>
+    // Advanced reusable DOM builder
+    class DOMBuilder {
+        constructor() {
+            this.elements = {};
+        }
+
+        // Store frequently used elements
+        cacheElements() {
+            this.elements = {
+                body: document.querySelector('body'),
+                header: document.querySelector('header'),
+                main: document.querySelector('main'),
+                footer: document.querySelector('footer')
+            };
+        }
+
+        // Get any element
+        get(selector) {
+            return document.querySelector(selector);
+        }
+
+        // Add text to element
+        addText(element, text) {
+            element.appendChild(document.createTextNode(text));
+            return this; // For chaining
+        }
+
+        // add button to element
+        addButton(parent, text, onClick) {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.addEventListener('click', onClick);
+            parent.appendChild(button);
+            return this; // For chaining
+        }
+
+        // Set styles
+        setStyle(element, styles) {
+            Object.assign(element.style, styles);
+            return this; // For chaining
+        }
+
+        // Create element with options
+        create(tag, parent, options = {}) {
+            const element = document.createElement(tag);
+            
+            if (options.id) element.id = options.id;
+            if (options.className) element.className = options.className;
+            if (options.text) element.textContent = options.text;
+            if (options.style) Object.assign(element.style, options.style);
+            if (options.attributes) {
+                Object.entries(options.attributes).forEach(([key, value]) => {
+                    element.setAttribute(key, value);
+                });
+            }
+            
+            if (parent) parent.appendChild(element);
+            return element;
+        }
+    }
+
+    // Usage:
+    const dom = new DOMBuilder();
+    dom.cacheElements();
+
+    // Chain operations
+    dom.setStyle(dom.elements.body, { 
+        color: 'var(--text-color)',
+        backgroundColor: 'var(--background-color)',
+        })
+       .addText(dom.elements.body, 'This is the body content.');
+
+    // button in header
+    dom.addButton(dom.elements.header, 'My button', () => {
+        alert('Button clicked!');
+    });
+    // Style the button
+    dom.setStyle(dom.get('header button'), { margin: '10px', backgroundColor: 'var(--link-color)' });
+    dom.get('header button').addEventListener('mouseover', () => {
+        dom.setStyle(dom.get('header button'), { backgroundColor: 'var(--link-hover-color)' });
+    });
+    dom.get('header button').addEventListener('mouseout', () => {
+        dom.setStyle(dom.get('header button'), { backgroundColor: 'var(--link-color)' });
+    });
+
+    // Add text to main
+    dom.addText(dom.elements.main, 'This is the main content.')
+       .create('div', dom.elements.main, { text: 'This is a div inside main.',id: 'my-div' });
+    dom.create('canvas', dom.elements.main, { style: { backgroundColor: 'var(--link-color)' } })
+    dom.addText(dom.elements.main, 'This is canvas.');
+
+    // test
+    dom.addText(dom.get('#my-div'), 'This is a div inside main.')
+       .setStyle(dom.get('#my-div'), { color: 'var(--link-color)' });
+
+    // Add text to footer
+    dom.setStyle(dom.elements.footer, { color: 'var(--link-color)' })
+       .addText(dom.elements.footer, new Date().toString());
+
+</script-->
+
+<!--script>
+    // Modern approach - simple and clean
+    const { body, header, main, footer } = {
+        body: document.body,
+        header: document.querySelector('header'),
+        main: document.querySelector('main'),
+        footer: document.querySelector('footer')
+    };
+
+    // Modern styling
+    Object.assign(body.style, {
+        color: 'var(--text-color)',
+        backgroundColor: 'var(--background-color)'
+    });
+
+    // Modern element creation
+    const createEl = (tag, parent, props = {}) => {
+        const el = document.createElement(tag);
+        Object.assign(el, props);
+        if (props.style) Object.assign(el.style, props.style);
+        if (parent) parent.append(el);
+        return el;
+    };
+
+    // Usage - much cleaner!
+    body.append('This is the body content.');
+    
+    createEl('button', header, {
+        textContent: 'My button',
+        onclick: () => alert('Button clicked!'),
+        style: { margin: '10px' }
+    });
+
+    main.append('This is the main content.');
+    
+    createEl('div', main, {
+        id: 'my-div',
+        textContent: 'This is a div inside main.',
+        style: { color: 'var(--link-color)' }
+    });
+
+    createEl('canvas', main, {
+        id: 'canvas-green',
+        style: { 
+            backgroundColor: 'var(--link-color)',
+            width: '200px',
+            height: '100px'
+        }
+    });
+
+    footer.style.color = 'var(--link-color)';
+    footer.append(new Date().toString());
+</script-->
+
+<!--script>
+    // Template literals and destructuring
+    const elements = ['body', 'header', 'main', 'footer']
+        .reduce((acc, tag) => {
+            acc[tag] = document.querySelector(tag) || document.body;
+            return acc;
+        }, {});
+
+    // Modern event handling
+    const addClickHandler = (element, handler) => {
+        element.addEventListener('click', handler);
+    };
+
+    // Modern styling with CSS custom properties
+    const setTheme = (element, theme) => {
+        const themes = {
+            dark: { color: 'var(--text-color)', backgroundColor: 'var(--background-color)' },
+            accent: { color: 'var(--link-color)' }
+        };
+        Object.assign(element.style, themes[theme]);
+    };
+
+    // Usage
+    setTheme(elements.body, 'dark');
+    setTheme(elements.header, 'accent');
+    elements.body.append('This is the body content.');
+    const button = document.createElement('button');
+    button.textContent = 'Click Me';
+    addClickHandler(button, () => {
+        alert('Button clicked!');
+    });
+    elements.header.append(button);
+    elements.main.append('This is the main content.');
+    const myDiv = document.createElement('div');
+    myDiv.id = 'my-div';
+    myDiv.textContent = 'This is a div inside main.';
+    setTheme(myDiv, 'accent');
+    elements.main.append(myDiv);
+    const canvas = document.createElement('canvas');
+    canvas.id = 'canvas-green';
+    elements.main.append(canvas);
+    elements.main.append('This is canvas.');
+    canvas.style.backgroundColor = 'var(--link-color)';
+    setTheme(elements.footer, 'accent');
+</script-->
+
+</html>

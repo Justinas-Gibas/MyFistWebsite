@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectrum Intensity Analyzer</title>
+  <style>
+    body { margin: 0; background: #111; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+    canvas { margin-top: 1em; background: #222; }
+    button { margin-top: 1em; padding: 0.5em 1em; font-size: 1em; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>Frequency Intensity Analyzer</h2>
+  <button id="startMic">Start Microphone</button>
+  <canvas id="spectrum" width="800" height="400"></canvas>
+
+  <script>
+    const canvas = document.getElementById('spectrum');
+    const ctx = canvas.getContext('2d');
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+
+    const startBtn = document.getElementById('startMic');
+    let audioCtx, analyser, dataArray;
+
+    async function init() {
+      audioCtx = new AudioContext();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      const bufferLen = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLen);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const src = audioCtx.createMediaStreamSource(stream);
+      src.connect(analyser);
+      draw();
+    }
+
+    function draw() {
+      analyser.getByteFrequencyData(dataArray);
+      ctx.fillStyle = '#222'; ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+      // Draw full spectrum as line graph
+      ctx.beginPath();
+      ctx.moveTo(0, HEIGHT - dataArray[0] / 255 * HEIGHT);
+      for (let i = 1; i < dataArray.length; i++) {
+        const x = i / dataArray.length * WIDTH;
+        const y = HEIGHT - (dataArray[i] / 255 * HEIGHT);
+        ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Find peak frequency
+      let maxVal = -1, maxIndex = -1;
+      dataArray.forEach((v, i) => { if (v > maxVal) { maxVal = v; maxIndex = i; }});
+      const freq = maxIndex * audioCtx.sampleRate / analyser.fftSize;
+
+      // Draw peak marker
+      const peakX = maxIndex / dataArray.length * WIDTH;
+      ctx.fillStyle = '#f00';
+      ctx.fillRect(peakX-10, HEIGHT - HEIGHT * (maxVal/255), 20, 3);
+
+      // Label frequency
+      ctx.fillStyle = '#fff9';
+      ctx.fillText(`Peak: ${freq.toFixed(1)} Hz`, 10, 20);
+
+      requestAnimationFrame(draw);
+    }
+
+    startBtn.onclick = () => { startBtn.disabled = true; init(); };
+  </script>
+</body>
+</html>

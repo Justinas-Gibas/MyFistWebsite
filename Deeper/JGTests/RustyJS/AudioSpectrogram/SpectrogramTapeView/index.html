@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spectrogram Tape View</title>
+  <style>
+    body { margin: 0; background: #111; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
+    canvas { margin-top: 1em; background: #222; image-rendering: pixelated; }
+    button { margin-top: 1em; padding: 0.5em 1em; font-size: 1em; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>Spectrogram Tape View (Waterfall)</h2>
+  <button id="startMic">Start Microphone</button>
+  <canvas id="tape" width="800" height="400"></canvas>
+
+  <script>
+    const canvas = document.getElementById('tape');
+    const ctx = canvas.getContext('2d');
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+
+    const startBtn = document.getElementById('startMic');
+    let audioCtx, analyser, dataArray;
+
+    async function init() {
+      audioCtx = new AudioContext();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      const bufferLen = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLen);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const src = audioCtx.createMediaStreamSource(stream);
+      src.connect(analyser);
+      draw();
+    }
+
+    function draw() {
+      analyser.getByteFrequencyData(dataArray);
+      // Scroll the existing image down by 1 pixel
+      const imageData = ctx.getImageData(0, 0, WIDTH, HEIGHT - 1);
+      ctx.putImageData(imageData, 0, 1);
+
+      // Draw new frequency slice at top
+      const sliceWidth = WIDTH / dataArray.length;
+      for (let i = 0; i < dataArray.length; i++) {
+        const value = dataArray[i];
+        ctx.fillStyle = `rgb(${value}, ${value}, ${value})`;
+        ctx.fillRect(i * sliceWidth, 0, sliceWidth, 1);
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    startBtn.onclick = () => { startBtn.disabled = true; init(); };
+  </script>
+</body>
+</html>

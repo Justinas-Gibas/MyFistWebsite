@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rusty Spectrogram</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+      line-height: 1.6;
+      overflow: hidden;
+    }
+    
+    .spectrogram-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    }
+    
+    .header {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      z-index: 10;
+      color: #f0f6fc;
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: 0.025em;
+      text-shadow: 0 0 10px rgba(240, 246, 252, 0.3);
+    }
+    
+    .controls {
+      position: absolute;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 1rem;
+      z-index: 10;
+      padding: 0.75rem 1.5rem;
+      background: rgba(22, 27, 34, 0.9);
+      border: 1px solid #30363d;
+      border-radius: 0.5rem;
+      backdrop-filter: blur(8px);
+    }
+    
+    .file-input {
+      position: relative;
+      overflow: hidden;
+      display: inline-block;
+    }
+    
+    .file-input input[type="file"] {
+      position: absolute;
+      left: -9999px;
+    }
+    
+    .file-btn {
+      padding: 0.5rem 1rem;
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 0.375rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    
+    .file-btn:hover {
+      background: #2ea043;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);
+    }
+    
+    .canvas-wrapper {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    #spectrogram {
+      width: 100%;
+      height: 100%;
+      background: #0d1117;
+      image-rendering: pixelated;
+      display: block;
+    }
+    
+    .frequency-labels {
+      position: absolute;
+      right: 0.5rem;
+      top: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 1rem 0;
+      font-size: 0.75rem;
+      color: #7d8590;
+      pointer-events: none;
+      z-index: 5;
+    }
+    
+    .freq-label {
+      background: rgba(13, 17, 23, 0.8);
+      padding: 0.125rem 0.25rem;
+      border-radius: 0.25rem;
+      text-align: right;
+      min-width: 3rem;
+    }
+    
+    @media (max-width: 768px) {
+      .header {
+        font-size: 0.75rem;
+      }
+      
+      .controls {
+        bottom: 0.5rem;
+        padding: 0.5rem 1rem;
+      }
+      
+      .file-btn {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.75rem;
+      }
+      
+      .frequency-labels {
+        font-size: 0.625rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="spectrogram-container">
+    <div class="header">Rusty Spectrogram</div>
+    
+    <div class="canvas-wrapper">
+      <canvas id="spectrogram"></canvas>
+      <div class="frequency-labels">
+        <div class="freq-label">20kHz</div>
+        <div class="freq-label">10kHz</div>
+        <div class="freq-label">5kHz</div>
+        <div class="freq-label">2kHz</div>
+        <div class="freq-label">1kHz</div>
+        <div class="freq-label">500Hz</div>
+        <div class="freq-label">200Hz</div>
+        <div class="freq-label">100Hz</div>
+        <div class="freq-label">50Hz</div>
+        <div class="freq-label">20Hz</div>
+      </div>
+    </div>
+    
+    <div class="controls">
+      <div class="file-input">
+        <input type="file" id="audioFile" accept="audio/*" />
+        <label for="audioFile" class="file-btn">Load Audio</label>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Rust-inspired class for the spectrogram
+    class RustySpectrogram {
+      constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        this.audioCtx = null;
+        this.analyser = null;
+        this.dataArray = null;
+        this.currentSource = null;
+        this.currentBuffer = null;
+        this.animationId = null;
+        
+        this.FREQUENCY_BANDS = 256;
+        this.HEAT_MAP_INTENSITY = 0.6;
+        this.LOW_FREQ_EMPHASIS = 2.8;
+        
+        this.initCanvas();
+        this.setupEventListeners();
+      }
+      
+      initCanvas() {
+        const resize = () => {
+          const rect = this.canvas.getBoundingClientRect();
+          this.canvas.width = rect.width;
+          this.canvas.height = rect.height;
+        };
+        
+        resize();
+        window.addEventListener('resize', resize);
+      }
+      
+      setupEventListeners() {
+        const fileInput = document.getElementById('audioFile');
+        fileInput.addEventListener('change', (e) => this.handleFileLoad(e));
+      }
+      
+      async handleFileLoad(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          if (!this.audioCtx) {
+            this.audioCtx = new AudioContext();
+          }
+          
+          const decoded = await this.audioCtx.decodeAudioData(arrayBuffer);
+          this.currentBuffer = decoded;
+          this.setupAudio(decoded);
+        } catch (error) {
+          console.error('Error loading audio:', error);
+        }
+      }
+      
+      setupAudio(audioBuffer) {
+        if (this.currentSource) {
+          this.currentSource.stop();
+        }
+        
+        this.analyser = this.audioCtx.createAnalyser();
+        this.analyser.fftSize = 2048;
+        this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+        
+        this.currentSource = this.audioCtx.createBufferSource();
+        this.currentSource.buffer = audioBuffer;
+        this.currentSource.loop = true;
+        this.currentSource.connect(this.analyser);
+        this.analyser.connect(this.audioCtx.destination);
+        this.currentSource.start();
+        
+        this.currentSource.onended = () => {
+          if (this.currentBuffer) {
+            this.setupAudio(this.currentBuffer);
+          }
+        };
+        
+        this.startVisualization();
+      }
+      
+      startVisualization() {
+        const draw = () => {
+          if (!this.analyser) {
+            this.animationId = requestAnimationFrame(draw);
+            return;
+          }
+          
+          this.analyser.getByteFrequencyData(this.dataArray);
+          
+          // Shift existing image data to the left
+          const imageData = this.ctx.getImageData(1, 0, this.canvas.width - 1, this.canvas.height);
+          this.ctx.putImageData(imageData, 0, 0);
+          
+          // Clear the rightmost column
+          this.ctx.clearRect(this.canvas.width - 1, 0, 1, this.canvas.height);
+          
+          // Process frequency data
+          const bandData = this.processFrequencyData();
+          
+          // Draw the new column
+          this.drawFrequencyColumn(bandData);
+          
+          this.animationId = requestAnimationFrame(draw);
+        };
+        
+        draw();
+      }
+      
+      processFrequencyData() {
+        const bandData = new Array(this.FREQUENCY_BANDS).fill(0);
+        
+        for (let i = 0; i < this.FREQUENCY_BANDS; i++) {
+          const logIndex = Math.pow(i / this.FREQUENCY_BANDS, this.LOW_FREQ_EMPHASIS) * (this.dataArray.length - 1);
+          const index = Math.floor(logIndex);
+          const fraction = logIndex - index;
+          
+          if (index < this.dataArray.length - 1) {
+            bandData[i] = this.dataArray[index] * (1 - fraction) + this.dataArray[index + 1] * fraction;
+          } else {
+            bandData[i] = this.dataArray[index] || 0;
+          }
+        }
+        
+        return bandData;
+      }
+      
+      drawFrequencyColumn(bandData) {
+        const barHeight = this.canvas.height / bandData.length;
+        
+        for (let i = 0; i < bandData.length; i++) {
+          const value = bandData[i];
+          const y = this.canvas.height - ((i + 1) * barHeight);
+          
+          const normalized = Math.min(value * 1.8, 255);
+          const color = this.getHeatMapColor(normalized);
+          
+          this.ctx.fillStyle = color;
+          this.ctx.fillRect(this.canvas.width - 1, y, 1, barHeight);
+        }
+      }
+      
+      getHeatMapColor(value) {
+        const normalized = Math.min(value / 255, 1);
+        const enhanced = Math.pow(normalized, this.HEAT_MAP_INTENSITY);
+        
+        if (enhanced < 0.005) return '#0d1117';
+        
+        // Rust-inspired color palette: dark blue -> orange -> yellow -> white
+        if (enhanced < 0.2) {
+          const intensity = enhanced * 5;
+          const r = Math.floor(intensity * 30);
+          const g = Math.floor(intensity * 50);
+          const b = Math.floor(intensity * 100);
+          return `rgb(${r}, ${g}, ${b})`;
+        } else if (enhanced < 0.4) {
+          const intensity = (enhanced - 0.2) * 5;
+          const r = Math.floor(30 + intensity * 180);
+          const g = Math.floor(50 + intensity * 80);
+          const b = Math.floor(100 - intensity * 80);
+          return `rgb(${r}, ${g}, ${b})`;
+        } else if (enhanced < 0.7) {
+          const intensity = (enhanced - 0.4) / 0.3;
+          const r = Math.floor(210 + intensity * 45);
+          const g = Math.floor(130 + intensity * 125);
+          const b = Math.floor(20 + intensity * 50);
+          return `rgb(${r}, ${g}, ${b})`;
+        } else {
+          const intensity = (enhanced - 0.7) / 0.3;
+          const value = Math.floor(255 * (0.8 + intensity * 0.2));
+          return `rgb(${value}, ${value}, ${value})`;
+        }
+      }
+      
+      destroy() {
+        if (this.animationId) {
+          cancelAnimationFrame(this.animationId);
+        }
+        if (this.currentSource) {
+          this.currentSource.stop();
+        }
+        if (this.audioCtx) {
+          this.audioCtx.close();
+        }
+      }
+    }
+    
+    // Initialize the spectrogram
+    const spectrogram = new RustySpectrogram('spectrogram');
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      spectrogram.destroy();
+    });
+  </script>
+</body>
+</html>

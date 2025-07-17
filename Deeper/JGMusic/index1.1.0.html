@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content="JGMusic Sharing - Version 1.1.0">
+        <meta name="keywords" content="">
+        <meta name="author" content="Justinas Gibas">
+        <link rel="icon" href="../../upper/JG_favicon.ico" type="image/x-icon">
+        <link rel="stylesheet" href="./styles/main.css">
+        <link rel="stylesheet" href="./styles/header.css">
+        <link rel="stylesheet" href="./styles/footer.css">
+        
+        <link rel="stylesheet" href="./styles/card.css">
+        <link rel="stylesheet" href="./styles/comments.css">
+        
+        <link rel="stylesheet" href="./styles/viewGrid.css">
+        <link rel="stylesheet" href="./styles/viewList.css">
+        <link rel="stylesheet" href="./styles/viewHorizontal.css">
+        <title>JGMusic Sharing - Version 1.1.0</title>
+    </head>
+    <body>
+        <header>
+            <p>JGMusic Sharing - Version 1.1.0 - Justinas Gibas</p>
+            <div class="bucketselector">
+                <label for="bucket">Select Bucket:</label>
+                <select id="bucket">
+                    <option value="jgmusic">JGMusic</option>
+                    <option value="drafts">Drafts</option>
+                </select>
+                <div class="view-controls">
+                    <div class="view-toggle">
+                        <button class="view-btn active" data-view="grid">
+                            <span>⊞</span> Grid
+                        </button>
+                        <button class="view-btn" data-view="list">
+                            <span>☰</span> List
+                        </button>
+                        <button class="view-btn" data-view="horizontal">
+                            <span>⟷</span> Horizontal
+                        </button>
+                    </div>
+                    <div class="sort-controls">
+                        <!-- svg icons for sorting -->
+                    </div>
+                </div>
+            </div>
+        </header>
+        <main>
+            <div class="container">
+                <div class="grid-view" id="view-container">
+                    <ul id="file-list">
+                        <!-- File items will be inserted here -->
+                    </ul>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <div class="footer">
+                <div class="audio-player">
+                    <div class="track-data">
+                        <!-- artwork -->
+                        <div class="artwork">
+                            <img id="artworkImage" src="../../upper/JG_favicon.ico" alt="Artwork" />
+                        </div>
+                        <!-- title -->
+                        <div class="track-title">
+                            <span id="trackTitle">Track Title</span>
+                        </div>
+                        <!-- expand visualizer(spectrogram) -->
+                        <div class="expand-visualizer">
+                            <!-- placeholder -->
+                            ^
+                        </div>
+                        <div class="loop">
+                            <!-- placeholder -->
+                            O
+                        </div>
+                    </div>
+                    <!-- time line -->
+                    <div class="time-line">
+                        <span id="currentTime">0:00</span> / <span id="duration">0:00</span>
+                        <input type="range" id="timeSlider" value="0" min="0" max="100" />
+                    </div>
+                    <!-- audio buttons -->
+                    <div class="audio-buttons">
+                        <button id="previous">Previous</button>
+                        <button id="playPause">Play</button>
+                        <button id="next">Next</button>
+                    </div>
+                    <audio id="mainAudio"></audio>
+                </div>
+            </footer>
+        </body>
+        <script src="./scripts/main.js"></script>
+        <script src="./scripts/listManager.js"></script>
+        <script src="./scripts/viewController.js"></script>
+        <script src="./scripts/audioPlayer.js"></script>
+        <!-- <script src="./scripts/tapeSpectogram.js"></script> -->
+        <script src="./scripts/mock.js"></script>
+        <script src="./scripts/fileDelivery.js"></script>
+        </html>

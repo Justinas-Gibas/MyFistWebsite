@@ -1,0 +1,4 @@
+ /* Grid View (Default) */
+    .grid-view #file-list {
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    }

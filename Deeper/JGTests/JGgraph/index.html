@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mini LiteGraph</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #222;
+        }
+        #canvas {
+            border: 1px solid #666;
+            cursor: crosshair;
+        }
+        .toolbar {
+            margin-bottom: 10px;
+        }
+        button {
+            margin-right: 10px;
+            padding: 5px 10px;
+            background: #444;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button onclick="addNode('Number')">Add Number</button>
+        <button onclick="addNode('Math')">Add Math</button>
+        <button onclick="addNode('Display')">Add Display</button>
+        <button onclick="clearGraph()">Clear</button>
+    </div>
+    <canvas id="canvas" width="800" height="600"></canvas>
+
+    <script>
+        // Mini LiteGraph Implementation
+        class MiniGraph {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.nodes = [];
+                this.connections = [];
+                this.draggedNode = null;
+                this.draggedConnection = null;
+                this.mousePos = { x: 0, y: 0 };
+                
+                this.setupEvents();
+                this.animate();
+            }
+            
+            setupEvents() {
+                this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
+                this.canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
+                this.canvas.addEventListener('mouseup', (e) => this.onMouseUp(e));
+                this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+            }
+            
+            getMousePos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+            }
+            
+            onMouseDown(e) {
+                this.mousePos = this.getMousePos(e);
+                
+                // Check if clicking on a node
+                for (let node of this.nodes) {
+                    if (this.isPointInNode(this.mousePos, node)) {
+                        this.draggedNode = node;
+                        this.draggedNode.dragOffset = {
+                            x: this.mousePos.x - node.x,
+                            y: this.mousePos.y - node.y
+                        };
+                        return;
+                    }
+                    
+                    // Check if clicking on input/output slots
+                    const slot = this.getSlotAtPoint(this.mousePos, node);
+                    if (slot) {
+                        this.draggedConnection = {
+                            from: slot.type === 'output' ? slot : null,
+                            to: slot.type === 'input' ? slot : null,
+                            mousePos: this.mousePos
+                        };
+                        return;
+                    }
+                }
+            }
+            
+            onMouseMove(e) {
+                this.mousePos = this.getMousePos(e);
+                
+                if (this.draggedNode) {
+                    this.draggedNode.x = this.mousePos.x - this.draggedNode.dragOffset.x;
+                    this.draggedNode.y = this.mousePos.y - this.draggedNode.dragOffset.y;
+                }
+                
+                if (this.draggedConnection) {
+                    this.draggedConnection.mousePos = this.mousePos;
+                }
+            }
+            
+            onMouseUp(e) {
+                if (this.draggedConnection) {
+                    // Try to connect to another slot
+                    for (let node of this.nodes) {
+                        const slot = this.getSlotAtPoint(this.mousePos, node);
+                        if (slot) {
+                            this.tryConnect(this.draggedConnection, slot);
+                            break;
+                        }
+                    }
+                }
+                
+                this.draggedNode = null;
+                this.draggedConnection = null;
+            }
+            
+            isPointInNode(point, node) {
+                return point.x >= node.x && point.x <= node.x + node.width &&
+                       point.y >= node.y && point.y <= node.y + node.height;
+            }
+            
+            getSlotAtPoint(point, node) {
+                const slotSize = 12;
+                
+                // Check inputs
+                for (let i = 0; i < node.inputs.length; i++) {
+                    const slotX = node.x - slotSize/2;
+                    const slotY = node.y + 30 + i * 25;
+                    
+                    if (point.x >= slotX && point.x <= slotX + slotSize &&
+                        point.y >= slotY && point.y <= slotY + slotSize) {
+                        return { node, index: i, type: 'input' };
+                    }
+                }
+                
+                // Check outputs
+                for (let i = 0; i < node.outputs.length; i++) {
+                    const slotX = node.x + node.width - slotSize/2;
+                    const slotY = node.y + 30 + i * 25;
+                    
+                    if (point.x >= slotX && point.x <= slotX + slotSize &&
+                        point.y >= slotY && point.y <= slotY + slotSize) {
+                        return { node, index: i, type: 'output' };
+                    }
+                }
+                
+                return null;
+            }
+            
+            tryConnect(draggedConnection, targetSlot) {
+                let from, to;
+                
+                if (draggedConnection.from && targetSlot.type === 'input') {
+                    from = draggedConnection.from;
+                    to = targetSlot;
+                } else if (draggedConnection.to && targetSlot.type === 'output') {
+                    from = targetSlot;
+                    to = draggedConnection.to;
+                } else {
+                    return; // Invalid connection
+                }
+                
+                // Remove existing connection to input
+                this.connections = this.connections.filter(conn => 
+                    !(conn.to.node === to.node && conn.to.index === to.index)
+                );
+                
+                // Add new connection
+                this.connections.push({ from, to });
+                
+                // Update values
+                this.updateNodeValues();
+            }
+            
+            updateNodeValues() {
+                // Simple execution order: just iterate through connections
+                for (let connection of this.connections) {
+                    const fromNode = connection.from.node;
+                    const toNode = connection.to.node;
+                    
+                    if (fromNode.execute) {
+                        fromNode.execute();
+                    }
+                    
+                    // Pass value through connection
+                    toNode.inputs[connection.to.index].value = 
+                        fromNode.outputs[connection.from.index].value;
+                    
+                    if (toNode.execute) {
+                        toNode.execute();
+                    }
+                }
+            }
+            
+            addNode(type, x = 100, y = 100) {
+                let node;
+                
+                switch (type) {
+                    case 'Number':
+                        node = new NumberNode(x, y);
+                        break;
+                    case 'Math':
+                        node = new MathNode(x, y);
+                        break;
+                    case 'Display':
+                        node = new DisplayNode(x, y);
+                        break;
+                    default:
+                        return;
+                }
+                
+                this.nodes.push(node);
+                return node;
+            }
+            
+            clear() {
+                this.nodes = [];
+                this.connections = [];
+            }
+            
+            animate() {
+                this.draw();
+                requestAnimationFrame(() => this.animate());
+            }
+            
+            draw() {
+                // Clear canvas
+                this.ctx.fillStyle = '#333';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw connections
+                this.drawConnections();
+                
+                // Draw nodes
+                for (let node of this.nodes) {
+                    this.drawNode(node);
+                }
+                
+                // Draw dragged connection
+                if (this.draggedConnection) {
+                    this.drawDraggedConnection();
+                }
+            }
+            
+            drawConnections() {
+                this.ctx.strokeStyle = '#9A9';
+                this.ctx.lineWidth = 2;
+                
+                for (let connection of this.connections) {
+                    const fromPos = this.getSlotPosition(connection.from);
+                    const toPos = this.getSlotPosition(connection.to);
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(fromPos.x, fromPos.y);
+                    
+                    // Bezier curve for smooth connection
+                    const midX = (fromPos.x + toPos.x) / 2;
+                    this.ctx.bezierCurveTo(
+                        midX, fromPos.y,
+                        midX, toPos.y,
+                        toPos.x, toPos.y
+                    );
+                    
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawDraggedConnection() {
+                if (!this.draggedConnection) return;
+                
+                this.ctx.strokeStyle = '#AFA';
+                this.ctx.lineWidth = 2;
+                
+                let startPos, endPos;
+                
+                if (this.draggedConnection.from) {
+                    startPos = this.getSlotPosition(this.draggedConnection.from);
+                    endPos = this.draggedConnection.mousePos;
+                } else {
+                    startPos = this.draggedConnection.mousePos;
+                    endPos = this.getSlotPosition(this.draggedConnection.to);
+                }
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(startPos.x, startPos.y);
+                this.ctx.lineTo(endPos.x, endPos.y);
+                this.ctx.stroke();
+            }
+            
+            getSlotPosition(slot) {
+                const slotSize = 12;
+                
+                if (slot.type === 'input') {
+                    return {
+                        x: slot.node.x,
+                        y: slot.node.y + 30 + slot.index * 25 + slotSize/2
+                    };
+                } else {
+                    return {
+                        x: slot.node.x + slot.node.width,
+                        y: slot.node.y + 30 + slot.index * 25 + slotSize/2
+                    };
+                }
+            }
+            
+            drawNode(node) {
+                // Node background
+                this.ctx.fillStyle = node.color || '#555';
+                this.ctx.fillRect(node.x, node.y, node.width, node.height);
+                
+                // Node border
+                this.ctx.strokeStyle = '#777';
+                this.ctx.lineWidth = 1;
+                this.ctx.strokeRect(node.x, node.y, node.width, node.height);
+                
+                // Title
+                this.ctx.fillStyle = '#FFF';
+                this.ctx.font = '12px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(node.title, node.x + node.width/2, node.y + 15);
+                
+                // Input slots
+                for (let i = 0; i < node.inputs.length; i++) {
+                    const slotY = node.y + 30 + i * 25;
+                    
+                    // Slot circle
+                    this.ctx.fillStyle = '#666';
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x, slotY + 6, 6, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Slot label
+                    this.ctx.fillStyle = '#CCC';
+                    this.ctx.font = '10px Arial';
+                    this.ctx.textAlign = 'left';
+                    this.ctx.fillText(node.inputs[i].name, node.x + 15, slotY + 10);
+                }
+                
+                // Output slots
+                for (let i = 0; i < node.outputs.length; i++) {
+                    const slotY = node.y + 30 + i * 25;
+                    
+                    // Slot circle
+                    this.ctx.fillStyle = '#666';
+                    this.ctx.beginPath();
+                    this.ctx.arc(node.x + node.width, slotY + 6, 6, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // Slot label
+                    this.ctx.fillStyle = '#CCC';
+                    this.ctx.font = '10px Arial';
+                    this.ctx.textAlign = 'right';
+                    this.ctx.fillText(node.outputs[i].name, node.x + node.width - 15, slotY + 10);
+                    
+                    // Value display
+                    this.ctx.fillStyle = '#AAA';
+                    this.ctx.font = '9px Arial';
+                    this.ctx.fillText(node.outputs[i].value, node.x + node.width - 15, slotY + 22);
+                }
+                
+                // Custom node drawing
+                if (node.draw) {
+                    node.draw(this.ctx);
+                }
+            }
+        }
+        
+        // Node Types
+        class NumberNode {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 120;
+                this.height = 60;
+                this.title = "Number";
+                this.color = '#445';
+                this.inputs = [];
+                this.outputs = [
+                    { name: "value", value: 42 }
+                ];
+                this.value = 42;
+            }
+            
+            execute() {
+                this.outputs[0].value = this.value;
+            }
+            
+            draw(ctx) {
+                // Draw number input
+                ctx.fillStyle = '#333';
+                ctx.fillRect(this.x + 10, this.y + 35, this.width - 20, 20);
+                ctx.fillStyle = '#FFF';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.value.toString(), this.x + this.width/2, this.y + 48);
+            }
+        }
+        
+        class MathNode {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 120;
+                this.height = 80;
+                this.title = "Math";
+                this.color = '#544';
+                this.inputs = [
+                    { name: "A", value: 0 },
+                    { name: "B", value: 0 }
+                ];
+                this.outputs = [
+                    { name: "result", value: 0 }
+                ];
+                this.operation = '+';
+            }
+            
+            execute() {
+                const a = this.inputs[0].value || 0;
+                const b = this.inputs[1].value || 0;
+                
+                switch (this.operation) {
+                    case '+':
+                        this.outputs[0].value = a + b;
+                        break;
+                    case '-':
+                        this.outputs[0].value = a - b;
+                        break;
+                    case '*':
+                        this.outputs[0].value = a * b;
+                        break;
+                    case '/':
+                        this.outputs[0].value = b !== 0 ? a / b : 0;
+                        break;
+                }
+            }
+            
+            draw(ctx) {
+                // Draw operation symbol
+                ctx.fillStyle = '#FFF';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.operation, this.x + this.width/2, this.y + this.height - 10);
+            }
+        }
+        
+        class DisplayNode {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 120;
+                this.height = 60;
+                this.title = "Display";
+                this.color = '#454';
+                this.inputs = [
+                    { name: "input", value: 0 }
+                ];
+                this.outputs = [];
+            }
+            
+            execute() {
+                // Display node just shows the input value
+            }
+            
+            draw(ctx) {
+                // Draw display area
+                ctx.fillStyle = '#222';
+                ctx.fillRect(this.x + 10, this.y + 35, this.width - 20, 20);
+                ctx.strokeStyle = '#666';
+                ctx.strokeRect(this.x + 10, this.y + 35, this.width - 20, 20);
+                
+                // Display value
+                ctx.fillStyle = '#0F0';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                const value = this.inputs[0].value || 0;
+                ctx.fillText(value.toString(), this.x + this.width/2, this.y + 48);
+            }
+        }
+        
+        // Initialize
+        const canvas = document.getElementById('canvas');
+        const graph = new MiniGraph(canvas);
+        
+        // Helper functions
+        function addNode(type) {
+            const x = Math.random() * (canvas.width - 150) + 50;
+            const y = Math.random() * (canvas.height - 100) + 50;
+            graph.addNode(type, x, y);
+        }
+        
+        function clearGraph() {
+            graph.clear();
+        }
+        
+        // Add some initial nodes
+        const numNode = graph.addNode('Number', 100, 100);
+        const mathNode = graph.addNode('Math', 300, 100);
+        const displayNode = graph.addNode('Display', 500, 100);
+        
+        // Auto-connect them
+        graph.connections.push({
+            from: { node: numNode, index: 0, type: 'output' },
+            to: { node: mathNode, index: 0, type: 'input' }
+        });
+        
+        graph.connections.push({
+            from: { node: mathNode, index: 0, type: 'output' },
+            to: { node: displayNode, index: 0, type: 'input' }
+        });
+        
+        // Update values
+        graph.updateNodeValues();
+    </script>
+</body>
+</html>

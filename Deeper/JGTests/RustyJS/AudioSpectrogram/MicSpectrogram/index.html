@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rusty Mic Spectrogram</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    canvas {
+      margin-top: 1em;
+      background: #000;
+    }
+    button {
+      margin-top: 1em;
+      padding: 0.5em 1em;
+      font-size: 1em;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h2>Rust-Inspired Microphone Spectrogram</h2>
+  <button id="startMic">Start Microphone</button>
+  <canvas id="spectrogram" width="800" height="256"></canvas>
+
+  <script>
+    const canvas = document.getElementById('spectrogram');
+    const ctx = canvas.getContext('2d');
+    const WIDTH = canvas.width;
+    const HEIGHT = canvas.height;
+
+    const startBtn = document.getElementById('startMic');
+    let audioCtx;
+    let analyser;
+    let dataArray;
+
+    const initAudio = async () => {
+      audioCtx = new AudioContext();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      const bufferLength = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLength);
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const source = audioCtx.createMediaStreamSource(stream);
+        source.connect(analyser);
+        drawSpectrogram();
+      } catch (err) {
+        console.error('Microphone access error:', err);
+      }
+    };
+
+    const drawSpectrogram = () => {
+      // Shift canvas left by 1 pixel
+      const imageData = ctx.getImageData(1, 0, WIDTH - 1, HEIGHT);
+      ctx.putImageData(imageData, 0, 0);
+      // Clear rightmost column
+      ctx.fillStyle = '#000';
+      ctx.fillRect(WIDTH - 1, 0, 1, HEIGHT);
+
+      // Get frequency data
+      analyser.getByteFrequencyData(dataArray);
+
+      // Draw current column
+      dataArray.forEach((value, i) => {
+        const percent = value / 255;
+        const y = Math.floor((1 - percent) * HEIGHT);
+        const intensity = value;
+        ctx.fillStyle = `rgb(${intensity},${intensity},${intensity})`;
+        ctx.fillRect(WIDTH - 1, y, 1, 1);
+      });
+
+      requestAnimationFrame(drawSpectrogram);
+    };
+
+    startBtn.addEventListener('click', () => {
+      startBtn.disabled = true;
+      initAudio();
+    });
+  </script>
+</body>
+</html>

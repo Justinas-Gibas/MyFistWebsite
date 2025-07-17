@@ -1,0 +1,62 @@
+    /* File List Styles */
+    #file-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 20px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--primary-color) #3a3a3a;
+    }
+
+    /* List View */
+    .list-view #file-list {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    
+    /* List View Specific Styles */
+    .list-view .file-item {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      height: 80px;
+    }
+
+    .list-view .file-card-header {
+      width: 60px;
+      height: 60px;
+      margin-right: 15px;
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .list-view .file-artwork {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .list-view .file-card-content {
+      flex: 1;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .list-view .file-name {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .list-view .play-btn {
+      padding: 8px 16px;
+      font-size: 14px;
+      margin-left: 15px;
+    }
+
+    .list-view .play-overlay {
+      display: none;
+    }
