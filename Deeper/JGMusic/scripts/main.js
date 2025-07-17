@@ -14,6 +14,8 @@
 if (window.location.hostname === "127.0.0.1") {
   // Set development mode globally before other scripts load
   window.DEV_MODE = true;
+} else {
+  window.DEV_MODE = false;
 }
 
 //  when DOM is ready
