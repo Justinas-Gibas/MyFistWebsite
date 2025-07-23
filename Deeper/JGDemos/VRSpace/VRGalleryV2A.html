@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Virtual Art Gallery</title>
+    <meta charset="UTF-8">
+    <meta name="author" content="Justinas Gibas">
+    <meta name="description" content="Three.js AR/XR - Enhanced Virtual Art Gallery">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ffffff">
+    <style>
+        body, html { margin: 0; height: 100%; overflow: hidden; }
+        canvas { width: 100%; height: 100%; display: block; }
+    </style>
+</head>
+<body>
+
+<script async src="../../lib/utils/es-module-shims.js"></script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "../../lib/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { FontLoader } from '../../lib/loaders/FontLoader.js';
+import { TextGeometry } from '../../lib/utils/TextGeometry.js';
+import { GLTFLoader } from '../../lib/loaders/GLTFLoader.js';
+import { RGBELoader } from '../../lib/loaders/RGBELoader.js';
+import { OrbitControls } from '../../lib/controls/OrbitControls.js';
+import { XRButton } from '../../lib/webxr/XRButton.js';
+import { Sky } from '../../lib/utils/Sky.js';
+import Stats from '../../lib/libs/stats.module.js';
+
+let camera, scene, renderer, controls;
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const stats = new Stats();
+document.body.appendChild(stats.dom);
+
+// Artworks array for easy management and dynamic updates
+let artworks = [];
+let currentArtIndex = 0;
+
+function initGallery() {
+    scene = new THREE.Scene();
+    camera = setupCamera();
+    renderer = setupRenderer();
+    loadGalleryModel();
+    setupLighting();
+    setupControls();
+    setupGallery();
+    initArtworks();
+    TitleText();
+    setupEventListeners();
+    initSky();
+    animate();
+}
+
+function setupCamera() {
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.01, 100);
+    camera.position.set(20, 1.6, 0);
+    return camera;
+}
+
+function setupRenderer() {
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.xr.enabled = true;
+    document.body.appendChild(renderer.domElement);
+    document.body.appendChild(XRButton.createButton(renderer));
+    return renderer;
+}
+
+function setupLighting() {
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0xffffff, 0.8);
+    scene.add(ambientLight);
+
+    const pointLight1 = new THREE.PointLight(0xb5b5b5, 3, 40);
+    pointLight1.position.set(0, 2, 8);
+    pointLight1.castShadow = true; // Enable shadows
+    pointLight1.shadow.mapSize.width = 1024; // Increase for better quality
+    pointLight1.shadow.mapSize.height = 1024;
+    pointLight1.shadow.bias = -0.0005; // Shadow bias to reduce artifacts
+    pointLight1.shadow.camera.near = 0.1; // Near clipping plane
+    pointLight1.shadow.camera.far = 40; // Far clipping plane
+    scene.add(pointLight1);
+
+    const pointLight2 = new THREE.PointLight(0xb5b5b5, 3, 40);
+    pointLight2.position.set(0, 2, -8);
+    pointLight2.castShadow = true; // Enable shadows
+    pointLight2.shadow.mapSize.width = 1024;
+    pointLight2.shadow.mapSize.height = 1024;
+    pointLight2.shadow.bias = -0.0005; // Shadow bias to reduce artifacts
+    scene.add(pointLight2);
+
+    const pointLight7 = new THREE.PointLight(0xb5b5b5, 5, 10);
+    pointLight7.position.set(15, 2, 0);
+    pointLight7.castShadow = true; // Enable shadows
+    pointLight7.shadow.mapSize.width = 1024;
+    pointLight7.shadow.mapSize.height = 1024;
+    scene.add(pointLight7);
+
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Use PCFSoftShadowMap for smooth shadows
+
+    // HDR
+    const envLoader = new RGBELoader();
+    envLoader.load('../../lib/images/Galer.hdr', (texture) => {
+      texture.mapping = THREE.EquirectangularReflectionMapping;  // Set mapping
+      scene.environment = texture;  // Apply HDR environment map
+    });
+
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;  // Use a tone mapping suitable for HDR
+    renderer.toneMappingExposure = 0.9;  // Set exposure
+    renderer.outputEncoding = THREE.sRGBEncoding;  // Correct output encoding for HDR content
+
+}
+
+function initSky() {
+    // Add Sky
+    const sky = new Sky();
+    sky.scale.setScalar(4500);
+    scene.add(sky);
+
+    const sun = new THREE.Vector3();
+
+    // Set up and configure the sky parameters
+    const effectController = {
+        turbidity: 0.01,
+        rayleigh: 0.01,
+        mieCoefficient: 0.005,
+        mieDirectionalG: 0.999,
+        elevation: 2,
+        azimuth: 90,
+        exposure: renderer.toneMappingExposure
+    };
+
+    // Update sun function to reposition it according to the current time of day
+    function updateSun() {
+        const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
+        const theta = THREE.MathUtils.degToRad(effectController.azimuth);
+        sun.setFromSphericalCoords(1, phi, theta);
+
+        sky.material.uniforms['sunPosition'].value.copy(sun);
+        renderer.toneMappingExposure = effectController.exposure;
+    }
+
+    updateSun();  // Set the initial position of the sun
+}
+
+function setupControls() {
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.7;
+    controls.screenSpacePanning = false;
+    controls.target.set(0, 1.6, 0);
+    controls.enabled = false; // Initially disable controls
+    controls.update();
+}
+
+function loadGalleryModel() {
+    const loader = new GLTFLoader();
+    loader.load('../../lib/models/GalerAll.glb', function(gltf) {
+        gltf.scene.traverse(function(child) {
+            if (child.isMesh) {
+                child.castShadow = true; // Ensure the mesh casts shadows
+                child.receiveShadow = true; // Ensure the mesh receives shadows
+                child.material.side = THREE.FrontSide;
+            }
+        });
+        scene.add(gltf.scene);
+    }, undefined, function(error) {
+        console.error('An error happened in the GLTFLoader:', error);
+    });
+}
+
+function setupGallery() {
+    artworks = [
+        { //center of gallery
+          texture: '.png', 
+          text: 'Drag with one finger to turn     Drag with tow fingers to pan.', 
+          position: new THREE.Vector3(0, 3, 0),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0),
+          width: 0.01, // Optional
+          height: 0.01 // Optional
+        },
+
+        { //start of the gallery
+          texture: '../../lib/images/Forest.png', 
+          text: 'Description for Forest.png', 
+          position: new THREE.Vector3(9.99, 2.5, 4),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { 
+          texture: '../../lib/images/BackWater.png', 
+          text: 'Description for BackWater.png', 
+          position: new THREE.Vector3(9.99, 2.5, 7),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { 
+          texture: '../../lib/images/Forest.png', 
+          text: 'Description for Forest.png', 
+          position: new THREE.Vector3(9.99, 2.5, 9),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { 
+          texture: '../../lib/images/BackWater.png', 
+          text: 'Description for BackWater.png', 
+          position: new THREE.Vector3(9.99, 2.5, 12),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { 
+          texture: '../../lib/images/Forest.png', 
+          text: 'Description for Forest.png', 
+          position: new THREE.Vector3(9.99, 2.5, 15),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0)
+        },
+
+        { // right of gallery left side
+          texture: '../../lib/images/BackWater.png', 
+          text: 'Description for BackWater.png', 
+          position: new THREE.Vector3(6, 2.5, 19.99),
+          rotation: new THREE.Euler(0, Math.PI, 0),
+        },
+
+        { // center of gallery left side
+          texture: '../../lib/images/Forest.png', 
+          text: 'Description for Forest.png', 
+          position: new THREE.Vector3(0, 2.5, 19.99),
+          rotation: new THREE.Euler(0, Math.PI, 0),
+        },
+
+        { // left of gallery left side
+          texture: '../../lib/images/BackWater.png', 
+          text: 'Description for BackWater.png', 
+          position: new THREE.Vector3(-6, 2.5, 19.99),
+          rotation: new THREE.Euler(0, Math.PI, 0),    
+        },
+
+        { //left side of front wall
+          texture: '../../lib/images/Forest.png', 
+          text: 'Description for Forest.png', 
+          position: new THREE.Vector3(-9.99, 2.5, 18),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+        },
+
+        {
+          texture: '../../lib/images/BackWater.png', 
+          text: 'Description for BackWater.png', 
+          position: new THREE.Vector3(-9.99, 2.5, 7),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+        },
+
+        { // right side of front wall
+          texture: '../../lib/images/Forest.png', 
+          text: 'Description for Forest.png', 
+          position: new THREE.Vector3(-9.99, 2.5, -18),
+          rotation: new THREE.Euler(0, Math.PI / 2, 0)
+        },
+
+        { // right of gallery right side
+          texture: '../../lib/images/BackWater.png',  
+          text: 'Description for BackWater.png', 
+          position: new THREE.Vector3(-6, 2.5, -19.9),
+          rotation: new THREE.Euler(0, 0, 0),
+        },
+        
+        { // center of gallery right side
+          texture: '../../lib/images/Forest.png',  
+          text: 'Description for Forest.png', 
+          position: new THREE.Vector3(0, 2.5, -19.9),
+          rotation: new THREE.Euler(0, 0, 0),
+        },
+
+        { // left of gallery right side
+          texture: '../../lib/images/BackWater.png',  
+          text: 'Description for BackWater.png', 
+          position: new THREE.Vector3(6, 2.5, -19.9),
+          rotation: new THREE.Euler(0, 0, 0),
+        },
+
+        {
+          texture: '../../lib/images/Forest.png', 
+          text: 'Description for Forest.png', 
+          position: new THREE.Vector3(9.99, 2.5, -8),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0),
+        },
+        
+        { //end position of gallery right side
+          texture: '../../lib/images/BackWater.png', 
+          text: 'Description for BackWater.png', 
+          position: new THREE.Vector3(9.99, 2.5, -4),
+          rotation: new THREE.Euler(0, Math.PI / -2, 0),
+        }
+    ];
+}
+
+function initArtworks() {
+    loadArtPieces(scene, artworks);
+    setupNavigationButtons();
+}
+
+function loadArtPieces(scene, artworks) {
+    const textureLoader = new THREE.TextureLoader();
+    artworks.forEach((artwork, index) => {
+        textureLoader.load(artwork.texture, function(texture) {
+            const aspectRatio = texture.image.width / texture.image.height;
+            const width = artwork.width || 1;
+            const height = artwork.height || width / aspectRatio;
+            const artGeometry = new THREE.PlaneGeometry(width, height);
+            const artMaterial = new THREE.MeshStandardMaterial({ map: texture, side: THREE.DoubleSide });
+            const artMesh = new THREE.Mesh(artGeometry, artMaterial);
+            artMesh.position.copy(artwork.position);
+            artMesh.rotation.copy(artwork.rotation);
+            artMesh.receiveShadow = true;
+            artMesh.userData = { index: index, clickable: true };
+            scene.add(artMesh);
+            loadText(scene, artwork.text, artwork.position, artwork.rotation, width, height);
+        });
+    });
+}
+
+function wrapText(text, maxCharsPerLine) {
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = words[0];
+
+    for (let i = 1; i < words.length; i++) {
+        if ((currentLine + words[i]).length < maxCharsPerLine) {
+            currentLine += ' ' + words[i];
+        } else {
+            lines.push(currentLine);
+            currentLine = words[i];
+        }
+    }
+    lines.push(currentLine); // Add the last line
+
+    return lines;
+}
+
+function loadText(scene, text, position, rotation, width, height) {
+    const loader = new FontLoader();
+    loader.load('../../lib/styles/helvetiker_regular.typeface.json', function(font) {
+        const maxCharsPerLine = 35;
+        const lineHeight = 0.13;
+        const lines = wrapText(text, maxCharsPerLine);
+
+        lines.forEach((line, index) => {
+            const textGeometry = new TextGeometry(line, {
+                font: font,
+                size: 0.04,
+                depth:0,
+                curveSegments: 3,
+                bevelEnabled: false,
+            });
+
+            const textMaterial = new THREE.MeshBasicMaterial({ color: 0x222222 });
+            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+            
+            // Calculate vertical offset based on artwork height
+            const offsetDistance = height / 2 + 0.2;
+            const yOffset = -index * lineHeight;
+
+            const directionVector = new THREE.Vector3(0, -1, 0); // Direction to move text in local space
+            const euler = new THREE.Euler(rotation.x, rotation.y, rotation.z, 'XYZ');
+            
+            // Adjust direction vector by rotation
+            directionVector.applyEuler(euler); 
+            directionVector.multiplyScalar(offsetDistance);
+
+            // Calculate final position for text
+            const finalPosition = new THREE.Vector3().copy(position).add(directionVector);
+            textMesh.position.set(finalPosition.x, finalPosition.y + yOffset, finalPosition.z);
+
+            // Apply the artwork's rotation to the text
+            textMesh.rotation.set(rotation.x, rotation.y, rotation.z);
+
+            scene.add(textMesh);
+        });
+    });
+}
+
+function TitleText() {
+    const loader = new FontLoader();
+    loader.load('../../lib/styles/helvetiker_regular.typeface.json', function(font) {
+
+        //responsive text sizing
+        const minSize = 0.1;
+        const viewportFactor = 0.0005;
+        const responsiveSize = window.innerWidth * viewportFactor;  // + window.innerHeight * viewportFactor;
+        const maxSize = 0.6;
+        const size = Math.max(minSize, Math.min(responsiveSize, maxSize));
+
+        const text = 'Virtual Art Gallery';
+        const textGeometry = new TextGeometry(text, {
+            font: font,
+            size: size,
+            depth: 0.1,
+            curveSegments: 3,
+            bevelEnabled: false
+        });
+
+        const textMaterial = new THREE.MeshBasicMaterial({ color: 0xd4d4d4 });
+        const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+
+        // Calculate position to center the text
+        textGeometry.computeBoundingBox();
+        const centerOffset = -0.5 * (textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x);
+
+        // Set position to roughly center of screen
+        textMesh.position.set(15, 2.5, 0 - centerOffset);
+        textMesh.rotation.y = Math.PI / 2;
+
+        scene.add(textMesh);
+    });
+}
+
+// Helper function to interpolate between two keyframes
+function interpolateKeyframes(kf1, kf2, currentTime) {
+    const t = (currentTime - kf1.time) / (kf2.time - kf1.time);
+    const position = new THREE.Vector3().lerpVectors(kf1.position, kf2.position, t);
+    const quaternion = new THREE.Quaternion().slerpQuaternions(kf1.quaternion.clone().normalize(), kf2.quaternion.clone().normalize(), t);
+    console.log("Interpolating quaternions", quaternion); // Debug: Log quaternion values
+    return { position, quaternion };
+}
+
+// Main function to animate the camera through keyframes
+function animateCameraThroughKeyframes(keyframes) {
+    return new Promise(resolve => {
+        let currentKeyframeIndex = 0;
+        let initialPosition = camera.position.clone(); // Store initial camera position
+        let initialQuaternion = camera.quaternion.clone(); // Store initial camera rotation
+
+        const updateAnimation = () => {
+            const now = performance.now();
+            while (now > keyframes[currentKeyframeIndex + 1].time && currentKeyframeIndex < keyframes.length - 2) {
+                currentKeyframeIndex++;
+            }
+
+            if (currentKeyframeIndex < keyframes.length - 1) {
+                const kf1 = keyframes[currentKeyframeIndex];
+                const kf2 = keyframes[currentKeyframeIndex + 1];
+                const { position, quaternion } = interpolateKeyframes(kf1, kf2, now);
+
+                // Reset camera to initial state before applying new transformation
+                camera.position.copy(initialPosition);
+                camera.quaternion.copy(initialQuaternion);
+
+                // Apply interpolated transformation
+                camera.position.lerpVectors(initialPosition, position, (now - kf1.time) / (kf2.time - kf1.time));
+                camera.quaternion.slerpQuaternions(initialQuaternion, quaternion, (now - kf1.time) / (kf2.time - kf1.time));
+
+                requestAnimationFrame(updateAnimation);
+            } else {
+                console.log("Animation Complete");
+                resolve(); // End of animation
+            }
+        };
+
+        updateAnimation();
+    });
+}
+
+// Ensure quaternions are properly initialized
+const keyframes = [
+    { position: new THREE.Vector3(0, 2, 1), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0)), time: performance.now() + 10 },
+    { position: new THREE.Vector3(5, 2, 0), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI, 0)), time: performance.now() + 20 },
+    { position: new THREE.Vector3(0, 2, -1), quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0)), time: performance.now() + 30 }
+];
+
+function onDoubleClick(event) {
+    // Calculate mouse position in normalized device coordinates
+    // (-1 to +1) for both components
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children);
+
+    for (let i = 0; i < intersects.length; i++) {
+        if (intersects[i].object.userData.clickable) {
+            const artwork = intersects[i].object;
+            currentArtIndex = artwork.userData.index; // Update currentArtIndex based on clicked artwork
+            translateCameraToArt(artwork.position, artwork.rotation);
+            break; // Exit after the first clickable object is found
+        }
+    }
+}
+
+function stylizeElement(element, alignment) {
+    element.style.position = 'absolute';
+    element.style.padding = '12px 6px';
+    element.style.border = '1px solid #fff';
+    element.style.borderRadius = '4px';
+    element.style.background = 'rgba(0,0,0,0.3)'; 
+    element.style.color = '#fff';
+    element.style.font = 'normal 13px sans-serif';
+    element.style.textAlign = 'center';
+    element.style.opacity = '0.6';
+    element.style.outline = 'none';
+    element.style.zIndex = '999';
+
+    switch (alignment) {
+        case 'left':
+            element.style.left = '20px';
+            element.style.bottom = '20px';
+            break;
+        case 'right':
+            element.style.right = '20px';
+            element.style.bottom = '20px';
+            break;
+        case 'center':
+            element.style.top = '40%';
+            element.style.left = '50%';
+            element.style.transform = 'translate(-50%, -50%)';
+            element.style.font = 'normal 20px sans-serif';
+            element.style.background = 'rgba(0,0,0,0.4)';
+            element.style.opacity = '0.7';
+            break;
+    }
+}
+
+function setupNavigationButtons() {
+    const prevButton = document.createElement('button');
+    prevButton.innerText = 'Previous';
+    prevButton.id = 'prevButton';
+    stylizeElement(prevButton, 'left');
+
+    const nextButton = document.createElement('button');
+    nextButton.innerText = 'Next';
+    nextButton.id = 'nextButton';
+    stylizeElement(nextButton, 'right');
+
+    const startButton = document.createElement('button');
+    startButton.innerText = 'Start';
+    startButton.id = 'startButton';
+    stylizeElement(startButton, 'center');
+
+    document.body.appendChild(prevButton);
+    document.body.appendChild(nextButton);
+    document.body.appendChild(startButton);
+
+    prevButton.style.display = 'none'; // Ensure button is not visible
+    nextButton.style.display = 'none'; // Ensure button is not visible
+
+    prevButton.addEventListener('click', function() {
+        currentArtIndex = (currentArtIndex - 1 + artworks.length) % artworks.length;
+        updateViewToCurrentArt();
+    });
+
+    nextButton.addEventListener('click', function() {
+        currentArtIndex = (currentArtIndex + 1) % artworks.length;
+        updateViewToCurrentArt();
+    });
+
+    startButton.addEventListener('click', function() {
+        
+        //animateCameraThroughKeyframes();
+        updateViewToCurrentArt();
+
+        prevButton.style.display = 'block'; // Show the Previous button
+        nextButton.style.display = 'block'; // Show the Next button
+        startButton.style.display = 'none'; // Hide the Start button
+        controls.enabled = true; // Enable orbit controls
+    });
+}
+
+function updateViewToCurrentArt() {
+    const artwork = artworks[currentArtIndex];
+    translateCameraToArt(artwork.position, artwork.rotation);
+}
+
+function quaternionSlerp(q1, q2, t) {
+    var cosTheta = q1.x * q2.x + q1.y * q2.y + q1.z * q2.z + q1.w * q2.w;
+    // If cosTheta < 0, the interpolation will take the long way around the sphere.
+    if (cosTheta < 0) {
+        q1.x = -q1.x; q1.y = -q1.y; q1.z = -q1.z; q1.w = -q1.w;
+        cosTheta = -cosTheta;
+    }
+
+    // Perform a linear interpolation when cosTheta is close to 1 to avoid side effect of sin(angle) becoming a zero denominator
+    if (cosTheta > 0.9995) {
+        return new THREE.Quaternion(
+            q1.x + t * (q2.x - q1.x),
+            q1.y + t * (q2.y - q1.y),
+            q1.z + t * (q2.z - q1.z),
+            q1.w + t * (q2.w - q1.w)
+        ).normalize();
+    }
+
+    // Standard case using slerp formula
+    const angle = Math.acos(cosTheta);
+    const sinTheta = Math.sqrt(1.0 - cosTheta * cosTheta);
+    const ratioA = Math.sin((1 - t) * angle) / sinTheta;
+    const ratioB = Math.sin(t * angle) / sinTheta;
+
+    return new THREE.Quaternion(
+        q1.x * ratioA + q2.x * ratioB,
+        q1.y * ratioA + q2.y * ratioB,
+        q1.z * ratioA + q2.z * ratioB,
+        q1.w * ratioA + q2.w * ratioB
+    );
+}
+
+function translateCameraToArt(targetPosition, targetRotation) {
+    const endPosition = new THREE.Vector3();
+    const direction = new THREE.Vector3(0, 0, 1); // Assuming the artwork faces along negative z-axis
+    direction.applyEuler(new THREE.Euler(0, targetRotation.y, 0, 'XYZ'));
+
+    // Calculate endPosition in front of the artwork
+    endPosition.copy(targetPosition).add(direction.multiplyScalar(2)); // Adjust multiplier to control distance
+
+    const startPosition = camera.position.clone();
+    const startRotation = camera.quaternion.clone();
+    const endRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, targetRotation.y, 0, 'XYZ'));
+
+    let alpha = 0.0;
+
+    function animate() {
+        if (alpha < 1.0) {
+            alpha += 0.01; // Incrementally increase alpha towards 1
+
+            // Interpolate position
+            camera.position.lerpVectors(startPosition, endPosition, alpha);
+
+            // Interpolate rotation using the custom slerp function
+            camera.quaternion.copy(quaternionSlerp(startRotation, endRotation, alpha));
+
+            requestAnimationFrame(animate);
+        } else {
+            // Adjust orbit controls target for smooth interaction
+            updateOrbitControlsTarget(targetPosition);
+            // Ensure the final camera orientation and position are set
+            camera.position.copy(endPosition);
+            camera.quaternion.copy(endRotation);
+        }
+    }
+    animate();
+}
+
+function updateOrbitControlsTarget(newTarget) {
+    controls.target.set(newTarget.x, newTarget.y, newTarget.z); // Update 'controls' directly
+    controls.update();
+}
+
+function onWindowResize(camera, renderer) {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function setupEventListeners() {
+    window.addEventListener('resize', () => onWindowResize(camera, renderer), false);
+    document.addEventListener('dblclick', onDoubleClick, false);
+}
+
+function animate() {
+    renderer.setAnimationLoop(() => render());
+}
+
+function render() {
+    stats.begin();
+    renderer.render(scene, camera);
+    controls.update();
+    stats.end();
+}
+
+initGallery();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Advanced Genetic Code Assembly (GPU-Accelerated ML Evolution)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1 style="text-align: center; color: #64ffda; margin-bottom: 30px;">
+      🧬 Advanced Genetic Code Assembly - GPU ML Evolution
+    </h1>
+    
+    <div class="controls">
+      <div class="control-group">
+        <h3>🎯 Evolution Controls</h3>
+        <button onclick="nextGen()">Next Generation</button>
+        <button onclick="autoEvolve()">Auto Evolve (100)</button>
+        <button onclick="resetEvolution()">Reset</button>
+        <button onclick="toggleGPU()">Toggle GPU: <span id="gpuStatus">ON</span></button>
+      </div>
+
+      <div class="control-group">
+        <h3>⚙️ ML Parameters</h3>
+        <label>Population: <input id="popSize" type="range" min="100" max="2000" value="500" onchange="updatePop(this.value)"><span id="popVal">500</span></label>
+        <label>Mutation Rate: <input id="mutr" type="range" min="0.01" max="0.5" step="0.01" value="0.15" onchange="setMut(this.value)"><span id="mutv">0.15</span></label>
+        <label>Novelty Pressure: <input id="novelty" type="range" min="0" max="1" step="0.05" value="0.3" onchange="setNovelty(this.value)"><span id="novv">0.3</span></label>
+      </div>
+
+      <div class="control-group">
+        <h3>🧪 Test Environment</h3>
+        <select id="testcase" onchange="setTest()">
+          <option value="add">Addition (3+5=8)</option>
+          <option value="mul">Multiply (4*3=12)</option>
+          <option value="fibonacci">Fibonacci (F(5)=5)</option>
+          <option value="sort">Sort Array [3,1,2]→[1,2,3]</option>
+          <option value="neural">Neural XOR Gate</option>
+        </select>
+        <label>Species Count: <span id="speciesCount">0</span></label>
+        <label>Best Fitness: <span id="bestFit">0.000</span></label>
+      </div>
+
+      <div class="control-group">
+        <h3>🔬 Advanced Features</h3>
+        <label><input type="checkbox" id="speciation" checked onchange="toggleSpeciation()"> Speciation</label>
+        <label><input type="checkbox" id="noveltySearch" checked onchange="toggleNovelty()"> Novelty Search</label>
+        <label><input type="checkbox" id="neuralEvolution" onchange="toggleNeural()"> Neural Evolution</label>
+        <label><input type="checkbox" id="elitism" checked onchange="toggleElitism()"> Elitism</label>
+      </div>
+    </div>
+
+    <canvas id="evolutionCanvas" width="1360" height="600"></canvas>
+
+    <div class="stats">
+      <div class="stat-panel">
+        <h3>📊 Population Stats</h3>
+        <div id="populationStats"></div>
+      </div>
+      <div class="stat-panel">
+        <h3>🎯 Elite Performers</h3>
+        <div id="eliteLog"></div>
+      </div>
+      <div class="stat-panel">
+        <h3>🚀 Performance Metrics</h3>
+        <div id="performanceLog"></div>
+      </div>
+    </div>
+  </div>
+
+<script src="main.js"></script>
+
+<!-- vanJS -->
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/vanjs/1.0.0/van.min.js"></script> -->
+<!-- Canvas.js -->
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/Canvas.js/1.0.0/Canvas.min.js"></script> -->
+<!-- alt D3.js -->
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.0.0/d3.min.js"></script> -->
+
+<!-- lokiJS -->
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/lokijs/1.5.5/lokijs.min.js"></script> -->
+<!-- lokijs utils -->
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/lokijs/1.5.5/lokijs-utils.min.js"></script> -->
+<!-- lodash -->
+<!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script> -->
+
+
+<!-- <script src="entity.js"></script> -->
+<!-- <script src="component.js"></script> -->
+<!-- <script src="system.js"></script> -->
+
+<!-- <script src="DNA-component.js"></script> -->
+<!-- <script src="score-component.js"></script> -->
+<!-- <script src="evaluation-component.js"></script> -->
+
+<!-- <script src="evolution-system.js"></script> -->
+<!-- <script src="fitness-system.js"></script> -->
+
+</body>
+</html>

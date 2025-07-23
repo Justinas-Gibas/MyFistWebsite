@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dimensional Wave-Based Neural Architectures: A New Biological Approach</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f8f8fa;
+      color: #222;
+      margin: 0;
+      padding: 0;
+    }
+    .slide {
+      display: none;
+      max-width: 900px;
+      margin: 2em auto;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px #0001;
+      padding: 2em 2em 1em 2em;
+      min-height: 500px;
+    }
+    .slide.active {
+      display: block;
+      animation: fadeIn 0.5s;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px);}
+      to { opacity: 1; transform: translateY(0);}
+    }
+    h1, h2, h3 {
+      color: #007acc;
+      margin-top: 0;
+    }
+    ul { margin-left: 1.5em; }
+    code {
+      background: #f4f4f4;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .quote {
+      font-style: italic;
+      color: #555;
+      margin: 2em 0 1em 0;
+      border-left: 4px solid #007acc;
+      padding-left: 1em;
+      background: #f9f9fc;
+    }
+    .nav {
+      text-align: center;
+      margin: 2em 0 1em 0;
+    }
+    .nav button {
+      background: #007acc;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 0.7em 2em;
+      font-size: 1.1em;
+      margin: 0 0.5em;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .nav button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    /* Demo styles */
+    #demos {
+      border: 1px solid #ccc;
+      padding: 1em;
+      margin-bottom: 2em;
+      background: #fafafa;
+      border-radius: 8px;
+    }
+    .demo {
+      margin-bottom: 2em;
+    }
+    canvas {
+      border: 1px solid #ddd;
+      display: block;
+      margin: 0.5em 0;
+      max-width: 100%;
+      height: auto;
+    }
+    .controls label {
+      display: block;
+      margin: 0.5em 0 0.25em;
+    }
+    .controls input[type="range"] {
+      width: 100%;
+    }
+    #viewer3d {
+      width: 100%;
+      height: 400px;
+      background: #000;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Slides -->
+<div class="slide active" id="slide0">
+  <h1>Analog Wave-Based Neural Architectures: A New Paradigm</h1>
+  <p><strong>Author:</strong> Justinas (conceptual lead), GitHub Copilot (scribe)</p>
+  <h2>Abstract</h2>
+  <p>
+    Traditional neural networks rely on discrete values, rigid layer structures, and fully connected architectures. This paper proposes a biologically inspired alternative: a wave-based, analog neural system with spatial dimensionality and local connectivity. By leveraging sine wave compositions, 3D topologies, and STL-like data representations, we aim to create a more fluid, adaptive, and efficient model of artificial cognition.
+  </p>
+</div>
+
+<div class="slide" id="slide1">
+  <h2>1. Introduction</h2>
+  <p>
+    Modern AI systems are built on digital abstractions — matrices, tensors, and activation functions. Yet biological intelligence operates in a continuous, analog domain. Neurons fire in rhythms, not bits. Signals propagate through space, not layers. This paper explores what happens when we abandon hard values and embrace waves, space, and structure.
+  </p>
+</div>
+
+<div class="slide" id="slide2">
+  <h2>2. Wave-Based Encoding</h2>
+  <p>
+    Instead of representing data as static numbers, we propose encoding inputs and weights as <strong>composite waveforms</strong>. Using sine, cosine, and other periodic functions, we can shape signal profiles that carry richer information. This allows for:
+  </p>
+  <ul>
+    <li>Phase-based modulation</li>
+    <li>Frequency domain learning</li>
+    <li>Analog interference patterns for decision-making</li>
+  </ul>
+</div>
+
+<div class="slide" id="slide3">
+  <h2>3. Spatial Dimensionality</h2>
+  <p>
+    Neurons are not flat. They exist in space. We propose modeling networks in <strong>3D topologies</strong> where each neuron has a position, length, and local environment. Long neurons (e.g. sensory pathways) are rare and specialized. Most connections should be <strong>local</strong>, mimicking cortical microcircuits.
+  </p>
+</div>
+
+<div class="slide" id="slide4">
+  <h2>4. STL-Like Data Representation</h2>
+  <p>
+    To encode the network structure, we suggest using a format inspired by <code>.stl</code> files — commonly used in 3D modeling. Each crease or vertex could represent a weight or connection. This allows for:
+  </p>
+  <ul>
+    <li>Physical modeling of neural geometry</li>
+    <li>Simulation of signal propagation through space</li>
+    <li>Integration with CAD tools for visualization</li>
+  </ul>
+</div>
+
+<div class="slide" id="slide5">
+  <h2>5. Biological Parallels</h2>
+  <p>
+    This architecture aligns with known biological principles:
+  </p>
+  <ul>
+    <li>Local connectivity and sparse activation</li>
+    <li>Wave-based signaling (e.g. brain oscillations)</li>
+    <li>Spatial organization of function (e.g. somatosensory maps)</li>
+  </ul>
+</div>
+
+<div class="slide" id="slide6">
+  <h2>6. Future Directions</h2>
+  <p>
+    We envision a system where learning occurs through wave interference, spatial adaptation, and analog feedback loops. This could lead to:
+  </p>
+  <ul>
+    <li>More energy-efficient AI</li>
+    <li>Better generalization and robustness</li>
+    <li>Closer alignment with biological intelligence</li>
+  </ul>
+  <div class="quote">
+    “We need to stop forcing all data through every neuron and start letting the network choose its own path — like a brain.”
+  </div>
+</div>
+
+<div class="slide" id="slide7">
+  <h2>7. Conclusion</h2>
+  <p>
+    This is not just a new architecture — it's a new way of thinking. By embracing analog signals, spatial structure, and biological realism, we may unlock a deeper form of artificial intelligence.
+  </p>
+</div>
+
+<div class="slide" id="slide8">
+  <h2>Interactive Demos</h2>
+  <p>
+    Explore the concepts interactively below: wave composer, perceptron simulator, 3D topology, and STL visualizer.
+  </p>
+  <div id="demos">
+    <!-- Demo 1: Wave Composer -->
+    <div class="demo">
+      <h3>Wave Composer</h3>
+      <p>
+        Combine up to three sine waves to forge a composite analog signal.  
+        Adjust amplitudes, frequencies, and phase shifts below.
+      </p>
+      <canvas id="waveCanvas" width="800" height="200"></canvas>
+      <div class="controls">
+        <label>Wave 1 Amplitude: <span id="A1val">1.0</span></label>
+        <input type="range" id="A1" min="0" max="2" step="0.01" value="1">
+        <label>Wave 1 Frequency (Hz): <span id="f1val">1.0</span></label>
+        <input type="range" id="f1" min="0.1" max="5" step="0.1" value="1">
+        <label>Wave 1 Phase (rad): <span id="p1val">0.00</span></label>
+        <input type="range" id="p1" min="0" max="6.28" step="0.01" value="0">
+        <hr>
+        <label>Wave 2 Amplitude: <span id="A2val">0.5</span></label>
+        <input type="range" id="A2" min="0" max="2" step="0.01" value="0.5">
+        <label>Wave 2 Frequency (Hz): <span id="f2val">2.0</span></label>
+        <input type="range" id="f2" min="0.1" max="5" step="0.1" value="2">
+        <label>Wave 2 Phase (rad): <span id="p2val">1.57</span></label>
+        <input type="range" id="p2" min="0" max="6.28" step="0.01" value="1.57">
+        <hr>
+        <label>Wave 3 Amplitude: <span id="A3val">0.3</span></label>
+        <input type="range" id="A3" min="0" max="2" step="0.01" value="0.3">
+        <label>Wave 3 Frequency (Hz): <span id="f3val">3.0</span></label>
+        <input type="range" id="f3" min="0.1" max="5" step="0.1" value="3">
+        <label>Wave 3 Phase (rad): <span id="p3val">3.14</span></label>
+        <input type="range" id="p3" min="0" max="6.28" step="0.01" value="3.14">
+      </div>
+    </div>
+
+    <!-- Demo 2: Perceptron Simulator -->
+    <div class="demo">
+      <h3>Perceptron Simulator</h3>
+      <p>
+        Three inputs × weights + bias → activation.  
+        Try <code>step</code>, <code>sigmoid</code>, or <code>ReLU</code>.
+      </p>
+      <canvas id="percCanvas" width="600" height="150"></canvas>
+      <div class="controls">
+        <label>Input x₁: <span id="x1val">0.5</span></label>
+        <input type="range" id="x1" min="0" max="1" step="0.01" value="0.5">
+        <label>Weight w₁: <span id="w1val">1.0</span></label>
+        <input type="range" id="w1" min="-2" max="2" step="0.01" value="1">
+        <label>Input x₂: <span id="x2val">0.5</span></label>
+        <input type="range" id="x2" min="0" max="1" step="0.01" value="0.5">
+        <label>Weight w₂: <span id="w2val">-1.0</span></label>
+        <input type="range" id="w2" min="-2" max="2" step="0.01" value="-1">
+        <label>Input x₃: <span id="x3val">0.5</span></label>
+        <input type="range" id="x3" min="0" max="1" step="0.01" value="0.5">
+        <label>Weight w₃: <span id="w3val">0.5</span></label>
+        <input type="range" id="w3" min="-2" max="2" step="0.01" value="0.5">
+        <label>Bias b: <span id="bval">0.0</span></label>
+        <input type="range" id="b" min="-2" max="2" step="0.01" value="0">
+        <label>Activation:</label>
+        <select id="act">
+          <option value="step">Step</option>
+          <option value="sigmoid" selected>Sigmoid</option>
+          <option value="relu">ReLU</option>
+        </select>
+        <button onclick="drawPerceptron()">Compute</button>
+        <p>Output: <strong id="outval">0.62</strong></p>
+      </div>
+    </div>
+
+    <!-- Demo 3: 3D Topology Viewer -->
+    <div class="demo">
+      <h3>3D Local-Connectivity Topology</h3>
+      <p>
+        A simple Three.js scene: neurons as spheres, local weights as edge thickness.  
+        Rotate and zoom with mouse.
+      </p>
+      <div id="viewer3d"></div>
+    </div>
+
+    <!-- Demo 4: STL-Like Structure Visualizer -->
+    <div class="demo">
+      <h3>STL-Like Neural Geometry</h3>
+      <p>
+        Load your <code>.stl</code> file to view network creases ↔ weights.  
+        Paste URL below and click “Load.”
+      </p>
+      <input type="text" id="stlUrl" placeholder="https://example.com/network.stl" style="width:100%">
+      <button onclick="loadSTL()">Load STL</button>
+      <div id="stlViewer" style="width:100%; height:400px; background:#eee; margin-top:0.5em;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Navigation -->
+<div class="nav">
+  <button id="prevBtn" onclick="prevSlide()" disabled>◀ Previous</button>
+  <button id="nextBtn" onclick="nextSlide()">Next ▶</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://threejs.org/examples/js/loaders/STLLoader.js"></script>
+<script>
+  // Presentation navigation
+  let currentSlide = 0;
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  function showSlide(idx) {
+    slides.forEach((s,i) => s.classList.toggle('active', i===idx));
+    document.getElementById('prevBtn').disabled = idx === 0;
+    document.getElementById('nextBtn').disabled = idx === slides.length-1;
+    currentSlide = idx;
+  }
+  function nextSlide() { if (currentSlide < slides.length-1) showSlide(currentSlide+1); }
+  function prevSlide() { if (currentSlide > 0) showSlide(currentSlide-1); }
+  // Keyboard navigation
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') nextSlide();
+    if (e.key === 'ArrowLeft') prevSlide();
+  });
+
+  // Demo 1: Wave Composer
+  const wCtx = document.getElementById('waveCanvas').getContext('2d');
+  const params = ['A1','f1','p1','A2','f2','p2','A3','f3','p3'];
+  params.forEach(id => {
+    const el = document.getElementById(id);
+    el.oninput = () => {
+      document.getElementById(id + 'val').innerText = parseFloat(el.value).toFixed(2);
+      drawWave();
+    };
+  });
+  function drawWave() {
+    const W = 800, H = 200;
+    wCtx.clearRect(0,0,W,H);
+    wCtx.beginPath();
+    for (let x=0; x<=W; x++) {
+      const t = x/W*4*Math.PI;
+      let y = 0;
+      for (let i=1; i<=3; i++) {
+        const A = +document.getElementById('A'+i).value;
+        const f = +document.getElementById('f'+i).value;
+        const p = +document.getElementById('p'+i).value;
+        y += A * Math.sin(f*t + p);
+      }
+      const yy = H/2 - (y/(1+1+1))*H/2;
+      if (x===0) wCtx.moveTo(x,yy);
+      else wCtx.lineTo(x,yy);
+    }
+    wCtx.strokeStyle = '#007acc';
+    wCtx.stroke();
+  }
+  drawWave();
+
+  // Demo 2: Perceptron Simulator
+  const pParams = ['x1','x2','x3','w1','w2','w3','b'];
+  pParams.forEach(id => {
+    const el = document.getElementById(id);
+    el.oninput = () => document.getElementById(id+'val').innerText = el.value;
+  });
+  function actFn(z) {
+    const t = document.getElementById('act').value;
+    if (t==='step') return z>0?1:0;
+    if (t==='sigmoid') return 1/(1+Math.exp(-z));
+    return Math.max(0,z); // ReLU
+  }
+  function drawPerceptron() {
+    const x1 = +document.getElementById('x1').value;
+    const x2 = +document.getElementById('x2').value;
+    const x3 = +document.getElementById('x3').value;
+    const w1 = +document.getElementById('w1').value;
+    const w2 = +document.getElementById('w2').value;
+    const w3 = +document.getElementById('w3').value;
+    const b0 = +document.getElementById('b').value;
+    const z = w1*x1 + w2*x2 + w3*x3 + b0;
+    const out = actFn(z);
+    document.getElementById('outval').innerText = out.toFixed(2);
+    // draw a bar
+    const c = document.getElementById('percCanvas').getContext('2d');
+    c.clearRect(0,0,600,150);
+    c.fillStyle = '#ff6600';
+    c.fillRect(100,50,400*out,30);
+  }
+  drawPerceptron();
+
+  // Demo 3: 3D Topology Viewer
+  (function(){
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45,1.6,0.1,1000);
+    camera.position.set(0,5,10);
+    const renderer = new THREE.WebGLRenderer({antialias:true});
+    const container = document.getElementById('viewer3d');
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(renderer.domElement);
+    const light = new THREE.PointLight(0xffffff,1);
+    light.position.set(5,10,5);
+    scene.add(light);
+    // create a small grid of neurons
+    const geom = new THREE.SphereGeometry(0.2,16,16);
+    const mat = new THREE.MeshStandardMaterial({color:0x0099ff});
+    for (let x=-2; x<=2; x+=2) for (let y=0; y<=2; y+=1.5) {
+      const node = new THREE.Mesh(geom,mat);
+      node.position.set(x, y, 0);
+      scene.add(node);
+    }
+    // animate
+    function animate(){
+      requestAnimationFrame(animate);
+      scene.rotation.y += 0.005;
+      renderer.render(scene,camera);
+    }
+    animate();
+  })();
+
+  // Demo 4: STL Loader
+  function loadSTL(){
+    const url = document.getElementById('stlUrl').value;
+    if(!url) return alert('Paste your STL URL first');
+    const container = document.getElementById('stlViewer');
+    container.innerHTML = '';
+    const width = container.clientWidth, height = container.clientHeight;
+    const scene = new THREE.Scene(),
+          camera = new THREE.PerspectiveCamera(45,width/height,0.1,1000),
+          renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(width,height);
+    container.appendChild(renderer.domElement);
+    const light = new THREE.DirectionalLight(0xffffff,0.8);
+    light.position.set(0,10,10);
+    scene.add(light);
+    camera.position.set(0,0,50);
+    const loader = new THREE.STLLoader();
+    loader.load(url, geom => {
+      const mat = new THREE.MeshStandardMaterial({color:0x888888});
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.rotation.set(-Math.PI/2,0,0);
+      scene.add(mesh);
+      animate();
+    }, undefined, err => {
+      alert('Failed to load STL');
+    });
+    function animate(){
+      requestAnimationFrame(animate);
+      scene.rotation.y += 0.005;
+      renderer.render(scene,camera);
+    }
+  }
+</script>
+</body>
+</html>
