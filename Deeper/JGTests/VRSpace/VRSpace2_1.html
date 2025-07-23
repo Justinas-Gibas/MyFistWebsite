@@ -14,26 +14,26 @@
 </head>
 <body>
 
-<script async src="../lib/utils/es-module-shims.js"></script>
+<script async src="../../lib/utils/es-module-shims.js"></script>
 
 <script type="importmap">
 {
   "imports": {
-    "three": "../lib/three.module.js"
+    "three": "../../lib/three.module.js"
   }
 }
 </script>
 
 <script type="module">
 import * as THREE from 'three';
-import { FontLoader } from '../lib/loaders/FontLoader.js';
-import { TextGeometry } from '../lib/utils/TextGeometry.js';
-import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
-import { RGBELoader } from '../lib/loaders/RGBELoader.js';
-import { OrbitControls } from '../lib/controls/OrbitControls.js';
-import { ARButton } from '../lib/webxr/ARButton.js';
-import { Sky } from '../lib/utils/Sky.js';
-import Stats from '../lib/libs/stats.module.js'
+import { FontLoader } from '../../lib/loaders/FontLoader.js';
+import { TextGeometry } from '../../lib/utils/TextGeometry.js';
+import { GLTFLoader } from '../../lib/loaders/GLTFLoader.js';
+import { RGBELoader } from '../../lib/loaders/RGBELoader.js';
+import { OrbitControls } from '../../lib/controls/OrbitControls.js';
+import { ARButton } from '../../lib/webxr/ARButton.js';
+import { Sky } from '../../lib/utils/Sky.js';
+import Stats from '../../lib/libs/stats.module.js'
 
 let camera, scene, renderer, controls;
 const raycaster = new THREE.Raycaster();
@@ -110,7 +110,7 @@ function setupLighting() {
 
     // HDR
     //const envLoader = new RGBELoader();
-    //envLoader.load('../lib/images/Galer.hdr', (texture) => {
+    //envLoader.load('../../lib/images/Galer.hdr', (texture) => {
     //  texture.mapping = THREE.EquirectangularReflectionMapping;  // Set mapping
     //  scene.environment = texture;  // Apply HDR environment map
     //});
@@ -162,7 +162,7 @@ function setupControls() {
 
 function loadGalleryModel() {
     const loader = new GLTFLoader();
-    loader.load('../lib/models/Galer02.glb', function(gltf) {
+    loader.load('../../lib/models/Galer02.glb', function(gltf) {
         gltf.scene.traverse(function(child) {
             if (child.isMesh) {
                 child.castShadow = true; // Ensure the mesh casts shadows
@@ -346,7 +346,7 @@ function wrapText(text, maxCharsPerLine) {
 
 function loadText(scene, text, position, rotation, width, height) {
     const loader = new FontLoader();
-    loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
+    loader.load('../../lib/styles/helvetiker_regular.typeface.json', function(font) {
         const maxCharsPerLine = 35;
         const lineHeight = 0.13;
         const lines = wrapText(text, maxCharsPerLine);
@@ -388,7 +388,7 @@ function loadText(scene, text, position, rotation, width, height) {
 
 function TitleText() {
     const loader = new FontLoader();
-    loader.load('../lib/styles/helvetiker_regular.typeface.json', function(font) {
+    loader.load('../../lib/styles/helvetiker_regular.typeface.json', function(font) {
 
         //responsive text sizing
         const minSize = 0.1;

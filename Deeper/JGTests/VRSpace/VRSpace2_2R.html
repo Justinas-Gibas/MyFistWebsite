@@ -46,21 +46,21 @@
     <script type="importmap">
         {
           "imports": {
-            "three": "../lib/three.module.js"
+            "three": "../../lib/three.module.js"
           }
         }
         </script>
     <!-- Importing dependencies from local files -->
     <script type="module">
         import * as THREE from 'three';
-        import { FontLoader } from '../lib/loaders/FontLoader.js';
-        import { TextGeometry } from '../lib/utils/TextGeometry.js';
-        import { GLTFLoader } from '../lib/loaders/GLTFLoader.js';
-        import { RGBELoader } from '../lib/loaders/RGBELoader.js';
-        import { OrbitControls } from '../lib/controls/OrbitControls.js';
-        import { XRButton } from '../lib/webxr/XRButton.js';
-        import { Sky } from '../lib/utils/Sky.js';
-        import Stats from '../lib/libs/stats.module.js'
+        import { FontLoader } from '../../lib/loaders/FontLoader.js';
+        import { TextGeometry } from '../../lib/utils/TextGeometry.js';
+        import { GLTFLoader } from '../../lib/loaders/GLTFLoader.js';
+        import { RGBELoader } from '../../lib/loaders/RGBELoader.js';
+        import { OrbitControls } from '../../lib/controls/OrbitControls.js';
+        import { XRButton } from '../../lib/webxr/XRButton.js';
+        import { Sky } from '../../lib/utils/Sky.js';
+        import Stats from '../../lib/libs/stats.module.js'
 
         // Helper Class for ArtGallery
         class ArtGallery {
@@ -141,7 +141,7 @@
 
                 // HDR Environment Setup
                 const envLoader = new RGBELoader();
-                envLoader.load('../lib/images/Galer.hdr', (texture) => {
+                envLoader.load('../../lib/images/Galer.hdr', (texture) => {
                     texture.mapping = THREE.EquirectangularReflectionMapping;
                     this.scene.environment = texture;
                 });
@@ -180,7 +180,7 @@
 
             loadGalleryModel() {
                 const loader = new GLTFLoader();
-                loader.load('../lib/models/GalerAll.glb', (gltf) => {
+                loader.load('../../lib/models/GalerAll.glb', (gltf) => {
                     gltf.scene.traverse((child) => {
                         if (child.isMesh) {
                             child.castShadow = true;
@@ -361,7 +361,7 @@
 
             loadText(text, position, rotation, width, height) {
                 const loader = new FontLoader();
-                loader.load('../lib/styles/helvetiker_regular.typeface.json', (font) => {
+                loader.load('../../lib/styles/helvetiker_regular.typeface.json', (font) => {
                     const maxCharsPerLine = 35;
                     const lineHeight = 0.13;
                     const lines = this.wrapText(text, maxCharsPerLine);
