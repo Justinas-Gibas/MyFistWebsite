@@ -5,11 +5,13 @@ import { store } from './store.js';
 export class ModuleLoader {
     constructor() {
         this.modules = {
+            base: './modules/base.js',
             vrModule: './modules/vrModule.js',
             threeJSModule: './modules/threeJSModule.js',
             webModule: './modules/webModule.js',
             textModule: './modules/textModule.js',
             physicsModule: './modules/physicsModule.js',
+            analyticsModule: './modules/analyticsModule.js',
             // Additional modules
         };
         this.loadedModules = {};

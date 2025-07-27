@@ -32,7 +32,7 @@ body {
   top: 0;
   left: 0;
   width: 100%;
-  padding: 20px;
+  padding: 0.1rem;
 /*  margin-bottom: 20px; test*/
   background-color: #333;
   color: #fff;
@@ -42,7 +42,8 @@ body {
   z-index: 99;
 }
 #header__title {
-  font-size: 24px;
+  font-size: 20px;
+  text-align: center;
 }
 
 #header__nav {
@@ -139,7 +140,7 @@ body {
   bottom: 0;
   left: 0;
   width: 100%;
-  padding: 20px;
+  padding: 0.5rem;
   background-color: #333;
   color: #fff;
   text-align: center;
@@ -254,13 +255,13 @@ body {
 /* background image Author name styles */
 .author-name {
   position: fixed;
-  top: 95%;
-  left: 90%;
+  top: 97%;
+  right: 0.1rem;
   background-image: url('../images/ESO.P.Horálek.svg');
   background-size: contain;
   background-repeat: no-repeat;
-  width: 10vw;
-  height: 10vh;
+  width: 20vw;
+  height: 20vh;
   z-index: 999;
 }
 

@@ -66,7 +66,7 @@ document.body.appendChild(stats.dom);
 // Load a glTF resource
 loader.load(
   // resource URL
-  '../lib/models/chunk2.gltf',
+  '../../lib/models/chunk2.gltf',
   // called when the resource is loaded
   function ( gltf ) {
     scene.add( gltf.scene );
@@ -83,7 +83,7 @@ loader.load(
 
 const chunkSize = 100;
 const chunkMap = new Map();
-const models = ['../lib/models/chunk1.gltf', '../lib/models/chunk2.gltf'];
+const models = ['../../lib/models/chunk1.gltf', '../../lib/models/chunk2.gltf'];
 let lastChunkPosition = null;
 
 

@@ -27,10 +27,12 @@ class Store {
                 return { ...state, moduleStatus: { ...state.moduleStatus, [action.payload.moduleName]: 'loaded' }};
             case 'SET_PREFERENCES':
                 return { ...state, userPreferences: { ...state.userPreferences, ...action.payload }};
+            case 'SET_ENVIRONMENT':
+                return { ...state, environment: action.payload.environment };
             default:
                 return state;
         }
     }
 }
 
-export const store = new Store({ userPreferences: {}, moduleStatus: {} });
+export const store = new Store({ userPreferences: {}, moduleStatus: {}, environment: 'web' });

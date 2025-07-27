@@ -17,7 +17,7 @@ camera.position.y = 1;
 
 // Background texture
 export const backgroundloader = new RGBELoader()
-.load('../lib/images/potw2046a360.hdr', function(texture) {
+.load('../../lib/images/potw2046a360.hdr', function(texture) {
     texture.maping = THREE.EquirectangularReflectionMapping;
     scene.background = texture;
     scene.environment = texture;

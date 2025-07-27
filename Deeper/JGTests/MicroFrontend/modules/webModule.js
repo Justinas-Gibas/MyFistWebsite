@@ -1,16 +1,23 @@
 // webModule.js
 import { eventBus } from '../eventBus.js';
+import { store } from '../store.js';
 
 export async function init() {
     console.log('Initializing Web Module...');
 
-    eventBus.on('RENDER_TEXT_HTML', (text) => {
-        const appDiv = document.getElementById('app');
-        const vrDiv = document.createElement('div');
-        vrDiv.innerHTML = `
-            <h2>VR Module</h2>
-            <p>${text}</p>
-        `;
-        appDiv.appendChild(vrDiv);
-    });    
+    // Listen for web-specific text rendering
+    eventBus.on('RENDER_TEXT_IN_WEB', (text) => {
+        console.log('Web module rendering text:', text);
+        // The UI module will handle the actual display
+    });
+
+    // Handle web-specific functionality
+    eventBus.on('WEB_FEATURE_REQUEST', (feature) => {
+        console.log('Web feature requested:', feature);
+        eventBus.emit('WEB_FEATURE_LOADED', { feature, status: 'loaded' });
+    });
+
+    // Notify that web module is ready
+    eventBus.emit('MODULE_LOADED', { moduleName: 'webModule' });
+    store.dispatch({ type: 'MODULE_LOADED', payload: { moduleName: 'webModule' } });
 }

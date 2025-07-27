@@ -2,6 +2,7 @@ import { environmentManager } from './EnvironmentManager.js';
 import { loadUserProfile } from './userProfile.js';
 import { ModuleLoader } from './moduleLoader.js';
 import { store } from './store.js';
+import { ui } from './UI.js';
 
 async function bootstrap() {
     // Detect the environment (web, VR, AR, etc.)
@@ -29,17 +30,24 @@ async function bootstrap() {
 async function loadEnvironmentModules(environment) {
     const moduleLoader = new ModuleLoader();
 
+    // Dispatch environment to store
+    store.dispatch({ type: 'SET_ENVIRONMENT', payload: { environment } });
+
     if (environment === 'vr') {
         await moduleLoader.load('vrModule');
         await moduleLoader.load('threeJSModule');
+        await moduleLoader.load('textModule');
     } else if (environment === 'web') {
-        await moduleLoader.load('base');  // The base module or any web-specific modules
+        await moduleLoader.load('base');
+        await moduleLoader.load('webModule');
+        await moduleLoader.load('textModule');
     }
     // Handle other environments (e.g., AR) if needed
 }
 
 // Placeholder function for user preferences handling
 async function loadPreferenceModules(preferences) {
+    const moduleLoader = new ModuleLoader();
 
     // Currently no preference-based modules are being loaded.
     if (preferences.needsAdvancedPhysics) {

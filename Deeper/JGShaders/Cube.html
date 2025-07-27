@@ -139,7 +139,7 @@
             verticesBuffer.unmap();
 
             // 4. SHADER MODULE: To use the new UV grid shader, change the filename below.
-            const shaderResponse = await fetch('hypercube-shader.wgsl');
+            const shaderResponse = await fetch('experimental-shader.wgsl');
             const shaderCode = await shaderResponse.text();
             const shaderModule = device.createShaderModule({ code: shaderCode });
 

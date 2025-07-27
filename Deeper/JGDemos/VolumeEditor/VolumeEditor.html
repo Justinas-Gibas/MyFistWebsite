@@ -2,23 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    
     <meta name="author" content="Justinas Gibas" />
     <meta name="description" content="This is a Volume Editor website webpage.">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#ffffff">
     <title>My 3D Volume Editor Website</title>
-    <link rel="stylesheet" href="../lib/styles/reset.css">
-    <link rel="stylesheet" href="../lib/styles/style.css">
+    <link rel="stylesheet" href="../../lib/styles/reset.css">
+    <link rel="stylesheet" href="../../lib/styles/style.css">
 
     <!-- Import maps polyfill -->
     <!-- Remove this when import maps will be widely supported -->
-    <script async src="../lib/utils/es-module-shims.js"></script>
+    <script async src="../../lib/utils/es-module-shims.js"></script>
 
     <script type="importmap">
         {
           "imports": {
-              "three": "../lib/three.module.js"
+              "three": "../../lib/three.module.js"
            }
         }
     </script>
@@ -27,12 +26,12 @@
     <!-- Header content here -->
     <header class="header">
         <div class="container">
-            <h1 class="header__title">Justinas Gibas TestVerse</h1>
+            <h1 class="header__title">JG TestVerse</h1>
             <nav class="header__nav">
                 <ul class="nav-list">
-                    <li><a class="nav-link" href="../../index.html#about" target="_self">About</a></li>
-                    <li><a class="nav-link" href="../../index.html#work" target="_self">Work</a></li>
-                    <li><a class="nav-link" href="../../index.html#contact" target="_self">Contact</a></li>
+                    <li><a class="nav-link" href="../../../index.html#about" target="_self">About</a></li>
+                    <li><a class="nav-link" href="../../../index.html#work" target="_self">Work</a></li>
+                    <li><a class="nav-link" href="../../../index.html#contact" target="_self">Contact</a></li>
                 </ul>
             </nav>
         </div>
@@ -40,14 +39,14 @@
     <main class="main">
         <div class="VolumeEditor">
           <div id=canvas-container> </div>
-          <script type="module" src="./VolumeEditor.js"></script>
         </div>
-    </main>   
-    <footer class="footer">
+      </main>   
+      <footer class="footer">
         <div class="container">
-            <p class="footer__text">© 2023 Justinas Gibas. All rights reserved.</p>
+          <p class="footer__text">© 2025 Justinas Gibas.</p>
         </div>
-    </footer>
-    <div class="author-name"></div>
-  </body>
+      </footer>
+      <div class="author-name"></div>
+    </body>
+    <script type="module" src="./VolumeEditor.js"></script>
 </html>

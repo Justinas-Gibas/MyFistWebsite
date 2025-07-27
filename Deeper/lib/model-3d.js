@@ -32,6 +32,7 @@ class Model3D extends HTMLElement {
         this.style.height = height;
         this.style.position = 'relative';
         this.style.overflow = 'hidden';
+        
 
         this.init(src, { controls, autoRotate });
     }
@@ -49,7 +50,7 @@ class Model3D extends HTMLElement {
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.renderer.setSize(rect.width, rect.height);
         this.renderer.setPixelRatio(window.devicePixelRatio);
-        
+        this.renderer.setClearColor(0x000000, 0.4); // Set clear color
         // Add canvas to this element
         this.appendChild(this.renderer.domElement);
 

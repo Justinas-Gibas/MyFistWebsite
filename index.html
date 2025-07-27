@@ -24,6 +24,8 @@
     </script>
 
     <style>
+            
+
             .section__text {
                 color: lightgray;
             }
@@ -100,7 +102,7 @@
 <body>
     <header class="header">
         <div class="container">
-            <h1 class="header__title">Justinas Gibas TestVerse</h1>
+            <h1 class="header__title">JG TestVerse</h1>
             <nav class="header__nav">
                 <ul class="nav-list">
                     <li><a class="nav-link" href="#about">About</a></li>
@@ -153,7 +155,12 @@
                 </figure> 
                 <br>
                 <figure class="work-item">
-                    <a href="./Deeper/JGDemos/VRSpace/VRSpace.html" target="_self" class="contact-item__link">VRSpace</a>
+                    <a href="./Deeper/JGDemos/VolumeEditor/VolumeEditor.html" target="_self" class="contact-item__link">VolumeEditor</a>
+                    <figcaption class="work-item__caption">Voxel Grid VolumeEditor</figcaption>
+                </figure> 
+                <br>
+                <figure class="work-item">
+                    <a href="./Deeper/JGDemos/VRSpace/VRGalleryV2.html" target="_self" class="contact-item__link">VRSpace</a>
                     <figcaption class="work-item__caption">VRSpace for art</figcaption>
                 </figure> 
                 <br>
@@ -166,7 +173,7 @@
                 <br>
                 <figure class="work-item">
                     <a href="./Deeper/JGDemos/ChatBot/index.html" target="_self" class="contact-item__link">AIChatBot</a>
-                    <figcaption class="work-item__caption">AI Chatbot powered with TensorFlow.js and openAI API</figcaption>
+                    <figcaption class="work-item__caption">AI Chatbot powered with TensorFlow.js or openAI API</figcaption>
                 </figure>
                 <br>
                 <figure class="work-item">
@@ -240,7 +247,7 @@
                 <!-- Chrome model-viewer -->
                 <figure class="work-item">
                     <model-viewer src="./Deeper/lib/models/TimeBeast01.gltf" alt="3D Model" auto-rotate camera-controls></model-viewer>
-                    <figcaption class="work-item__caption">Google Model Viewer</figcaption>
+                    <figcaption class="work-item__caption">Google model-viewer</figcaption>
                     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
                 </figure>
 
@@ -250,10 +257,13 @@
                     <model-3d src="./Deeper/lib/models/TimeBeast01.gltf" 
                               width="100%" 
                               height="48vh" 
+                              clearcolor="#ffffff,1"
+                              camera-controls
                               controls 
-                              auto-rotate>
+                              auto-rotate
+                              environment-lighting="true">
                     </model-3d>
-                    <figcaption class="work-item__caption">Interactive 3D Model - Custom Element Three.js</figcaption>
+                    <figcaption class="work-item__caption">Custom Three.js module</figcaption>
                 </figure>
 
                 <!-- JG 3D viewer my own prepared .js file/module for easy use>
@@ -298,7 +308,7 @@
     </main>
     <footer class="footer">
         <div class="container">
-            <p class="footer__text">© 2025 Justinas Gibas. All rights reserved.</p>
+            <p class="footer__text">© 2025 Justinas Gibas.</p>
         </div>
     </footer>
     <div class="author-name"></div>
