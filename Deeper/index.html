@@ -71,6 +71,32 @@
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     }
     
+    /* Loading placeholder styles */
+    .iframe-placeholder {
+        width: 90%;
+        height: 60vh;
+        min-height: 400px;
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s infinite;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #666;
+        font-size: 1.1em;
+    }
+    
+    @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    
+    /* Hide iframes that haven't loaded yet */
+    .slide iframe[data-lazy="true"] {
+        display: none;
+    }
+    
     figcaption {
         text-align: center;
         color: lightgrey;
@@ -201,11 +227,12 @@
     </footer>
     <script>
         /**
-         * Carousel functionality
-         * This script handles the slide movement and updates the CSS variables for multiple carousels.
+         * Enhanced Carousel functionality with lazy loading
+         * This script handles the slide movement, lazy loading of iframes, and performance optimization.
          */
         document.addEventListener('DOMContentLoaded', (event) => {
             initializeCarousels();
+            setupIntersectionObserver();
         });
 
         function initializeCarousels() {
@@ -215,11 +242,10 @@
                 const slides = carousel.querySelectorAll('.slide');
                 const totalSlides = slides.length;
                 
-                if (totalSlides === 0) return; // Skip empty carousels
+                if (totalSlides === 0) return;
                 
                 let slideIndex = 0;
                 
-                // Set unique CSS variables for each carousel
                 carousel.style.setProperty('--slide-count', totalSlides.toString());
                 carousel.style.setProperty('--slide-translate', '0%');
                 
@@ -235,6 +261,81 @@
                     slideIndex = (slideIndex + step + totalSlides) % totalSlides;
                     const translateValue = -(100 / totalSlides) * slideIndex;
                     carousel.style.setProperty('--slide-translate', `${translateValue}%`);
+                    
+                    // Load current, previous, and next slides
+                    loadAdjacentSlides(carousel, slideIndex, totalSlides);
+                }
+                
+                // Load initial slide and adjacent ones
+                loadAdjacentSlides(carousel, slideIndex, totalSlides);
+            });
+        }
+        
+        function loadAdjacentSlides(carousel, currentIndex, totalSlides) {
+            const slides = carousel.querySelectorAll('.slide');
+            
+            // Calculate which slides to load (current, previous, next)
+            const slidesToLoad = [
+                currentIndex,
+                (currentIndex - 1 + totalSlides) % totalSlides,
+                (currentIndex + 1) % totalSlides
+            ];
+            
+            slidesToLoad.forEach(index => {
+                const slide = slides[index];
+                if (!slide) return;
+                const iframe = slide.querySelector('iframe[data-lazy="true"]');
+                const placeholder = slide.querySelector('.iframe-placeholder');
+                
+                if (iframe && placeholder) {
+                    loadIframe(iframe, placeholder);
+                }
+            });
+        }
+        
+        function loadIframe(iframe, placeholder) {
+            if (iframe.dataset.lazy === 'true') {
+                iframe.dataset.lazy = 'false'; // Mark as loading/loaded
+                iframe.src = iframe.dataset.src;
+                
+                iframe.onload = () => {
+                    iframe.style.display = 'block';
+                    if (placeholder) {
+                        placeholder.remove();
+                    }
+                };
+                
+                iframe.onerror = () => {
+                    if (placeholder) {
+                        placeholder.textContent = 'Failed to load content';
+                        placeholder.style.background = '#ffebee';
+                        placeholder.style.color = '#c62828';
+                    }
+                };
+            }
+        }
+        
+        function setupIntersectionObserver() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const carousel = entry.target.querySelector('.carousel');
+                        if (carousel) {
+                            // Load the first slide of visible carousels
+                            loadAdjacentSlides(carousel, 0, carousel.querySelectorAll('.slide').length);
+                        }
+                        // Stop observing once it's visible to avoid re-triggering
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, {
+                rootMargin: '100px' // Load when the section is 100px from the viewport
+            });
+            
+            // Observe all sections with carousels
+            document.querySelectorAll('section').forEach(section => {
+                if (section.querySelector('.carousel')) {
+                    observer.observe(section);
                 }
             });
         }
@@ -317,8 +418,9 @@
                     }
                 }
                 
-                // Reinitialize carousels after adding new ones
+                // Reinitialize carousels and observers after adding new ones
                 initializeCarousels();
+                setupIntersectionObserver();
                 
             } catch (error) {
                 console.error("Error creating dynamic sections:", error);
@@ -383,9 +485,16 @@
             caption.textContent = file.name.replace(/\.[^/.]+$/, ""); // Remove file extension
             
             if (file.name.endsWith('.html')) {
-                // Create iframe for HTML files
+                // Create placeholder for iframe
+                const placeholder = document.createElement('div');
+                placeholder.className = 'iframe-placeholder';
+                placeholder.textContent = 'Loading...';
+                figure.appendChild(placeholder);
+
+                // Create iframe for HTML files with lazy loading attributes
                 const iframe = document.createElement('iframe');
-                iframe.src = `https://${username}.github.io/${repo}/${file.fullPath}`;
+                iframe.dataset.src = `https://${username}.github.io/${repo}/${file.fullPath}`;
+                iframe.dataset.lazy = 'true';
                 iframe.title = file.name;
                 figure.appendChild(iframe);
             } else if (file.name.endsWith('.mp4')) {
