@@ -7,25 +7,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#ffffff">
     <title>JG Projects</title>
-   <link rel="icon" type="image/svg+xml" href="../upper/JG.svg">
+    <link rel="icon" type="image/svg+xml" href="../upper/JG.svg">
     <link rel="icon" type="image/x-icon" href="../upper/JG_favicon.ico">
     <link rel="stylesheet" href="../Deeper/lib/styles/reset.css">
     <link rel="stylesheet" href="../Deeper/lib/styles/style.css">
 <style>
 
+    /* General styles */
+    body {
+        padding-top: 2rem;
+    }
 
     /* Make sure the container does not exceed the width of the viewport */
     .container {
         width: 90%;
         max-width: 1200px;
         margin: 0 auto;
+        padding: 0rem
     }
 
     /* Carousel styles */
     .carousel {
         position: relative;
         width: 100%;
-        max-height: 50vh;
+        max-height: 80vh;
         overflow: hidden;
     }
     .slides {
@@ -37,16 +42,41 @@
     .slide {
         width: calc(100% / var(--slide-count)); /* Divide by the number of slides */
         flex-shrink: 0; /* Prevents the slide from shrinking */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 10px;
+        box-sizing: border-box;
     }
 
     /* Media and captions within slides */
     .slide img, .slide video {
-        max-width: 100%;
-        max-height: 100%;
+        max-width: 90%;
+        max-height: 60vh;
+        width: auto;
         height: auto;
+        object-fit: contain;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     }
+    
+    /* iframe styles */
+    .slide iframe {
+        width: 90%;
+        height: 60vh;
+        min-height: 400px;
+        border: none;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+    
     figcaption {
         text-align: center;
+        color: lightgrey;
+        margin-top: 15px;
+        font-size: 1.1em;
+        max-width: 90%;
     }
 
     /* Carousel controls */
@@ -61,10 +91,10 @@
         cursor: pointer;
     }
     .left {
-        left: 10px;
+        left: 0px;
     }
     .right {
-        right: 10px;
+        right: 0px;
     }
 
 /* Responsive adjustments */
@@ -72,8 +102,25 @@
     .container {
         width: 95%; /* Allow more space on smaller screens */
     }
+    
+    .slide {
+        padding: 1rem;
+    }
+    
     .slide img, .slide video {
-        max-height: 200px; /* Limit the height on small screens */
+        max-width: 95%;
+        max-height: 40vh;
+    }
+    
+    .slide iframe {
+        width: 95%;
+        height: 40vh;
+        min-height: 300px;
+    }
+    
+    figcaption {
+        font-size: 1em;
+        margin-top: 10px;
     }
 }
 
@@ -82,60 +129,30 @@
 <body>
     <header class="header">
         <div class="container">
-            <h1 class="header__title">Justinas Gibas Portfolio</h1>
-            <nav>
+            <h1 class="header__title">JG TestVerse</h1>
+            <nav class="header__nav">
                 <ul class="nav-list">
-                    <li><a class="nav-link" href="#about">About</a></li>
-                    <li><a class="nav-link" href="#work">Work</a></li>
-                    <li><a class="nav-link" href="#contact">Contact</a></li>
+                    <li><a class="nav-link" href="../index.html#about">About</a></li>
+                    <li><a class="nav-link" href="../index.html#work">Work</a></li>
+                    <li><a class="nav-link" href="../index.html#contact">Contact</a></li>
                 </ul>
             </nav>
         </div>
     </header>
     <main class="main wrapper">
         <section id="about" class="section container">
-            <h2>About Me:</h2>
-            <p>     Description of Justinas Gibas' background, interests, and professional expertise in various fields.
-                This hav ti be generated text tabula in the genera moare text plese 
-                i nees to generate text here more 
-                Lorem ipsum dolor sit amet consectetur adipisicing elit. Repellendus error reprehenderit rem, dolore in culpa reiciendis! Magni ipsam vel officiis quae eum libero officia laudantium, expedita maxime quia omnis praesentium.
-            </p>
+            <h2>My Favorites</h2>
         </section>
         <section id="work" class="section container">
-            <h2>My Work:</h2>
             <div class="carousel">
                 <div class="slides">
-                    <!-- Slide 1: Working on a dental model -->
-                    <figure class="slide">
-                        <img src="lib/images/potw2046a.jpg" alt="Working on a dental model">
-                        <figcaption>A photo of me working on a dental model</figcaption>
-                    </figure>
-                    <!-- Slide 2: Creating music using electronic devices -->
+                    <!-- Example slides with images and videos -->
                     <figure class="slide">
                         <video controls autoplay muted loop poster="lib/images/TimeBeast_MP4_.5_loop.mp4">
                             <source src="lib/images/TimeBeast_MP4_.5_loop.mp4" type="video/mp4">
                             Your browser does not support the video tag.
                         </video>
-                        <figcaption>A video of me creating music using electronic devices</figcaption>
-                    </figure>
-                    <!-- Slide 3: Coding on my laptop -->
-                    <figure class="slide">
-                        <img src="lib/images/potw2046a.jpg" alt="Coding on my laptop">
-                        <figcaption>A photo of me coding on my laptop</figcaption>
-                    </figure>
-                    <!-- Slide 4: Link to L2Web project -->
-                    <figure class="slide">
-                        <a href="L2Web/L2Web.html">
-                            <img src="lib/images/BackWater.png" alt="L2Web project">
-                        </a>
-                        <figcaption>L2Web, a website that is responsive and user-friendly</figcaption>
-                    </figure>
-                    <!-- Slide 5: GLTFLoader project -->
-                    <figure class="slide">
-                        <a href="GLTFLoader/GLTFLoader.html">
-                            <img src="lib/images/BackWater.png" alt="GLTFLoader project">
-                        </a>
-                        <figcaption>GLTFLoader project</figcaption>
+                        <figcaption>Character I created</figcaption>
                     </figure>
                     <!--                         -->
                     <figure class="slide">
@@ -145,93 +162,262 @@
                         </video>
                         <figcaption>A video of me creating music using electronic devices</figcaption>
                     </figure>
-                    <!-- Slide 6: Chunks world project -->
+                    <!-- Learning/experimentation help apreciated -->
+                    <!-- iFrame of L2web project -->
                     <figure class="slide">
-                        <a href="ChunkWorld/ChunkWorld.html">
-                            <img src="lib/images/BackWater.png" alt="Chunks world project">
-                        </a>
-                        <figcaption>Chunks world project</figcaption>
+                        <iframe src="../upper/L2Web/L2Web.html" title="L2Web Portfolio"></iframe>
+                        <figcaption class="work-item__caption">Visually Appealing Portfolio</figcaption>
                     </figure>
-                    <!-- Slide 7: Chunks world++ project -->
+                    <!-- iFrame of VolumeEditor project -->
                     <figure class="slide">
-                        <a href="ChunkWorld++/ChunkWorld++.html">
-                            <img src="lib/images/BackWater.png" alt="Chunks world++ project">
-                        </a>
-                        <figcaption>Chunks world++ project</figcaption>
-                    </figure>
-                    <!-- Slide 8: Volume Editor project -->
-                    <figure class="slide">
-                        <a href="VolumeEditor/VolumeEditor.html">
-                            <img src="lib/images/BackWater.png" alt="Volume Editor project">
-                        </a>
-                        <figcaption>Volume Editor project</figcaption>
-                    </figure>
-                    <!-- Slide 9: VRSpace for art -->
-                    <figure class="slide">
-                        <a href="VRSpace/VRSpace.html">
-                            <img src="lib/images/BackWater.png" alt="VRSpace for art">
-                        </a>
-                        <figcaption>VRSpace for art</figcaption>
-                    </figure>
-                    <figure class="slide">
-                        <video controls autoplay muted loop poster="lib/images/TimeBeast_MP4_.5_loop.mp4">
-                            <source src="lib/images/TimeBeast_MP4_.5_loop.mp4" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
-                        <figcaption>Additional Project Coming Soon</figcaption>
-                    </figure>
-                    <!-- Placeholder for additional slides -->
-                    <figure class="slide">
-                        <img src="lib/images/BackWater.png" alt="Placeholder Image">
-                        <figcaption>Additional Project Coming Soon</figcaption>
+                        <iframe src="./JGDemos/VolumeEditor/VolumeEditor.html" title="VolumeEditor"></iframe>
+                        <figcaption class="work-item__caption">Voxel Volume Editor</figcaption>
                     </figure>
                 </div>
                 <button class="carousel-control left">&#10094;</button>
                 <button class="carousel-control right">&#10095;</button>
             </div>
+        </section>
+        <!-- after fetured we want dynamic slide show content fetching -->
+         <!-- can we try creating carusels with JS? -->
 
+        <section>
+            <!-- a carousel for first folder in Deeper from github -->
+            <div class="carousel">
+                <div class="slides" id="dynamic-slides">
+                    <!-- Slides will be injected here dynamically -->
+                </div>
+                <button class="carousel-control left">&#10094;</button>
+                <button class="carousel-control right">&#10095;</button>
+            </div>
         </section>
-        <section id="contact" class="section container">
-            <h2>Contact</h2>
-            <p>How to reach Justinas for collaborations and inquiries.</p>
-        </section>
+
+        <!-- secttions will be injected here -->
     </main>
     <footer class="footer">
         <div class="container">
-            <p>© 2023 Justinas Gibas.</p>
+            <p>© 2025 Justinas Gibas.</p>
         </div>
     </footer>
     <script>
-
+        /**
+         * Carousel functionality
+         * This script handles the slide movement and updates the CSS variables for multiple carousels.
+         */
         document.addEventListener('DOMContentLoaded', (event) => {
-        let slideIndex = 0;
-        const slides = document.querySelectorAll('.slide');
-        const totalSlides = slides.length;
-
-        // Initial setting of CSS variables
-        document.documentElement.style.setProperty('--slide-count', totalSlides.toString());
-        document.documentElement.style.setProperty('--slide-translate', '0%');
-
-        document.querySelector('.left').addEventListener('click', () => {
-            moveSlide(-1);
+            initializeCarousels();
         });
 
-        document.querySelector('.right').addEventListener('click', () => {
-            moveSlide(1);
-        });
-
-        function moveSlide(step) {
-            slideIndex = (slideIndex + step + totalSlides) % totalSlides;
-            const translateValue = -(100 / totalSlides) * slideIndex;
-            console.log(`Moving to slide index: ${slideIndex}, translate value: ${translateValue}%`);
-
-            // Update the CSS variable for translate
-            document.documentElement.style.setProperty('--slide-translate', `${translateValue}%`);
+        function initializeCarousels() {
+            const carousels = document.querySelectorAll('.carousel');
+            
+            carousels.forEach((carousel, carouselIndex) => {
+                const slides = carousel.querySelectorAll('.slide');
+                const totalSlides = slides.length;
+                
+                if (totalSlides === 0) return; // Skip empty carousels
+                
+                let slideIndex = 0;
+                
+                // Set unique CSS variables for each carousel
+                carousel.style.setProperty('--slide-count', totalSlides.toString());
+                carousel.style.setProperty('--slide-translate', '0%');
+                
+                const leftBtn = carousel.querySelector('.left');
+                const rightBtn = carousel.querySelector('.right');
+                
+                if (leftBtn && rightBtn) {
+                    leftBtn.addEventListener('click', () => moveSlide(-1));
+                    rightBtn.addEventListener('click', () => moveSlide(1));
+                }
+                
+                function moveSlide(step) {
+                    slideIndex = (slideIndex + step + totalSlides) % totalSlides;
+                    const translateValue = -(100 / totalSlides) * slideIndex;
+                    carousel.style.setProperty('--slide-translate', `${translateValue}%`);
+                }
+            });
         }
-    });
-
-
-
+    </script>
+    <script>
+        /**
+         * GitHub repository fetching - Single API call approach
+         * This script fetches the entire repository tree with one API call
+         * and dynamically creates sections with carousels for each folder.
+         */
+        const username = "Justinas-Gibas";
+        const repo = "MyFistWebsite";
+        const branch = "ManoKumscioWebsaitas";
+        
+        async function fetchAllFiles() {
+            const apiURL = `https://api.github.com/repos/${username}/${repo}/git/trees/${branch}?recursive=1`;
+            
+            const response = await fetch(apiURL);
+            if (!response.ok) throw new Error("Failed to fetch repository tree");
+            return await response.json();
+        }
+        
+        async function createDynamicSections() {
+            try {
+                const treeData = await fetchAllFiles();
+                console.log("Full repository tree:", treeData);
+                
+                // Filter for displayable files in the Deeper folder and its subfolders
+                const displayableFiles = treeData.tree.filter(item => 
+                    item.path.startsWith("Deeper/") && 
+                    item.type === "blob" && 
+                    (item.path.endsWith('.html') || 
+                     item.path.endsWith('.jpg') || 
+                     item.path.endsWith('.png') || 
+                     item.path.endsWith('.gif') || 
+                     item.path.endsWith('.mp4'))
+                );
+                
+                console.log("Displayable files found:", displayableFiles);
+                
+                // Group files by their immediate parent folder
+                const folderGroups = {};
+                
+                displayableFiles.forEach(file => {
+                    const pathParts = file.path.split('/');
+                    // Get the immediate parent folder (e.g., "Deeper/JGDemos" -> "JGDemos")
+                    if (pathParts.length >= 3) {
+                        const folderName = pathParts[1]; // Second part after "Deeper/"
+                        const folderPath = `Deeper/${folderName}`;
+                        
+                        if (!folderGroups[folderName]) {
+                            folderGroups[folderName] = {
+                                name: folderName,
+                                path: folderPath,
+                                files: []
+                            };
+                        }
+                        
+                        folderGroups[folderName].files.push({
+                            name: pathParts[pathParts.length - 1],
+                            path: file.path,
+                            fullPath: file.path
+                        });
+                    }
+                });
+                
+                console.log("Folder groups:", folderGroups);
+                
+                const main = document.querySelector('main');
+                
+                // Create sections for each folder group
+                for (const [folderName, folderData] of Object.entries(folderGroups)) {
+                    // Skip lib folder
+                    if (folderName === 'lib') continue;
+                    
+                    console.log(`Creating section for: ${folderName}`);
+                    const section = createSectionWithCarousel(folderData);
+                    if (section) {
+                        main.appendChild(section);
+                    }
+                }
+                
+                // Reinitialize carousels after adding new ones
+                initializeCarousels();
+                
+            } catch (error) {
+                console.error("Error creating dynamic sections:", error);
+            }
+        }
+        
+        function createSectionWithCarousel(folderData) {
+            try {
+                if (folderData.files.length === 0) return null;
+                
+                // Create section element
+                const section = document.createElement('section');
+                section.className = 'section container';
+                section.style.marginTop = '3rem';
+                
+                // Create section title
+                const title = document.createElement('h2');
+                title.textContent = folderData.name.charAt(0).toUpperCase() + folderData.name.slice(1);
+                title.style.marginBottom = '2rem';
+                section.appendChild(title);
+                
+                // Create carousel
+                const carousel = document.createElement('div');
+                carousel.className = 'carousel';
+                
+                const slides = document.createElement('div');
+                slides.className = 'slides';
+                
+                // Create slides for each file
+                folderData.files.forEach(file => {
+                    const slide = createSlide(file);
+                    slides.appendChild(slide);
+                });
+                
+                // Create carousel controls
+                const leftBtn = document.createElement('button');
+                leftBtn.className = 'carousel-control left';
+                leftBtn.innerHTML = '&#10094;';
+                
+                const rightBtn = document.createElement('button');
+                rightBtn.className = 'carousel-control right';
+                rightBtn.innerHTML = '&#10095;';
+                
+                carousel.appendChild(slides);
+                carousel.appendChild(leftBtn);
+                carousel.appendChild(rightBtn);
+                section.appendChild(carousel);
+                
+                return section;
+                
+            } catch (error) {
+                console.error(`Error creating section for ${folderData.name}:`, error);
+                return null;
+            }
+        }
+        
+        function createSlide(file) {
+            const figure = document.createElement('figure');
+            figure.className = 'slide';
+            
+            const caption = document.createElement('figcaption');
+            caption.textContent = file.name.replace(/\.[^/.]+$/, ""); // Remove file extension
+            
+            if (file.name.endsWith('.html')) {
+                // Create iframe for HTML files
+                const iframe = document.createElement('iframe');
+                iframe.src = `https://${username}.github.io/${repo}/${file.fullPath}`;
+                iframe.title = file.name;
+                figure.appendChild(iframe);
+            } else if (file.name.endsWith('.mp4')) {
+                // Create video element
+                const video = document.createElement('video');
+                video.controls = true;
+                video.muted = true;
+                video.loop = true;
+                
+                const source = document.createElement('source');
+                source.src = `https://${username}.github.io/${repo}/${file.fullPath}`;
+                source.type = 'video/mp4';
+                
+                video.appendChild(source);
+                video.appendChild(document.createTextNode('Your browser does not support the video tag.'));
+                figure.appendChild(video);
+            } else if (file.name.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                // Create image element
+                const img = document.createElement('img');
+                img.src = `https://${username}.github.io/${repo}/${file.fullPath}`;
+                img.alt = file.name;
+                figure.appendChild(img);
+            }
+            
+            figure.appendChild(caption);
+            return figure;
+        }
+        
+        // Initialize dynamic sections on page load
+        document.addEventListener("DOMContentLoaded", () => {
+            createDynamicSections();
+        });
     </script>
 </body>
 </html>
