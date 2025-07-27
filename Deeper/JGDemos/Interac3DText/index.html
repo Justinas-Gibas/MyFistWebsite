@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Text Destruction with Three.js</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            background-color: #000000;
+            font-family: Arial, sans-serif;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            z-index: 10;
+            font-size: 12px;
+            pointer-events: none;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <p>Click and drag to interact with the text - watch it explode!</p>
+        <p>Use mouse wheel to zoom, right-click and drag to rotate view</p>
+    </div>
+    
+    <script async src="../../lib/utils/es-module-shims.js"></script>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "../../lib/three.webgpu.js"
+            }
+        }
+    </script>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { FontLoader } from '../../lib/loaders/FontLoader.js';
+        import { TextGeometry } from '../../lib/utils/TextGeometry.js';
+        import { OrbitControls } from '../../lib/controls/OrbitControls.js';
+        
+        /**
+         * @fileoverview Interactive 3D Text Destruction Demo
+         * @description This demo creates an interactive 3D text that responds to mouse/touch input
+         * with realistic spring physics and vertex deformation effects.
+         * @author Your Name
+         * @version 1.0.0
+         */
+
+        /**
+         * Resources object to store loaded assets
+         * @type {Object}
+         * @property {THREE.Font|null} font - The loaded font for text geometry
+         */
+        const Resources = {
+            font: null
+        };
+
+        /**
+         * Application parameters that can be tweaked for different effects
+         * @type {Object}
+         */
+        const AppParameters = {
+            // Physics parameters
+            spring: 0.05,           // Spring strength for vertex return animation
+            friction: 0.9,          // Friction/damping factor for physics
+            noiseAmplitude: 0.3,    // Amount of random noise in vertex movement
+            explodeAmplitude: 2.5,  // Strength of the explosion effect
+            
+            // Visual parameters
+            influenceRadius: 0.8,   // Radius of mouse influence
+            textColor: '#000000',   // Base text color
+            emissiveColor: '#ffffff', // Emissive glow color
+            emissiveIntensity: 0.7, // Base emissive intensity
+            emissiveBoost: 0.8,     // Emissive boost when interacting
+            
+            // Animation parameters
+            timeScale: 0.01,        // Speed of time-based animations
+            colorShiftIntensity: 20 // How much vertex colors shift based on movement
+        };
+        
+        // Core Three.js components
+        let camera, scene, renderer, controls;
+        let textMesh, textGeometry;
+        
+        // Interaction system
+        const mouse = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
+        const worldPointer = new THREE.Vector3();
+        const localPointer = new THREE.Vector3();
+        let isPointerDown = false;
+        
+        // Physics simulation arrays
+        let originalPositions = [];
+        let currentPositions = [];
+        let velocities = [];
+        let vertexColors = [];
+        
+        // Animation state
+        let animationTime = 0;
+
+        /**
+         * Preloads required assets before initializing the application
+         * @description Loads the font file and starts initialization once complete
+         */
+        function preload() {
+            console.log('Preloading assets...');
+            
+            const fontLoader = new FontLoader();
+            fontLoader.load(
+                "../../lib/styles/helvetiker_regular.typeface.json", 
+                (font) => {
+                    console.log('Font loaded successfully');
+                    Resources.font = font;
+                    init();
+                },
+                (progress) => {
+                    console.log('Font loading progress:', progress);
+                },
+                (error) => {
+                    console.error('Error loading font:', error);
+                    // Fallback or error handling
+                }
+            );
+        }
+
+        /**
+         * Initializes the Three.js scene and all components
+         * @description Sets up camera, renderer, lights, text geometry, and event listeners
+         */
+        function init() {
+            try {
+                console.log('Initializing Three.js application...');
+                
+                // Create scene with fog for depth perception
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color("#000000");
+                scene.fog = new THREE.Fog(new THREE.Color("#ffffff"), 0.0, 8.5);
+                
+                // Setup camera with appropriate field of view
+                camera = new THREE.PerspectiveCamera(
+                    75, 
+                    window.innerWidth / window.innerHeight, 
+                    0.1, 
+                    1000
+                );
+                camera.position.set(0, 0, 5);
+                
+                // Create renderer with WebGPU fallback to WebGL
+                setupRenderer();
+                
+                // Setup lighting for realistic material rendering
+                setupLighting();
+                
+                // Create the interactive text mesh
+                createTextMesh();
+                
+                // Initialize orbit controls for camera manipulation
+                setupControls();
+                
+                // Setup event listeners for interaction
+                setupEventListeners();
+                
+                // Start the animation loop
+                animate();
+                
+                console.log('Three.js application initialized successfully');
+                
+            } catch (error) {
+                console.error("Error initializing Three.js:", error);
+                displayErrorMessage(error);
+            }
+        }
+
+        /**
+         * Sets up the WebGPU/WebGL renderer with optimal settings
+         * @description Creates renderer with antialiasing and appropriate pixel ratio
+         */
+        function setupRenderer() {
+            // Try WebGPU first, fallback to WebGL
+            if (typeof THREE.WebGPURenderer === 'function') {
+                console.log('Using WebGPU renderer');
+                renderer = new THREE.WebGPURenderer({ antialias: true });
+            } else {
+                console.log('Falling back to WebGL renderer');
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+            }
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.CineonToneMapping;
+            renderer.toneMappingExposure = 0.5;
+            
+            document.body.appendChild(renderer.domElement);
+        }
+
+        /**
+         * Sets up scene lighting for optimal text visibility
+         * @description Creates ambient and directional lights for proper material rendering
+         */
+        function setupLighting() {
+            // Soft ambient light for overall illumination
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+            
+            // Directional light for shadows and definition
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            directionalLight.position.set(0.0, 1.2, 3.86);
+            scene.add(directionalLight);
+        }
+
+        /**
+         * Creates the 3D text mesh with interactive vertex system
+         * @description Generates text geometry, applies material, and initializes physics simulation
+         */
+        function createTextMesh() {
+            // Create 3D text geometry with beveled edges
+            textGeometry = new TextGeometry("JG", {
+                font: Resources.font,
+                size: 1.0,
+                depth: 0.2,
+                bevelEnabled: true,
+                bevelThickness: 0.1,
+                bevelSize: 0.01,
+                bevelOffset: 0,
+                bevelSegments: 1
+            });
+            
+            // Center the text geometry for better positioning
+            centerTextGeometry();
+            
+            // Create material with enhanced visual properties
+            const material = new THREE.MeshStandardMaterial({
+                color: AppParameters.textColor,
+                metalness: 0.4,
+                roughness: 0.3,
+                emissive: AppParameters.emissiveColor,
+                emissiveIntensity: AppParameters.emissiveIntensity
+            });
+            
+            textMesh = new THREE.Mesh(textGeometry, material);
+            scene.add(textMesh);
+            
+            // Initialize the vertex-based physics system
+            initializeVertexPhysics();
+        }
+
+        /**
+         * Centers the text geometry based on its bounding box
+         * @description Calculates the geometry center and translates it to origin
+         */
+        function centerTextGeometry() {
+            textGeometry.computeBoundingBox();
+            const centerOffsetX = -0.5 * (textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x);
+            const centerOffsetY = -0.5 * (textGeometry.boundingBox.max.y - textGeometry.boundingBox.min.y);
+            textGeometry.translate(centerOffsetX, centerOffsetY, 0);
+        }
+
+        /**
+         * Initializes the vertex-based physics simulation system
+         * @description Sets up arrays for position tracking, velocity, and color data
+         */
+        function initializeVertexPhysics() {
+            const positions = textGeometry.attributes.position.array;
+            const normals = textGeometry.attributes.normal.array;
+            const vertexCount = positions.length / 3;
+            
+            console.log(`Initializing physics for ${vertexCount} vertices`);
+            
+            // Reset arrays
+            originalPositions.length = 0;
+            currentPositions.length = 0;
+            velocities.length = 0;
+            vertexColors.length = 0;
+            
+            // Initialize physics data for each vertex
+            for (let i = 0; i < vertexCount; i++) {
+                const i3 = i * 3;
+                
+                // Store original positions as reference points
+                originalPositions.push({
+                    x: positions[i3],
+                    y: positions[i3 + 1],
+                    z: positions[i3 + 2]
+                });
+                
+                // Current positions start at original positions
+                currentPositions.push({
+                    x: positions[i3],
+                    y: positions[i3 + 1],
+                    z: positions[i3 + 2]
+                });
+                
+                // Velocities start at zero
+                velocities.push({ x: 0, y: 0, z: 0 });
+                
+                // Random color variations for visual interest
+                vertexColors.push({
+                    r: 0.2 + Math.random() * 0.2,
+                    g: 0.2 + Math.random() * 0.2,
+                    b: 0.5 + Math.random() * 0.5
+                });
+            }
+            
+            // Add vertex colors to geometry
+            addVertexColorsToGeometry(vertexCount);
+        }
+
+        /**
+         * Adds color attributes to the text geometry for dynamic coloring
+         * @param {number} vertexCount - Number of vertices in the geometry
+         */
+        function addVertexColorsToGeometry(vertexCount) {
+            const colors = new Float32Array(vertexCount * 3);
+            
+            for (let i = 0; i < vertexCount; i++) {
+                colors[i * 3] = vertexColors[i].r;
+                colors[i * 3 + 1] = vertexColors[i].g;
+                colors[i * 3 + 2] = vertexColors[i].b;
+            }
+            
+            textGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            textMesh.material.vertexColors = true;
+        }
+
+        /**
+         * Sets up OrbitControls for camera manipulation
+         * @description Configures camera controls with appropriate limits and damping
+         */
+        function setupControls() {
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.rotateSpeed = 0.7;
+            controls.minDistance = 3;
+            controls.maxDistance = 7;
+        }
+
+        /**
+         * Sets up all event listeners for mouse and touch interaction
+         * @description Handles window resize, mouse events, and touch events
+         */
+        function setupEventListeners() {
+            // Window events
+            window.addEventListener('resize', onWindowResize);
+            
+            // Mouse events
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mousedown', onMouseDown);
+            window.addEventListener('mouseup', onMouseUp);
+            
+            // Touch events for mobile support
+            window.addEventListener('touchmove', onTouchMove, { passive: false });
+            window.addEventListener('touchstart', onTouchStart);
+            window.addEventListener('touchend', onTouchEnd);
+        }
+
+        /**
+         * Handles mouse movement events
+         * @param {MouseEvent} event - The mouse move event
+         */
+        function onMouseMove(event) {
+            updateMousePosition(event.clientX, event.clientY);
+            updateWorldPointer();
+        }
+
+        /**
+         * Handles touch movement events
+         * @param {TouchEvent} event - The touch move event
+         */
+        function onTouchMove(event) {
+            event.preventDefault(); // Prevent scrolling
+            if (event.touches.length > 0) {
+                updateMousePosition(event.touches[0].clientX, event.touches[0].clientY);
+                updateWorldPointer();
+            }
+        }
+
+        /**
+         * Updates the normalized mouse position
+         * @param {number} clientX - X coordinate from event
+         * @param {number} clientY - Y coordinate from event
+         */
+        function updateMousePosition(clientX, clientY) {
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+        }
+
+        /**
+         * Handles mouse down events
+         * @param {MouseEvent} event - The mouse down event
+         */
+        function onMouseDown(event) {
+            if (event.button === 0) { // Left mouse button only
+                const intersects = raycastTextMesh();
+                
+                if (intersects.length > 0) {
+                    isPointerDown = true;
+                    controls.enabled = false; // Disable orbit controls during interaction
+                    
+                    // Visual feedback
+                    textMesh.material.emissive.setHex(0x0000ff);
+                    textMesh.material.emissiveIntensity = AppParameters.emissiveBoost;
+                }
+            }
+        }
+
+        /**
+         * Handles mouse up events
+         * @param {MouseEvent} event - The mouse up event
+         */
+        function onMouseUp(event) {
+            isPointerDown = false;
+            controls.enabled = true; // Re-enable orbit controls
+            
+            // Reset visual feedback
+            textMesh.material.emissive.setHex(0x000000);
+            textMesh.material.emissiveIntensity = AppParameters.emissiveIntensity;
+        }
+
+        /**
+         * Handles touch start events
+         * @param {TouchEvent} event - The touch start event
+         */
+        function onTouchStart(event) {
+            isPointerDown = true;
+            textMesh.material.emissive.setHex(0x000000);
+            textMesh.material.emissiveIntensity = AppParameters.emissiveBoost;
+        }
+
+        /**
+         * Handles touch end events
+         * @param {TouchEvent} event - The touch end event
+         */
+        function onTouchEnd(event) {
+            isPointerDown = false;
+            textMesh.material.emissive.setHex(0x000000);
+            textMesh.material.emissiveIntensity = AppParameters.emissiveIntensity;
+        }
+
+        /**
+         * Performs raycasting against the text mesh
+         * @returns {Array} Array of intersection objects
+         */
+        function raycastTextMesh() {
+            raycaster.setFromCamera(mouse, camera);
+            return raycaster.intersectObject(textMesh);
+        }
+
+        /**
+         * Updates the 3D world position of the pointer using raycasting
+         * @description Converts 2D mouse coordinates to 3D world coordinates
+         */
+        function updateWorldPointer() {
+            const intersects = raycastTextMesh();
+            
+            if (intersects.length > 0) {
+                // Use actual intersection point on mesh surface
+                worldPointer.copy(intersects[0].point);
+            } else {
+                // Fallback: project onto a plane at the mesh position
+                projectPointerOntoPlane();
+            }
+            
+            // Convert world position to local mesh coordinates
+            const inverseMatrix = new THREE.Matrix4().copy(textMesh.matrixWorld).invert();
+            localPointer.copy(worldPointer).applyMatrix4(inverseMatrix);
+        }
+
+        /**
+         * Projects the mouse pointer onto a plane when not intersecting the mesh
+         * @description Creates a virtual plane for interaction when mouse is not over text
+         */
+        function projectPointerOntoPlane() {
+            const cameraDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            const plane = new THREE.Plane(cameraDirection, 0);
+            plane.translate(textMesh.position);
+            
+            const intersectionPoint = new THREE.Vector3();
+            raycaster.ray.intersectPlane(plane, intersectionPoint);
+            
+            if (intersectionPoint) {
+                worldPointer.copy(intersectionPoint);
+            }
+        }
+
+        /**
+         * Updates the vertex destruction physics simulation
+         * @description Applies spring physics, noise, and color changes to each vertex
+         */
+        function updateVertexPhysics() {
+            if (!textMesh || !textGeometry) return;
+            
+            const positions = textGeometry.attributes.position.array;
+            const normals = textGeometry.attributes.normal.array;
+            const colors = textGeometry.attributes.color.array;
+            const vertexCount = originalPositions.length;
+            
+            // Process each vertex individually
+            for (let i = 0; i < vertexCount; i++) {
+                const i3 = i * 3;
+                
+                // Get vertex data
+                const basePos = originalPositions[i];
+                const currentPos = currentPositions[i];
+                const velocity = velocities[i];
+                const normal = {
+                    x: normals[i3],
+                    y: normals[i3 + 1],
+                    z: normals[i3 + 2]
+                };
+                
+                // Calculate distance-based influence
+                const influence = calculatePointerInfluence(basePos);
+                
+                // Add procedural noise for organic movement
+                const noise = calculateVertexNoise(i);
+                
+                // Calculate target position with explosion effect
+                const targetPos = calculateTargetPosition(basePos, normal, noise, influence);
+                
+                // Apply spring physics
+                applySpringPhysics(currentPos, velocity, targetPos);
+                
+                // Update geometry positions
+                updateVertexPosition(positions, i3, currentPos);
+                
+                // Update vertex colors based on movement
+                updateVertexColor(colors, i3, velocity, i);
+            }
+            
+            // Mark geometry attributes for update
+            textGeometry.attributes.position.needsUpdate = true;
+            textGeometry.attributes.color.needsUpdate = true;
+            textGeometry.computeVertexNormals(); // Recalculate normals for proper lighting
+        }
+
+        /**
+         * Calculates the pointer's influence on a vertex based on distance
+         * @param {Object} basePos - The original position of the vertex
+         * @returns {number} Influence factor (0-1)
+         */
+        function calculatePointerInfluence(basePos) {
+            const dx = localPointer.x - basePos.x;
+            const dy = localPointer.y - basePos.y;
+            const dz = localPointer.z - basePos.z;
+            const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            
+            // Use step function with smooth falloff
+            return distance < AppParameters.influenceRadius ? 
+                Math.pow(1.0 - distance / AppParameters.influenceRadius, 2) * AppParameters.explodeAmplitude : 0.0;
+        }
+
+        /**
+         * Calculates procedural noise for a vertex
+         * @param {number} vertexIndex - Index of the vertex
+         * @returns {Object} Noise vector with x, y, z components
+         */
+        function calculateVertexNoise(vertexIndex) {
+            return {
+                x: (Math.sin(animationTime * AppParameters.timeScale + vertexIndex * 0.1) * 0.5 + 0.5) * AppParameters.noiseAmplitude,
+                y: (Math.cos(animationTime * AppParameters.timeScale + vertexIndex * 0.15) * 0.5 + 0.5) * AppParameters.noiseAmplitude,
+                z: (Math.sin(animationTime * AppParameters.timeScale + vertexIndex * 0.2) * 0.5 + 0.5) * AppParameters.noiseAmplitude
+            };
+        }
+
+        /**
+         * Calculates the target position for a vertex
+         * @param {Object} basePos - Original vertex position
+         * @param {Object} normal - Vertex normal vector
+         * @param {Object} noise - Noise vector
+         * @param {number} influence - Pointer influence factor
+         * @returns {Object} Target position
+         */
+        function calculateTargetPosition(basePos, normal, noise, influence) {
+            const explosionForce = isPointerDown ? influence : influence * 0.3;
+            
+            return {
+                x: basePos.x + (normal.x + noise.x) * explosionForce,
+                y: basePos.y + (normal.y + noise.y) * explosionForce,
+                z: basePos.z + (normal.z + noise.z) * explosionForce
+            };
+        }
+
+        /**
+         * Applies spring physics to a vertex
+         * @param {Object} currentPos - Current vertex position
+         * @param {Object} velocity - Current vertex velocity
+         * @param {Object} targetPos - Target vertex position
+         */
+        function applySpringPhysics(currentPos, velocity, targetPos) {
+            // Spring force towards target
+            velocity.x += (targetPos.x - currentPos.x) * AppParameters.spring;
+            velocity.y += (targetPos.y - currentPos.y) * AppParameters.spring;
+            velocity.z += (targetPos.z - currentPos.z) * AppParameters.spring;
+            
+            // Apply friction/damping
+            velocity.x *= AppParameters.friction;
+            velocity.y *= AppParameters.friction;
+            velocity.z *= AppParameters.friction;
+            
+            // Update position
+            currentPos.x += velocity.x;
+            currentPos.y += velocity.y;
+            currentPos.z += velocity.z;
+        }
+
+        /**
+         * Updates a vertex position in the geometry
+         * @param {Float32Array} positions - Position array
+         * @param {number} index - Starting index (i * 3)
+         * @param {Object} currentPos - Current position object
+         */
+        function updateVertexPosition(positions, index, currentPos) {
+            positions[index] = currentPos.x;
+            positions[index + 1] = currentPos.y;
+            positions[index + 2] = currentPos.z;
+        }
+
+        /**
+         * Updates vertex color based on velocity
+         * @param {Float32Array} colors - Color array
+         * @param {number} index - Starting index (i * 3)
+         * @param {Object} velocity - Velocity object
+         * @param {number} vertexIndex - Vertex index for base color
+         */
+        function updateVertexColor(colors, index, velocity, vertexIndex) {
+            const velocityMagnitude = Math.sqrt(velocity.x*velocity.x + velocity.y*velocity.y + velocity.z*velocity.z);
+            const colorIntensity = Math.min(velocityMagnitude * AppParameters.colorShiftIntensity, 1.0);
+            
+            colors[index] = vertexColors[vertexIndex].r + colorIntensity * 0.5;     // More red when moving
+            colors[index + 1] = vertexColors[vertexIndex].g;                        // Keep green stable
+            colors[index + 2] = vertexColors[vertexIndex].b + colorIntensity * 0.3; // More blue when moving
+        }
+
+        /**
+         * Handles window resize events
+         * @description Updates camera aspect ratio and renderer size
+         */
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        /**
+         * Displays an error message when initialization fails
+         * @param {Error} error - The error that occurred
+         */
+        function displayErrorMessage(error) {
+            document.body.innerHTML = `
+                <div style="color:white; padding:20px; font-family: Arial, sans-serif;">
+                    <h1>Error initializing 3D scene</h1>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <p>Please check the console for more details.</p>
+                </div>`;
+        }
+
+        /**
+         * Main animation loop
+         * @description Updates controls, physics simulation, and renders the scene
+         */
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            animationTime += 1; // Increment time for animations
+            
+            // Update orbit controls with damping
+            if (controls) {
+                controls.update();
+            }
+            
+            // Update vertex physics simulation
+            updateVertexPhysics();
+            
+            // Subtle auto-rotation when not interacting
+            if (textMesh && !isPointerDown && (!controls || !controls.enabled)) {
+                textMesh.rotation.x += 0.002;
+                textMesh.rotation.y += 0.005;
+            }
+            
+            // Animate emissive intensity with subtle pulsing
+            if (textMesh) {
+                const baseIntensity = isPointerDown ? AppParameters.emissiveBoost : AppParameters.emissiveIntensity;
+                const pulseIntensity = Math.sin(animationTime * 0.05) * 0.1;
+                textMesh.material.emissiveIntensity = baseIntensity + pulseIntensity;
+            }
+            
+            // Render the scene
+            renderer.renderAsync(scene, camera);
+        }
+        
+        // Start the application when the page loads
+        window.onload = preload;
+    </script>
+</body>
+</html>

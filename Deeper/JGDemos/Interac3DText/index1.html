@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Interactive 3D Text with TSL Effects</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow: hidden;
+            background-color: #000000;
+            font-family: Arial, sans-serif;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            z-index: 10;
+            font-size: 12px;
+            pointer-events: none;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .control-group {
+            margin-bottom: 10px;
+        }
+
+        .control-group label {
+            color: white;
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        .control-group input[type="range"] {
+            width: 150px;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">Loading advanced effects...</div>
+    
+    <div class="info">
+        <p><strong>Advanced TSL Interactive Text</strong></p>
+        <p>Click and drag to interact with explosive effects</p>
+        <p>Features: Compute shaders, bloom, glitch effects, dynamic emissive</p>
+        <p>Mouse wheel: zoom | Right-click: rotate view</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="explosionPower">Explosion Power</label>
+            <input type="range" id="explosionPower" min="0.1" max="3.0" step="0.1" value="1.5">
+        </div>
+        <div class="control-group">
+            <label for="glitchIntensity">Glitch Intensity</label>
+            <input type="range" id="glitchIntensity" min="0.0" max="2.0" step="0.1" value="0.8">
+        </div>
+        <div class="control-group">
+            <label for="bloomStrength">Bloom Strength</label>
+            <input type="range" id="bloomStrength" min="0.0" max="2.0" step="0.1" value="1.2">
+        </div>
+        <div class="control-group">
+            <label for="emissiveBoost">Emissive Boost</label>
+            <input type="range" id="emissiveBoost" min="1.0" max="15.0" step="0.5" value="8.0">
+        </div>
+    </div>
+    
+    <script async src="../../lib/utils/es-module-shims.js"></script>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "../../lib/three.webgpu.js",
+                "three/tsl": "../../lib/nodes/Three.TSL.js",
+                "three/addons/": "../../lib/"
+            }
+        }
+    </script>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { 
+            storage, 
+            uniform, 
+            Fn, 
+            instanceIndex, 
+            vec3, 
+            float,
+            color,
+            time,
+            mx_noise_vec3,
+            mx_noise_float,
+            length,
+            step,
+            mix,
+            rotate,
+            hue,
+            normalView,
+            positionView,
+            sin,
+            cos,
+            abs,
+            smoothstep,
+            clamp,
+            pow,
+            mul,
+            add,
+            sub
+        } from 'three/tsl';
+        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+        import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+        import { ao } from 'three/addons/tsl/display/GTAONode.js';
+        import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
+
+        /**
+         * Advanced Interactive 3D Text with TSL Effects
+         * Features: Compute shaders, bloom, glitch effects, dynamic materials
+         */
+
+        // Resource management
+        const Resources = {
+            font: null
+        };
+
+        // Advanced parameters for TSL effects
+        const AdvancedParameters = {
+            // Physics
+            spring: 0.08,
+            friction: 0.92,
+            noiseAmplitude: 2.2,
+            explosionPower: 1.5,
+            influenceRadius: 0.6,
+            
+            // Visual effects
+            emissiveBoost: 8.0,
+            bloomStrength: 1.2,
+            bloomRadius: 0.8,
+            bloomThreshold: 0.1,
+            glitchIntensity: 0.8,
+            
+            // Colors
+            baseEmissive: '#0066ff',
+            explosionEmissive: '#ff3366',
+            glitchColor: '#00ff88',
+            
+            // Animation
+            timeScale: 0.015,
+            colorShiftSpeed: 12.0,
+            distortionSpeed: 3.0
+        };
+
+        // Core components
+        let camera, scene, renderer, composer, controls;
+        let textMesh, textGeometry;
+        let computeInit, computeUpdate;
+        
+        // TSL uniforms for interaction
+        let u_input_pos, u_input_press, u_time;
+        let u_explosion_power, u_glitch_intensity, u_bloom_strength, u_emissive_boost;
+        
+        // Storage buffers for compute shaders
+        let initialPositions, currentPositions, velocityStorage;
+        
+        // Interaction state
+        const mouse = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
+        let isInteracting = false;
+
+        /**
+         * Preload assets and initialize the application
+         */
+        function preload() {
+            console.log('Loading advanced TSL effects...');
+            
+            const fontLoader = new FontLoader();
+            fontLoader.load(
+                '../../lib/styles/helvetiker_regular.typeface.json',
+                (font) => {
+                    console.log('Font loaded, initializing TSL effects...');
+                    Resources.font = font;
+                    init();
+                },
+                (progress) => console.log('Loading progress:', progress),
+                (error) => {
+                    console.error('Font loading failed:', error);
+                    document.getElementById('loading').textContent = 'Failed to load font';
+                }
+            );
+        }
+
+        /**
+         * Initialize the advanced TSL-based application
+         */
+        async function init() {
+            try {
+                // Hide loading screen
+                document.getElementById('loading').style.display = 'none';
+                
+                setupScene();
+                await setupRenderer();
+                setupEnvironment();
+                createAdvancedTextMesh();
+                setupTSLCompute();
+                setupControls();
+                setupEventListeners();
+                setupPostProcessing();
+                
+                // Start animation loop
+                renderer.setAnimationLoop(animate);
+                
+                console.log('Advanced TSL application initialized successfully');
+                
+            } catch (error) {
+                console.error('Initialization failed:', error);
+                displayErrorMessage(error);
+            }
+        }
+
+        /**
+         * Setup the Three.js scene with advanced lighting
+         */
+        function setupScene() {
+            scene = new THREE.Scene();
+            
+            // Advanced fog for depth
+            scene.fog = new THREE.Fog(new THREE.Color('#0a0a0a'), 2.0, 12.0);
+            scene.background = scene.fog.color;
+            
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(
+                65, 
+                window.innerWidth / window.innerHeight, 
+                0.1, 
+                100
+            );
+            camera.position.set(0, 0, 6);
+            scene.add(camera);
+        }
+
+        /**
+         * Setup WebGPU renderer with advanced settings
+         */
+        async function setupRenderer() {
+            renderer = new THREE.WebGPURenderer({ 
+                antialias: true,
+                powerPreference: 'high-performance'
+            });
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.CineonToneMapping;
+            renderer.toneMappingExposure = 0.8;
+            
+            document.body.appendChild(renderer.domElement);
+            
+            // Initialize WebGPU backend
+            await renderer.init();
+        }
+
+        /**
+         * Setup advanced environment and lighting
+         */
+        function setupEnvironment() {
+            // Environment mapping
+            const environment = new RoomEnvironment();
+            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            
+            pmremGenerator.fromSceneAsync(environment).then((envTexture) => {
+                scene.environment = envTexture.texture;
+                scene.environmentIntensity = 0.4;
+            });
+            
+            // Dynamic directional light
+            const light = new THREE.DirectionalLight('#ffffff', 3.5);
+            light.position.set(2, 3, 4);
+            scene.add(light);
+            
+            // Ambient light for fill
+            const ambientLight = new THREE.AmbientLight('#1a1a2e', 0.3);
+            scene.add(ambientLight);
+        }
+
+        /**
+         * Create the advanced text mesh with TSL materials
+         */
+        function createAdvancedTextMesh() {
+            // Create text geometry
+            textGeometry = new TextGeometry('TSL', {
+                font: Resources.font,
+                size: 1.2,
+                depth: 0.3,
+                bevelEnabled: true,
+                bevelThickness: 0.15,
+                bevelSize: 0.02,
+                bevelOffset: 0,
+                bevelSegments: 2
+            });
+            
+            // Center the geometry
+            textGeometry.computeBoundingBox();
+            const centerX = -0.5 * (textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x);
+            const centerY = -0.5 * (textGeometry.boundingBox.max.y - textGeometry.boundingBox.min.y);
+            textGeometry.translate(centerX, centerY, 0);
+            
+            // Create advanced material with TSL nodes
+            const material = createAdvancedMaterial();
+            
+            textMesh = new THREE.Mesh(textGeometry, material);
+            scene.add(textMesh);
+        }
+
+        /**
+         * Create advanced material using TSL nodes
+         */
+        function createAdvancedMaterial() {
+            // TSL uniforms
+            u_input_pos = uniform(new THREE.Vector3(0, 0, 0));
+            u_input_press = uniform(0.0);
+            u_time = uniform(0.0);
+            u_explosion_power = uniform(AdvancedParameters.explosionPower);
+            u_glitch_intensity = uniform(AdvancedParameters.glitchIntensity);
+            u_emissive_boost = uniform(AdvancedParameters.emissiveBoost);
+            
+            const material = new THREE.MeshStandardMaterial({
+                color: '#2a2a2a',
+                metalness: 0.8,
+                roughness: 0.2
+            });
+            
+            return material;
+        }
+
+        /**
+         * Setup TSL compute shaders for advanced physics
+         */
+        function setupTSLCompute() {
+            const vertexCount = textGeometry.attributes.position.count;
+            
+            // Create storage buffers
+            initialPositions = storage(textGeometry.attributes.position, 'vec3', vertexCount);
+            const initialNormals = storage(textGeometry.attributes.normal, 'vec3', vertexCount);
+            
+            currentPositions = storage(new THREE.StorageBufferAttribute(vertexCount, 3), 'vec3', vertexCount);
+            velocityStorage = storage(new THREE.StorageBufferAttribute(vertexCount, 3), 'vec3', vertexCount);
+            
+            // Initialize compute shader
+            computeInit = Fn(() => {
+                currentPositions.element(instanceIndex).assign(initialPositions.element(instanceIndex));
+                velocityStorage.element(instanceIndex).assign(vec3(0.0, 0.0, 0.0));
+            })().compute(vertexCount);
+            
+            // Main compute shader with advanced effects
+            computeUpdate = Fn(() => {
+                const basePos = initialPositions.element(instanceIndex);
+                const currentPos = currentPositions.element(instanceIndex);
+                const velocity = velocityStorage.element(instanceIndex);
+                const normal = initialNormals.element(instanceIndex);
+                
+                // Advanced noise system
+                const timeOffset = u_time.mul(AdvancedParameters.timeScale);
+                const noisePos = currentPos.mul(0.8).add(vec3(timeOffset, timeOffset.mul(1.3), timeOffset.mul(0.7)));
+                const complexNoise = mx_noise_vec3(noisePos, 1.0, 2.4)
+                    .mul(AdvancedParameters.noiseAmplitude)
+                    .add(mx_noise_vec3(noisePos.mul(2.0), 0.5, 1.8).mul(0.3));
+                
+                // Distance-based influence with smooth falloff
+                const distance = length(u_input_pos.sub(basePos));
+                const influence = smoothstep(AdvancedParameters.influenceRadius, 0.0, distance);
+                const explosionForce = influence.mul(u_explosion_power).mul(mix(0.3, 1.0, u_input_press));
+                
+                // Glitch effect
+                const glitchNoise = mx_noise_float(vec3(basePos.x.mul(50.0), u_time.mul(8.0), basePos.z.mul(30.0)), 1.0);
+                const glitchOffset = step(0.98, glitchNoise).mul(u_glitch_intensity).mul(normal);
+                
+                // Calculate target position with rotation
+                const explosionDir = normal.add(complexNoise.mul(0.4)).add(glitchOffset);
+                const targetPos = basePos.add(explosionDir.mul(explosionForce));
+                
+                // Add rotation for chaos
+                const rotationAxis = normal.cross(vec3(1.0, 0.0, 0.0)).normalize();
+                const rotationAngle = explosionForce.mul(Math.PI * 0.5);
+                const rotatedTarget = mix(targetPos, rotate(targetPos.sub(basePos), rotationAxis.mul(rotationAngle)).add(basePos), explosionForce);
+                
+                // Advanced spring physics
+                const springForce = rotatedTarget.sub(currentPos).mul(AdvancedParameters.spring);
+                velocity.addAssign(springForce);
+                velocity.mulAssign(AdvancedParameters.friction);
+                currentPos.addAssign(velocity);
+                
+            })().compute(vertexCount);
+            
+            // Apply position override to material
+            textMesh.material.positionNode = currentPositions.toAttribute();
+            
+            // Advanced emissive system
+            setupAdvancedEmissive();
+            
+            // Initialize compute
+            renderer.computeAsync(computeInit);
+        }
+
+        /**
+         * Setup advanced emissive effects using TSL
+         */
+        function setupAdvancedEmissive() {
+            const velocityAttribute = velocityStorage.toAttribute();
+            
+            // Calculate emissive intensity based on velocity
+            const velocityMagnitude = length(velocityAttribute);
+            const emissiveIntensity = velocityMagnitude.mul(AdvancedParameters.colorShiftSpeed);
+            
+            // Color shifting based on movement
+            const baseEmissive = color(AdvancedParameters.baseEmissive);
+            const explosionEmissive = color(AdvancedParameters.explosionEmissive);
+            const glitchEmissive = color(AdvancedParameters.glitchColor);
+            
+            // Hue rotation based on velocity and time
+            const hueShift = velocityMagnitude.mul(Math.PI * 2.0).add(u_time.mul(0.5));
+            const rotatedColor = hue(baseEmissive, hueShift);
+            
+            // Mix colors based on interaction state
+            const interactionColor = mix(rotatedColor, explosionEmissive, u_input_press);
+            
+            // Add glitch color spikes
+            const glitchSpike = step(0.95, mx_noise_float(vec3(u_time.mul(10.0)), 1.0));
+            const finalEmissive = mix(interactionColor, glitchEmissive, glitchSpike.mul(u_glitch_intensity));
+            
+            // Apply to material
+            textMesh.material.emissiveNode = finalEmissive
+                .mul(emissiveIntensity.add(0.1))
+                .mul(u_emissive_boost);
+        }
+
+        /**
+         * Setup post-processing with bloom and advanced effects
+         */
+        function setupPostProcessing() {
+            composer = new THREE.PostProcessing(renderer);
+            
+            // Main scene pass
+            const scenePass = composer.addPass(scene, camera);
+            
+            // AO pass for depth
+            const aoPass = ao(scenePass.getTextureNode('depth'), scenePass.getTextureNode('normal'), camera);
+            aoPass.resolutionScale = 1.0;
+            
+            // Denoise the AO
+            const denoisedAO = denoise(aoPass.getTextureNode(), scenePass.getTextureNode('depth'), scenePass.getTextureNode('normal'), camera);
+            
+            // Enhanced bloom with dynamic parameters
+            u_bloom_strength = uniform(AdvancedParameters.bloomStrength);
+            const bloomEffect = bloom(
+                scenePass.getTextureNode('output').mul(denoisedAO), 
+                u_bloom_strength, 
+                AdvancedParameters.bloomRadius, 
+                AdvancedParameters.bloomThreshold
+            );
+            
+            // Add film grain and glitch effects
+            const filmGrain = mx_noise_float(
+                vec3(scenePass.getTextureNode('uv').mul(window.innerWidth), u_time.mul(5.0)), 
+                0.02
+            ).mul(0.15);
+            
+            // Glitch displacement effect
+            const glitchDisplacement = mx_noise_float(
+                vec3(u_time.mul(20.0), 0.0, 0.0), 
+                1.0
+            ).mul(u_glitch_intensity.mul(0.01));
+            
+            // Final composition
+            composer.outputNode = scenePass.getTextureNode('output')
+                .mul(denoisedAO)
+                .add(bloomEffect)
+                .add(filmGrain)
+                .add(glitchDisplacement);
+        }
+
+        /**
+         * Setup controls and interaction
+         */
+        function setupControls() {
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.03;
+            controls.minDistance = 3;
+            controls.maxDistance = 12;
+            controls.maxPolarAngle = Math.PI * 0.8;
+        }
+
+        /**
+         * Setup event listeners for interaction and UI controls
+         */
+        function setupEventListeners() {
+            // Window resize
+            window.addEventListener('resize', onWindowResize);
+            
+            // Mouse interaction
+            window.addEventListener('pointermove', onPointerMove, { passive: false });
+            window.addEventListener('pointerdown', onPointerDown);
+            window.addEventListener('pointerup', onPointerUp);
+            
+            // UI controls
+            setupUIControls();
+        }
+
+        /**
+         * Setup UI control handlers
+         */
+        function setupUIControls() {
+            document.getElementById('explosionPower').addEventListener('input', (e) => {
+                u_explosion_power.value = parseFloat(e.target.value);
+            });
+            
+            document.getElementById('glitchIntensity').addEventListener('input', (e) => {
+                u_glitch_intensity.value = parseFloat(e.target.value);
+            });
+            
+            document.getElementById('bloomStrength').addEventListener('input', (e) => {
+                u_bloom_strength.value = parseFloat(e.target.value);
+            });
+            
+            document.getElementById('emissiveBoost').addEventListener('input', (e) => {
+                u_emissive_boost.value = parseFloat(e.target.value);
+            });
+        }
+
+        /**
+         * Handle pointer movement with advanced raycasting
+         */
+        function onPointerMove(event) {
+            // Update mouse position
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            // Raycast to text mesh
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(textMesh);
+            
+            if (intersects.length > 0) {
+                u_input_pos.value.copy(intersects[0].point);
+                // Convert to local space
+                const localPoint = textMesh.worldToLocal(intersects[0].point.clone());
+                u_input_pos.value.copy(localPoint);
+            }
+        }
+
+        /**
+         * Handle pointer down events
+         */
+        function onPointerDown(event) {
+            if (event.button === 0) { // Left click only
+                isInteracting = true;
+                u_input_press.value = 1.0;
+                controls.enabled = false;
+            }
+        }
+
+        /**
+         * Handle pointer up events
+         */
+        function onPointerUp(event) {
+            isInteracting = false;
+            u_input_press.value = 0.0;
+            controls.enabled = true;
+        }
+
+        /**
+         * Handle window resize
+         */
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        /**
+         * Display error message
+         */
+        function displayErrorMessage(error) {
+            document.body.innerHTML = `
+                <div style="color:white; padding:20px; font-family: Arial, sans-serif; text-align: center; margin-top: 100px;">
+                    <h1>Advanced TSL Effects Failed to Initialize</h1>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <p>WebGPU support may be required for advanced features.</p>
+                    <p>Please check the console for detailed information.</p>
+                </div>`;
+        }
+
+        /**
+         * Main animation loop with advanced timing
+         */
+        function animate() {
+            // Update time uniform
+            u_time.value = performance.now() * 0.001;
+            
+            // Update controls
+            if (controls) {
+                controls.update();
+            }
+            
+            // Run compute shader
+            if (computeUpdate) {
+                renderer.computeAsync(computeUpdate);
+            }
+            
+            // Subtle auto-rotation when not interacting
+            if (textMesh && !isInteracting) {
+                textMesh.rotation.x += 0.001;
+                textMesh.rotation.y += 0.003;
+            }
+            
+            // Render with post-processing
+            if (composer) {
+                composer.renderAsync();
+            }
+        }
+
+        // Initialize the application
+        window.onload = preload;
+    </script>
+</body>
+</html>
