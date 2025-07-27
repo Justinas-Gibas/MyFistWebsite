@@ -109,7 +109,8 @@
         {
             "imports": {
                 "three": "../../lib/three.webgpu.js",
-                "three/tsl": "../../lib/nodes/Three.TSL.js",
+                "three/webgpu": "../../lib/three.webgpu.js",
+                "three/tsl": "../../lib/three.TSL.js",
                 "three/addons/": "../../lib/"
             }
         }
@@ -145,13 +146,20 @@
             add,
             sub
         } from 'three/tsl';
+        import WebGPU from 'three/addons/utils/WebGPU.js';
         import { FontLoader } from 'three/addons/loaders/FontLoader.js';
-        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+        import { TextGeometry } from 'three/addons/utils/TextGeometry.js';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-        import { bloom } from 'three/addons/tsl/display/BloomNode.js';
-        import { ao } from 'three/addons/tsl/display/GTAONode.js';
-        import { denoise } from 'three/addons/tsl/display/DenoiseNode.js';
+        import { RoomEnvironment } from 'three/addons/models/RoomEnvironment.js';
+        import { bloom } from 'three/addons/nodes/BloomNode.js';
+        import { ao } from 'three/addons/nodes/GTAONode.js';
+        import { denoise } from 'three/addons/nodes/DenoiseNode.js';
+
+        // Debug helper - will print messages with timestamps
+        const DEBUG = true;
+        function debug(...args) {
+            if (DEBUG) console.log(`[${performance.now().toFixed(2)}ms]`, ...args);
+        }
 
         /**
          * Advanced Interactive 3D Text with TSL Effects
@@ -206,25 +214,41 @@
         const mouse = new THREE.Vector2();
         const raycaster = new THREE.Raycaster();
         let isInteracting = false;
+        
+        // Debug objects
+        let debugSphere, debugAxes;
 
         /**
          * Preload assets and initialize the application
          */
         function preload() {
-            console.log('Loading advanced TSL effects...');
+            debug('Starting preload process');
+            
+            // Check if WebGPU is available
+            if (!WebGPU.isAvailable()) {
+                console.error('WebGPU is not supported in this browser');
+                document.getElementById('loading').innerHTML = 'WebGPU not supported. Please use Chrome 113+ or other compatible browser.';
+                return;
+            }
+            
+            debug('WebGPU is available, loading font...');
             
             const fontLoader = new FontLoader();
             fontLoader.load(
                 '../../lib/styles/helvetiker_regular.typeface.json',
                 (font) => {
-                    console.log('Font loaded, initializing TSL effects...');
+                    debug('Font loaded successfully:', font);
                     Resources.font = font;
                     init();
                 },
-                (progress) => console.log('Loading progress:', progress),
+                (progress) => {
+                    const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                    debug('Loading progress:', percent + '%');
+                    document.getElementById('loading').textContent = `Loading font: ${percent}%`;
+                },
                 (error) => {
                     console.error('Font loading failed:', error);
-                    document.getElementById('loading').textContent = 'Failed to load font';
+                    document.getElementById('loading').innerHTML = 'Failed to load font<br>Error: ' + error.message;
                 }
             );
         }
@@ -234,22 +258,47 @@
          */
         async function init() {
             try {
-                // Hide loading screen
-                document.getElementById('loading').style.display = 'none';
+                debug('Initializing application');
+                
+                // Hide loading screen when we're ready
+                document.getElementById('loading').textContent = 'Setting up scene...';
                 
                 setupScene();
+                
+                document.getElementById('loading').textContent = 'Initializing WebGPU renderer...';
                 await setupRenderer();
+                
+                document.getElementById('loading').textContent = 'Setting up environment...';
                 setupEnvironment();
+                
+                // Add debug helpers
+                addDebugHelpers();
+                
+                document.getElementById('loading').textContent = 'Creating text mesh...';
                 createAdvancedTextMesh();
+                
+                document.getElementById('loading').textContent = 'Setting up TSL compute...';
                 setupTSLCompute();
+                
+                document.getElementById('loading').textContent = 'Setting up controls...';
                 setupControls();
+                
+                document.getElementById('loading').textContent = 'Setting up event listeners...';
                 setupEventListeners();
+                
+                document.getElementById('loading').textContent = 'Setting up post processing...';
                 setupPostProcessing();
+                
+                // Hide loading screen
+                document.getElementById('loading').style.display = 'none';
                 
                 // Start animation loop
                 renderer.setAnimationLoop(animate);
                 
-                console.log('Advanced TSL application initialized successfully');
+                debug('Initialization complete');
+                
+                // Render a single frame to check if everything works
+                renderSingleFrame();
                 
             } catch (error) {
                 console.error('Initialization failed:', error);
@@ -258,14 +307,49 @@
         }
 
         /**
+         * Add visual debug helpers to the scene
+         */
+        function addDebugHelpers() {
+            debug('Adding debug helpers to scene');
+            
+            // Add axes helper
+            debugAxes = new THREE.AxesHelper(3);
+            scene.add(debugAxes);
+            
+            // Add a bright sphere at origin
+            const geometry = new THREE.SphereGeometry(0.2, 16, 16);
+            const material = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            debugSphere = new THREE.Mesh(geometry, material);
+            scene.add(debugSphere);
+            
+            debug('Debug helpers added');
+        }
+
+        /**
+         * Render a single frame for debugging
+         */
+        function renderSingleFrame() {
+            debug('Rendering single frame for debug');
+            if (composer) {
+                composer.renderAsync();
+            } else {
+                renderer.render(scene, camera);
+            }
+        }
+
+        /**
          * Setup the Three.js scene with advanced lighting
          */
         function setupScene() {
+            debug('Setting up scene');
+            
             scene = new THREE.Scene();
             
+            // Use a brighter color for debugging
+            scene.background = new THREE.Color(0x2a2a2a);
+            
             // Advanced fog for depth
-            scene.fog = new THREE.Fog(new THREE.Color('#0a0a0a'), 2.0, 12.0);
-            scene.background = scene.fog.color;
+            scene.fog = new THREE.Fog(scene.background, 2.0, 20.0);
             
             // Camera setup
             camera = new THREE.PerspectiveCamera(
@@ -276,78 +360,134 @@
             );
             camera.position.set(0, 0, 6);
             scene.add(camera);
+            
+            debug('Scene setup complete');
         }
 
         /**
          * Setup WebGPU renderer with advanced settings
          */
         async function setupRenderer() {
-            renderer = new THREE.WebGPURenderer({ 
-                antialias: true,
-                powerPreference: 'high-performance'
-            });
+            debug('Setting up WebGPU renderer');
             
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            renderer.toneMapping = THREE.CineonToneMapping;
-            renderer.toneMappingExposure = 0.8;
-            
-            document.body.appendChild(renderer.domElement);
-            
-            // Initialize WebGPU backend
-            await renderer.init();
+            try {
+                renderer = new THREE.WebGPURenderer({ 
+                    antialias: true,
+                    powerPreference: 'high-performance'
+                });
+                
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                renderer.toneMapping = THREE.CineonToneMapping;
+                renderer.toneMappingExposure = 0.8;
+                
+                document.body.appendChild(renderer.domElement);
+                
+                debug('Initializing WebGPU backend');
+                await renderer.init();
+                debug('WebGPU initialization complete');
+            } catch (error) {
+                console.error('WebGPU renderer setup failed:', error);
+                throw new Error('Failed to initialize WebGPU renderer: ' + error.message);
+            }
         }
 
         /**
          * Setup advanced environment and lighting
          */
         function setupEnvironment() {
-            // Environment mapping
-            const environment = new RoomEnvironment();
-            const pmremGenerator = new THREE.PMREMGenerator(renderer);
+            debug('Setting up environment');
             
-            pmremGenerator.fromSceneAsync(environment).then((envTexture) => {
-                scene.environment = envTexture.texture;
-                scene.environmentIntensity = 0.4;
-            });
-            
-            // Dynamic directional light
-            const light = new THREE.DirectionalLight('#ffffff', 3.5);
-            light.position.set(2, 3, 4);
-            scene.add(light);
-            
-            // Ambient light for fill
-            const ambientLight = new THREE.AmbientLight('#1a1a2e', 0.3);
+            // Add a simple ambient light first for visibility
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
             scene.add(ambientLight);
+            
+            // Add a directional light for shadows and direction
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+            
+            try {
+                // Environment mapping (wrapped in try-catch as this might fail)
+                const environment = new RoomEnvironment();
+                const pmremGenerator = new THREE.PMREMGenerator(renderer);
+                
+                pmremGenerator.fromSceneAsync(environment).then((envTexture) => {
+                    scene.environment = envTexture.texture;
+                    scene.environmentIntensity = 0.8; // Increase for better visibility
+                    debug('Environment mapping complete');
+                }).catch(err => {
+                    debug('Environment mapping failed but continuing:', err);
+                });
+            } catch (error) {
+                debug('Environment setup error, continuing without environment:', error);
+            }
         }
 
         /**
          * Create the advanced text mesh with TSL materials
          */
         function createAdvancedTextMesh() {
-            // Create text geometry
-            textGeometry = new TextGeometry('TSL', {
-                font: Resources.font,
-                size: 1.2,
-                depth: 0.3,
-                bevelEnabled: true,
-                bevelThickness: 0.15,
-                bevelSize: 0.02,
-                bevelOffset: 0,
-                bevelSegments: 2
-            });
+            debug('Creating text mesh');
             
-            // Center the geometry
-            textGeometry.computeBoundingBox();
-            const centerX = -0.5 * (textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x);
-            const centerY = -0.5 * (textGeometry.boundingBox.max.y - textGeometry.boundingBox.min.y);
-            textGeometry.translate(centerX, centerY, 0);
-            
-            // Create advanced material with TSL nodes
-            const material = createAdvancedMaterial();
-            
-            textMesh = new THREE.Mesh(textGeometry, material);
-            scene.add(textMesh);
+            try {
+                if (!Resources.font) {
+                    throw new Error('Font not loaded');
+                }
+                
+                // Create text geometry
+                textGeometry = new TextGeometry('TSL', {
+                    font: Resources.font,
+                    size: 1.2,
+                    depth: 0.3,
+                    bevelEnabled: true,
+                    bevelThickness: 0.15,
+                    bevelSize: 0.02,
+                    bevelOffset: 0,
+                    bevelSegments: 2
+                });
+                
+                // Center the geometry
+                textGeometry.computeBoundingBox();
+                const centerX = -0.5 * (textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x);
+                const centerY = -0.5 * (textGeometry.boundingBox.max.y - textGeometry.boundingBox.min.y);
+                textGeometry.translate(centerX, centerY, 0);
+                
+                debug('Text geometry created with vertices:', textGeometry.attributes.position.count);
+                
+                // First create a basic material for visibility
+                const basicMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x3366ff,
+                    emissive: 0x1133cc,
+                    metalness: 0.8,
+                    roughness: 0.2
+                });
+                
+                textMesh = new THREE.Mesh(textGeometry, basicMaterial);
+                scene.add(textMesh);
+                
+                debug('Basic text mesh added to scene');
+                
+                // Now try to create the advanced material
+                try {
+                    const advancedMaterial = createAdvancedMaterial();
+                    textMesh.material = advancedMaterial;
+                    debug('Advanced material applied');
+                } catch (error) {
+                    console.error('Failed to create advanced material:', error);
+                    debug('Keeping basic material due to error in advanced material creation');
+                }
+            } catch (error) {
+                console.error('Text mesh creation failed:', error);
+                
+                // Create a fallback cube if text fails
+                const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+                const cubeMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                textMesh = new THREE.Mesh(cubeGeometry, cubeMaterial);
+                scene.add(textMesh);
+                
+                debug('Added fallback cube due to text mesh failure');
+            }
         }
 
         /**
