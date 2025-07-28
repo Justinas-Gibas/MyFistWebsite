@@ -55,16 +55,23 @@
     <script type="importmap">
         {
             "imports": {
-                "three": "../../lib/three.webgpu.js"
+                "three": "../../lib/three.webgpu.js",
+                "three/webgpu": "../../lib/three.webgpu.js",
+                "three/tsl": "../../lib/three.TSL.js",
+                "three/addons/": "../../lib/"
             }
         }
     </script>
     
     <script type="module">
-        import * as THREE from 'three';
+        import * as THREE from 'three/webgpu';
         import { FontLoader } from '../../lib/loaders/FontLoader.js';
         import { TextGeometry } from '../../lib/utils/TextGeometry.js';
         import { OrbitControls } from '../../lib/controls/OrbitControls.js';
+        
+        // TSL imports for post-processing (we'll use these step by step)
+        import { pass, mrt, output } from 'three/tsl';
+        import { bloom } from 'three/addons/nodes/BloomNode.js';
         
         /**
          * @fileoverview Interactive 3D Text Destruction Demo
@@ -109,6 +116,9 @@
         // Core Three.js components
         let camera, scene, renderer, controls;
         let textMesh, textGeometry;
+        
+        // Post-processing components
+        let postProcessing;
         
         // Interaction system
         const mouse = new THREE.Vector2();
@@ -176,6 +186,9 @@
                 // Create renderer with WebGPU fallback to WebGL
                 setupRenderer();
                 
+                // Setup post-processing pipeline
+                setupPostProcessing();
+                
                 // Setup lighting for realistic material rendering
                 setupLighting();
                 
@@ -219,6 +232,31 @@
             renderer.toneMappingExposure = 0.5;
             
             document.body.appendChild(renderer.domElement);
+        }
+
+        /**
+         * Sets up the post-processing pipeline with bloom effect
+         * @description Creates the post-processing system that replaces direct rendering
+         */
+        function setupPostProcessing() {
+            console.log('Setting up post-processing pipeline...');
+            
+            // Create the post-processing manager
+            postProcessing = new THREE.PostProcessing(renderer);
+            
+            // Create a pass that renders our scene
+            const scenePass = pass(scene, camera);
+            
+            // Get the color output from the scene pass
+            const sceneColor = scenePass.getTextureNode('output');
+            
+            // Create a subtle bloom effect
+            const bloomEffect = bloom(sceneColor, 0.3, 0.4, 0.8);
+            
+            // Set the final output (scene + bloom)
+            postProcessing.outputNode = sceneColor.add(bloomEffect);
+            
+            console.log('Post-processing pipeline created successfully');
         }
 
         /**
@@ -426,7 +464,7 @@
                     controls.enabled = false; // Disable orbit controls during interaction
                     
                     // Visual feedback
-                    textMesh.material.emissive.setHex(0x0000ff);
+                    textMesh.material.emissive.setHex(0xffffff);
                     textMesh.material.emissiveIntensity = AppParameters.emissiveBoost;
                 }
             }
@@ -441,7 +479,7 @@
             controls.enabled = true; // Re-enable orbit controls
             
             // Reset visual feedback
-            textMesh.material.emissive.setHex(0x000000);
+            textMesh.material.emissive.setHex(0xffffff);
             textMesh.material.emissiveIntensity = AppParameters.emissiveIntensity;
         }
 
@@ -451,7 +489,7 @@
          */
         function onTouchStart(event) {
             isPointerDown = true;
-            textMesh.material.emissive.setHex(0x000000);
+            textMesh.material.emissive.setHex(0xffffff);
             textMesh.material.emissiveIntensity = AppParameters.emissiveBoost;
         }
 
@@ -461,7 +499,7 @@
          */
         function onTouchEnd(event) {
             isPointerDown = false;
-            textMesh.material.emissive.setHex(0x000000);
+            textMesh.material.emissive.setHex(0xffffff);
             textMesh.material.emissiveIntensity = AppParameters.emissiveIntensity;
         }
 
@@ -713,8 +751,8 @@
                 textMesh.material.emissiveIntensity = baseIntensity + pulseIntensity;
             }
             
-            // Render the scene
-            renderer.renderAsync(scene, camera);
+            // Render the scene through post-processing pipeline
+            postProcessing.renderAsync();
         }
         
         // Start the application when the page loads

@@ -70,7 +70,7 @@
         import { OrbitControls } from '../../lib/controls/OrbitControls.js';
         
         // TSL imports for post-processing (we'll use these step by step)
-        import { pass, mrt, output, uniform, time, vec3, float, sin, cos, mix, length, hue } from 'three/tsl';
+        import { pass, mrt, output, uniform, time, vec3, float, sin, cos, mix, length } from 'three/tsl';
         import { bloom } from 'three/addons/nodes/BloomNode.js';
         
         /**
@@ -118,7 +118,6 @@
         const u_interaction_strength = uniform(0.0);
         const u_bloom_intensity = uniform(0.8); // Start with baseline bloom
         const u_displacement_intensity = uniform(0.0); // Track vertex displacement
-        const u_hue_shift = uniform(0.0); // New: Dynamic hue rotation
         
         // Glow decay system for smooth transitions
         let glowDecayTimer = 0;
@@ -262,14 +261,11 @@
             // Get the color output from the scene pass
             const sceneColor = scenePass.getTextureNode('output');
             
-            // Apply dynamic hue rotation based on displacement
-            const hueShiftedColor = hue(sceneColor, u_hue_shift);
-            
             // Create a dynamic bloom effect that responds to interaction
-            const bloomEffect = bloom(hueShiftedColor, 0.3, u_bloom_intensity, 0.8);
+            const bloomEffect = bloom(sceneColor, 0.3, u_bloom_intensity, 0.8);
             
-            // Set the final output (hue-shifted scene + bloom)
-            postProcessing.outputNode = hueShiftedColor.add(bloomEffect);
+            // Set the final output (scene + bloom)
+            postProcessing.outputNode = sceneColor.add(bloomEffect);
             
             console.log('Post-processing pipeline created successfully');
         }
@@ -311,10 +307,10 @@
             
             // Create material with enhanced visual properties
             const material = new THREE.MeshStandardMaterial({
-                color: new THREE.Color(0, 0, 1), // Blue base color
+                color: AppParameters.textColor,
                 metalness: 0.4,
                 roughness: 0.3,
-                emissive: new THREE.Color(0.5, 0.5, 0), // Yellow emissive
+                emissive: AppParameters.emissiveColor,
                 emissiveIntensity: AppParameters.emissiveIntensity
             });
             
@@ -477,8 +473,9 @@
                 if (intersects.length > 0) {
                     isPointerDown = true;
                     controls.enabled = false; // Disable orbit controls during interaction
-                    // Visual feedback - boost to brighter red when interacting
-                    textMesh.material.emissive.setRGB(1.0, 0, 0); // Bright red
+                    
+                    // Visual feedback - keep the white emissive, just boost intensity
+                    textMesh.material.emissive.setHex(0xffffff);
                     textMesh.material.emissiveIntensity = AppParameters.emissiveBoost;
                     
                     // Update TSL uniforms for dynamic effects
@@ -499,8 +496,8 @@
             isPointerDown = false;
             controls.enabled = true; // Re-enable orbit controls
             
-            // Reset visual feedback - back to base warm orange emissive
-            textMesh.material.emissive.setRGB(0.5, 0.5, 0); // Back to yellow
+            // Reset visual feedback - back to base emissive, not black
+            textMesh.material.emissive.setHex(0xffffff);
             textMesh.material.emissiveIntensity = AppParameters.emissiveIntensity;
             
             // Start glow decay timer instead of immediate reset
@@ -513,7 +510,7 @@
          */
         function onTouchStart(event) {
             isPointerDown = true;
-            textMesh.material.emissive.setRGB(1.0, 0, 0); // Bright red
+            textMesh.material.emissive.setHex(0xffffff);
             textMesh.material.emissiveIntensity = AppParameters.emissiveBoost;
         }
 
@@ -523,7 +520,7 @@
          */
         function onTouchEnd(event) {
             isPointerDown = false;
-            textMesh.material.emissive.setRGB(0.5, 0.5, 0); // Back to yellow
+            textMesh.material.emissive.setHex(0xffffff);
             textMesh.material.emissiveIntensity = AppParameters.emissiveIntensity;
         }
 
@@ -639,38 +636,18 @@
             textGeometry.attributes.color.needsUpdate = true;
             textGeometry.computeVertexNormals(); // Recalculate normals for proper lighting
             
-            // STRENGTHENED BLOOM: Update bloom based on displacement
+            // Update bloom based on displacement
             const averageDisplacement = totalDisplacement / vertexCount;
-            const normalizedDisplacement = Math.min(averageDisplacement * 12.0, 1.0); // Increased from 8.0 to 12.0
+            const normalizedDisplacement = Math.min(averageDisplacement * 8.0, 1.0); // Scale and clamp
             
-            // Much stronger baseline bloom + more aggressive displacement-based boost
-            const baselineBloom = 1.5; // Increased from 0.8
-            const maxDisplacementBloom = 4.0; // Increased from 2.5
+            // Baseline bloom + displacement-based boost
+            const baselineBloom = 0.8;
+            const maxDisplacementBloom = 2.5;
             const targetBloom = baselineBloom + (normalizedDisplacement * maxDisplacementBloom);
             
-            // Faster interpolation to target for more responsive bloom
-            u_bloom_intensity.value += (targetBloom - u_bloom_intensity.value) * 0.2; // Increased from 0.1
+            // Smooth interpolation to target
+            u_bloom_intensity.value += (targetBloom - u_bloom_intensity.value) * 0.1;
             u_displacement_intensity.value = normalizedDisplacement;
-            
-            // FASTER GLITCHY HUE ROTATION: Dynamic hue rotation based on average velocity and time
-            let totalVelocity = 0;
-            for (let i = 0; i < vertexCount; i++) {
-                const vel = velocities[i];
-                totalVelocity += Math.sqrt(vel.x*vel.x + vel.y*vel.y + vel.z*vel.z);
-            }
-            const averageVelocity = totalVelocity / vertexCount;
-            
-            // Much faster hue shifts with glitch spikes
-            const velocityHue = averageVelocity * 15.0; // Increased from 5.0 for more dramatic shifts
-            const timeHue = animationTime * 0.008; // Increased from 0.002 for faster cycling
-            
-            // Add random glitch hue spikes
-            const glitchHue = Math.random() < 0.1 ? Math.random() * Math.PI * 2 : 0.0; // 10% chance of random hue spike
-            
-            // Interaction-based hue chaos
-            const interactionChaos = isPointerDown ? Math.sin(animationTime * 0.1) * 3.0 : 0.0;
-            
-            u_hue_shift.value = velocityHue + timeHue + glitchHue + interactionChaos;
         }
 
         /**
@@ -695,13 +672,10 @@
          * @returns {Object} Noise vector with x, y, z components
          */
         function calculateVertexNoise(vertexIndex) {
-            // Add glitch spikes to noise
-            const glitchSpike = Math.random() < 0.05 ? Math.random() * 2.0 : 0.0; // 5% chance of glitch spike
-            
             return {
-                x: (Math.sin(animationTime * AppParameters.timeScale + vertexIndex * 0.1) * 0.5 + 0.5) * AppParameters.noiseAmplitude + glitchSpike,
-                y: (Math.cos(animationTime * AppParameters.timeScale + vertexIndex * 0.15) * 0.5 + 0.5) * AppParameters.noiseAmplitude + glitchSpike,
-                z: (Math.sin(animationTime * AppParameters.timeScale + vertexIndex * 0.2) * 0.5 + 0.5) * AppParameters.noiseAmplitude + glitchSpike
+                x: (Math.sin(animationTime * AppParameters.timeScale + vertexIndex * 0.1) * 0.5 + 0.5) * AppParameters.noiseAmplitude,
+                y: (Math.cos(animationTime * AppParameters.timeScale + vertexIndex * 0.15) * 0.5 + 0.5) * AppParameters.noiseAmplitude,
+                z: (Math.sin(animationTime * AppParameters.timeScale + vertexIndex * 0.2) * 0.5 + 0.5) * AppParameters.noiseAmplitude
             };
         }
 
@@ -716,13 +690,10 @@
         function calculateTargetPosition(basePos, normal, noise, influence) {
             const explosionForce = isPointerDown ? influence : influence * 0.3;
             
-            // Add random glitch displacement
-            const glitchOffset = Math.random() < 0.03 ? (Math.random() - 0.5) * 0.5 : 0.0;
-            
             return {
-                x: basePos.x + (normal.x + noise.x) * explosionForce + glitchOffset,
-                y: basePos.y + (normal.y + noise.y) * explosionForce + glitchOffset,
-                z: basePos.z + (normal.z + noise.z) * explosionForce + glitchOffset
+                x: basePos.x + (normal.x + noise.x) * explosionForce,
+                y: basePos.y + (normal.y + noise.y) * explosionForce,
+                z: basePos.z + (normal.z + noise.z) * explosionForce
             };
         }
 

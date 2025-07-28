@@ -3,6 +3,7 @@ import { OrbitControls } from '../../lib/controls/OrbitControls.js'
 import { GLTFLoader } from '../../lib/loaders/GLTFLoader.js'
 import { RGBELoader } from '../../lib/loaders/RGBELoader.js'
 import Stats from '../../lib/libs/stats.module.js'
+// https://cdn.jsdelivr.net/npm/stats-gl@3.6.0/dist/main.js
 
 // Instantiate a loader
 export const loader = new GLTFLoader();

@@ -1,26 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 	<head>
-		<title>three.js webgpu - VFX Linked particles</title>
+		<title>three.js webgpu - mouse particles</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-		<link type="text/css" rel="stylesheet" href="main.css">
 	</head>
 	<body>
-
-		<div id="info">
-			<a href="https://threejs.org" target="_blank" rel="noopener">three.js webgpu</a> - VFX Linked particles
-			<br>
-			Based on <a href="https://github.com/ULuIQ12/webgpu-tsl-linkedparticles" target="_blank" rel="noopener">this experiment</a> by Christophe Choffel
-		</div>
-
 		<script type="importmap">
 			{
 				"imports": {
-					"three": "../build/three.webgpu.js",
-					"three/webgpu": "../build/three.webgpu.js",
-					"three/tsl": "../build/three.tsl.js",
-					"three/addons/": "./jsm/"
+					"three": "../../lib/three.webgpu.js",
+					"three/webgpu": "../../lib/three.webgpu.js",
+					"three/tsl": "../../lib/three.tsl.js",
+					"three/addons/": "../../lib/"
 				}
 			}
 		</script>
@@ -29,12 +21,12 @@
 
 			import * as THREE from 'three';
 			import { atan, cos, float, max, min, mix, PI, PI2, sin, vec2, vec3, color, Fn, hash, hue, If, instanceIndex, Loop, mx_fractal_noise_float, mx_fractal_noise_vec3, pass, pcurve, storage, deltaTime, time, uv, uniform, step } from 'three/tsl';
-			import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+			import { bloom } from 'three/addons/nodes/BloomNode.js';
 
 			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-			import { Timer } from 'three/addons/misc/Timer.js';
+			import { Timer } from 'three/addons/utils/Timer.js';
 			import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
-			import WebGPU from 'three/addons/capabilities/WebGPU.js';
+			import WebGPU from 'three/addons/utils/WebGPU.js';
 
 			let camera, scene, renderer, postProcessing, controls, timer, light;
 

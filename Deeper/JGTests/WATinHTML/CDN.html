@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WABT.js Example</title>
+</head>
+<body>
+    <h1>WABT.js Import Example</h1>
+    <script src="https://cdn.jsdelivr.net/gh/AssemblyScript/wabt.js@latest/index.js"></script>
+    <script>
+        // Wait for the WABT module to load
+        (async () => {
+            const wabtModule = await WabtModule();
+            // Now you can use wabtModule to work with WebAssembly Text (WAT)
+            console.log('WABT loaded:', wabtModule);
+            // Example2: parse WAT
+            const wat = `(module (func (export "add") (param i32 i32) (result i32) local.get 0 local.get 1 i32.add))`;
+            const wasmModule = wabtModule.parseWat('example.wat', wat);
+            wasmModule.resolveNames();
+            wasmModule.validate();
+            const binary = wasmModule.toBinary({});
+            console.log('WASM binary:', binary.buffer);
+        })();
+    </script>
+</body>
+</html>
