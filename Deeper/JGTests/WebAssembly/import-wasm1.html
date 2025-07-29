@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WASM Module Importer & Tester</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .upload-section {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: border-color 0.3s;
+        }
+        
+        .upload-section:hover {
+            border-color: #007bff;
+        }
+        
+        .upload-section.dragover {
+            border-color: #007bff;
+            background-color: #f8f9ff;
+        }
+        
+        input[type="file"] {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #1e7e34;
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .info-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .info-box h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .function-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .function-item {
+            background: white;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .function-inputs {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .function-inputs input {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        
+        .result {
+            font-weight: bold;
+            color: #28a745;
+        }
+        
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .success {
+            color: #155724;
+            background: #d4edda;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .memory-viewer {
+            font-family: monospace;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .canvas-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        canvas {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 WASM Module Importer & Tester</h1>
+        
+        <div class="upload-section" id="uploadSection">
+            <h3>📁 Load WASM Module</h3>
+            <p>Drag and drop a .wasm file here, or click to select</p>
+            <input type="file" id="wasmFile" accept=".wasm" />
+            <br>
+            <button class="btn-secondary" onclick="loadSampleWasm()">Load Sample WASM</button>
+        </div>
+        
+        <div id="output"></div>
+    </div>
+
+    <div class="container" id="moduleInfo" style="display: none;">
+        <h2>📊 Module Information</h2>
+        <div class="info-grid">
+            <div class="info-box">
+                <h3>🎯 Exported Functions</h3>
+                <ul class="function-list" id="functionList"></ul>
+            </div>
+            
+            <div class="info-box">
+                <h3>💾 Memory Information</h3>
+                <div id="memoryInfo"></div>
+                <button class="btn-secondary" onclick="viewMemory()">View Memory (first 256 bytes)</button>
+                <div class="memory-viewer" id="memoryViewer" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <div class="canvas-container">
+            <h3>🎨 Memory Visualization (if memory exported)</h3>
+            <canvas id="memoryCanvas" width="256" height="256" style="display: none;"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let wasmInstance = null;
+        let wasmModule = null;
+
+        // File upload handling
+        const fileInput = document.getElementById('wasmFile');
+        const uploadSection = document.getElementById('uploadSection');
+        
+        fileInput.addEventListener('change', handleFileSelect);
+        
+        // Drag and drop handling
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+        
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+        
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].name.endsWith('.wasm')) {
+                loadWasmFile(files[0]);
+            } else {
+                showOutput('Please drop a .wasm file', 'error');
+            }
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && file.name.endsWith('.wasm')) {
+                loadWasmFile(file);
+            } else {
+                showOutput('Please select a .wasm file', 'error');
+            }
+        }
+
+        async function loadWasmFile(file) {
+            try {
+                showOutput('Loading WASM module...', 'info');
+                
+                const arrayBuffer = await file.arrayBuffer();
+                const wasmBytes = new Uint8Array(arrayBuffer);
+                
+                // Create imports object (common imports that WASM modules might need)
+                const imports = {
+                    env: {
+                        memory: new WebAssembly.Memory({ initial: 1 }),
+                        // Add common import functions if needed
+                        log: (arg) => console.log('WASM log:', arg),
+                        abort: (msg, file, line, column) => {
+                            console.error(`WASM abort: ${msg} at ${file}:${line}:${column}`);
+                        }
+                    },
+                    // Add other common import namespaces
+                    js: {
+                        print: (arg) => console.log('WASM print:', arg)
+                    }
+                };
+                
+                // Try to instantiate with imports first, then without if it fails
+                try {
+                    const result = await WebAssembly.instantiate(wasmBytes, imports);
+                    wasmModule = result.module;
+                    wasmInstance = result.instance;
+                } catch (e) {
+                    // Try without imports
+                    const result = await WebAssembly.instantiate(wasmBytes, {});
+                    wasmModule = result.module;
+                    wasmInstance = result.instance;
+                }
+                
+                showOutput(`✅ WASM module loaded successfully! (${file.name})`, 'success');
+                displayModuleInfo();
+                
+            } catch (error) {
+                showOutput(`❌ Failed to load WASM module: ${error.message}`, 'error');
+                console.error('WASM load error:', error);
+            }
+        }
+
+        function loadSampleWasm() {
+            // Use the factorial WASM from your existing code
+            const wasmBase64 = "AGFzbQEAAAABBgFgAXwBfAMCAQAFAwEAAQcQAgZtZW1vcnkCAANmYWMAAAouASwAIABEAAAAAAAA8D9jBHxEAAAAAAAA8D8FIABEAAAAAAAA8D+hEAAgAKILCwASBG5hbWUBBgEAA2ZhYwIDAQAA";
+            
+            const wasmBytes = base64ToUint8Array(wasmBase64);
+            
+            WebAssembly.instantiate(wasmBytes, {})
+                .then(result => {
+                    wasmModule = result.module;
+                    wasmInstance = result.instance;
+                    showOutput('✅ Sample WASM module loaded! (Factorial function)', 'success');
+                    displayModuleInfo();
+                })
+                .catch(error => {
+                    showOutput(`❌ Failed to load sample WASM: ${error.message}`, 'error');
+                });
+        }
+
+        function base64ToUint8Array(base64) {
+            const bin = atob(base64);
+            const len = bin.length;
+            const arr = new Uint8Array(len);
+            for (let i = 0; i < len; ++i) {
+                arr[i] = bin.charCodeAt(i);
+            }
+            return arr;
+        }
+
+        function displayModuleInfo() {
+            if (!wasmInstance) return;
+            
+            document.getElementById('moduleInfo').style.display = 'block';
+            
+            // Display exported functions
+            const functionList = document.getElementById('functionList');
+            functionList.innerHTML = '';
+            
+            const exports = wasmInstance.exports;
+            
+            Object.keys(exports).forEach(name => {
+                const exportItem = exports[name];
+                
+                if (typeof exportItem === 'function') {
+                    const li = document.createElement('li');
+                    li.className = 'function-item';
+                    
+                    const funcInfo = document.createElement('div');
+                    funcInfo.innerHTML = `<strong>${name}</strong>`;
+                    
+                    const controls = document.createElement('div');
+                    controls.className = 'function-inputs';
+                    
+                    // Add input fields for parameters (assuming up to 3 parameters)
+                    for (let i = 0; i < 3; i++) {
+                        const input = document.createElement('input');
+                        input.type = 'number';
+                        input.placeholder = `arg${i+1}`;
+                        input.id = `${name}_arg${i}`;
+                        controls.appendChild(input);
+                    }
+                    
+                    const callBtn = document.createElement('button');
+                    callBtn.className = 'btn-primary';
+                    callBtn.textContent = 'Call';
+                    callBtn.onclick = () => callFunction(name);
+                    controls.appendChild(callBtn);
+                    
+                    const result = document.createElement('span');
+                    result.className = 'result';
+                    result.id = `${name}_result`;
+                    controls.appendChild(result);
+                    
+                    li.appendChild(funcInfo);
+                    li.appendChild(controls);
+                    functionList.appendChild(li);
+                }
+            });
+            
+            // Display memory information
+            const memoryInfo = document.getElementById('memoryInfo');
+            if (exports.memory) {
+                const pages = exports.memory.buffer.byteLength / 65536;
+                memoryInfo.innerHTML = `
+                    <p><strong>Memory exported:</strong> Yes</p>
+                    <p><strong>Size:</strong> ${exports.memory.buffer.byteLength} bytes (${pages} pages)</p>
+                `;
+                
+                // Show memory visualization if memory is available
+                visualizeMemory();
+            } else {
+                memoryInfo.innerHTML = '<p><strong>Memory exported:</strong> No</p>';
+            }
+        }
+
+        function callFunction(functionName) {
+            try {
+                const func = wasmInstance.exports[functionName];
+                const args = [];
+                
+                // Get arguments from input fields
+                for (let i = 0; i < 3; i++) {
+                    const input = document.getElementById(`${functionName}_arg${i}`);
+                    if (input && input.value !== '') {
+                        args.push(parseFloat(input.value));
+                    }
+                }
+                
+                const result = func(...args);
+                document.getElementById(`${functionName}_result`).textContent = `→ ${result}`;
+                
+            } catch (error) {
+                document.getElementById(`${functionName}_result`).textContent = `❌ ${error.message}`;
+            }
+        }
+
+        function viewMemory() {
+            if (!wasmInstance.exports.memory) {
+                showOutput('No memory exported by this WASM module', 'error');
+                return;
+            }
+            
+            const memory = new Uint8Array(wasmInstance.exports.memory.buffer);
+            const viewer = document.getElementById('memoryViewer');
+            
+            let hexDump = '';
+            for (let i = 0; i < Math.min(256, memory.length); i += 16) {
+                const addr = i.toString(16).padStart(4, '0');
+                const bytes = Array.from(memory.slice(i, i + 16))
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join(' ');
+                const ascii = Array.from(memory.slice(i, i + 16))
+                    .map(b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.')
+                    .join('');
+                
+                hexDump += `${addr}: ${bytes.padEnd(48)} |${ascii}|\n`;
+            }
+            
+            viewer.textContent = hexDump;
+            viewer.style.display = viewer.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function visualizeMemory() {
+            if (!wasmInstance.exports.memory) return;
+            
+            const canvas = document.getElementById('memoryCanvas');
+            const ctx = canvas.getContext('2d');
+            const memory = new Uint8Array(wasmInstance.exports.memory.buffer);
+            
+            // Create image data
+            const imageData = ctx.createImageData(256, 256);
+            
+            for (let i = 0; i < Math.min(256 * 256, memory.length); i++) {
+                const value = memory[i];
+                const pixelIndex = i * 4;
+                
+                // Grayscale visualization
+                imageData.data[pixelIndex] = value;     // R
+                imageData.data[pixelIndex + 1] = value; // G
+                imageData.data[pixelIndex + 2] = value; // B
+                imageData.data[pixelIndex + 3] = 255;   // A
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+            canvas.style.display = 'block';
+        }
+
+        function showOutput(message, type) {
+            const output = document.getElementById('output');
+            output.innerHTML = `<div class="${type}">${message}</div>`;
+        }
+
+        // Initialize
+        showOutput('Ready to load WASM modules! Select a .wasm file or load the sample.', 'success');
+    </script>
+</body>
+</html>

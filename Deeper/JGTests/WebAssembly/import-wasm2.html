@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dynamic WASM Loader + WebGL Demo</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      max-width: 800px; 
+      margin: 0 auto; 
+      padding: 20px; 
+    }
+    canvas { 
+      border: 1px solid #888; 
+      display: block; 
+      margin: 10px 0; 
+    }
+    .controls {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 10px 0;
+    }
+    .function-test {
+      background: #e8f4f8;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 3px;
+    }
+    button {
+      padding: 8px 16px;
+      margin: 5px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .btn-primary { background: #007bff; color: white; }
+    .btn-success { background: #28a745; color: white; }
+    .btn-secondary { background: #6c757d; color: white; }
+    input[type="file"] { margin: 10px 0; }
+    input[type="number"] { width: 80px; padding: 5px; margin: 2px; }
+    .output { 
+      background: #f8f9fa; 
+      padding: 10px; 
+      border-radius: 3px; 
+      font-family: monospace; 
+      white-space: pre-wrap; 
+    }
+    .error { background: #f8d7da; color: #721c24; }
+    .success { background: #d4edda; color: #155724; }
+  </style>
+</head>
+<body>
+  <h1>🚀 Dynamic WASM Loader + WebGL Demo</h1>
+  
+  <div class="controls">
+    <h3>📁 Load WASM Module</h3>
+    <input type="file" id="wasmFile" accept=".wasm" />
+    <button class="btn-secondary" onclick="loadDefaultWasm()">Load Default (Factorial)</button>
+    <div id="loadStatus" class="output">Ready to load WASM file...</div>
+  </div>
+
+  <div class="controls" id="functionControls" style="display: none;">
+    <h3>🔧 Test Functions</h3>
+    <div id="functionList"></div>
+  </div>
+
+  <div class="controls">
+    <h3>🎨 Memory Visualization</h3>
+    <p>WebGL visualization of WASM memory (first 256x256 bytes as grayscale texture)</p>
+    <canvas id="glcanvas" width="256" height="256"></canvas>
+    <button class="btn-primary" onclick="updateVisualization()">Update Visualization</button>
+    <div id="memoryInfo" class="output">No WASM memory loaded</div>
+  </div>
+
+  <script>
+    let wasmInstance = null;
+    let wasmMemory = null;
+    let gl = null;
+    let shaderProgram = null;
+    let texture = null;
+
+    // Default factorial WASM (base64 encoded)
+    const defaultWasmBase64 = "AGFzbQEAAAABBgFgAXwBfAMCAQAFAwEAAQcQAgZtZW1vcnkCAANmYWMAAAouASwAIABEAAAAAAAA8D9jBHxEAAAAAAAA8D8FIABEAAAAAAAA8D+hEAAgAKILCwASBG5hbWUBBgEAQ2FhYwIDAQAA";
+
+    // Initialize WebGL
+    function initWebGL() {
+      const canvas = document.getElementById('glcanvas');
+      gl = canvas.getContext('webgl');
+      
+      if (!gl) {
+        showStatus('WebGL not supported', 'error');
+        return false;
+      }
+
+      // Vertex shader (pass-through)
+      const vsrc = `
+        attribute vec2 a_position;
+        varying vec2 v_texCoord;
+        void main() {
+          v_texCoord = (a_position + 1.0) * 0.5;
+          gl_Position = vec4(a_position, 0, 1);
+        }
+      `;
+      
+      // Fragment shader (displays texture with optional inversion)
+      const fsrc = `
+        precision mediump float;
+        varying vec2 v_texCoord;
+        uniform sampler2D u_texture;
+        uniform bool u_invert;
+        void main() {
+          float gray = texture2D(u_texture, v_texCoord).r;
+          if (u_invert) gray = 1.0 - gray;
+          gl_FragColor = vec4(gray, gray, gray, 1.0);
+        }
+      `;
+
+      // Compile shaders
+      function compileShader(type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+          return null;
+        }
+        return shader;
+      }
+
+      const vertexShader = compileShader(gl.VERTEX_SHADER, vsrc);
+      const fragmentShader = compileShader(gl.FRAGMENT_SHADER, fsrc);
+      
+      shaderProgram = gl.createProgram();
+      gl.attachShader(shaderProgram, vertexShader);
+      gl.attachShader(shaderProgram, fragmentShader);
+      gl.linkProgram(shaderProgram);
+      
+      if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+        console.error('Shader link error:', gl.getProgramInfoLog(shaderProgram));
+        return false;
+      }
+
+      // Create quad buffer
+      const quadBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -1, -1, 1, -1, -1, 1, 1, 1
+      ]), gl.STATIC_DRAW);
+
+      // Setup attributes
+      const positionAttrib = gl.getAttribLocation(shaderProgram, 'a_position');
+      gl.enableVertexAttribArray(positionAttrib);
+      gl.vertexAttribPointer(positionAttrib, 2, gl.FLOAT, false, 0, 0);
+
+      // Create texture
+      texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+      return true;
+    }
+
+    // Load WASM from file
+    async function loadWasmFile(file) {
+      try {
+        showStatus('Loading WASM file...', 'info');
+        const arrayBuffer = await file.arrayBuffer();
+        const wasmBytes = new Uint8Array(arrayBuffer);
+        await instantiateWasm(wasmBytes);
+        showStatus(`✅ WASM loaded: ${file.name}`, 'success');
+      } catch (error) {
+        showStatus(`❌ Failed to load WASM: ${error.message}`, 'error');
+      }
+    }
+
+    // Load default WASM
+    async function loadDefaultWasm() {
+      try {
+        showStatus('Loading default factorial WASM...', 'info');
+        const wasmBytes = base64ToUint8Array(defaultWasmBase64);
+        await instantiateWasm(wasmBytes);
+        showStatus('✅ Default WASM loaded (factorial function)', 'success');
+      } catch (error) {
+        showStatus(`❌ Failed to load default WASM: ${error.message}`, 'error');
+      }
+    }
+
+    // Instantiate WASM with common imports
+    async function instantiateWasm(wasmBytes) {
+      const imports = {
+        env: {
+          memory: new WebAssembly.Memory({ initial: 1 }),
+          log: (arg) => console.log('WASM log:', arg),
+          abort: (msg, file, line, column) => {
+            console.error(`WASM abort: ${msg} at ${file}:${line}:${column}`);
+          }
+        }
+      };
+
+      try {
+        // Try with imports first
+        const result = await WebAssembly.instantiate(wasmBytes, imports);
+        wasmInstance = result.instance;
+      } catch (e) {
+        // Try without imports
+        const result = await WebAssembly.instantiate(wasmBytes, {});
+        wasmInstance = result.instance;
+      }
+
+      // Get memory (either exported or from imports)
+      wasmMemory = wasmInstance.exports.memory || imports.env.memory;
+      
+      if (wasmMemory) {
+        fillMemoryWithPattern();
+        updateVisualization();
+        updateMemoryInfo();
+      }
+
+      displayFunctions();
+    }
+
+    // Fill memory with test pattern
+    function fillMemoryWithPattern() {
+      if (!wasmMemory) return;
+      
+      const mem = new Uint8Array(wasmMemory.buffer);
+      const size = Math.min(256 * 256, mem.length);
+      
+      // Create interesting pattern: gradient + some function calls if available
+      for (let i = 0; i < size; i++) {
+        const x = i % 256;
+        const y = Math.floor(i / 256);
+        
+        // Gradient pattern
+        let value = (x + y) % 256;
+        
+        // Add some computation using WASM functions if available
+        if (wasmInstance.exports.fac && i % 1000 === 0) {
+          try {
+            const factResult = wasmInstance.exports.fac(3.0);
+            value = (value + Math.floor(factResult * 10)) % 256;
+          } catch (e) {
+            // Ignore computation errors
+          }
+        }
+        
+        mem[i] = value;
+      }
+    }
+
+    // Update WebGL visualization
+    function updateVisualization() {
+      if (!gl || !wasmMemory) return;
+
+      const mem = new Uint8Array(wasmMemory.buffer);
+      const size = Math.min(256 * 256, mem.length);
+      const textureData = new Uint8Array(256 * 256);
+      
+      // Copy memory data to texture, filling with pattern if needed
+      for (let i = 0; i < 256 * 256; i++) {
+        textureData[i] = i < size ? mem[i] : (i % 256);
+      }
+
+      gl.useProgram(shaderProgram);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 256, 256, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, textureData);
+      
+      gl.uniform1i(gl.getUniformLocation(shaderProgram, 'u_texture'), 0);
+      gl.uniform1i(gl.getUniformLocation(shaderProgram, 'u_invert'), false);
+      
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    // Display available functions
+    function displayFunctions() {
+      const functionList = document.getElementById('functionList');
+      const functionControls = document.getElementById('functionControls');
+      
+      functionList.innerHTML = '';
+      
+      if (!wasmInstance) {
+        functionControls.style.display = 'none';
+        return;
+      }
+
+      const exports = wasmInstance.exports;
+      const functions = Object.keys(exports).filter(key => typeof exports[key] === 'function');
+      
+      if (functions.length === 0) {
+        functionControls.style.display = 'none';
+        return;
+      }
+
+      functionControls.style.display = 'block';
+      
+      functions.forEach(funcName => {
+        const div = document.createElement('div');
+        div.className = 'function-test';
+        div.innerHTML = `
+          <strong>${funcName}</strong>: 
+          <input type="number" id="${funcName}_arg1" placeholder="arg1" value="5">
+          <input type="number" id="${funcName}_arg2" placeholder="arg2" value="3">
+          <button class="btn-success" onclick="callFunction('${funcName}')">Call</button>
+          <span id="${funcName}_result" style="margin-left: 10px; font-weight: bold;"></span>
+        `;
+        functionList.appendChild(div);
+      });
+    }
+
+    // Call WASM function
+    function callFunction(funcName) {
+      try {
+        const func = wasmInstance.exports[funcName];
+        const arg1 = parseFloat(document.getElementById(`${funcName}_arg1`).value) || 0;
+        const arg2 = parseFloat(document.getElementById(`${funcName}_arg2`).value) || 0;
+        
+        // Try calling with different argument counts
+        let result;
+        try {
+          result = func(arg1, arg2);
+        } catch (e) {
+          try {
+            result = func(arg1);
+          } catch (e2) {
+            result = func();
+          }
+        }
+        
+        document.getElementById(`${funcName}_result`).textContent = `→ ${result}`;
+        document.getElementById(`${funcName}_result`).style.color = '#28a745';
+        
+        // Update visualization after function call
+        setTimeout(() => {
+          fillMemoryWithPattern();
+          updateVisualization();
+        }, 100);
+        
+      } catch (error) {
+        document.getElementById(`${funcName}_result`).textContent = `❌ ${error.message}`;
+        document.getElementById(`${funcName}_result`).style.color = '#dc3545';
+      }
+    }
+
+    // Update memory info
+    function updateMemoryInfo() {
+      const memoryInfo = document.getElementById('memoryInfo');
+      if (wasmMemory) {
+        const pages = wasmMemory.buffer.byteLength / 65536;
+        memoryInfo.textContent = `Memory: ${wasmMemory.buffer.byteLength} bytes (${pages} pages)`;
+        memoryInfo.className = 'output success';
+      } else {
+        memoryInfo.textContent = 'No WASM memory available';
+        memoryInfo.className = 'output';
+      }
+    }
+
+    // Utility functions
+    function base64ToUint8Array(base64) {
+      const bin = atob(base64);
+      const len = bin.length;
+      const arr = new Uint8Array(len);
+      for (let i = 0; i < len; ++i) {
+        arr[i] = bin.charCodeAt(i);
+      }
+      return arr;
+    }
+
+    function showStatus(message, type = 'info') {
+      const status = document.getElementById('loadStatus');
+      status.textContent = message;
+      status.className = `output ${type}`;
+    }
+
+    // Event listeners
+    document.getElementById('wasmFile').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        loadWasmFile(file);
+      }
+    });
+
+    // Initialize
+    window.addEventListener('load', () => {
+      if (initWebGL()) {
+        showStatus('WebGL initialized. Ready to load WASM files.', 'success');
+        loadDefaultWasm(); // Load default example
+      } else {
+        showStatus('Failed to initialize WebGL', 'error');
+      }
+    });
+  </script>
+</body>
+</html>

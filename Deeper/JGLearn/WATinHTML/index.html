@@ -9,12 +9,14 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            scrollbar-width: thin;
+            scrollbar-color: #888 #222;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #f0f0f0;
             line-height: 1.6;
             min-height: 100vh;
         }
@@ -27,37 +29,74 @@
 
         h1 {
             text-align: center;
-            color: #64b5f6;
+            color: #ffffff;
             margin-bottom: 2rem;
             font-size: clamp(1.8rem, 5vw, 3rem);
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
 
         .step {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 2rem;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(10px);
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+            transition: all 0.3s ease;
         }
 
-        .step h2 {
-            color: #81c784;
-            margin-bottom: 1rem;
+        .step-header {
+            background: #222;
+            padding: 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+
+        .step-header:hover {
+            background: #2a2a2a;
+        }
+
+        .step-header h2 {
+            color: #ffffff;
+            margin: 0;
             font-size: clamp(1.2rem, 4vw, 1.8rem);
         }
 
+        .step-toggle {
+            color: #ccc;
+            font-size: 1.2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .step.active .step-toggle {
+            transform: rotate(90deg);
+        }
+
+        .step-content {
+            padding: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+        }
+
+        .step.active .step-content {
+            padding: 1.5rem;
+            max-height: 2000px;
+        }
+
         .step h3 {
-            color: #ffb74d;
+            color: #ddd;
             margin: 1.5rem 0 0.5rem 0;
             font-size: clamp(1rem, 3vw, 1.3rem);
         }
 
         .code-block {
-            background: #1a1a1a;
+            background: #000;
             border: 1px solid #333;
-            border-radius: 8px;
+            border-radius: 4px;
             padding: 1rem;
             margin: 1rem 0;
             overflow-x: auto;
@@ -66,59 +105,61 @@
         }
 
         .wat-code {
-            color: #e6db74;
+            color: #f0f0f0;
         }
 
         .output {
-            background: #0d4f0d;
-            border: 1px solid #2d7d32;
-            border-radius: 8px;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 4px;
             padding: 1rem;
             margin: 1rem 0;
             font-family: monospace;
+            color: #f0f0f0;
         }
 
         .error {
-            background: #4f0d0d;
-            border: 1px solid #d32f2f;
-            color: #ffcdd2;
+            background: #2a0000;
+            border: 1px solid #600;
+            color: #ffaaaa;
+            overflow: scroll;
         }
 
         .info-box {
-            background: rgba(33, 150, 243, 0.2);
-            border-left: 4px solid #2196f3;
+            background: #1a1a1a;
+            border-left: 4px solid #666;
             padding: 1rem;
             margin: 1rem 0;
-            border-radius: 0 8px 8px 0;
+            border-radius: 0 4px 4px 0;
         }
 
         .warning-box {
-            background: rgba(255, 152, 0, 0.2);
-            border-left: 4px solid #ff9800;
+            background: #1a1a1a;
+            border-left: 4px solid #888;
             padding: 1rem;
             margin: 1rem 0;
-            border-radius: 0 8px 8px 0;
+            border-radius: 0 4px 4px 0;
         }
 
         .try-it {
-            background: rgba(76, 175, 80, 0.2);
-            border: 1px solid #4caf50;
-            border-radius: 8px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 4px;
             padding: 1.5rem;
             margin: 1.5rem 0;
         }
 
         .try-it h4 {
-            color: #4caf50;
+            color: #fff;
             margin-bottom: 1rem;
         }
 
         textarea {
             width: 100%;
-            background: #1a1a1a;
-            color: #e0e0e0;
+            background: #000;
+            color: #f0f0f0;
             border: 1px solid #333;
-            border-radius: 8px;
+            border-radius: 4px;
             padding: 1rem;
             font-family: 'Courier New', monospace;
             font-size: 0.9rem;
@@ -127,38 +168,40 @@
         }
 
         button {
-            background: linear-gradient(45deg, #2196f3, #21cbf3);
-            border: none;
-            border-radius: 8px;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
             color: white;
             padding: 0.8rem 1.5rem;
             font-size: 1rem;
             cursor: pointer;
             margin: 0.5rem;
             transition: all 0.3s ease;
+            font-family: 'Courier New', monospace;
         }
 
         button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+            background: #444;
+            border-color: #777;
         }
 
         button:disabled {
-            background: #666;
+            background: #222;
+            border-color: #333;
+            color: #666;
             cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
         }
 
         .progress {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
             padding: 0.5rem;
             margin: 2rem 0;
         }
 
         .progress-bar {
-            background: linear-gradient(90deg, #4caf50, #81c784);
+            background: #666;
             height: 8px;
             border-radius: 4px;
             transition: width 0.3s ease;
@@ -169,9 +212,6 @@
                 padding: 0.5rem;
             }
             
-            .step {
-                padding: 1rem;
-            }
             
             .code-block, textarea {
                 font-size: 0.8rem;
@@ -181,11 +221,36 @@
         .binary-display {
             font-family: monospace;
             word-break: break-all;
-            color: #b39ddb;
-            background: #1a1a1a;
+            color: #ccc;
+            background: #000;
             padding: 1rem;
-            border-radius: 8px;
+            border-radius: 4px;
             border: 1px solid #333;
+        }
+
+        .step-nav {
+            text-align: center;
+            margin: 2rem 0;
+        }
+
+        .nav-button {
+            background: #222;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 0.5rem 1rem;
+            margin: 0 0.25rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+
+        .nav-button:hover {
+            background: #333;
+        }
+
+        .nav-button.active {
+            background: #444;
+            border-color: #666;
         }
     </style>
 </head>
@@ -197,50 +262,72 @@
             <div class="progress-bar" id="progressBar" style="width: 0%"></div>
         </div>
 
-        <!-- Step 1: Introduction -->
-        <div class="step" data-step="1">
-            <h2>Step 1: What is WAT? 🤔</h2>
-            <p><strong>WAT (WebAssembly Text Format)</strong> is the human-readable text representation of WebAssembly bytecode. Think of it as Assembly language for the web!</p>
-            
-            <div class="info-box">
-                <strong>💡 Why learn WAT?</strong>
-                <ul>
-                    <li>Understand how WebAssembly works under the hood</li>
-                    <li>Debug and optimize WASM modules</li>
-                    <li>Write high-performance web applications</li>
-                    <li>Bridge the gap between high-level languages and machine code</li>
-                </ul>
-            </div>
+        <div class="step-nav">
+            <button class="nav-button" onclick="openStep(1)">Intro</button>
+            <button class="nav-button" onclick="openStep(2)">Functions</button>
+            <button class="nav-button" onclick="openStep(3)">Types</button>
+            <button class="nav-button" onclick="openStep(4)">Variables</button>
+            <button class="nav-button" onclick="openStep(5)">Control</button>
+            <button class="nav-button" onclick="openStep(6)">Memory</button>
+            <button class="nav-button" onclick="openStep(7)">Tables</button>
+            <button class="nav-button" onclick="openStep(8)">Imports</button>
+            <button class="nav-button" onclick="openStep(9)">Advanced</button>
+            <button class="nav-button" onclick="openStep(10)">Final</button>
+        </div>
 
-            <h3>Your First WAT Module</h3>
-            <p>Every WAT module starts with <code>(module</code> and ends with <code>)</code>:</p>
-            
-            <div class="code-block wat-code">
+        <!-- Step 1: Introduction -->
+        <div class="step active" data-step="1">
+            <div class="step-header" onclick="toggleStep(1)">
+                <h2>Step 1: What is WAT? 🤔</h2>
+                <span class="step-toggle">▶</span>
+            </div>
+            <div class="step-content">
+                <p><strong>WAT (WebAssembly Text Format)</strong> is the human-readable text representation of WebAssembly bytecode. Think of it as Assembly language for the web!</p>
+                
+                <div class="info-box">
+                    <strong>💡 Why learn WAT?</strong>
+                    <ul>
+                        <li>Understand how WebAssembly works under the hood</li>
+                        <li>Debug and optimize WASM modules</li>
+                        <li>Write high-performance web applications</li>
+                        <li>Bridge the gap between high-level languages and machine code</li>
+                    </ul>
+                </div>
+
+                <h3>Your First WAT Module</h3>
+                <p>Every WAT module starts with <code>(module</code> and ends with <code>)</code>:</p>
+                
+                <div class="code-block wat-code">
 (module
     ;; This is a comment
     ;; Every WAT module is wrapped in parentheses
 )
-            </div>
+                </div>
 
-            <div class="try-it">
-                <h4>🎯 Try It Yourself!</h4>
-                <p>Edit the code below and click "Compile to WASM":</p>
-                <textarea id="editor1">(module
+                <div class="try-it">
+                    <h4>🎯 Try It Yourself!</h4>
+                    <p>Edit the code below and click "Compile to WASM":</p>
+                    <textarea id="editor1">(module
     ;; Your first WAT module!
     ;; Try adding a comment here
 )</textarea>
-                <br>
-                <button onclick="compileWAT('editor1', 'output1')">Compile to WASM</button>
-                <div id="output1" class="output" style="display:none;"></div>
+                    <br>
+                    <button onclick="compileWAT('editor1', 'output1')">Compile to WASM</button>
+                    <div id="output1" class="output" style="display:none;"></div>
+                </div>
             </div>
         </div>
 
         <!-- Step 2: Functions -->
         <div class="step" data-step="2">
-            <h2>Step 2: Your First Function 🔧</h2>
-            <p>Functions in WAT are defined with <code>(func)</code>. Let's create a simple function that adds two numbers:</p>
+            <div class="step-header" onclick="toggleStep(2)">
+                <h2>Step 2: Your First Function 🔧</h2>
+                <span class="step-toggle">▶</span>
+            </div>
+            <div class="step-content">
+                <p>Functions in WAT are defined with <code>(func)</code>. Let's create a simple function that adds two numbers:</p>
 
-            <div class="code-block wat-code">
+                <div class="code-block wat-code">
 (module
     (func $add (param $a i32) (param $b i32) (result i32)
         local.get $a
@@ -249,26 +336,26 @@
     )
     (export "add" (func $add))
 )
-            </div>
+                </div>
 
-            <h3>Breaking it down:</h3>
-            <ul>
-                <li><code>$add</code> - Function name (optional)</li>
-                <li><code>(param $a i32)</code> - Parameter named $a of type i32 (32-bit integer)</li>
-                <li><code>(result i32)</code> - Function returns an i32</li>
-                <li><code>local.get $a</code> - Push parameter $a onto the stack</li>
-                <li><code>i32.add</code> - Pop two values, add them, push result</li>
-                <li><code>(export "add" (func $add))</code> - Make function available to JavaScript</li>
-            </ul>
+                <h3>Breaking it down:</h3>
+                <ul>
+                    <li><code>$add</code> - Function name (optional)</li>
+                    <li><code>(param $a i32)</code> - Parameter named $a of type i32 (32-bit integer)</li>
+                    <li><code>(result i32)</code> - Function returns an i32</li>
+                    <li><code>local.get $a</code> - Push parameter $a onto the stack</li>
+                    <li><code>i32.add</code> - Pop two values, add them, push result</li>
+                    <li><code>(export "add" (func $add))</code> - Make function available to JavaScript</li>
+                </ul>
 
-            <div class="info-box">
-                <strong>🥞 Stack-Based Architecture:</strong><br>
-                WebAssembly uses a stack-based virtual machine. Operations push and pop values from an invisible stack.
-            </div>
+                <div class="info-box">
+                    <strong>🥞 Stack-Based Architecture:</strong><br>
+                    WebAssembly uses a stack-based virtual machine. Operations push and pop values from an invisible stack.
+                </div>
 
-            <div class="try-it">
-                <h4>🎯 Try It!</h4>
-                <textarea id="editor2">(module
+                <div class="try-it">
+                    <h4>🎯 Try It!</h4>
+                    <textarea id="editor2">(module
     (func $add (param $a i32) (param $b i32) (result i32)
         local.get $a
         local.get $b
@@ -276,28 +363,33 @@
     )
     (export "add" (func $add))
 )</textarea>
-                <br>
-                <button onclick="compileAndRun('editor2', 'output2')">Compile & Test</button>
-                <div id="output2" class="output" style="display:none;"></div>
+                    <br>
+                    <button onclick="compileAndRun('editor2', 'output2')">Compile & Test</button>
+                    <div id="output2" class="output" style="display:none;"></div>
+                </div>
             </div>
         </div>
 
         <!-- Step 3: Data Types -->
         <div class="step" data-step="3">
-            <h2>Step 3: Data Types 📊</h2>
-            <p>WebAssembly has four basic data types:</p>
-            
-            <div class="info-box">
-                <ul>
-                    <li><strong>i32</strong> - 32-bit integer</li>
-                    <li><strong>i64</strong> - 64-bit integer</li>
-                    <li><strong>f32</strong> - 32-bit floating point</li>
-                    <li><strong>f64</strong> - 64-bit floating point</li>
-                </ul>
+            <div class="step-header" onclick="toggleStep(3)">
+                <h2>Step 3: Data Types 📊</h2>
+                <span class="step-toggle">▶</span>
             </div>
+            <div class="step-content">
+                <p>WebAssembly has four basic data types:</p>
+                
+                <div class="info-box">
+                    <ul>
+                        <li><strong>i32</strong> - 32-bit integer</li>
+                        <li><strong>i64</strong> - 64-bit integer</li>
+                        <li><strong>f32</strong> - 32-bit floating point</li>
+                        <li><strong>f64</strong> - 64-bit floating point</li>
+                    </ul>
+                </div>
 
-            <h3>Example: Working with different types</h3>
-            <div class="code-block wat-code">
+                <h3>Example: Working with different types</h3>
+                <div class="code-block wat-code">
 (module
     ;; Integer addition
     (func $add_i32 (param i32 i32) (result i32)
@@ -316,35 +408,41 @@
     (export "add_i32" (func $add_i32))
     (export "multiply_f32" (func $multiply_f32))
 )
-            </div>
+                </div>
 
-            <div class="warning-box">
-                <strong>⚠️ Note:</strong> Parameters can be accessed by index (0, 1, 2...) or by name ($a, $b, $c...)
-            </div>
+                <div class="warning-box">
+                    <strong>⚠️ Note:</strong> Parameters can be accessed by index (0, 1, 2...) or by name ($a, $b, $c...)
+                </div>
 
-            <div class="try-it">
-                <h4>🎯 Your Turn!</h4>
-                <p>Create a function that subtracts two f64 numbers:</p>
-                <textarea id="editor3">(module
+                <div class="try-it">
+                    <h4>🎯 Your Turn!</h4>
+                    <p>Create a function that subtracts two f64 numbers:</p>
+                    <textarea id="editor3">(module
     ;; Create a subtract function for f64 numbers
     (func $subtract (param $x f64) (param $y f64) (result f64)
-        ;; Your code here: get x, get y, then subtract
-        
+        local.get $x
+        local.get $y
+        f64.sub
     )
     (export "subtract" (func $subtract))
 )</textarea>
-                <br>
-                <button onclick="compileAndRun('editor3', 'output3')">Test Your Function</button>
-                <div id="output3" class="output" style="display:none;"></div>
+                    <br>
+                    <button onclick="compileAndRun('editor3', 'output3')">Test Your Function</button>
+                    <div id="output3" class="output" style="display:none;"></div>
+                </div>
             </div>
         </div>
 
         <!-- Step 4: Local Variables -->
         <div class="step" data-step="4">
-            <h2>Step 4: Local Variables 📝</h2>
-            <p>Functions can have local variables in addition to parameters:</p>
+            <div class="step-header" onclick="toggleStep(4)">
+                <h2>Step 4: Local Variables 📝</h2>
+                <span class="step-toggle">▶</span>
+            </div>
+            <div class="step-content">
+                <p>Functions can have local variables in addition to parameters:</p>
 
-            <div class="code-block wat-code">
+                <div class="code-block wat-code">
 (module
     (func $calculate (param $a i32) (param $b i32) (result i32)
         (local $temp i32)
@@ -367,19 +465,19 @@
     )
     (export "calculate" (func $calculate))
 )
-            </div>
+                </div>
 
-            <h3>New concepts:</h3>
-            <ul>
-                <li><code>(local $temp i32)</code> - Declare a local variable</li>
-                <li><code>local.set $temp</code> - Store top of stack into variable</li>
-                <li><code>i32.const 2</code> - Push constant 2 onto stack</li>
-            </ul>
+                <h3>New concepts:</h3>
+                <ul>
+                    <li><code>(local $temp i32)</code> - Declare a local variable</li>
+                    <li><code>local.set $temp</code> - Store top of stack into variable</li>
+                    <li><code>i32.const 2</code> - Push constant 2 onto stack</li>
+                </ul>
 
-            <div class="try-it">
-                <h4>🎯 Challenge!</h4>
-                <p>Write a function that calculates the average of three numbers:</p>
-                <textarea id="editor4">(module
+                <div class="try-it">
+                    <h4>🎯 Challenge!</h4>
+                    <p>Write a function that calculates the average of three numbers:</p>
+                    <textarea id="editor4">(module
     (func $average (param $a f32) (param $b f32) (param $c f32) (result f32)
         (local $sum f32)
         
@@ -392,20 +490,25 @@
     )
     (export "average" (func $average))
 )</textarea>
-                <br>
-                <button onclick="compileAndRun('editor4', 'output4')">Test Average Function</button>
-                <button onclick="showSolution('editor4', averageSolution)">Show Solution</button>
-                <div id="output4" class="output" style="display:none;"></div>
+                    <br>
+                    <button onclick="compileAndRun('editor4', 'output4')">Test Average Function</button>
+                    <button onclick="showSolution('editor4', averageSolution)">Show Solution</button>
+                    <div id="output4" class="output" style="display:none;"></div>
+                </div>
             </div>
         </div>
 
         <!-- Step 5: Control Flow -->
         <div class="step" data-step="5">
-            <h2>Step 5: Control Flow 🔄</h2>
-            <p>WAT supports control flow with blocks, loops, and conditional branches:</p>
+            <div class="step-header" onclick="toggleStep(5)">
+                <h2>Step 5: Control Flow 🔄</h2>
+                <span class="step-toggle">▶</span>
+            </div>
+            <div class="step-content">
+                <p>WAT supports control flow with blocks, loops, and conditional branches:</p>
 
-            <h3>If-Else Example:</h3>
-            <div class="code-block wat-code">
+                <h3>If-Else Example:</h3>
+                <div class="code-block wat-code">
 (module
     (func $max (param $a i32) (param $b i32) (result i32)
         local.get $a
@@ -420,10 +523,10 @@
     )
     (export "max" (func $max))
 )
-            </div>
+                </div>
 
-            <h3>Loop Example:</h3>
-            <div class="code-block wat-code">
+                <h3>Loop Example:</h3>
+                <div class="code-block wat-code">
 (module
     (func $factorial (param $n i32) (result i32)
         (local $result i32)
@@ -454,12 +557,12 @@
     )
     (export "factorial" (func $factorial))
 )
-            </div>
+                </div>
 
-            <div class="try-it">
-                <h4>🎯 Advanced Challenge!</h4>
-                <p>Write a function that returns the Fibonacci number at position n:</p>
-                <textarea id="editor5">(module
+                <div class="try-it">
+                    <h4>🎯 Advanced Challenge!</h4>
+                    <p>Write a function that returns the Fibonacci number at position n:</p>
+                    <textarea id="editor5">(module
     (func $fibonacci (param $n i32) (result i32)
         ;; Handle base cases: fib(0) = 0, fib(1) = 1
         ;; For n > 1: fib(n) = fib(n-1) + fib(n-2)
@@ -468,19 +571,24 @@
     )
     (export "fibonacci" (func $fibonacci))
 )</textarea>
-                <br>
-                <button onclick="compileAndRun('editor5', 'output5')">Test Fibonacci</button>
-                <button onclick="showSolution('editor5', fibonacciSolution)">Show Solution</button>
-                <div id="output5" class="output" style="display:none;"></div>
+                    <br>
+                    <button onclick="compileAndRun('editor5', 'output5')">Test Fibonacci</button>
+                    <button onclick="showSolution('editor5', fibonacciSolution)">Show Solution</button>
+                    <div id="output5" class="output" style="display:none;"></div>
+                </div>
             </div>
         </div>
 
         <!-- Step 6: Memory -->
         <div class="step" data-step="6">
-            <h2>Step 6: Memory Management 🧠</h2>
-            <p>WebAssembly modules can have linear memory for storing data:</p>
+            <div class="step-header" onclick="toggleStep(6)">
+                <h2>Step 6: Memory Management 🧠</h2>
+                <span class="step-toggle">▶</span>
+            </div>
+            <div class="step-content">
+                <p>WebAssembly modules can have linear memory for storing data:</p>
 
-            <div class="code-block wat-code">
+                <div class="code-block wat-code">
 (module
     (memory $mem 1)  ;; 1 page = 64KB
     (export "memory" (memory $mem))
@@ -497,19 +605,19 @@
     )
     (export "store_and_load" (func $store_and_load))
 )
-            </div>
+                </div>
 
-            <h3>Memory operations:</h3>
-            <ul>
-                <li><code>(memory $mem 1)</code> - Declare 1 page (64KB) of memory</li>
-                <li><code>i32.store</code> - Store i32 value at address</li>
-                <li><code>i32.load</code> - Load i32 value from address</li>
-            </ul>
+                <h3>Memory operations:</h3>
+                <ul>
+                    <li><code>(memory $mem 1)</code> - Declare 1 page (64KB) of memory</li>
+                    <li><code>i32.store</code> - Store i32 value at address</li>
+                    <li><code>i32.load</code> - Load i32 value from address</li>
+                </ul>
 
-            <div class="try-it">
-                <h4>🎯 Memory Challenge!</h4>
-                <p>Create a function that stores an array of numbers and returns their sum:</p>
-                <textarea id="editor6">(module
+                <div class="try-it">
+                    <h4>🎯 Memory Challenge!</h4>
+                    <p>Create a function that stores an array of numbers and returns their sum:</p>
+                    <textarea id="editor6">(module
     (memory $mem 1)
     (export "memory" (memory $mem))
     
@@ -527,50 +635,320 @@
     )
     (export "sum_array" (func $sum_array))
 )</textarea>
-                <br>
-                <button onclick="compileAndRun('editor6', 'output6')">Test Memory Function</button>
-                <div id="output6" class="output" style="display:none;"></div>
+                    <br>
+                    <button onclick="compileAndRun('editor6', 'output6')">Test Memory Function</button>
+                    <div id="output6" class="output" style="display:none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 7: Function Tables -->
+        <div class="step" data-step="7">
+            <div class="step-header" onclick="toggleStep(7)">
+                <h2>Step 7: Function Tables 📋</h2>
+                <span class="step-toggle">▶</span>
+            </div>
+            <div class="step-content">
+                <p>Function tables enable indirect function calls - like function pointers in C!</p>
+
+                <div class="code-block wat-code">
+(module
+    (table $functions 3 funcref)
+    
+    (func $add (param i32 i32) (result i32)
+        local.get 0
+        local.get 1
+        i32.add
+    )
+    
+    (func $multiply (param i32 i32) (result i32)
+        local.get 0
+        local.get 1
+        i32.mul
+    )
+    
+    (func $subtract (param i32 i32) (result i32)
+        local.get 0
+        local.get 1
+        i32.sub
+    )
+    
+    (elem (i32.const 0) $add $multiply $subtract)
+    
+    (func $call_function (param $index i32) (param $a i32) (param $b i32) (result i32)
+        local.get $a
+        local.get $b
+        local.get $index
+        call_indirect (param i32 i32) (result i32)
+    )
+    
+    (export "call_function" (func $call_function))
+)
+                </div>
+
+                <div class="try-it">
+                    <h4>🎯 Function Table Challenge!</h4>
+                    <textarea id="editor7">(module
+    (table $math_ops 4 funcref)
+    
+    (func $add (param i32 i32) (result i32)
+        local.get 0 local.get 1 i32.add
+    )
+    (func $sub (param i32 i32) (result i32)
+        local.get 0 local.get 1 i32.sub
+    )
+    (func $mul (param i32 i32) (result i32)
+        local.get 0 local.get 1 i32.mul
+    )
+    (func $div (param i32 i32) (result i32)
+        local.get 0 local.get 1 i32.div_s
+    )
+    
+    (elem (i32.const 0) $add $sub $mul $div)
+    
+    (func $calculator (param $op i32) (param $a i32) (param $b i32) (result i32)
+        local.get $a
+        local.get $b
+        local.get $op
+        call_indirect (param i32 i32) (result i32)
+    )
+    
+    (export "calculator" (func $calculator))
+)</textarea>
+                    <br>
+                    <button onclick="compileAndRun('editor7', 'output7')">Test Calculator</button>
+                    <div id="output7" class="output" style="display:none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 8: Imports -->
+        <div class="step" data-step="8">
+            <div class="step-header" onclick="toggleStep(8)">
+                <h2>Step 8: Importing from JavaScript 🔗</h2>
+                <span class="step-toggle">▶</span>
+            </div>
+            <div class="step-content">
+                <p>WAT modules can import functions from JavaScript:</p>
+
+                <div class="code-block wat-code">
+(module
+    (import "js" "log" (func $log (param i32)))
+    (import "js" "random" (func $random (result f32)))
+    
+    (func $test_imports (export "test_imports")
+        ;; Log a number
+        i32.const 42
+        call $log
+        
+        ;; Get random number and log it (converted to i32)
+        call $random
+        i32.trunc_f32_s
+        call $log
+    )
+)
+                </div>
+
+                <div class="try-it">
+                    <h4>🎯 Import Challenge!</h4>
+                    <p>This example uses JavaScript imports:</p>
+                    <textarea id="editor8">(module
+    (import "env" "print" (func $print (param i32)))
+    (import "env" "get_time" (func $get_time (result i32)))
+    
+    (func $greet (export "greet")
+        ;; Print current time
+        call $get_time
+        call $print
+        
+        ;; Print greeting number
+        i32.const 1337
+        call $print
+    )
+)</textarea>
+                    <br>
+                    <button onclick="compileWithImports('editor8', 'output8')">Test with Imports</button>
+                    <div id="output8" class="output" style="display:none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 9: Advanced Features -->
+        <div class="step" data-step="9">
+            <div class="step-header" onclick="toggleStep(9)">
+                <h2>Step 9: Advanced WAT Features 🚀</h2>
+                <span class="step-toggle">▶</span>
+            </div>
+            <div class="step-content">
+                <h3>Multiple Return Values</h3>
+                <div class="code-block wat-code">
+(module
+    (func $divmod (param $a i32) (param $b i32) (result i32 i32)
+        local.get $a
+        local.get $b
+        i32.div_s    ;; quotient
+        local.get $a
+        local.get $b
+        i32.rem_s    ;; remainder
+    )
+    (export "divmod" (func $divmod))
+)
+                </div>
+
+                <h3>Global Variables</h3>
+                <div class="code-block wat-code">
+(module
+    (global $counter (mut i32) (i32.const 0))
+    
+    (func $increment (export "increment") (result i32)
+        global.get $counter
+        i32.const 1
+        i32.add
+        global.set $counter
+        global.get $counter
+    )
+    
+    (func $get_counter (export "get_counter") (result i32)
+        global.get $counter
+    )
+)
+                </div>
+
+                <h3>Exception Handling (Proposal)</h3>
+                <div class="code-block wat-code">
+;; Note: Exception handling is still a proposal
+(module
+    (tag $divByZero)
+    
+    (func $safe_divide (param $a i32) (param $b i32) (result i32)
+        (try (result i32)
+            (do
+                local.get $b
+                i32.const 0
+                i32.eq
+                (if (then throw $divByZero))
+                local.get $a
+                local.get $b
+                i32.div_s
+            )
+            (catch $divByZero
+                i32.const -1  ;; Return -1 on division by zero
+            )
+        )
+    )
+)
+                </div>
+
+                <div class="try-it">
+                    <h4>🎯 Advanced Challenge!</h4>
+                    <p>Create a module with globals and multiple return values:</p>
+                    <textarea id="editor9">(module
+    (global $state (mut i32) (i32.const 0))
+    
+    (func $update_and_get (param $delta i32) (result i32 i32)
+        ;; old_state, new_state
+        global.get $state        ;; old state
+        global.get $state
+        local.get $delta
+        i32.add
+        global.set $state        ;; update state
+        global.get $state        ;; new state
+    )
+    
+    (export "update_and_get" (func $update_and_get))
+)</textarea>
+                    <br>
+                    <button onclick="compileAndRun('editor9', 'output9')">Test Advanced Features</button>
+                    <div id="output9" class="output" style="display:none;"></div>
+                </div>
             </div>
         </div>
 
         <!-- Final Step -->
-        <div class="step" data-step="7">
-            <h2>🎉 Congratulations!</h2>
-            <p>You've learned the basics of WAT! Here's what you now know:</p>
-            <ul>
-                <li>✅ WAT module structure</li>
-                <li>✅ Functions and parameters</li>
-                <li>✅ Data types (i32, i64, f32, f64)</li>
-                <li>✅ Local variables</li>
-                <li>✅ Control flow (if/else, loops)</li>
-                <li>✅ Memory management</li>
-            </ul>
-
-            <div class="info-box">
-                <h3>🚀 Next Steps:</h3>
-                <ul>
-                    <li>Learn about importing JavaScript functions</li>
-                    <li>Explore advanced instructions (SIMD, atomic operations)</li>
-                    <li>Study real-world WebAssembly modules</li>
-                    <li>Try compiling from other languages (C, Rust, AssemblyScript)</li>
-                </ul>
+        <div class="step" data-step="10">
+            <div class="step-header" onclick="toggleStep(10)">
+                <h2>🎉 Mastery Complete!</h2>
+                <span class="step-toggle">▶</span>
             </div>
+            <div class="step-content">
+                <p>You've mastered WAT! Here's what you now know:</p>
+                <ul>
+                    <li>✅ WAT module structure</li>
+                    <li>✅ Functions and parameters</li>
+                    <li>✅ Data types (i32, i64, f32, f64)</li>
+                    <li>✅ Local variables and globals</li>
+                    <li>✅ Control flow (if/else, loops)</li>
+                    <li>✅ Memory management</li>
+                    <li>✅ Function tables and indirect calls</li>
+                    <li>✅ JavaScript imports/exports</li>
+                    <li>✅ Advanced features</li>
+                </ul>
 
-            <div class="try-it">
-                <h4>🎯 Final Challenge!</h4>
-                <p>Create your own complex function combining everything you've learned:</p>
-                <textarea id="editor7">(module
+                <div class="info-box">
+                    <h3>🚀 Next Steps:</h3>
+                    <ul>
+                        <li>Explore WASI (WebAssembly System Interface)</li>
+                        <li>Learn about SIMD instructions for parallel processing</li>
+                        <li>Study real-world use cases (image processing, cryptography, games)</li>
+                        <li>Try compiling from Rust, C++, or AssemblyScript</li>
+                        <li>Experiment with WebAssembly streaming compilation</li>
+                        <li>Investigate WebAssembly Component Model</li>
+                    </ul>
+                </div>
+
+                <div class="try-it">
+                    <h4>🎯 Final Masterpiece!</h4>
+                    <p>Create your ultimate WAT module:</p>
+                    <textarea id="editor10">(module
     (memory $mem 1)
+    (global $seed (mut i32) (i32.const 12345))
+    
+    ;; Simple Linear Congruential Generator
+    (func $random (result i32)
+        global.get $seed
+        i32.const 1103515245
+        i32.mul
+        i32.const 12345
+        i32.add
+        global.set $seed
+        global.get $seed
+        i32.const 0x7FFFFFFF
+        i32.and
+    )
+    
+    ;; Fill memory with random data
+    (func $fill_random (param $count i32) (export "fill_random")
+        (local $i i32)
+        i32.const 0
+        local.set $i
+        
+        (loop $loop
+            local.get $i
+            local.get $count
+            i32.ge_u
+            br_if 1
+            
+            local.get $i
+            i32.const 4
+            i32.mul
+            call $random
+            i32.store
+            
+            local.get $i
+            i32.const 1
+            i32.add
+            local.set $i
+            br $loop
+        )
+    )
+    
     (export "memory" (memory $mem))
-    
-    ;; Your masterpiece function here!
-    ;; Ideas: calculator, string length counter, sorting algorithm
-    
-    (export "masterpiece" (func $masterpiece))
+    (export "random" (func $random))
 )</textarea>
-                <br>
-                <button onclick="compileAndRun('editor7', 'output7')">Test Your Masterpiece</button>
-                <div id="output7" class="output" style="display:none;"></div>
+                    <br>
+                    <button onclick="compileAndRun('editor10', 'output10')">Test Your Masterpiece</button>
+                    <div id="output10" class="output" style="display:none;"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -665,8 +1043,60 @@
             showError('Failed to load WebAssembly tools. Please refresh the page.');
         });
 
+        function toggleStep(stepNum) {
+            const steps = document.querySelectorAll('.step');
+            const targetStep = document.querySelector(`[data-step="${stepNum}"]`);
+            
+            // Close all other steps
+            steps.forEach(step => {
+                if (step !== targetStep) {
+                    step.classList.remove('active');
+                }
+            });
+            
+            // Toggle target step
+            targetStep.classList.toggle('active');
+            
+            // Update navigation
+            updateNavigation(stepNum);
+            
+            // Update progress
+            if (stepNum > currentStep) {
+                currentStep = stepNum;
+                updateProgress();
+            }
+        }
+
+        function openStep(stepNum) {
+            const steps = document.querySelectorAll('.step');
+            const targetStep = document.querySelector(`[data-step="${stepNum}"]`);
+            
+            // Close all steps
+            steps.forEach(step => step.classList.remove('active'));
+            
+            // Open target step
+            targetStep.classList.add('active');
+            
+            // Scroll to step
+            targetStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            
+            updateNavigation(stepNum);
+            
+            if (stepNum > currentStep) {
+                currentStep = stepNum;
+                updateProgress();
+            }
+        }
+
+        function updateNavigation(activeStep) {
+            const navButtons = document.querySelectorAll('.nav-button');
+            navButtons.forEach((btn, index) => {
+                btn.classList.toggle('active', index + 1 === activeStep);
+            });
+        }
+
         function updateProgress() {
-            const progress = (currentStep / 7) * 100;
+            const progress = (currentStep / 10) * 100;
             document.getElementById('progressBar').style.width = progress + '%';
         }
 
@@ -675,6 +1105,7 @@
             errorDiv.className = 'error';
             errorDiv.innerHTML = `❌ ${message}`;
             document.body.insertBefore(errorDiv, document.body.firstChild);
+            setTimeout(() => errorDiv.remove(), 5000);
         }
 
         function compileWAT(editorId, outputId) {
@@ -688,7 +1119,9 @@
             
             try {
                 const module = wabtModule.parseWat('test.wat', watCode);
-                const binaryResult = module.toBinary({});
+                const binaryResult = module.toBinary({
+                    // debug: true
+                });
                 
                 outputDiv.innerHTML = `
                     <strong>✅ Compilation Successful!</strong><br>
@@ -720,7 +1153,9 @@
             
             try {
                 const module = wabtModule.parseWat('test.wat', watCode);
-                const binaryResult = module.toBinary({});
+                const binaryResult = module.toBinary({
+                    // debug: true
+                });
                 
                 // Instantiate the WebAssembly module
                 const wasmModule = await WebAssembly.instantiate(binaryResult.buffer);
@@ -735,23 +1170,17 @@
                 if (exports.subtract) {
                     testResults += `subtract(10.5, 3.5) = ${exports.subtract(10.5, 3.5)}<br>`;
                 }
-                if (exports.average) {
-                    testResults += `average(10, 20, 30) = ${exports.average(10, 20, 30)}<br>`;
+                if (exports.calculator) {
+                    testResults += `calculator(0, 15, 3) = ${exports.calculator(0, 15, 3)} (add)<br>`;
+                    testResults += `calculator(2, 6, 4) = ${exports.calculator(2, 6, 4)} (multiply)<br>`;
                 }
-                if (exports.max) {
-                    testResults += `max(15, 8) = ${exports.max(15, 8)}<br>`;
+                if (exports.update_and_get) {
+                    const result = exports.update_and_get(5);
+                    testResults += `update_and_get(5) returned multiple values<br>`;
                 }
-                if (exports.factorial) {
-                    testResults += `factorial(5) = ${exports.factorial(5)}<br>`;
-                }
-                if (exports.fibonacci) {
-                    testResults += `fibonacci(10) = ${exports.fibonacci(10)}<br>`;
-                }
-                if (exports.store_and_load) {
-                    testResults += `store_and_load(0, 42) = ${exports.store_and_load(0, 42)}<br>`;
-                }
-                if (exports.sum_array) {
-                    testResults += `sum_array(5) = ${exports.sum_array(5)}<br>`;
+                if (exports.fill_random) {
+                    exports.fill_random(10);
+                    testResults += `fill_random(10) - filled memory with random data<br>`;
                 }
                 
                 outputDiv.innerHTML = testResults;
@@ -760,12 +1189,51 @@
                 
                 module.destroy();
                 
-                // Update progress if we're on a new step
-                const stepNum = parseInt(editorId.replace('editor', ''));
-                if (stepNum > currentStep) {
-                    currentStep = stepNum;
-                    updateProgress();
+            } catch (error) {
+                outputDiv.innerHTML = `❌ <strong>Error:</strong><br><pre>${error.message}</pre>`;
+                outputDiv.className = 'output error';
+                outputDiv.style.display = 'block';
+            }
+        }
+
+        async function compileWithImports(editorId, outputId) {
+            if (!wabtModule) {
+                showError('WABT not loaded yet. Please wait and try again.');
+                return;
+            }
+
+            const watCode = document.getElementById(editorId).value;
+            const outputDiv = document.getElementById(outputId);
+            
+            try {
+                const module = wabtModule.parseWat('test.wat', watCode);
+                const binaryResult = module.toBinary({
+                    // debug: true
+                });
+                
+                // Create imports
+                const imports = {
+                    env: {
+                        print: (value) => {
+                            console.log('WAT print:', value);
+                            outputDiv.innerHTML += `Printed: ${value}<br>`;
+                        },
+                        get_time: () => Math.floor(Date.now() / 1000)
+                    }
+                };
+                
+                const wasmModule = await WebAssembly.instantiate(binaryResult.buffer, imports);
+                const exports = wasmModule.instance.exports;
+                
+                outputDiv.innerHTML = '<strong>✅ Module with imports loaded!</strong><br>';
+                outputDiv.className = 'output';
+                outputDiv.style.display = 'block';
+                
+                if (exports.greet) {
+                    exports.greet();
                 }
+                
+                module.destroy();
                 
             } catch (error) {
                 outputDiv.innerHTML = `❌ <strong>Error:</strong><br><pre>${error.message}</pre>`;
@@ -774,27 +1242,9 @@
             }
         }
 
-        function showSolution(editorId, solution) {
-            document.getElementById(editorId).value = solution;
-        }
-
-        // Add scroll spy for progress tracking
-        window.addEventListener('scroll', () => {
-            const steps = document.querySelectorAll('.step');
-            const scrollPos = window.scrollY + window.innerHeight / 2;
-            
-            steps.forEach((step, index) => {
-                const stepTop = step.offsetTop;
-                const stepBottom = stepTop + step.offsetHeight;
-                
-                if (scrollPos >= stepTop && scrollPos <= stepBottom) {
-                    const stepNum = parseInt(step.dataset.step);
-                    if (stepNum > currentStep) {
-                        currentStep = stepNum;
-                        updateProgress();
-                    }
-                }
-            });
+        // Initialize first step as active
+        document.addEventListener('DOMContentLoaded', () => {
+            updateNavigation(1);
         });
     </script>
 </body>
