@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WASM + WebGL Shader Minimal Demo</title>
+  <style>canvas { border: 1px solid #888; }</style>
+</head>
+<body>
+  <canvas id="glcanvas" width="256" height="256"></canvas>
+  <script>
+
+    /** WAT 
+    (module
+        (memory (export "memory") 1)
+        (func $fac (export "fac") (param f64) (result f64)
+            local.get 0
+            f64.const 1
+            f64.lt
+            if (result f64)
+                f64.const 1
+            else
+                local.get 0
+                f64.const 1
+                f64.sub
+                call $fac
+                local.get 0
+                f64.mul
+            end))
+     */
+    // 1. Minimal WASM base64 loader (change to your module, must export memory)
+    const wasmBase64 = "AGFzbQEAAAABBgFgAXwBfAMCAQAFAwEAAQcQAgZtZW1vcnkCAANmYWMAAAouASwAIABEAAAAAAAA8D9jBHxEAAAAAAAA8D8FIABEAAAAAAAA8D+hEAAgAKILCwASBG5hbWUBBgEAA2ZhYwIDAQAA";
+
+    function base64ToUint8Array(base64) {
+      const bin = atob(base64), len = bin.length, arr = new Uint8Array(len);
+      for (let i = 0; i < len; ++i) arr[i] = bin.charCodeAt(i);
+      return arr;
+    }
+
+    (async () => {
+      // 2. Instantiate WASM
+      const { instance } = await WebAssembly.instantiate(base64ToUint8Array(wasmBase64));
+      const mem = new Uint8Array(instance.exports.memory.buffer);
+      // Fill memory buffer with test pattern (e.g. grayscale gradient)
+      for (let i = 0; i < 256*256; ++i) mem[i] = i % 256;
+
+      // 3. Minimal WebGL Shader Setup
+      const canvas = document.getElementById('glcanvas');
+      const gl = canvas.getContext('webgl');
+      // Vertex shader (pass-through)
+      const vsrc = `
+        attribute vec2 a;varying vec2 p;
+        void main(){p=a;gl_Position=vec4(a,0,1);}
+      `;
+      // Fragment shader (inverts color)
+      const fsrc = `
+        precision mediump float;
+        varying vec2 p;
+        uniform sampler2D u;
+        void main(){
+          vec2 uv=(p+1.)*.5;
+          float g=texture2D(u,uv).r;
+          gl_FragColor=vec4(1.-g,1.-g,1.-g,1.);
+        }
+      `;
+      function compile(type, src) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, src);
+        gl.compileShader(s);
+        return s;
+      }
+      const prog = gl.createProgram();
+      gl.attachShader(prog, compile(gl.VERTEX_SHADER, vsrc));
+      gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsrc));
+      gl.linkProgram(prog);
+      gl.useProgram(prog);
+
+      // Quad covering the canvas
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+      const a = gl.getAttribLocation(prog, "a");
+      gl.enableVertexAttribArray(a);
+      gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+
+      // 4. Upload WASM buffer as texture
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 256, 256, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, mem);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.uniform1i(gl.getUniformLocation(prog, "u"), 0);
+
+      // 5. Draw
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    })();
+  </script>
+</body>
+</html>

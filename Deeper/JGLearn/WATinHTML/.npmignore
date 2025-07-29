@@ -1,0 +1,26 @@
+# Development files
+*.log
+node_modules/
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Test files
+test/
+tests/
+*.test.js
+*.spec.js
+
+# Build artifacts
+dist/
+build/
+.tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Examples (if you don't want them in the package)
+examples/
+demo/

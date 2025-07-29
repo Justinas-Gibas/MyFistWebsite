@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WAT to WASM Compiler - Bake Tool</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .editor-section {
+            margin-bottom: 20px;
+        }
+        
+        .editor-section h3 {
+            margin-bottom: 10px;
+            color: #555;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 300px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+        
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+        }
+        
+        .feature-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            min-width: 300px;
+        }
+        
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+        }
+        
+        .feature-item input[type="checkbox"] {
+            margin: 0;
+        }
+        
+        .feature-item label {
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .compile-btn {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .compile-btn:hover {
+            background-color: #0056b3;
+        }
+        
+        .compile-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .download-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .download-btn:hover {
+            background-color: #1e7e34;
+        }
+        
+        .download-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .clear-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .clear-btn:hover {
+            background-color: #c82333;
+        }
+        
+        .output {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            min-height: 50px;
+        }
+        
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        
+        .info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        
+        .sample-code {
+            margin-top: 10px;
+        }
+        
+        .sample-btn {
+            background-color: #6c757d;
+            color: white;
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        
+        .sample-btn:hover {
+            background-color: #545b62;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 WAT to WASM Compiler - Bake Tool</h1>
+        
+        <div class="editor-section">
+            <h3>WebAssembly Text Format (WAT) Input:</h3>
+            <textarea id="watInput" placeholder="Enter your WAT code here...
+Example:
+(module
+  (func $add (param $a i32) (param $b i32) (result i32)
+    local.get $a
+    local.get $b
+    i32.add
+  )
+  (export &quot;add&quot; (func $add))
+)"></textarea>
+            
+            <div class="sample-code">
+                <button class="sample-btn" onclick="loadSample()">Load Sample Code</button>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="feature-group">
+                <div class="feature-item">
+                    <input type="checkbox" id="exceptions">
+                    <label for="exceptions">exceptions</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="mutable_globals" checked>
+                    <label for="mutable_globals">mutable globals</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="sat_float_to_int" checked>
+                    <label for="sat_float_to_int">saturating float to int</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="sign_extension" checked>
+                    <label for="sign_extension">sign extension</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="simd" checked>
+                    <label for="simd">simd</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="threads">
+                    <label for="threads">threads</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="function_references">
+                    <label for="function_references">function references</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="multi_value" checked>
+                    <label for="multi_value">multi value</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="tail_call">
+                    <label for="tail_call">tail call</label>
+                </div>
+            </div>
+
+            <div class="feature-group">
+                <div class="feature-item">
+                    <input type="checkbox" id="bulk_memory" checked>
+                    <label for="bulk_memory">bulk memory</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="reference_types" checked>
+                    <label for="reference_types">reference types</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="annotations">
+                    <label for="annotations">annotations</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="code_metadata">
+                    <label for="code_metadata">code metadata</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="gc">
+                    <label for="gc">gc</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="memory64">
+                    <label for="memory64">memory64</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="multi_memory">
+                    <label for="multi_memory">multi memory</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="extended_const">
+                    <label for="extended_const">extended const</label>
+                </div>
+                <div class="feature-item">
+                    <input type="checkbox" id="relaxed_simd">
+                    <label for="relaxed_simd">relaxed simd</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button class="compile-btn" id="compileBtn" onclick="compileWat()">
+                🔧 Compile WAT to WASM
+            </button>
+            <button class="download-btn" id="downloadBtn" onclick="downloadWasm()" disabled>
+                📥 Download WASM
+            </button>
+            <button class="clear-btn" onclick="clearAll()">
+                🗑️ Clear All
+            </button>
+        </div>
+
+        <div id="output" class="output info">
+            <div class="loading">Loading wabt.js library...</div>
+        </div>
+    </div>
+
+    <script src="../../lib/wabt/wabt.js"></script>
+    <script>
+        let wasmModule = null;
+        let compiledWasm = null;
+        let wabt = null;
+
+        // Initialize wabt
+        WabtModule().then(wabtModule => {
+            wabt = wabtModule;
+            document.getElementById('output').innerHTML = '✅ Ready to compile! Enter your WAT code above and click "Compile WAT to WASM".';
+            document.getElementById('output').className = 'output success';
+        }).catch(error => {
+            document.getElementById('output').innerHTML = `❌ Failed to load wabt.js: ${error.message}`;
+            document.getElementById('output').className = 'output error';
+        });
+
+        function getFeatures() {
+            const features = {};
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            
+            checkboxes.forEach(checkbox => {
+                features[checkbox.id] = checkbox.checked;
+            });
+            
+            return features;
+        }
+
+        function compileWat() {
+            if (!wabt) {
+                showOutput('❌ wabt.js is not loaded yet. Please wait.', 'error');
+                return;
+            }
+
+            const watInput = document.getElementById('watInput').value.trim();
+            
+            if (!watInput) {
+                showOutput('❌ Please enter some WAT code to compile.', 'error');
+                return;
+            }
+
+            const compileBtn = document.getElementById('compileBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            // Disable buttons during compilation
+            compileBtn.disabled = true;
+            compileBtn.textContent = '⏳ Compiling...';
+            downloadBtn.disabled = true;
+
+            try {
+                showOutput('🔄 Compiling WAT to WASM...', 'info');
+                
+                // Get selected features
+                const features = getFeatures();
+                
+                // Parse WAT with selected features
+                wasmModule = wabt.parseWat('input.wat', watInput, features);
+                
+                // Validate the module
+                wasmModule.validate(features);
+                
+                // Generate binary
+                const binaryResult = wasmModule.toBinary({
+                    log: true,
+                    write_debug_names: true
+                });
+                
+                compiledWasm = binaryResult.buffer;
+                
+                const size = compiledWasm.length;
+                const sizeStr = size < 1024 ? `${size} bytes` : `${(size / 1024).toFixed(2)} KB`;
+                
+                let message = `✅ Compilation successful!\n`;
+                message += `📊 Generated WASM size: ${sizeStr}\n`;
+                message += `🔧 Features enabled: ${Object.entries(features).filter(([k,v]) => v).map(([k,v]) => k).join(', ')}\n`;
+                
+                if (binaryResult.log) {
+                    message += `\n📋 Compilation log:\n${binaryResult.log}`;
+                }
+                
+                showOutput(message, 'success');
+                
+                // Enable download button
+                downloadBtn.disabled = false;
+                
+            } catch (error) {
+                showOutput(`❌ Compilation failed:\n${error.message}`, 'error');
+                compiledWasm = null;
+            } finally {
+                // Re-enable compile button
+                compileBtn.disabled = false;
+                compileBtn.textContent = '🔧 Compile WAT to WASM';
+            }
+        }
+
+        function downloadWasm() {
+            if (!compiledWasm) {
+                showOutput('❌ No compiled WASM to download. Please compile first.', 'error');
+                return;
+            }
+
+            try {
+                // Create blob and download
+                const blob = new Blob([compiledWasm], { type: 'application/wasm' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'compiled.wasm';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                // Clean up URL
+                URL.revokeObjectURL(url);
+                
+                showOutput('📥 WASM file downloaded successfully!', 'success');
+            } catch (error) {
+                showOutput(`❌ Download failed: ${error.message}`, 'error');
+            }
+        }
+
+        function clearAll() {
+            document.getElementById('watInput').value = '';
+            compiledWasm = null;
+            
+            if (wasmModule) {
+                wasmModule.destroy();
+                wasmModule = null;
+            }
+            
+            document.getElementById('downloadBtn').disabled = true;
+            showOutput('🗑️ All cleared. Ready for new WAT code.', 'info');
+        }
+
+        function loadSample() {
+            const sampleWat = `(module
+  ;; Import memory from JS
+  (import "env" "memory" (memory 1))
+  
+  ;; Simple add function
+  (func $add (param $a i32) (param $b i32) (result i32)
+    local.get $a
+    local.get $b
+    i32.add
+  )
+  
+  ;; Multiply function
+  (func $multiply (param $a i32) (param $b i32) (result i32)
+    local.get $a
+    local.get $b
+    i32.mul
+  )
+  
+  ;; Factorial function (recursive)
+  (func $factorial (param $n i32) (result i32)
+    local.get $n
+    i32.const 1
+    i32.le_s
+    if (result i32)
+      i32.const 1
+    else
+      local.get $n
+      local.get $n
+      i32.const 1
+      i32.sub
+      call $factorial
+      i32.mul
+    end
+  )
+  
+  ;; Export functions
+  (export "add" (func $add))
+  (export "multiply" (func $multiply))
+  (export "factorial" (func $factorial))
+)`;
+            
+            document.getElementById('watInput').value = sampleWat;
+            showOutput('📝 Sample WAT code loaded. You can now compile it!', 'info');
+        }
+
+        function showOutput(message, type) {
+            const output = document.getElementById('output');
+            output.textContent = message;
+            output.className = `output ${type}`;
+        }
+
+        // Auto-resize textarea
+        document.getElementById('watInput').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.max(300, this.scrollHeight) + 'px';
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 'Enter':
+                        e.preventDefault();
+                        compileWat();
+                        break;
+                    case 's':
+                        e.preventDefault();
+                        if (compiledWasm) {
+                            downloadWasm();
+                        }
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WAT in HTML - Minimal Demo</title>
+  <style>
+    body {
+      font-family: 'Courier New', monospace;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #f0f0f0;
+    }
+    
+    .demo-section {
+      background: #2a2a2a;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      border: 1px solid #444;
+    }
+    
+    .demo-section h3 {
+      color: #4CAF50;
+      margin-top: 0;
+    }
+    
+    wat-module {
+      display: block;
+      background: #1e1e1e;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 10px;
+      margin: 10px 0;
+      white-space: pre;
+      font-family: 'Courier New', monospace;
+      color: #f8f8f2;
+    }
+    
+    wat-module[data-loaded="true"] {
+      border-color: #4CAF50;
+      background: #1a2a1a;
+    }
+    
+    wat-module[data-error] {
+      border-color: #f44336;
+      background: #2a1a1a;
+    }
+    
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-family: inherit;
+    }
+    
+    button:hover { background: #45a049; }
+    button:disabled { background: #666; }
+    
+    .output {
+      background: #0a0a0a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 10px;
+      margin: 10px 0;
+      min-height: 40px;
+    }
+    
+    .success { color: #4CAF50; }
+    .error { color: #f44336; }
+  </style>
+</head>
+<body>
+  <h1>🚀 WAT in HTML - Minimal Demo</h1>
+  <p>WebAssembly Text (WAT) as a first-class citizen in the HTML/CSS/JS stack!</p>
+
+  <div class="demo-section">
+    <h3>1. Math Module</h3>
+    <p>Basic arithmetic operations:</p>
+    
+    <wat-module name="math">
+(module
+  (func $add (param $a i32) (param $b i32) (result i32)
+    local.get $a
+    local.get $b
+    i32.add)
+  
+  (func $multiply (param $a i32) (param $b i32) (result i32)
+    local.get $a
+    local.get $b
+    i32.mul)
+  
+  (func $factorial (param $n i32) (result i32)
+    local.get $n
+    i32.const 1
+    i32.le_s
+    if (result i32)
+      i32.const 1
+    else
+      local.get $n
+      local.get $n
+      i32.const 1
+      i32.sub
+      call $factorial
+      i32.mul
+    end)
+  
+  (export "add" (func $add))
+  (export "multiply" (func $multiply))
+  (export "factorial" (func $factorial)))
+    </wat-module>
+    
+    <button onclick="testMath()">Test Math Functions</button>
+    <div class="output" id="math-output">Click "Test Math Functions"</div>
+  </div>
+
+  <div class="demo-section">
+    <h3>2. Graphics Module</h3>
+    <p>Pixel processing for canvas:</p>
+    
+    <wat-module name="graphics">
+(module
+  (func $pattern (param $x i32) (param $y i32) (param $t i32) (result i32)
+    ;; Create interesting pattern: (x ^ y ^ t) * ((x + y) % 256)
+    local.get $x
+    local.get $y
+    i32.xor
+    local.get $t
+    i32.xor
+    
+    local.get $x
+    local.get $y
+    i32.add
+    i32.const 255
+    i32.rem_u
+    
+    i32.mul
+    i32.const 255
+    i32.and)
+  
+  (export "pattern" (func $pattern)))
+    </wat-module>
+    
+    <button onclick="testGraphics()">Test Graphics</button>
+    <button onclick="startAnimation()">Start Animation</button>
+    <button onclick="stopAnimation()">Stop</button>
+    
+    <canvas id="canvas" width="200" height="200" style="border: 1px solid #666; display: block; margin: 10px 0;"></canvas>
+    <div class="output" id="graphics-output">Click "Test Graphics"</div>
+  </div>
+
+  <div class="demo-section">
+    <h3>3. Dynamic WAT Loading</h3>
+    <p>Add WAT modules programmatically:</p>
+    
+    <button onclick="addDynamicModule()">Add Dynamic Module</button>
+    <button onclick="testDynamic()">Test Dynamic Module</button>
+    <div class="output" id="dynamic-output">Click "Add Dynamic Module"</div>
+  </div>
+
+  <!-- Load the WAT loader -->
+  <script src="wat-loader.js"></script>
+  
+  <script>
+    let animationId = null;
+    
+    // Test math functions
+    async function testMath() {
+      const output = document.getElementById('math-output');
+      try {
+        const add_result = await WATLoader.call('math', 'add', [15, 27]);
+        const mul_result = await WATLoader.call('math', 'multiply', [6, 7]);
+        const fact_result = await WATLoader.call('math', 'factorial', [5]);
+        
+        output.innerHTML = `
+          <div class="success">
+            add(15, 27) = ${add_result}<br>
+            multiply(6, 7) = ${mul_result}<br>
+            factorial(5) = ${fact_result}
+          </div>
+        `;
+      } catch (error) {
+        output.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+      }
+    }
+    
+    // Test graphics
+    async function testGraphics() {
+      const output = document.getElementById('graphics-output');
+      try {
+        const pattern1 = await WATLoader.call('graphics', 'pattern', [10, 20, 5]);
+        const pattern2 = await WATLoader.call('graphics', 'pattern', [50, 100, 25]);
+        const pattern3 = await WATLoader.call('graphics', 'pattern', [0, 0, 0]);
+        
+        output.innerHTML = `
+          <div class="success">
+            pattern(10, 20, 5) = ${pattern1}<br>
+            pattern(50, 100, 25) = ${pattern2}<br>
+            pattern(0, 0, 0) = ${pattern3}
+          </div>
+        `;
+      } catch (error) {
+        output.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+      }
+    }
+    
+    // Start canvas animation
+    async function startAnimation() {
+      if (animationId) return;
+      
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const { width, height } = canvas;
+      let time = 0;
+      
+      function render() {
+        const imageData = ctx.createImageData(width, height);
+        const data = imageData.data;
+        
+        let idx = 0;
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            WATLoader.call('graphics', 'pattern', [x, y, time]).then(value => {
+              const offset = (y * width + x) * 4;
+              data[offset] = value;                    // Red
+              data[offset + 1] = (value * 2) & 255;   // Green  
+              data[offset + 2] = (value ^ time) & 255; // Blue
+              data[offset + 3] = 255;                  // Alpha
+            });
+          }
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        time = (time + 1) % 256;
+        animationId = requestAnimationFrame(render);
+      }
+      
+      render();
+      document.getElementById('graphics-output').innerHTML = '<div class="success">Animation running...</div>';
+    }
+    
+    // Stop animation
+    function stopAnimation() {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+        document.getElementById('graphics-output').innerHTML = '<div>Animation stopped</div>';
+      }
+    }
+    
+    // Add dynamic module
+    async function addDynamicModule() {
+      const output = document.getElementById('dynamic-output');
+      
+      const dynamicWAT = `
+(module
+  (func $power (param $base i32) (param $exp i32) (result i32)
+    local.get $exp
+    i32.const 0
+    i32.eq
+    if (result i32)
+      i32.const 1
+    else
+      local.get $base
+      local.get $base
+      local.get $exp
+      i32.const 1
+      i32.sub
+      call $power
+      i32.mul
+    end)
+  
+  (export "power" (func $power)))`;
+      
+      try {
+        await WATLoader.addModule('dynamic', dynamicWAT);
+        output.innerHTML = '<div class="success">Dynamic module added successfully!</div>';
+      } catch (error) {
+        output.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+      }
+    }
+    
+    // Test dynamic module
+    async function testDynamic() {
+      const output = document.getElementById('dynamic-output');
+      try {
+        const result1 = await WATLoader.call('dynamic', 'power', [2, 8]);
+        const result2 = await WATLoader.call('dynamic', 'power', [3, 4]);
+        const result3 = await WATLoader.call('dynamic', 'power', [5, 0]);
+        
+        output.innerHTML = `
+          <div class="success">
+            power(2, 8) = ${result1}<br>
+            power(3, 4) = ${result2}<br>
+            power(5, 0) = ${result3}
+          </div>
+        `;
+      } catch (error) {
+        output.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+      }
+    }
+    
+    // Listen for WAT module load events
+    document.addEventListener('wat-loaded', (event) => {
+      console.log(`WAT module '${event.detail.name}' loaded with exports:`, event.detail.exports);
+    });
+    
+    document.addEventListener('wat-error', (event) => {
+      console.error('WAT module error:', event.detail.error);
+    });
+  </script>
+</body>
+</html>

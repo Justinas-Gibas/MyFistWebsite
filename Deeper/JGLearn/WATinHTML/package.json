@@ -1,0 +1,41 @@
+{
+  "name": "wat-loader",
+  "version": "1.0.0",
+  "description": "A minimal, developer-friendly module that treats WebAssembly Text (WAT) as a first-class citizen in the HTML/CSS/JS stack",
+  "main": "wat-loader.js",
+  "types": "wat-loader.d.ts",
+  "files": [
+    "wat-loader.js",
+    "wat-loader.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "webassembly",
+    "wat",
+    "wasm",
+    "html",
+    "browser",
+    "wabt",
+    "loader"
+  ],
+  "author": "Justinas Gibas <justas.gibas@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/justinasgibas/wat-loader.git"
+  },
+  "homepage": "https://github.com/justinasgibas/wat-loader#readme",
+  "bugs": {
+    "url": "https://github.com/justinasgibas/wat-loader/issues"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "browser": "wat-loader.js",
+  "unpkg": "wat-loader.js",
+  "jsdelivr": "wat-loader.js"
+}
