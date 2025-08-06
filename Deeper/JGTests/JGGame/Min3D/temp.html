@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<style>
+            .hud-health,
+            .hud-mana {
+                position: absolute;
+                bottom: -20px;
+                left: calc(0% - 3vw);
+                width: 20vw;
+                height: 20vw;
+                background-color: red;
+                border-radius: 50%;
+            }
+            .hud-mana {
+                background-color: blue;
+                left: calc(100% - 17vw);
+            }
+        </style>
+
+
+    <!-- custom css to act as game ui
+              we want red cirkle to show health
+              that lowers from the top as health decreases
+              we will use mask to make the transition
+            -->
+            
+
+            <!-- <div class="hud-health"></div>
+            <div class="hud-mana"></div>
+            <input type="range" min="0" max="100" value="100" class="hud-stats-slider" style="position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 70%;"> -->
+            <!-- <script>
+                const health = document.querySelector('.hud-health');
+                const mana = document.querySelector('.hud-mana');
+                const slider = document.querySelector('.hud-stats-slider');
+
+                slider.addEventListener('input', () => {
+                    const value = slider.value;
+                    health.style.height = `${value}%`;
+                    mana.style.height = `${value}%`;
+                });
+            </script>    -->
+
+
+<script>
+                /** Core tech
+                1. webGPU canvas webGL2 fallback
+                2. webXR
+                3. webAudio
+
+                what and why
+                1. webAssembly for performance CPU tasks
+                1.1 we will write WAT code (with wabt.js in html)
+                1.2 cerfully analize what needs to be ported to wasm and what to WGSL
+                1.3 use wasm for
+                1.4 but WGSL for
+                2. SDF signed distance fields
+            
+                 WebGPU specifics
+                 1. WGSL for shading language 
+                 2. WGSL for performance, compute shader. example: multat4 
+                
+                 WebXR specifics
+                 1. XRSession for managing AR/VR sessions 
+                 2. XRReferenceSpace for defining the 3D space 
+                 3. XRInputSource for handling user input 
+                
+                 WebAudio specifics
+                 1. AudioContext for managing audio operations 
+                 2. GainNode for controlling audio volume 
+                */
+                </script>
+
+                <script>
+                    // Memory, Serialization, Zero‑copy
+                    // const sab = new SharedArrayBuffer(8 + 4096); // head,tail,u8 buf
+                    // const i32 = new Int32Array(sab, 0, 2), u8 = new Uint8Array(sab, 8);
+                    // function push(bytes){ for (let b of bytes){ const t=(Atomics.load(i32,1)+1)&4095; while(t===Atomics.load(i32,0)){} u8[Atomics.load(i32,1)]=b; Atomics.store(i32,1,t);} }
+                    // function pop(){ const h=Atomics.load(i32,0); if(h===Atomics.load(i32,1)) return -1; const b=u8[h]; Atomics.store(i32,0,(h+1)&4095); return b; }
+                    
+                </script>
+                
+                <script>
+                    // Graphics/Compute
+                    // const adapter = await navigator.gpu.requestAdapter();
+                    // const device = await adapter.requestDevice();
+                    // const ctx = canvas.getContext('webgpu');
+                    // ctx.configure({device, format: navigator.gpu.getPreferredCanvasFormat()});
+                    // const pipeline = device.createRenderPipeline({layout:'auto', vertex:{module:device.createShaderModule({code:vs}),entryPoint:'vs_main'},
+                    // fragment:{module:device.createShaderModule({code:fs}),entryPoint:'fs_main',targets:[{format:ctx.getCurrentTexture().format||'bgra8unorm'}]}});
+
+                </script>
+                <script>
+                    // WebXR
+                    // if (await navigator.xr?.isSessionSupported('immersive-vr')) {
+                    //     const session = await navigator.xr.requestSession('immersive-vr', {requiredFeatures:['local-floor']});
+                    //     session.requestAnimationFrame((t, frame)=>{/* get pose, render both views */});
+                    // }
+                    
+                </script>
+
+                <script>
+                    // //Audio
+                    // await audioCtx.audioWorklet.addModule('proc.js');
+                    // const node = new AudioWorkletNode(audioCtx, 'synth'); node.connect(audioCtx.destination);
+                    // // proc.js
+                    // registerProcessor('synth', class extends AudioWorkletProcessor{ process(i,o,p){ /* write o[0][ch][i] */ return true; }});
+                    
+                </script>
+                    
+                <script>
+                    // //Scheduling & Perf
+                    // scheduler?.postTask(()=>step(), {priority:'user-blocking'});
+                    // performance.mark('tick'); /* ... */ performance.measure('frame','tick');
+                    
+                    // const pads = navigator.getGamepads(); pads?.forEach(p=>p?.vibrationActuator?.playEffect('dual-rumble',{duration:50,strongMagnitude:1}));
+
+                </script>
+
+                <script>
+                    /**
+                     * State management (VM‑native)
+                     * posable port to wasm
+                     * posable minimal redux-like store 
+                     *
+                     */
+                    class Store extends EventTarget{
+                        constructor(reducer, init){ super(); this.r=reducer; this.s=init; }
+                        getState(){ return this.s; }
+                        dispatch(a){ const ns=this.r(this.s,a); if(ns!==this.s){ this.s=ns; this.dispatchEvent(new Event('change')); } }
+                    }
+                    const store = new Store((s,a)=>{ if(a.type==='MOVE') return {...s, p:s.p+a.d}; return s; }, {p:0});
+                    store.addEventListener('change', ()=>{/* read store.getState() */});
+                    
+                </script>
+
+                <script>
+                    /**
+                     * Worker example
+                     * - sim.js is a worker script that handles game logic
+                     * this is used to offload heavy computations from the main thread
+                     */
+                    // const workerwasm = new Worker('../../WebAssembly/factorial.wasm', {type:'module'});
+                    // const ch = new MessageChannel();
+                    // workerwasm.postMessage({port: ch.port1}, [ch.port1]); // transfer port
+                    // ch.port2.onmessage = e => { /* state update */ };
+                    
+
+                    // const workerjs = new Worker('../../lib/wabt/wabt.js', {type:'module'});
+                    // const ch = new MessageChannel();
+                    // workerjs.postMessage({port: ch.port1}, [ch.port1]); // transfer port
+                    // ch.port2.onmessage = e => { /* state update */ };
+                    
+                </script>
+
+                <script>
+                    let xrSession;
+                    async function enterVR(){
+                        xrSession = await navigator.xr.requestSession('immersive-vr',{requiredFeatures:['local-floor']});
+                        xrSession.addEventListener('end', ()=>{ /* resume flat input & window rAF */ });
+                        xrSession.requestAnimationFrame(onXRFrame);
+                    }
+                    function onXRFrame(t, frame){
+                        const pose = frame.getViewerPose(refSpace);
+                        for (const view of pose.views){ /* render per-eye */ }
+                        xrSession.requestAnimationFrame(onXRFrame);
+                    }
+                </script>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Micro-Engine Demo</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { width: 100vw; height: 100vh; display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="glcanvas"></canvas>
+    <script src="./MinimalEngine/micro-engine.js"></script>
+    <script>
+        const canvas = document.getElementById("glcanvas");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const engine = new MicroEngine(canvas);
+        const gl = engine.gl;
+
+        const vs = `
+            in vec3 pos;
+            in vec4 color;
+            out vec4 v_color;
+            uniform mat4 u_model;
+            uniform mat4 u_view;
+            uniform mat4 u_proj;
+            void main() {
+                gl_Position = u_proj * u_view * u_model * vec4(pos, 1.0);
+                v_color = color;
+            }
+        `;
+
+        const fs = `
+            in vec4 v_color;
+            out vec4 fragColor;
+            void main() {
+                fragColor = v_color;
+            }
+        `;
+
+        const program = engine.createProgram(vs, fs);
+        engine.useProgram(program);
+
+        const cubeData = {
+            pos: [
+                // Front face
+                -1.0, -1.0,  1.0,  1.0, -1.0,  1.0,  1.0,  1.0,  1.0, -1.0,  1.0,  1.0,
+                // Back face
+                -1.0, -1.0, -1.0, -1.0,  1.0, -1.0,  1.0,  1.0, -1.0,  1.0, -1.0, -1.0,
+                // Top face
+                -1.0,  1.0, -1.0, -1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0, -1.0,
+                // Bottom face
+                -1.0, -1.0, -1.0,  1.0, -1.0, -1.0,  1.0, -1.0,  1.0, -1.0, -1.0,  1.0,
+                // Right face
+                 1.0, -1.0, -1.0,  1.0,  1.0, -1.0,  1.0,  1.0,  1.0,  1.0, -1.0,  1.0,
+                // Left face
+                -1.0, -1.0, -1.0, -1.0, -1.0,  1.0, -1.0,  1.0,  1.0, -1.0,  1.0, -1.0,
+            ],
+            color: [
+                // Front face
+                1.0,  0.0,  0.0,  1.0,  1.0,  0.0,  0.0,  1.0,  1.0,  0.0,  0.0,  1.0,  1.0,  0.0,  0.0,  1.0,
+                // Back face
+                0.0,  1.0,  0.0,  1.0,  0.0,  1.0,  0.0,  1.0,  0.0,  1.0,  0.0,  1.0,  0.0,  1.0,  0.0,  1.0,
+                // Top face
+                0.0,  0.0,  1.0,  1.0,  0.0,  0.0,  1.0,  1.0,  0.0,  0.0,  1.0,  1.0,  0.0,  0.0,  1.0,  1.0,
+                // Bottom face
+                1.0,  1.0,  0.0,  1.0,  1.0,  1.0,  0.0,  1.0,  1.0,  1.0,  0.0,  1.0,  1.0,  1.0,  0.0,  1.0,
+                // Right face
+                1.0,  0.0,  1.0,  1.0,  1.0,  0.0,  1.0,  1.0,  1.0,  0.0,  1.0,  1.0,  1.0,  0.0,  1.0,  1.0,
+                // Left face
+                0.0,  1.0,  1.0,  1.0,  0.0,  1.0,  1.0,  1.0,  0.0,  1.0,  1.0,  1.0,  0.0,  1.0,  1.0,  1.0,
+            ],
+            indices: [
+                0,  1,  2,      0,  2,  3,    // front
+                4,  5,  6,      4,  6,  7,    // back
+                8,  9,  10,     8,  10, 11,   // top
+                12, 13, 14,     12, 14, 15,   // bottom
+                16, 17, 18,     16, 18, 19,   // right
+                20, 21, 22,     20, 22, 23,   // left
+            ],
+        };
+
+        const cube = engine.createMesh(cubeData);
+
+        const modelMatrix = M4();
+        const viewMatrix = M4();
+        const projMatrix = M4();
+
+        LOOKAT(viewMatrix, [0, 0, 5], [0, 0, 0], [0, 1, 0]);
+        PERSP(projMatrix, 45, canvas.width / canvas.height, 0.1, 100.0);
+
+        program.uniforms.u_view(viewMatrix);
+        program.uniforms.u_proj(projMatrix);
+
+        let cubeRotation = 0.0;
+        let lastTime = 0;
+
+        function render(time) {
+            time *= 0.001;  // convert time to seconds
+            const deltaTime = time - lastTime;
+            lastTime = time;
+            cubeRotation += deltaTime * 0.5;
+
+            engine.clear();
+            
+            let model = M4();
+            APPLYROT(model, model, cubeRotation, [0,1,0]);
+            APPLYROT(model, model, cubeRotation * .7, [1,0,0]);
+            program.uniforms.u_model(model);
+
+            cube.draw(program);
+
+            requestAnimationFrame(render);
+        }
+        requestAnimationFrame(render);
+
+    </script>
+</body>
+</html>

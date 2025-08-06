@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta author="Justinas Gibas">
+        <title>13kb Engine</title>
+        <style>
+            :root {
+                --background-color: #000000;
+                --text-color: #FFFFFF;
+                user-select: none;
+            }
+            html, body {
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+            }
+            button {
+                border: none;
+                background-color: transparent;
+            }
+            dialog {
+                text-align: center;
+                user-select: none;
+            }
+            [popover] {
+                text-align: center;
+            }
+            li {
+                list-style: none;
+                padding-inline-start: 0;
+            }
+
+        </style>
+    </head>
+    <body>
+        <header>
+            <button onclick="document.getElementById('pauseMenu').showModal(); pauseGame()">Pause Menu</button>
+            <dialog id="pauseMenu">
+                <h2>Game Paused</h2>
+                <li><button onclick="document.getElementById('pauseMenu').close(); resumeGame()">▶ Resume Game</button></li>
+                <br>
+                <li><button onclick="confirmAction().then(result => { if(result) goToMainMenu(); })">⌂ Main Menu</button></li>
+                <br>
+                <li><button onclick="document.getElementById('settingsDialog1').showModal();">⚙ Settings</button></li>
+            </dialog>
+            <dialog id="settingsDialog1">
+                <h2>Settings</h2>
+                <p>Sounds Volume</p>
+                <input type="range" min="0" max="100" value="50" style="width: 80%;" onchange="console.log('Sounds Volume set to:', this.value)">
+                <p>Music Volume</p>
+                <input type="range" min="0" max="100" value="50" style="width: 80%;" onchange="console.log('Music Volume set to:', this.value)">
+                <p>Graphics Quality</p>
+                <select onchange="console.log('Graphics Quality set to:', this.value)">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                </select>
+                <li></li>
+                <br>
+                <li><button onclick="confirmAction().then(result => { if(result) location.reload(); })">↻ Reload Game</button></li>
+                <br>
+                <li><button onclick="document.getElementById('settingsDialog1').close()">✕ Close Settings</button></li>
+            </dialog>
+            <template id="popoverTemplate">
+                <div popover>
+                    <p>popup contents</p>
+                    <button onclick="document.getElementById('confirmDialog1').close()">Close</button>
+                </div>
+            </template>
+        </header>
+        <main>
+            <dialog id="confirmDialog1">
+                <p id="confirmMessage">Are you sure?</p>
+                <button onclick="resolveConfirm(true)">✓ Confirm</button>
+                <button onclick="resolveConfirm(false)">✕ Cancel</button>
+            </dialog>
+            <canvas id="gameCanvas" style="width: 100%; height: 80vh;"></canvas>
+            <script>
+                const canvas = document.getElementById('gameCanvas');
+                const context = canvas.getContext('webgpu');
+                canvas.style.backgroundColor = '#000000';
+
+                let confirmResolve = null;
+
+                // Returns a Promise that resolves to true/false
+                function confirmAction(message = "Are you sure?") {
+                    document.getElementById('confirmMessage').textContent = message;
+                    document.getElementById('confirmDialog1').showModal();
+
+                    return new Promise(resolve => {
+                        confirmResolve = resolve;
+                    });
+                }
+
+                function resolveConfirm(result) {
+                    document.getElementById('confirmDialog1').close();
+                    if (confirmResolve) {
+                        confirmResolve(result);
+                        confirmResolve = null;
+                    }
+                }
+
+                // Example usage functions
+                function goToMainMenu() {
+                    console.log("Going to main menu...");
+                    // Your main menu logic here
+                }
+
+                function resumeGame() {
+                    console.log("Resuming game...");
+                    // Your resume logic here
+                }
+
+                function pauseGame() {
+                    console.log("Game paused");
+                    // Your pause logic here
+                }
+            </script>
+        </main>
+        <footer>
+            <output id="output" style="background-color: rgba(0,0,0,0.5); color: white; padding: 10px;"></output>
+            <button onclick="enterVR()">Enter VR</button>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Matrix Multiplication Compute Shader Demo</title>
+    <style>
+        body { margin: 0; font-family: monospace; background: #222; color: #fff; padding: 20px; }
+        canvas { border: 1px solid #444; }
+        .info { margin-top: 20px; }
+        .performance { color: #0f0; }
+        .error { color: #f00; }
+    </style>
+</head>
+<body>
+    <h1>Matrix Multiplication Performance Test</h1>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <div class="info">
+        <div id="output"></div>
+        <button onclick="runTest()">Run Performance Test</button>
+        <button onclick="runAccuracyTest()">Run Accuracy Test</button>
+    </div>
+
+    <script src="./MinimalEngine/micro-engine.js"></script>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const engine = new MicroEngine(canvas);
+        const output = document.getElementById('output');
+
+        function log(text, className = '') {
+            const div = document.createElement('div');
+            div.textContent = text;
+            if (className) div.className = className;
+            output.appendChild(div);
+        }
+
+        function createRandomMatrix() {
+            return M4([
+                Math.random(), Math.random(), Math.random(), Math.random(),
+                Math.random(), Math.random(), Math.random(), Math.random(),
+                Math.random(), Math.random(), Math.random(), Math.random(),
+                Math.random(), Math.random(), Math.random(), Math.random()
+            ]);
+        }
+
+        function matricesEqual(a, b, tolerance = 0.0001) {
+            for (let i = 0; i < 16; i++) {
+                if (Math.abs(a[i] - b[i]) > tolerance) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function runAccuracyTest() {
+            log('=== Accuracy Test ===');
+            
+            // Check if compute shaders are supported
+            if (!engine.gl.getExtension('KHR_parallel_shader_compile')) {
+                log('Note: Compute shaders may not be fully supported', 'error');
+            }
+
+            const matA = createRandomMatrix();
+            const matB = createRandomMatrix();
+            
+            const resultDOMMatrix = M4();
+            const resultCompute = M4();
+            
+            try {
+                // Test DOMMatrix version
+                MULTMAT4(resultDOMMatrix, matA, matB);
+                log('DOMMatrix multiplication: SUCCESS');
+                
+                // Test Compute Shader version
+                MULTMAT4_COMPUTE(engine, resultCompute, matA, matB);
+                log('Compute shader multiplication: SUCCESS');
+                
+                // Compare results
+                if (matricesEqual(resultDOMMatrix, resultCompute)) {
+                    log('✓ Results match! Compute shader is accurate.', 'performance');
+                } else {
+                    log('✗ Results differ! There may be an issue with the compute shader.', 'error');
+                    console.log('DOMMatrix result:', Array.from(resultDOMMatrix));
+                    console.log('Compute result:', Array.from(resultCompute));
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        function runPerformanceTest() {
+            log('=== Performance Test ===');
+            
+            const iterations = 1000;
+            const matrices = [];
+            
+            // Prepare test matrices
+            for (let i = 0; i < iterations; i++) {
+                matrices.push([createRandomMatrix(), createRandomMatrix()]);
+            }
+            
+            // Test DOMMatrix performance
+            let start = performance.now();
+            const resultDOMMatrix = M4();
+            for (let i = 0; i < iterations; i++) {
+                MULTMAT4(resultDOMMatrix, matrices[i][0], matrices[i][1]);
+            }
+            const domMatrixTime = performance.now() - start;
+            log(`DOMMatrix (${iterations} ops): ${domMatrixTime.toFixed(2)}ms`);
+            
+            try {
+                // Test Compute Shader performance
+                start = performance.now();
+                const resultCompute = M4();
+                for (let i = 0; i < iterations; i++) {
+                    MULTMAT4_COMPUTE(engine, resultCompute, matrices[i][0], matrices[i][1]);
+                }
+                const computeTime = performance.now() - start;
+                log(`Compute Shader (${iterations} ops): ${computeTime.toFixed(2)}ms`);
+                
+                const speedup = domMatrixTime / computeTime;
+                if (speedup > 1) {
+                    log(`🚀 Compute shader is ${speedup.toFixed(2)}x faster!`, 'performance');
+                } else {
+                    log(`⚠️ DOMMatrix is ${(1/speedup).toFixed(2)}x faster. Compute shader overhead may be too high for this operation size.`);
+                }
+            } catch (error) {
+                log(`Compute shader error: ${error.message}`, 'error');
+            }
+        }
+
+        function runTest() {
+            output.innerHTML = '';
+            runAccuracyTest();
+            setTimeout(runPerformanceTest, 100);
+        }
+
+        // Initial test
+        log('Micro-Engine with Compute Shader Matrix Multiplication');
+        log('WebGL2 Context: ' + (engine.gl ? 'Available' : 'Not Available'));
+        
+        if (!engine.gl) {
+            log('WebGL2 is required for compute shaders!', 'error');
+        }
+    </script>
+</body>
+</html>

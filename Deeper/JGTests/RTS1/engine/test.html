@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>JS13k MVP — WAT→WASM + WebGPU + WGSL (inline)</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0a0a0a; color: #ddd; font: 12px/1.4 system-ui, sans-serif; }
+    #ui { position: fixed; left: 8px; top: 8px; z-index: 2; opacity: .9; }
+    #gfx { display: block; width: 100vw; height: 100vh; }
+    code { background:#111; padding:2px 4px; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div><strong>JS13k MVP</strong> — Inline <code>WAT</code> compiled with <code>wabt.js</code>, driving a <code>WGSL</code> shader via <code>WebGPU</code>.</div>
+    <div>Core idea: keep CPU/WAT tiny; push per‑pixel math to WGSL. (SDF/raymarch, palette, walls all happen in shaders.)</div>
+  </div>
+  <canvas id="gfx"></canvas>
+
+  <!--
+    ───────────────────────────────────────────────────────────────────────────
+    STRUCTURE (single‑file prototype) — then we can split into modules later
+    ───────────────────────────────────────────────────────────────────────────
+    1) Inline WAT (tiny runtime): memory + RNG + uniforms + tick()
+       - Writes a small uniform block into linear memory at offset 0.
+       - Later: add sector/portal buffers + visibility list writers here.
+    2) WGSL shader(s): start with a full‑screen triangle that uses time.
+       - Later: add a second pipeline for walls (instanced quads), or an SDF
+         raymarch pass. Shaders own the heavy math (trig, mat4, lighting).
+    3) JS glue: loads wabt, compiles WAT→WASM, creates WebGPU pipeline,
+       copies uniform bytes from WASM memory → GPU uniform buffer, draws.
+
+    WHERE each idea will live (roadmap):
+    - SDF & raymarch core:  WGSL fragment (full‑screen) — cheap pixels, rich look.
+    - Doom‑like walls:      WGSL vertex/fragment (instanced quads) + small CPU culling.
+    - Procedural textures:  WGSL compute (optional) or inline in fragment.
+    - Randomness/params:    WAT writes seeds + uniforms (no trig on CPU).
+    - Camera transforms:    Pass yaw/pitch/pos; build basis in WGSL (avoid CPU trig).
+  -->
+
+  <script type="module">
+    // ————————————————————————————————————————————————————————————————
+    // 0) LOAD WABT (to compile WAT → WASM) — readable dev path first
+    // After you lock the module, precompile to .wasm and drop wabt for bytes.
+    // ————————————————————————————————————————————————————————————————
+    import wabtFactory from 'https://unpkg.com/wabt@1.0.36/index.js';
+    const wabt = await wabtFactory();
+
+    // ————————————————————————————————————————————————————————————————
+    // 1) WAT SOURCE (tiny runtime): memory + RNG + uniforms + tick()
+    //    Uniform layout (float32, contiguous, array-like for easy WGSL):
+    //    [0] time
+    //    [1..3] camX, camY, camZ
+    //    [4] yaw, [5] pitch
+    //    [6] aspect, [7] fov
+    //    [8..15] reserved for future (light params, etc.)
+    // ————————————————————————————————————————————————————————————————
+    const WAT_SOURCE = `(module
+      (memory (export "mem") 1) ;; 64KiB, grows if we need more later
+
+      (global $seed (mut i32) (i32.const 2463534242))
+
+      ;; u32 xorshift32 RNG: tiny & deterministic
+      (func (export "rand_u32") (result i32)
+        (local $x i32)
+        global.get $seed
+        local.set $x
+        local.get $x
+        i32.const 13
+        i32.shl
+        local.get $x
+        i32.xor
+        local.set $x
+        local.get $x
+        i32.const 17
+        i32.shr_u
+        local.get $x
+        i32.xor
+        local.set $x
+        local.get $x
+        i32.const 5
+        i32.shl
+        local.get $x
+        i32.xor
+        local.set $x
+        local.get $x
+        global.set $seed
+        local.get $x)
+
+      (func (export "rand_f32") (result f32)
+        call 0 ;; rand_u32
+        f32.convert_i32_u
+        f32.const 4294967296 ;; 2^32
+        f32.div)
+
+      ;; Write the uniform block at memory offset 0 (32 bytes used now; room for 64)
+      (func (export "tick")
+        (param $time f32) (param $cx f32) (param $cy f32) (param $cz f32)
+        (param $yaw f32)  (param $pit f32) (param $aspect f32) (param $fov f32)
+        ;; [0] time
+        i32.const 0   local.get $time   f32.store
+        ;; [1..3] cam
+        i32.const 4   local.get $cx     f32.store
+        i32.const 8   local.get $cy     f32.store
+        i32.const 12  local.get $cz     f32.store
+        ;; [4] yaw, [5] pitch
+        i32.const 16  local.get $yaw    f32.store
+        i32.const 20  local.get $pit    f32.store
+        ;; [6] aspect, [7] fov
+        i32.const 24  local.get $aspect f32.store
+        i32.const 28  local.get $fov    f32.store)
+
+      ;; Placeholder: build visible wall list later (returns count)
+      (func (export "build_visible") (result i32) (i32.const 0))
+    )`;
+
+    // ————————————————————————————————————————————————————————————————
+    // 2) WGSL SHADER (full‑screen triangle):
+    //    - Uniforms come from WASM memory via a GPU uniform buffer.
+    //    - Keep layout simple: array<f32> so we avoid struct padding games.
+    //    - This is where SDF/raymarch or sector‑wall pipelines will live.
+    // ————————————————————————————————————————————————————————————————
+    const WGSL_FULLSCREEN = /* wgsl */ `
+      @group(0) @binding(0) var<uniform> U : array<f32, 16>;
+
+      struct VSOut {
+        @builtin(position) pos : vec4<f32>,
+        @location(0) uv : vec2<f32>
+      };
+
+      @vertex
+      fn vs(@builtin(vertex_index) vid: u32) -> VSOut {
+        // Full‑screen triangle (no vertex buffer).
+        var p = array<vec2<f32>, 3>(
+          vec2<f32>(-1.0, -1.0),
+          vec2<f32>( 3.0, -1.0),
+          vec2<f32>(-1.0,  3.0)
+        );
+        var o: VSOut;
+        o.pos = vec4<f32>(p[vid], 0.0, 1.0);
+        o.uv = 0.5 * (p[vid] + vec2<f32>(1.0, 1.0));
+        return o;
+      }
+
+      // ── PLACEHOLDER MODES ───────────────────────────────────────────────
+      // 0 = debug gradient; 1 = SDF playground; 2 = Doom‑like wall pass (later)
+      const MODE : u32 = 0u;
+
+      // Hash noise (tiny helper for procedural textures)
+      fn hash2(p: vec2<f32>) -> f32 {
+        // Tiny and readable; replace with bit‑mix hash for better quality when needed.
+        return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453123);
+      }
+
+      // Signed Distance toy (for MODE==1)
+      fn sdCircle(p: vec2<f32>, r: f32) -> f32 {
+        return length(p) - r;
+      }
+
+      @fragment
+      fn fs(inp: VSOut) -> @location(0) vec4<f32> {
+        let time   = U[0];
+        let aspect = U[6];
+        var col: vec3<f32>;
+
+        if (MODE == 0u) {
+          // Debug palette-ish gradient to prove plumbing works.
+          let uv = inp.uv;
+          col = 0.5 + 0.5 * cos(vec3<f32>(0.0, 2.0, 4.0) + time + vec3<f32>(uv.x, uv.y, uv.x+uv.y));
+        } else if (MODE == 1u) {
+          // SDF playground (centered coords): this is where raymarch will live later.
+          let p = (inp.uv * 2.0 - 1.0) * vec2<f32>(aspect, 1.0);
+          let d = sdCircle(p, 0.35 + 0.1 * sin(time));
+          let shade = smoothstep(0.01, 0.0, abs(d));
+          col = mix(vec3<f32>(0.05, 0.08, 0.12), vec3<f32>(0.8, 0.2, 0.1), shade);
+        } else {
+          // Placeholder for Doom‑like wall pipeline (instanced quads)
+          // We'll add a second pipeline for that; this branch remains for completeness.
+          col = vec3<f32>(0.1, 0.1, 0.1);
+        }
+        return vec4<f32>(col, 1.0);
+      }
+    `;
+
+    // ————————————————————————————————————————————————————————————————
+    // 3) JS/WEBGPU GLUE — minimal but explicit and commented
+    // ————————————————————————————————————————————————————————————————
+    const canvas = document.getElementById('gfx');
+
+    if (!('gpu' in navigator)) {
+      document.getElementById('ui').innerHTML += '<div>❌ WebGPU not supported. Try Chrome/Edge/Arc/Firefox Nightly with --enable-unsafe-webgpu.</div>';
+      throw new Error('WebGPU not available');
+    }
+
+    // Set up WebGPU device and context
+    const adapter = await navigator.gpu.requestAdapter();
+    const device = await adapter.requestDevice();
+    const context = canvas.getContext('webgpu');
+    const format = navigator.gpu.getPreferredCanvasFormat();
+
+    // Handle canvas size & DPR
+    const resize = () => {
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      const w = Math.floor(innerWidth * dpr);
+      const h = Math.floor(innerHeight * dpr);
+      canvas.width = w; canvas.height = h;
+      canvas.style.width = '100vw';
+      canvas.style.height = '100vh';
+      context.configure({ device, format, alphaMode: 'opaque' });
+    };
+    addEventListener('resize', resize, { passive: true });
+    resize();
+
+    // Compile WAT → WASM using wabt
+    const wasmBinary = (() => {
+      const module = wabt.parseWat('mvp.wat', WAT_SOURCE, {
+        // readable dev options; shrink later
+        // features: reference-types, etc. left default (MVP only here)
+      });
+      const { buffer } = module.toBinary({
+        log: false,
+        canonicalize_lebs: true,
+        relocations: false,
+        write_debug_names: false,
+        // When shipping: set strip: true, but we keep it readable for now.
+        // strip: true,
+      });
+      module.destroy();
+      return buffer;
+    })();
+
+    const { instance } = await WebAssembly.instantiate(wasmBinary, {});
+    const wasm = instance.exports;
+    const mem = instance.exports.mem; // WebAssembly.Memory
+
+    // Create a GPU uniform buffer — keep it small; align if you add fields
+    const UNIFORM_BYTES = 64; // room for 16 floats (we currently use 8)
+    const ubo = device.createBuffer({ size: UNIFORM_BYTES, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
+    // Create shader module & pipeline
+    const shader = device.createShaderModule({ code: WGSL_FULLSCREEN });
+    const pipeline = device.createRenderPipeline({
+      layout: 'auto',
+      vertex: { module: shader, entryPoint: 'vs' },
+      fragment: { module: shader, entryPoint: 'fs', targets: [{ format }] },
+      primitive: { topology: 'triangle-list' }
+    });
+
+    const bindGroup = device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [ { binding: 0, resource: { buffer: ubo } } ]
+    });
+
+    // Camera params (will live in WASM eventually; kept here for readability)
+    let camX = 0, camY = 1.6, camZ = 2.5, yaw = 0, pitch = 0;
+    let t0 = performance.now();
+
+    function frame() {
+      const now = performance.now();
+      const time = (now - t0) * 0.001;
+      const aspect = canvas.width / canvas.height;
+      const fov = Math.PI / 3; // 60°
+
+      // Write uniform floats into WASM memory via exported tick()
+      wasm.tick(time, camX, camY, camZ, yaw, pitch, aspect, fov);
+
+      // Copy the first 64 bytes of WASM memory to the GPU uniform buffer
+      device.queue.writeBuffer(ubo, 0, mem.buffer, 0, UNIFORM_BYTES);
+
+      // Render pass
+      const encoder = device.createCommandEncoder();
+      const pass = encoder.beginRenderPass({
+        colorAttachments: [{
+          view: context.getCurrentTexture().createView(),
+          clearValue: { r: 0.02, g: 0.02, b: 0.03, a: 1 },
+          loadOp: 'clear',
+          storeOp: 'store'
+        }]
+      });
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindGroup);
+      pass.draw(3, 1, 0, 0);
+      pass.end();
+      device.queue.submit([encoder.finish()]);
+
+      requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+
+    // ────────────────────────────────────────────────────────────────────
+    // NEXT STEPS (annotated, where to plug things in)
+    // ────────────────────────────────────────────────────────────────────
+    // 1) SDF / Raymarch mode:
+    //    - Extend WGSL fragment: add camera basis from yaw/pitch in U[4..6].
+    //    - Raymarch SDF scene (walls as boxes/capsules) in fragment. Zero CPU cost.
+    //
+    // 2) Doom‑like (sectors & walls) mode:
+    //    - Add a storage buffer for walls: struct { ax, az, bx, bz, floor, ceil, matId }.
+    //    - Add a second pipeline (instanced quads). WAT builds a small visible list.
+    //    - Vertex computes view/proj; fragment does palette + fog.
+    //
+    // 3) Procedural materials:
+    //    - Either inline in fragment (hash/fBM) or generate a small 64×1 palette with a compute pass.
+    //    - Sample palette via a single scalar material value.
+    //
+    // 4) Size discipline for JS13k:
+    //    - After you lock features: precompile WAT → .wasm, drop wabt, minify WGSL, gzip/brotli.
+    //    - Keep exports tiny; avoid pulling in math into CPU; push to WGSL.
+  </script>
+</body>
+</html>

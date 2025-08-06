@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="author" content="Justinas Gibas" />
+    <title>13kb Engine (Annotated Scaffold)</title>
+
+    <!--
+      🎯 PURPOSE
+      This single file is a *teaching scaffold* for a JS13k‑style engine using:
+        • WebGPU (render/compute),
+        • WebAssembly (WAT compiled with wabt.js → WASM) for tight CPU logic,
+        • WebXR (optional VR/AR),
+        • WebAudio (procedural sound).
+
+      We intentionally DO NOT finish the implementation here. Instead, we mark
+      clear TODOs with the WHY behind each step so students can implement them.
+
+      🔎 WHAT LIVES WHERE (high‑level design rule)
+      - CPU/WASM: game state, input, culling decisions, small math, packing uniforms.
+      - GPU/WGSL: per‑vertex/pixel math, trig, lighting, procedural textures.
+      - JS: platform glue (WebGPU/WebXR/WebAudio), resource creation, event wiring.
+
+      🧰 Additional tools to be used (bring-your-own copies to keep bytes under control):
+      - wabt.js: compile WAT → WASM in browser (or prebuild offline and just fetch .wasm).
+      - wasm‑tools/wasm‑opt (offline): -Oz, strip names, minimize binary.
+      - A tiny local minifier (optional) for WGSL/JS comments removal.
+
+      📦 13k CONSTRAINT MINDSET
+      - Prefer data generated on GPU (compute) over shipping assets.
+      - Reuse code paths; avoid helper explosions. Inline when it saves bytes.
+      - Push heavy math to WGSL builtins (sin/cos/normalize).
+      - Keep WASM exports/imports minimal; flat, tightly packed memory.
+
+      🧭 LEARNING GOALS
+      1) Set up a WebGPU pipeline and understand the required buffer/texture bindings.
+      2) Understand how WAT→WASM integrates and when to prefer shader math.
+      3) Build a tiny, Doom‑inspired sector/wall world and render it modern‑style.
+      4) Add optional WebXR and WebAudio without breaking the 13k budget mindset.
+    -->
+
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: monospace; }
+      canvas { display: block; width: 100%; height: 100vh; }
+      
+      /* Status overlay for errors and loading */
+      #statusOverlay {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.8);
+        color: #fff;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 12px;
+        z-index: 1000;
+        max-height: 200px;
+        overflow-y: auto;
+        transition: opacity 0.3s;
+      }
+      
+      #statusOverlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      
+      .status-error { color: #ff6b6b; }
+      .status-warning { color: #ffd93d; }
+      .status-success { color: #6bcf7f; }
+      .status-info { color: #74c0fc; }
+      
+      .loading-spinner {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid #333;
+        border-radius: 50%;
+        border-top-color: #74c0fc;
+        animation: spin 1s ease-in-out infinite;
+      }
+      
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <canvas id="gameCanvas"></canvas>
+      <div id="statusOverlay">
+        <div id="statusContent">
+          <div class="status-info">
+            <span class="loading-spinner"></span> Initializing 13KB Engine...
+          </div>
+        </div>
+        <div style="margin-top: 8px; font-size: 10px; opacity: 0.7;">
+          Click to hide this overlay once loaded
+        </div>
+      </div>
+    </main>
+
+    <!-- Enable wabt.js for WAT compilation -->
+    <script src="../../../lib/wabt/wabt.js"></script>
+
+    <script type="module">
+      // =========================
+      // Status/Error Display System
+      // =========================
+      const statusOverlay = document.getElementById('statusOverlay');
+      const statusContent = document.getElementById('statusContent');
+      let statusMessages = [];
+      
+      function addStatus(message, type = 'info') {
+        const timestamp = new Date().toLocaleTimeString();
+        statusMessages.push({ message, type, timestamp });
+        updateStatusDisplay();
+        console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
+      }
+      
+      function updateStatusDisplay() {
+        statusContent.innerHTML = statusMessages.map(({ message, type, timestamp }) => 
+          `<div class="status-${type}">[${timestamp}] ${message}</div>`
+        ).join('');
+        
+        // Auto-hide after 10 seconds if no errors
+        if (statusMessages.every(s => s.type !== 'error')) {
+          setTimeout(() => {
+            if (statusMessages.every(s => s.type !== 'error')) {
+              statusOverlay.classList.add('hidden');
+            }
+          }, 10000);
+        }
+      }
+      
+      // Click to hide overlay
+      statusOverlay.addEventListener('click', () => {
+        statusOverlay.classList.add('hidden');
+      });
+      
+      // Global error handlers
+      window.addEventListener('error', (e) => {
+        addStatus(`Script Error: ${e.message} at ${e.filename}:${e.lineno}`, 'error');
+      });
+      
+      window.addEventListener('unhandledrejection', (e) => {
+        addStatus(`Unhandled Promise Rejection: ${e.reason}`, 'error');
+      });
+
+      // =========================
+      // 0) Feature & environment checks with error handling
+      // =========================
+      const canvas = document.getElementById('gameCanvas');
+      canvas.style.backgroundColor = '#00ff00'; // early visual sanity check
+
+      // Check wabt availability early
+      let wabtAvailable = false;
+      let wabtModule = null;
+
+      // Initialize wabt properly based on how it's actually exposed
+      async function initWabt() {
+        try {
+          addStatus('Checking wabt.js availability...', 'info');
+          
+          if (typeof WabtModule !== 'undefined') {
+            // wabt.js exposes WabtModule function
+            addStatus('Loading WabtModule...', 'info');
+            wabtModule = await WabtModule();
+            wabtAvailable = true;
+            addStatus('WABT initialized successfully', 'success');
+            return true;
+          } else if (typeof wabt !== 'undefined') {
+            // Alternative: check for wabt global
+            wabtModule = await wabt();
+            wabtAvailable = true;
+            addStatus('WABT initialized successfully', 'success');
+            return true;
+          } else if (typeof window.wabt !== 'undefined') {
+            // Another alternative
+            wabtModule = await window.wabt();
+            wabtAvailable = true;
+            addStatus('WABT initialized successfully', 'success');
+            return true;
+          } else {
+            throw new Error('WabtModule not found. Check if wabt.js loaded correctly.');
+          }
+        } catch (error) {
+          addStatus(`WABT initialization failed: ${error.message}`, 'warning');
+          addStatus('Will continue without WASM compilation support', 'info');
+          wabtAvailable = false;
+          return false;
+        }
+      }
+
+      try {
+        if (!('gpu' in navigator)) {
+          throw new Error('WebGPU not supported in this browser. Please use a recent Chrome/Edge with HTTPS.');
+        }
+        addStatus('WebGPU support detected', 'success');
+      } catch (error) {
+        addStatus(error.message, 'error');
+        addStatus('Fallback: Consider using Chrome Canary with --enable-unsafe-webgpu flag', 'warning');
+        throw error;
+      }
+
+      // =========================
+      // 1) WebGPU device + context setup with detailed error reporting
+      // =========================
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const ctx = canvas.getContext('webgpu');
+      let device, queue, format, presentationSize;
+
+      async function initWebGPU() {
+        try {
+          addStatus('Requesting GPU adapter...', 'info');
+          const adapter = await navigator.gpu.requestAdapter({ 
+            powerPreference: 'high-performance',
+            forceFallbackAdapter: false
+          });
+          
+          if (!adapter) {
+            throw new Error('No GPU adapter available. WebGPU may not be enabled.');
+          }
+          addStatus(`GPU Adapter: ${adapter.info?.vendor || 'Unknown'} ${adapter.info?.device || ''}`, 'success');
+          
+          addStatus('Requesting GPU device...', 'info');
+          device = await adapter.requestDevice({
+            requiredLimits: {
+              maxBufferSize: 1024 * 1024, // 1MB should be enough for our demo
+            }
+          });
+          
+          device.addEventListener('uncapturederror', (e) => {
+            addStatus(`GPU Error: ${e.error.message}`, 'error');
+          });
+          
+          queue = device.queue;
+          format = navigator.gpu.getPreferredCanvasFormat();
+          addStatus(`Canvas format: ${format}`, 'info');
+          
+          resize();
+          ctx.configure({ device, format, alphaMode: 'opaque' });
+          addStatus('WebGPU initialized successfully', 'success');
+          
+        } catch (error) {
+          addStatus(`WebGPU initialization failed: ${error.message}`, 'error');
+          throw error;
+        }
+      }
+
+      function resize() {
+        try {
+          const rect = canvas.getBoundingClientRect();
+          presentationSize = [Math.max(1, Math.floor(rect.width * dpr)), Math.max(1, Math.floor(rect.height * dpr))];
+          canvas.width = presentationSize[0];
+          canvas.height = presentationSize[1];
+          
+          // Recreate depth texture if it exists
+          if (depthTexture) {
+            depthTexture.destroy();
+            depthTexture = device.createTexture({
+              size: presentationSize,
+              format: 'depth24plus',
+              usage: GPUTextureUsage.RENDER_ATTACHMENT,
+              label: 'Depth Texture'
+            });
+          }
+          
+          addStatus(`Canvas resized to ${presentationSize[0]}x${presentationSize[1]} (DPR: ${dpr})`, 'info');
+        } catch (error) {
+          addStatus(`Resize failed: ${error.message}`, 'error');
+        }
+      }
+      window.addEventListener('resize', resize);
+
+      // =========================
+      // 2) WAT game core and WGSL shader implementations
+      // =========================
+      const watGameCore = /* wat */ `
+        (module
+          ;; Imports must come first
+          (import "Math" "sin" (func $sin (param f32) (result f32)))
+          (import "Math" "cos" (func $cos (param f32) (result f32)))
+          
+          (memory (export "mem") 1)
+          (global $camX (mut f32) (f32.const 0.0))
+          (global $camY (mut f32) (f32.const 1.0))
+          (global $camZ (mut f32) (f32.const 2.0))
+          (global $yaw (mut f32) (f32.const 0.0))
+          (global $pitch (mut f32) (f32.const 0.0))
+          
+          (func (export "tick") (param $dt f32) (param $input i32)
+            (local $speed f32)
+            (local $dx f32) (local $dz f32)
+            (local $yaw_rad f32)
+            (local $sin_y f32) (local $cos_y f32)
+
+            (local.set $speed (f32.mul (local.get $dt) (f32.const 5.0)))
+            (local.set $yaw_rad (global.get $yaw))
+            (local.set $sin_y (call $sin (local.get $yaw_rad)))
+            (local.set $cos_y (call $cos (local.get $yaw_rad)))
+
+            (local.set $dx (f32.const 0.0))
+            (local.set $dz (f32.const 0.0))
+
+            ;; Forward/backward (W/S)
+            (if (i32.and (local.get $input) (i32.const 1))
+              (then
+                (local.set $dz (f32.add (local.get $dz) (local.get $speed)))))
+            (if (i32.and (local.get $input) (i32.const 2))
+              (then
+                (local.set $dz (f32.sub (local.get $dz) (local.get $speed)))))
+            
+            ;; Strafe left/right (A/D)
+            (if (i32.and (local.get $input) (i32.const 4))
+              (then
+                (local.set $dx (f32.sub (local.get $dx) (local.get $speed)))))
+            (if (i32.and (local.get $input) (i32.const 8))
+              (then
+                (local.set $dx (f32.add (local.get $dx) (local.get $speed)))))
+
+            (global.set $camX (f32.add (global.get $camX) (f32.add (f32.mul (local.get $dx) (local.get $cos_y)) (f32.mul (local.get $dz) (local.get $sin_y)))))
+            (global.set $camZ (f32.add (global.get $camZ) (f32.sub (f32.mul (local.get $dz) (local.get $cos_y)) (f32.mul (local.get $dx) (local.get $sin_y)))))
+            
+            ;; Turn left/right
+            (if (i32.and (local.get $input) (i32.const 16))
+              (then (global.set $yaw (f32.sub (global.get $yaw) (f32.mul (local.get $dt) (f32.const 2.0))))))
+            (if (i32.and (local.get $input) (i32.const 32))
+              (then (global.set $yaw (f32.add (global.get $yaw) (f32.mul (local.get $dt) (f32.const 2.0))))))
+            
+            ;; Write camera data to memory for GPU
+            (f32.store (i32.const 4) (global.get $camX))
+            (f32.store (i32.const 8) (global.get $camY))
+            (f32.store (i32.const 12) (global.get $camZ))
+            (f32.store (i32.const 16) (global.get $yaw))
+            (f32.store (i32.const 20) (global.get $pitch)))
+          
+          (func (export "getCamX") (result f32) (global.get $camX))
+          (func (export "getCamY") (result f32) (global.get $camY))
+          (func (export "getCamZ") (result f32) (global.get $camZ))
+          (func (export "getYaw") (result f32) (global.get $yaw))
+          (func (export "getPitch") (result f32) (global.get $pitch))
+          (func (export "rand_u32") (result i32) (i32.const 42)))
+      `;
+
+      const vsWGSL = /* wgsl */ `
+        struct UBO { 
+          time: f32, 
+          camPos: vec3<f32>, 
+          yaw: f32, 
+          pitch: f32, 
+          aspect: f32, 
+          fov: f32,
+          _pad: f32
+        }
+        @group(0) @binding(0) var<uniform> U : UBO;
+        
+        struct VSOut { 
+          @builtin(position) pos: vec4<f32>, 
+          @location(0) wpos: vec3<f32>, 
+          @location(1) uv: vec2<f32>,
+          @location(2) wallId: f32
+        }
+        
+        struct Wall {
+          p1: vec3<f32>,
+          p2: vec3<f32>,
+          height: f32,
+          texId: f32
+        }
+        @group(0) @binding(1) var<storage, read> walls: array<Wall>;
+
+        fn rotationY(angle: f32) -> mat3x3<f32> {
+          let s = sin(angle);
+          let c = cos(angle);
+          return mat3x3<f32>(
+            c, 0.0, -s,
+            0.0, 1.0, 0.0,
+            s, 0.0, c
+          );
+        }
+
+        fn perspective(fov: f32, aspect: f32, near: f32, far: f32) -> mat4x4<f32> {
+            let f = 1.0 / tan(fov / 2.0);
+            return mat4x4<f32>(
+                f / aspect, 0.0, 0.0, 0.0,
+                0.0, f, 0.0, 0.0,
+                0.0, 0.0, (far + near) / (near - far), -1.0,
+                0.0, 0.0, (2.0 * far * near) / (near - far), 0.0
+            );
+        }
+        
+        @vertex fn vs_main(@builtin(vertex_index) vid: u32, @builtin(instance_index) iid: u32) -> VSOut {
+          let wall = walls[iid];
+          let p1 = wall.p1;
+          let p2 = wall.p2;
+          let h = wall.height;
+
+          var localPos: vec3<f32>;
+          var uv: vec2<f32>;
+
+          // Create a quad from two triangles for each wall
+          switch (vid) {
+              case 0u: { localPos = p1; uv = vec2(0.0, 1.0); }
+              case 1u: { localPos = p2; uv = vec2(1.0, 1.0); }
+              case 2u: { localPos = vec3(p1.x, h, p1.z); uv = vec2(0.0, 0.0); }
+              case 3u: { localPos = vec3(p2.x, h, p2.z); uv = vec2(1.0, 0.0); }
+              case 4u: { localPos = vec3(p1.x, h, p1.z); uv = vec2(0.0, 0.0); }
+              case 5u: { localPos = p2; uv = vec2(1.0, 1.0); }
+              default: { localPos = vec3(0.0); uv = vec2(0.0); }
+          }
+          
+          let projMatrix = perspective(U.fov, U.aspect, 0.1, 100.0);
+          let viewMatrix = rotationY(-U.yaw);
+
+          let worldPos = localPos;
+          let viewPos = viewMatrix * (worldPos - U.camPos);
+          
+          var o: VSOut;
+          o.pos = projMatrix * vec4<f32>(viewPos, 1.0);
+          o.wpos = worldPos;
+          o.uv = uv;
+          o.wallId = f32(iid);
+          return o;
+        }
+      `;
+
+      const fsWGSL = /* wgsl */ `
+        struct UBO { 
+          time: f32, 
+          camPos: vec3<f32>, 
+          yaw: f32, 
+          pitch: f32, 
+          aspect: f32, 
+          fov: f32,
+          _pad: f32
+        }
+        @group(0) @binding(0) var<uniform> U : UBO;
+        
+        @fragment fn fs_main(
+          @location(0) wpos: vec3<f32>,
+          @location(1) uv: vec2<f32>,
+          @location(2) wallId: f32
+        ) -> @location(0) vec4<f32> {
+          // Different colors for different objects
+          var baseColor = vec3(0.8, 0.8, 0.8); // Default wall color
+          
+          // Color coding based on texId (stored in wallId for now)
+          if (wallId >= 8.0) {
+            // Test cube (bright red)
+            baseColor = vec3(1.0, 0.2, 0.2);
+          } else if (wallId >= 4.0) {
+            // Ground plane (dark green with grid)
+            baseColor = vec3(0.2, 0.4, 0.2);
+            let grid = step(0.05, fract(wpos.x)) * step(0.05, fract(wpos.z));
+            baseColor = mix(vec3(0.1, 0.3, 0.1), baseColor, grid);
+          } else {
+            // Original walls (light gray)
+            baseColor = vec3(0.7, 0.7, 0.7);
+          }
+
+          // Simple lighting
+          let lightDir = normalize(vec3(0.5, 1.0, -0.5));
+          let normal = vec3(0.0, 1.0, 0.0); // Simplified normal
+          let diffuse = max(dot(normal, lightDir), 0.3);
+
+          return vec4(baseColor * diffuse, 1.0);
+        }
+      `;
+
+      // Optional: a compute shader to generate a 64×1 palette texture at startup.
+      const makePaletteWGSL = /* wgsl */ `
+        @group(0) @binding(0) var outTex : texture_storage_2d<rgba8unorm, write>;
+        @compute @workgroup_size(64)
+        fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+          if (gid.x >= 64u) { return; }
+          let t = f32(gid.x) / 63.0;
+          // TODO(Student): Choose a palette function; explain artistic intent.
+          let col = vec3<f32>(t, t * t, sqrt(t));
+          textureStore(outTex, vec2<i32>(i32(gid.x), 0), vec4<f32>(col, 1.0));
+        }
+      `;
+
+      // =========================
+      // 3) WAT → WASM (two paths)
+      // =========================
+      /** WHY:
+       *  We want a tiny CPU core for game logic without lib bloat.
+       *  Two options:
+       *    A) Offline: pre‑compile to .wasm and fetch it (smaller total bytes, simpler runtime).
+       *    B) In‑browser: use wabt.js to compile WAT strings → WASM (great for teaching, heavier bytes).
+       */
+
+      // --- Path A (recommended for size): fetch prebuilt WASM ---
+      async function loadWasmPrebuilt(url, imports = {}) {
+        const res = await fetch(url);
+        const bytes = await res.arrayBuffer();
+        const { instance } = await WebAssembly.instantiate(bytes, imports);
+        return instance;
+      }
+
+      // --- Path B (teaching): compile WAT string via wabt.js with proper error handling ---
+      async function compileWatStringToWasmInstance(watSource, imports = {}) {
+        try {
+          if (!wabtAvailable || !wabtModule) {
+            throw new Error('WABT not available. Make sure wabt.js loaded correctly.');
+          }
+          
+          addStatus('Parsing WAT source...', 'info');
+          const parsed = wabtModule.parseWat('game.wat', watSource);
+          
+          addStatus('Compiling WAT to WASM...', 'info');
+          const { buffer } = parsed.toBinary({ log: false, write_debug_names: false });
+          
+          addStatus(`WASM binary size: ${buffer.byteLength} bytes`, 'info');
+          const result = await WebAssembly.instantiate(buffer, {Math});
+          
+          addStatus('WASM module instantiated successfully', 'success');
+          return result.instance;
+          
+        } catch (error) {
+          addStatus(`WASM compilation failed: ${error.message}`, 'error');
+          throw error;
+        }
+      }
+
+      // Add a fallback WASM that just provides dummy functions
+      const fallbackWasm = {
+        exports: {
+          mem: { buffer: new ArrayBuffer(1024) },
+          tick: () => {},
+          getCamX: () => 0,
+          getCamY: () => 1.6,
+          getCamZ: () => 0,
+          getYaw: () => 0,
+          getPitch: () => 0,
+          rand_u32: () => Math.floor(Math.random() * 0xFFFFFFFF)
+        }
+      };
+
+      // =========================
+      // 4) GPU resources & pipeline with error handling
+      // =========================
+      let uniformBuffer, wallBuffer, pipeline, bindGroup, wasmInstance, depthTexture;
+      let inputState = 0;
+
+      function createResources() {
+        try {
+          addStatus('Creating GPU resources...', 'info');
+          
+          const uboSize = 4 * 12; // 12 f32s to match shader expectation
+          uniformBuffer = device.createBuffer({ 
+            size: uboSize, 
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+            label: 'Uniform Buffer'
+          });
+
+          // Create a simple test level: 4 walls forming a room + ground plane + test cube
+          const wallData = new Float32Array([
+            // Wall 1: Front wall (p1.xyz, p2.xyz, height, texId)
+            -3, 0, -3,  3, 0, -3,  2, 0,
+            // Wall 2: Right wall
+             3, 0, -3,  3, 0,  3,  2, 0,
+            // Wall 3: Back wall
+             3, 0,  3, -3, 0,  3,  2, 0,
+            // Wall 4: Left wall
+            -3, 0,  3, -3, 0, -3,  2, 0,
+            
+            // Ground plane (large horizontal quad)
+            -10, 0, -10,  10, 0, -10,  0, 1,  // Front edge of ground
+            10, 0, -10,  10, 0,  10,  0, 1,   // Right edge of ground  
+            10, 0,  10, -10, 0,  10,  0, 1,   // Back edge of ground
+            -10, 0,  10, -10, 0, -10,  0, 1,  // Left edge of ground
+            
+            // Test cube right in front of camera (small cube at z=1)
+            -0.5, 0, 1,   0.5, 0, 1,   1, 2,   // Front face of cube
+             0.5, 0, 1,   0.5, 0, 2,   1, 2,   // Right face of cube
+             0.5, 0, 2,  -0.5, 0, 2,   1, 2,   // Back face of cube
+            -0.5, 0, 2,  -0.5, 0, 1,   1, 2,   // Left face of cube
+          ]);
+          
+          console.log('=== WALL DATA DEBUG ===');
+          console.log('Wall count:', wallData.length / 8);
+          console.log('Wall data:', wallData);
+          for (let i = 0; i < wallData.length / 8; i++) {
+            const offset = i * 8;
+            console.log(`Wall ${i + 1}:`, 
+              `p1(${wallData[offset]}, ${wallData[offset + 1]}, ${wallData[offset + 2]})`,
+              `p2(${wallData[offset + 3]}, ${wallData[offset + 4]}, ${wallData[offset + 5]})`,
+              `height: ${wallData[offset + 6]}, texId: ${wallData[offset + 7]}`);
+          }
+          
+          wallBuffer = device.createBuffer({ 
+            size: wallData.byteLength, 
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+            label: 'Wall Buffer'
+          });
+          queue.writeBuffer(wallBuffer, 0, wallData);
+          addStatus(`Created wall buffer with ${wallData.length / 8} walls`, 'info');
+
+          // Create depth texture
+          depthTexture = device.createTexture({
+            size: presentationSize,
+            format: 'depth24plus',
+            usage: GPUTextureUsage.RENDER_ATTACHMENT,
+            label: 'Depth Texture'
+          });
+
+          addStatus('Compiling shaders...', 'info');
+          const vertexModule = device.createShaderModule({ 
+            code: vsWGSL,
+            label: 'Vertex Shader'
+          });
+          const fragmentModule = device.createShaderModule({ 
+            code: fsWGSL,
+            label: 'Fragment Shader'
+          });
+
+          pipeline = device.createRenderPipeline({
+            layout: 'auto',
+            vertex: { 
+              module: vertexModule,
+              entryPoint: 'vs_main' 
+            },
+            fragment: { 
+              module: fragmentModule,
+              entryPoint: 'fs_main', 
+              targets: [{ format }] 
+            },
+            primitive: { topology: 'triangle-list', cullMode: 'none' },
+            depthStencil: {
+              depthWriteEnabled: true,
+              depthCompare: 'less',
+              format: 'depth24plus'
+            },
+            label: 'Main Render Pipeline'
+          });
+
+          bindGroup = device.createBindGroup({
+            layout: pipeline.getBindGroupLayout(0),
+            entries: [
+              { binding: 0, resource: { buffer: uniformBuffer } },
+              { binding: 1, resource: { buffer: wallBuffer } },
+            ],
+            label: 'Main Bind Group'
+          });
+          
+          addStatus('GPU resources created successfully', 'success');
+          
+        } catch (error) {
+          addStatus(`Resource creation failed: ${error.message}`, 'error');
+          throw error;
+        }
+      }
+
+      // =========================
+      // 5) Input handling
+      // =========================
+      const keys = {};
+      window.addEventListener('keydown', e => keys[e.code] = true);
+      window.addEventListener('keyup', e => keys[e.code] = false);
+      
+      function updateInputState() {
+        inputState = 0;
+        if (keys['KeyW'] || keys['ArrowUp']) inputState |= 1;
+        if (keys['KeyS'] || keys['ArrowDown']) inputState |= 2;
+        if (keys['KeyA']) inputState |= 4;
+        if (keys['KeyD']) inputState |= 8;
+        if (keys['ArrowLeft']) inputState |= 16;
+        if (keys['ArrowRight']) inputState |= 32;
+      }
+
+      // =========================
+      // 6) Enhanced frame loop with error handling
+      // =========================
+      let start = performance.now();
+      let lastTime = 0;
+      let frameCount = 0;
+      
+      function frame(currentTime) {
+        try {
+          const t = (currentTime - start) / 1000;
+          const dt = Math.min(0.016, (currentTime - lastTime) / 1000);
+          lastTime = currentTime;
+          frameCount++;
+          
+          updateInputState();
+          
+          // Update game state via WASM or fallback
+          if (wasmInstance && wasmInstance !== fallbackWasm) {
+            wasmInstance.exports.tick(dt, inputState);
+            
+            // Read camera data from WASM memory and create full uniform array
+            const wasmMemory = new Float32Array(wasmInstance.exports.mem.buffer);
+            const uniforms = new Float32Array(12);
+            uniforms[0] = t; // time
+            uniforms[1] = wasmMemory[1] || 0; // camPos.x (from WASM memory offset 4/4 = 1)
+            uniforms[2] = wasmMemory[2] || 1.0; // camPos.y (from WASM memory offset 8/4 = 2)
+            uniforms[3] = wasmMemory[3] || 2.0; // camPos.z (from WASM memory offset 12/4 = 3)
+            uniforms[4] = wasmMemory[4] || 0; // yaw (from WASM memory offset 16/4 = 4)
+            uniforms[5] = wasmMemory[5] || 0; // pitch (from WASM memory offset 20/4 = 5)
+            uniforms[6] = presentationSize[0] / presentationSize[1]; // aspect
+            uniforms[7] = Math.PI / 3; // fov (60 degrees)
+            // uniforms[8-11] remain 0 (padding)
+            
+            // Debug logging every 60 frames
+            if (frameCount % 60 === 0) {
+              console.log('=== FRAME DEBUG ===');
+              console.log('Time:', t.toFixed(2));
+              console.log('Camera pos:', uniforms[1].toFixed(2), uniforms[2].toFixed(2), uniforms[3].toFixed(2));
+              console.log('Yaw/Pitch:', uniforms[4].toFixed(3), uniforms[5].toFixed(3));
+              console.log('Aspect/FOV:', uniforms[6].toFixed(3), uniforms[7].toFixed(3));
+              console.log('Input state:', inputState);
+              console.log('WASM memory first 6 floats:', Array.from(wasmMemory.slice(0, 6)));
+            }
+            
+            queue.writeBuffer(uniformBuffer, 0, uniforms);
+          } else {
+            // Fallback: create uniforms manually in JS
+            const uniforms = new Float32Array(12);
+            uniforms[0] = t; // time
+            uniforms[1] = 0; // camPos.x
+            uniforms[2] = 1.0; // camPos.y
+            uniforms[3] = 2.0; // camPos.z
+            uniforms[4] = 0; // yaw
+            uniforms[5] = 0; // pitch
+            uniforms[6] = presentationSize[0] / presentationSize[1]; // aspect
+            uniforms[7] = Math.PI / 3; // fov
+            // uniforms[8-11] remain 0 (padding)
+            
+            if (frameCount % 60 === 0) {
+              console.log('=== FALLBACK MODE DEBUG ===');
+              console.log('Using JS fallback, camera at:', uniforms[1], uniforms[2], uniforms[3]);
+            }
+            
+            queue.writeBuffer(uniformBuffer, 0, uniforms);
+          }
+
+          const encoder = device.createCommandEncoder({ label: 'Main Command Encoder' });
+          const view = ctx.getCurrentTexture().createView();
+          const pass = encoder.beginRenderPass({ 
+            colorAttachments: [{ 
+              view, 
+              loadOp: 'clear', 
+              clearValue: { r: 0.1, g: 0.2, b: 0.4, a: 1 }, 
+              storeOp: 'store' 
+            }],
+            depthStencilAttachment: {
+              view: depthTexture.createView(),
+              depthClearValue: 1.0,
+              depthLoadOp: 'clear',
+              depthStoreOp: 'store'
+            },
+            label: 'Main Render Pass'
+          });
+          
+          pass.setPipeline(pipeline);
+          pass.setBindGroup(0, bindGroup);
+          
+          // Debug: Log draw call details every 60 frames
+          if (frameCount % 60 === 0) {
+            console.log('=== DRAW CALL DEBUG ===');
+            console.log('Drawing walls and objects: 6 vertices per instance, 12 instances total');
+            console.log('Instances: 4 walls + 4 ground + 4 test cube = 12');
+            console.log('Pipeline bound:', !!pipeline);
+            console.log('BindGroup bound:', !!bindGroup);
+          }
+          
+          pass.draw(6, 12, 0, 0);
+          pass.end();
+          
+          queue.submit([encoder.finish()]);
+          
+          // Log FPS every 60 frames
+          if (frameCount % 60 === 0) {
+            const fps = Math.round(1000 / (currentTime - (start + (frameCount - 60) * 16.67)));
+            addStatus(`Rendering at ~${fps} FPS`, 'info');
+            
+            // Debug camera position when WASM is working
+            if (wasmInstance && wasmInstance !== fallbackWasm) {
+              const camX = wasmInstance.exports.getCamX();
+              const camY = wasmInstance.exports.getCamY();
+              const camZ = wasmInstance.exports.getCamZ();
+              const yaw = wasmInstance.exports.getYaw();
+              addStatus(`Camera: (${camX.toFixed(2)}, ${camY.toFixed(2)}, ${camZ.toFixed(2)}) Yaw: ${(yaw * 180 / Math.PI).toFixed(1)}°`, 'info');
+            }
+            
+            console.log('=== RENDER STATUS ===');
+            console.log('Frame:', frameCount);
+            console.log('Clear color should be visible');
+            console.log('Expected: Blue background with colored walls');
+            console.log('If only blue: walls are not rendering');
+          }
+          
+          requestAnimationFrame(frame);
+          
+        } catch (error) {
+          addStatus(`Frame rendering failed: ${error.message}`, 'error');
+          // Try to continue after a short delay
+          setTimeout(() => requestAnimationFrame(frame), 100);
+        }
+      }
+
+      // =========================
+      // 6) WebXR (optional, scaffold only)
+      // =========================
+      /** WHY:
+       *  JS13k allows experimental extras, but XR must be opt‑in via user gesture.
+       *  You need to render per‑eye using XRView matrices and a WebGPU swapchain from XR.
+       *  Teaching tip: wire XR *after* flat rendering works.
+       */
+      async function tryEnterVR() {
+        if (!('xr' in navigator)) { alert('WebXR not available'); return; }
+        const supported = await navigator.xr.isSessionSupported('immersive-vr');
+        if (!supported) { alert('VR not supported on this device'); return; }
+        // TODO(Student): navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['local-floor'] })
+        // Use session.requestAnimationFrame(onXRFrame) instead of window.rAF.
+        // Acquire per‑eye views & projection, render twice per frame.
+      }
+
+      // =========================
+      // 7) WebAudio (optional, scaffold only)
+      // =========================
+      /** WHY:
+       *  Procedural audio fits 13k: synth tones, simple drums, SFX envelopes.
+       *  MUST be started by a user gesture (click) due to autoplay policies.
+       */
+      let audioCtx, masterGain;
+      function initAudio() {
+        if (audioCtx) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0.2; // keep ears safe
+        masterGain.connect(audioCtx.destination);
+        // TODO(Student): createOscillator / AudioWorklet for custom synth; connect to masterGain.
+      }
+      window.addEventListener('pointerdown', initAudio, { once: true });
+
+      // =========================
+      // 8) Enhanced boot sequence with comprehensive error handling
+      // =========================
+      (async function boot() {
+        try {
+          addStatus('Starting 13KB Engine initialization...', 'info');
+          
+          // Initialize wabt first
+          await initWabt();
+          
+          await initWebGPU();
+          createResources();
+          
+          // Load WASM game core
+          try {
+            if (wabtAvailable) {
+              addStatus('Loading WASM game core...', 'info');
+              wasmInstance = await compileWatStringToWasmInstance(watGameCore, {});
+              addStatus('WASM game core loaded successfully', 'success');
+            } else {
+              addStatus('Using fallback mode (no WASM)', 'warning');
+              wasmInstance = fallbackWasm;
+            }
+          } catch (e) {
+            addStatus(`WASM loading failed: ${e.message}`, 'warning');
+            addStatus('Falling back to JS-only mode', 'info');
+            wasmInstance = fallbackWasm;
+          }
+          
+          addStatus('Starting render loop...', 'info');
+          requestAnimationFrame(frame);
+          
+          const controls = wasmInstance === fallbackWasm ? 
+            'Static camera mode (WASM not available)' : 
+            'Use WASD/Arrow keys to move';
+          addStatus(`🎮 13KB Engine ready! ${controls}`, 'success');
+          
+        } catch (err) {
+          addStatus(`Boot failed: ${err.message}`, 'error');
+          addStatus('Check console for detailed error information', 'warning');
+          console.error('Detailed boot error:', err);
+        }
+      })();
+
+      // =========================
+      // 9) Updated student goals
+      // =========================
+      /**
+       * COMPLETED (basic foundation provided):
+       * [✓] Basic WebGPU setup and shader pipeline
+       * [✓] Simple room geometry with 4 walls
+       * [✓] WAT/WASM integration with camera movement
+       * [✓] Basic input handling (WASD + arrow keys)
+       * [✓] Procedural brick texture in fragment shader
+       * 
+       * STUDENT GOALS - Level 1 (Core Functionality):
+       * [ ] Add backward movement and strafing to WASM tick function
+       * [ ] Implement mouse look for pitch/yaw control  
+       * [ ] Add collision detection against walls in WASM
+       * [ ] Calculate proper wall normals for lighting
+       * [ ] Add depth buffer and proper 3D rendering
+       * 
+       * STUDENT GOALS - Level 2 (Enhanced Graphics):
+       * [ ] Implement the compute shader for procedural palette generation
+       * [ ] Add multiple texture types based on wall texId
+       * [ ] Implement distance-based fog properly
+       * [ ] Add animated elements (flickering lights, moving textures)
+       * [ ] Create sprites/billboards for objects and enemies
+       * 
+       * STUDENT GOALS - Level 3 (Game Systems):
+       * [ ] Design and implement a proper sector-based level format
+       * [ ] Add doors that can open/close with animation
+       * [ ] Implement raycasting for weapon/interaction systems
+       * [ ] Add game entities (pickups, enemies) managed by WASM
+       * [ ] Create a simple inventory and health system
+       * 
+       * STUDENT GOALS - Level 4 (Advanced Features):
+       * [ ] WebXR integration for VR rendering
+       * [ ] Procedural audio for footsteps, ambient sounds
+       * [ ] Post-processing effects (screen-space reflections, bloom)
+       * [ ] Level generation using compute shaders
+       * [ ] Optimize for 13KB: minify, compress, remove debug code
+       * 
+       * TEACHING NOTES:
+       * - Students should test each level before moving to the next
+       * - Encourage experimentation with different procedural patterns
+       * - Emphasize the CPU/GPU division of labor principle
+       * - Profile performance and discuss optimization strategies
+       */
+    </script>
+  </body>
+</html>
+       * [ ] Level generation using compute shaders
+       * [ ] Optimize for 13KB: minify, compress, remove debug code
+       * 
+       * TEACHING NOTES:
+       * - Students should test each level before moving to the next
+       * - Encourage experimentation with different procedural patterns
+       * - Emphasize the CPU/GPU division of labor principle
+       * - Profile performance and discuss optimization strategies
+       */
+    </script>
+  </body>
+</html>

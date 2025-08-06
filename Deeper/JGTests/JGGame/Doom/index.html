@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Doom-like Raycaster</title>
+  <style>
+    /* Reset margins and make canvas full-screen */
+    body, html { margin: 0; padding: 0; overflow: hidden; }
+    /* Ensure canvas stays behind dialogs */
+    canvas { display: block; position: relative; z-index: 0; }
+    /* Style dialogs above canvas */
+    dialog { border: none; padding: 20px; background: rgba(255,255,255,0.95); z-index: 1000; }
+    /* Dim background when dialog is open */
+    dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+    #startScreen, #pauseScreen {
+      position: absolute;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+    }
+  </style>
+</head>
+<body>
+  <!-- Start screen dialog -->
+  <dialog id="startScreen">
+    <h2>Doom Demo</h2>
+    <button id="startBtn">Start Game</button>
+  </dialog>
+  <!-- Pause screen dialog -->
+  <dialog id="pauseScreen">
+    <h2>Game Paused</h2>
+    <button id="resumeBtn">Resume</button>
+  </dialog>
+  <!-- Main rendering canvas -->
+  <canvas id="gameCanvas"></canvas>
+  <script>
+    // Grab DOM elements
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startScreen = document.getElementById('startScreen');
+    const pauseScreen = document.getElementById('pauseScreen');
+    const startBtn = document.getElementById('startBtn');
+    const resumeBtn = document.getElementById('resumeBtn');
+
+    /**
+     * @typedef {'start'|'running'|'paused'} GameState
+     */
+    /**
+     * The current state of the game.
+     * 'start' shows the start screen, 'running' is active play, 'paused' shows pause UI.
+     * @type {GameState}
+     */
+    let gameState = 'start';
+    /**
+     * Tracks which keys are currently pressed. Key names are lowercase.
+     * @type {{[key: string]: boolean}}
+     */
+    const keys = {};
+    /** Movement speed (map units per frame) */
+    const moveSpeed = 0.05;
+    /** Rotation speed (radians per frame) */
+    const rotSpeed = 0.03;
+
+    /**
+     * Rotates the player's direction and camera plane.
+     * @param {number} angle - The angle to rotate by (positive for right, negative for left).
+     */
+    function rotatePlayer(angle) {
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const oldDirX = player.dirX;
+      player.dirX = player.dirX * cos - player.dirY * sin;
+      player.dirY = oldDirX * sin + player.dirY * cos;
+      const oldPlaneX = player.planeX;
+      player.planeX = player.planeX * cos - player.planeY * sin;
+      player.planeY = oldPlaneX * sin + player.planeY * cos;
+    }
+
+    /**
+     * Moves the player by a given amount, handling collisions.
+     * @param {number} dx - The change in the x-direction.
+     * @param {number} dy - The change in the y-direction.
+     */
+    function movePlayer(dx, dy) {
+      const nextX = player.x + dx;
+      const nextY = player.y + dy;
+      // Check for wall collision on the x-axis
+      if (worldMap[Math.floor(player.y)][Math.floor(nextX)] === 0) {
+        player.x = nextX;
+      }
+      // Check for wall collision on the y-axis
+      if (worldMap[Math.floor(nextY)][Math.floor(player.x)] === 0) {
+        player.y = nextY;
+      }
+    }
+
+    /**
+     * Handle player movement and rotation based on pressed keys:
+     * W/S forward-back; A/D strafe; Q/E rotate left/right.
+     */
+    function handleMovement() {
+      // Move forward (W)
+      if (keys['w']) {
+        movePlayer(player.dirX * moveSpeed, player.dirY * moveSpeed);
+      }
+      // Move backward (S)
+      if (keys['s']) {
+        movePlayer(-player.dirX * moveSpeed, -player.dirY * moveSpeed);
+      }
+      // Strafe left (A)
+      if (keys['a']) {
+        movePlayer(-player.planeX * moveSpeed, -player.planeY * moveSpeed);
+      }
+      // Strafe right (D)
+      if (keys['d']) {
+        movePlayer(player.planeX * moveSpeed, player.planeY * moveSpeed);
+      }
+      // Rotate left (Q)
+      if (keys['q']) {
+        rotatePlayer(rotSpeed);
+      }
+      // Rotate right (E)
+      if (keys['e']) {
+        rotatePlayer(-rotSpeed);
+      }
+    }
+    // Listen for key presses/releases to update keys map
+    document.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      keys[key] = true;
+
+      // Listen for Esc to toggle pause
+      if (key === 'escape' && gameState === 'running') {
+        gameState = 'paused'; // update state
+        cancelAnimationFrame(animationId); // halt loop
+        // Show pause dialog, with fallback
+        if (typeof pauseScreen.showModal === 'function') {
+          pauseScreen.showModal();
+        } else {
+          pauseScreen.show(); // fallback for browsers without dialog.showModal
+        }
+      }
+    });
+    document.addEventListener('keyup',   (e) => { keys[e.key.toLowerCase()] = false; });
+
+    // Resize canvas to fill window
+    /**
+     * Adjust the canvas dimensions to fill the browser window.
+     */
+    function resize() {
+      canvas.width = window.innerWidth; // match canvas width
+      canvas.height = window.innerHeight; // match canvas height
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // -- World Map Definition (1 = wall, 0 = empty) --
+    const worldMap = [
+      [1,1,1,1,1,1,1,1],
+      [1,0,0,0,0,0,0,1],
+      [1,0,1,0,1,0,0,1],
+      [1,0,0,0,0,1,0,1],
+      [1,1,1,1,1,1,1,1]
+    ];
+
+    // -- Player State --
+    const player = {
+      x: 3.5, // Player position in map grid
+      y: 3.5,
+      dirX: -1, // Initial direction vector
+      dirY: 0,
+      planeX: 0, // 2D raycaster camera plane
+      planeY: 0.66
+    };
+
+    let animationId;
+
+    // Show start dialog on load
+    if (typeof startScreen.showModal === 'function') {
+      startScreen.showModal();
+    } else {
+      startScreen.show(); // fallback for browsers without modal support
+    }
+
+    startBtn.addEventListener('click', () => {
+      // Move from 'start' to 'running' state and start loop
+      gameState = 'running';
+      startScreen.close();
+      gameLoop(); // kick off the rendering loop
+    });
+
+    resumeBtn.addEventListener('click', () => {
+      // Resume from pause state
+      gameState = 'running';
+      pauseScreen.close();
+      gameLoop(); // restart loop
+    });
+
+    // JSDoc for main loop
+    /**
+     * Main game loop: renders scene and requests next frame if still running.
+     */
+    function gameLoop() {
+      if (gameState !== 'running') return; // stop if not playing
+      handleMovement(); // update player before drawing
+      render();         // draw frame
+      animationId = requestAnimationFrame(gameLoop); // schedule next
+    }
+
+    /**
+     * Render the 3D scene by casting rays for each vertical stripe.
+     */
+    function render() {
+      // Get canvas dimensions
+      const width = canvas.width;
+      const height = canvas.height;
+      // Clear screen to black before drawing
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, width, height);
+
+      for (let x = 0; x < width; x++) {
+        // Calculate ray position and direction
+        const cameraX = 2 * x / width - 1; // range [-1,1]
+        const rayDirX = player.dirX + player.planeX * cameraX;
+        const rayDirY = player.dirY + player.planeY * cameraX;
+
+        // Map grid position
+        let mapX = Math.floor(player.x);
+        let mapY = Math.floor(player.y);
+
+        // Length of ray from one x or y-side to next
+        const deltaDistX = Math.abs(1 / rayDirX);
+        const deltaDistY = Math.abs(1 / rayDirY);
+        let stepX, stepY;
+        let sideDistX, sideDistY;
+
+        // Calculate step and initial sideDist
+        if (rayDirX < 0) {
+          stepX = -1;
+          sideDistX = (player.x - mapX) * deltaDistX;
+        } else {
+          stepX = 1;
+          sideDistX = (mapX + 1 - player.x) * deltaDistX;
+        }
+        if (rayDirY < 0) {
+          stepY = -1;
+          sideDistY = (player.y - mapY) * deltaDistY;
+        } else {
+          stepY = 1;
+          sideDistY = (mapY + 1 - player.y) * deltaDistY;
+        }
+
+        // DDA: step through map until wall hit
+        let hit = 0;
+        let side;
+        while (!hit) {
+          if (sideDistX < sideDistY) {
+            sideDistX += deltaDistX;
+            mapX += stepX;
+            side = 0;
+          } else {
+            sideDistY += deltaDistY;
+            mapY += stepY;
+            side = 1;
+          }
+          if (worldMap[mapY][mapX] > 0) hit = 1;
+        }
+
+        // Calculate distance projected on camera direction
+        const perpDist = (side === 0)
+          ? (mapX - player.x + (1 - stepX) / 2) / rayDirX
+          : (mapY - player.y + (1 - stepY) / 2) / rayDirY;
+
+        // Calculate height of line to draw
+        const lineHeight = Math.floor(height / perpDist);
+        const drawStart = Math.max(Math.floor(-lineHeight / 2 + height / 2), 0);
+        const drawEnd = Math.min(Math.floor(lineHeight / 2 + height / 2), height - 1);
+
+        // Choose wall color
+        ctx.fillStyle = side === 1 ? '#888' : '#fff';
+        ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
+      }
+    }
+  </script>
+</body>
+</html>
