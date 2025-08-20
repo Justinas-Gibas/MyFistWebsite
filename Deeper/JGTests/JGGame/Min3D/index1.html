@@ -31,6 +31,10 @@
                 list-style: none;
                 padding-inline-start: 0;
             }
+            input[type="range"] {
+                width: 80%;
+                color: #000000;
+            }
 
         </style>
     </head>
@@ -41,16 +45,16 @@
                 <h2>Game Paused</h2>
                 <li><button onclick="document.getElementById('pauseMenu').close(); resumeGame()">Resume Game</button></li>
                 <br>
-                <li><button onclick="document.getElementById('confirmDialog1').showModal()">Main Menu</button></li>
+                <li><button onclick="document.getElementById('confirmMainMenu').showModal()">Main Menu</button></li>
                 <br>
                 <li><button onclick="document.getElementById('settingsDialog1').showModal()">Settings</button></li>
             </dialog>
             <dialog id="settingsDialog1">
                 <h2>Settings</h2>
                 <p>Sounds Volume</p>
-                <input type="range" min="0" max="100" value="50" style="width: 80%;" onchange="console.log('Sounds Volume set to:', this.value)">
+                <input type="range" min="0" max="100" value="50" onchange="console.log('Sounds Volume set to:', this.value)">
                 <p>Music Volume</p>
-                <input type="range" min="0" max="100" value="50" style="width: 80%;" onchange="console.log('Music Volume set to:', this.value)">
+                <input type="range" min="0" max="100" value="50" onchange="console.log('Music Volume set to:', this.value)">
                 <p>Graphics Quality</p>
                 <select onchange="console.log('Graphics Quality set to:', this.value)">
                     <option value="low">Low</option>
@@ -63,10 +67,10 @@
                 <br>
                 <li><button onclick="document.getElementById('settingsDialog1').close()">Close Settings</button></li>
             </dialog>
-            <dialog id="confirmDialog1">
+            <dialog id="confirmMainMenu">
                 <h2 id="confirmMessage">Are you sure?</h2>
-                <button onclick="s(true)">Confirm</button>
-                <button onclick="s(false)">Cancel</button>
+                <button onclick="location.reload()">Confirm</button>
+                <button onclick="document.getElementById('confirmMainMenu').close()">Cancel</button>
             </dialog>
             <template id="popoverTemplate">
                 <div popover>

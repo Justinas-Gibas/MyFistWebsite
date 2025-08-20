@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+<title>WebXR: Movement + Virtual Joysticks + HUD</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;}
+  #ui{position:fixed;left:12px;top:12px;z-index:9;font:14px/1.2 system-ui;color:#fff}
+  button{font:inherit;padding:.5rem .8rem;border-radius:.6rem;border:0;cursor:pointer}
+  #log{opacity:.75;margin-top:.5rem;max-height:180px;overflow-y:auto;font-size:11px}
+  
+  /* Virtual Joysticks for Mobile */
+  .joystick{position:fixed;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.3);z-index:10;display:none;}
+  .joystick-handle{position:absolute;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.8);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;}
+  #leftJoy{bottom:40px;left:40px;}
+  #rightJoy{bottom:40px;right:40px;}
+  
+  /* Show joysticks on touch devices */
+  @media (pointer: coarse) {
+    .joystick{display:block;}
+  }
+</style>
+<div id="ui">
+  <button id="enter">Enter VR</button>
+  <div id="log">Desktop: WASD+Mouse+Q/E | Mobile: Virtual Joysticks | VR: Controller Sticks</div>
+</div>
+<canvas id="c"></canvas>
+
+<!-- Virtual Joysticks -->
+<div id="leftJoy" class="joystick">
+  <div class="joystick-handle"></div>
+</div>
+<div id="rightJoy" class="joystick">
+  <div class="joystick-handle"></div>
+</div>
+
+<script>
+/* WebXR with Virtual Joysticks for Mobile + Fixed Controller Support */
+
+// =============================================================================
+// CONSTANTS AND UTILITIES
+// =============================================================================
+
+const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+const MOVEMENT_SPEED = 2.0;
+const TURN_SPEED = 3.0;
+const CONTROLLER_DEADZONE = 0.15;
+
+// Math helpers
+const F32=Float32Array, D2R=0.0174532925;
+const V3=(v)=>new F32(v||3), M4=(v)=>new F32(v||[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+const MULTMAT4=(out,a,b)=>{ out.set((new DOMMatrix(a)).multiply(new DOMMatrix(b)).toFloat32Array()); return out; }
+const INVERTMAT4=(v)=>(new DOMMatrix(v)).inverse().toFloat32Array();
+const PERSP=(out,fov,aspect,near,far)=>{const f=1/Math.tan(fov*D2R/2); out.set([f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)/(near-far),-1, 0,0,(2*far*near)/(near-far),0]); return out;}
+const LOOKAT=(out,eye,center,up)=>{let z0=eye[0]-center[0],z1=eye[1]-center[1],z2=eye[2]-center[2];let len=1/Math.hypot(z0,z1,z2);z0*=len;z1*=len;z2*=len;let x0=up[1]*z2-up[2]*z1,x1=up[2]*z0-up[0]*z2,x2=up[0]*z1-up[1]*z0;len=1/Math.hypot(x0,x1,x2);x0*=len;x1*=len;x2*=len;let y0=z1*x2-z2*x1,y1=z2*x0-z0*x2,y2=z0*x1-z1*x0; out.set([x0,y0,z0,0, x1,y1,z1,0, x2,y2,z2,0, -(x0*eye[0]+x1*eye[1]+x2*eye[2]), -(y0*eye[0]+y1*eye[1]+y2*eye[2]), -(z0*eye[0]+z1*eye[1]+z2*eye[2]), 1]); return out;}
+const TMAT4=(t,v)=>{t=t||M4(); t.set([1,0,0,0, 0,1,0,0, 0,0,1,0, v[0],v[1],v[2],1]); return t;}
+const RMAT4=(t,a,axis)=>{let [x,y,z]=axis;const l=Math.hypot(x,y,z); if(l<1e-5) return null; x/=l;y/=l;z/=l; const s=Math.sin(a),c=Math.cos(a),f=1-c; t=t||M4(); t.set([x*x*f+c,y*x*f+z*s,z*x*f-y*s,0, x*y*f-z*s,y*y*f+c,z*y*f+x*s,0, x*z*f+y*s,y*z*f-x*s,z*z*f+c,0, 0,0,0,1]); return t;}
+
+// Quaternion rotate vector
+const qRotate=(q,v)=>{const [x,y,z,w]=q,[vx,vy,vz]=v,tx=2*(y*vz-z*vy),ty=2*(z*vx-x*vz),tz=2*(x*vy-y*vx); return [vx+w*tx+(y*tz-z*ty), vy+w*ty+(z*tx-x*tz), vz+w*tz+(x*ty-y*tx)]}
+
+// =============================================================================
+// INPUT SYSTEM
+// =============================================================================
+
+class InputManager {
+  constructor() {
+    this.keys = {};
+    this.mouse = {buttons: 0};
+    this.touch = {};
+    this.virtualJoysticks = {
+      left: {x: 0, y: 0, active: false},
+      right: {x: 0, y: 0, active: false}
+    };
+    
+    this.setupKeyboard();
+    this.setupMouse();
+    if (isMobile) this.setupVirtualJoysticks();
+  }
+  
+  setupKeyboard() {
+    document.body.onkeydown = document.body.onkeyup = (e) => {
+      this.keys[e.key.toLowerCase()] = e.type === "keydown";
+    };
+  }
+  
+  setupMouse() {
+    const canvas = document.getElementById('c');
+    canvas.onmousedown = e => this.mouse.buttons = e.buttons;
+    canvas.onmouseup = e => this.mouse.buttons = e.buttons;
+    canvas.onmousemove = e => {
+      if (this.mouse.buttons !== 1 || isMobile) return;
+      user.yaw -= e.movementX * 0.002;
+      user.pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, user.pitch - e.movementY * 0.002));
+    };
+  }
+  
+  setupVirtualJoysticks() {
+    const leftJoy = document.getElementById('leftJoy');
+    const rightJoy = document.getElementById('rightJoy');
+    const leftHandle = leftJoy.querySelector('.joystick-handle');
+    const rightHandle = rightJoy.querySelector('.joystick-handle');
+    
+    const handleJoystick = (element, handle, joyData, touch) => {
+      const rect = element.getBoundingClientRect();
+      const centerX = rect.left + rect.width/2;
+      const centerY = rect.top + rect.height/2;
+      const maxDist = rect.width/2 - 20;
+      
+      const dx = touch.clientX - centerX;
+      const dy = touch.clientY - centerY;
+      const dist = Math.min(Math.hypot(dx, dy), maxDist);
+      const angle = Math.atan2(dy, dx);
+      
+      joyData.x = dist > 15 ? (dist/maxDist) * Math.cos(angle) : 0;
+      joyData.y = dist > 15 ? (dist/maxDist) * Math.sin(angle) : 0;
+      
+      const handleX = joyData.x * maxDist;
+      const handleY = joyData.y * maxDist;
+      handle.style.transform = `translate(calc(-50% + ${handleX}px), calc(-50% + ${handleY}px))`;
+    };
+    
+    const resetJoystick = (handle, joyData) => {
+      joyData.x = joyData.y = 0;
+      joyData.active = false;
+      handle.style.transform = 'translate(-50%, -50%)';
+    };
+    
+    // Touch event handlers
+    document.addEventListener('touchstart', e => {
+      e.preventDefault();
+      for (const touch of e.changedTouches) {
+        const x = touch.clientX, y = touch.clientY;
+        const leftRect = leftJoy.getBoundingClientRect();
+        const rightRect = rightJoy.getBoundingClientRect();
+        
+        if (x >= leftRect.left && x <= leftRect.right && y >= leftRect.top && y <= leftRect.bottom) {
+          this.touch.leftId = touch.identifier;
+          this.virtualJoysticks.left.active = true;
+          handleJoystick(leftJoy, leftHandle, this.virtualJoysticks.left, touch);
+        } else if (x >= rightRect.left && x <= rightRect.right && y >= rightRect.top && y <= rightRect.bottom) {
+          this.touch.rightId = touch.identifier;
+          this.virtualJoysticks.right.active = true;
+          handleJoystick(rightJoy, rightHandle, this.virtualJoysticks.right, touch);
+        } else if (this.touch.lookId === undefined) {
+          // Start look/turn input
+          this.touch.lookId = touch.identifier;
+          this.touch.lastLookX = touch.clientX;
+          this.touch.lastLookY = touch.clientY;
+        }
+      }
+    });
+    
+    document.addEventListener('touchmove', e => {
+      e.preventDefault();
+      for (const touch of e.changedTouches) {
+        if (touch.identifier === this.touch.leftId) {
+          handleJoystick(leftJoy, leftHandle, this.virtualJoysticks.left, touch);
+        } else if (touch.identifier === this.touch.rightId) {
+          handleJoystick(rightJoy, rightHandle, this.virtualJoysticks.right, touch);
+        } else if (touch.identifier === this.touch.lookId) {
+          // Handle look/turn movement
+          const movementX = touch.clientX - this.touch.lastLookX;
+          const movementY = touch.clientY - this.touch.lastLookY;
+          this.touch.lastLookX = touch.clientX;
+          this.touch.lastLookY = touch.clientY;
+          
+          user.yaw -= movementX * 0.002;
+          user.pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, user.pitch - movementY * 0.002));
+        }
+      }
+    });
+    
+    document.addEventListener('touchend', e => {
+      e.preventDefault();
+      for (const touch of e.changedTouches) {
+        if (touch.identifier === this.touch.leftId) {
+          resetJoystick(leftHandle, this.virtualJoysticks.left);
+          delete this.touch.leftId;
+        } else if (touch.identifier === this.touch.rightId) {
+          resetJoystick(rightHandle, this.virtualJoysticks.right);
+          delete this.touch.rightId;
+        } else if (touch.identifier === this.touch.lookId) {
+          // End look/turn input
+          delete this.touch.lookId;
+          delete this.touch.lastLookX;
+          delete this.touch.lastLookY;
+        }
+      }
+    });
+  }
+  
+  getMovementInput() {
+    let moveX = 0, moveY = 0, turnX = 0;
+    
+    // Always check keyboard input (works on mobile with external keyboard)
+    const keyboardMoveX = (this.keys['d'] ? 1 : 0) - (this.keys['a'] ? 1 : 0);
+    const keyboardMoveY = (this.keys['w'] ? 1 : 0) - (this.keys['s'] ? 1 : 0);
+    const keyboardTurnX = (this.keys['q'] ? 1 : 0) + (this.keys['e'] ? -1 : 0);
+    
+    if (isMobile) {
+      // Virtual joysticks
+      const joyMoveX = this.virtualJoysticks.left.x;
+      const joyMoveY = -this.virtualJoysticks.left.y; // negative Y so up is forward
+      const joyTurnX = -this.virtualJoysticks.right.x; // negative X so right is clockwise
+      
+      // Combine keyboard and joystick inputs (keyboard takes priority if both active)
+      moveX = keyboardMoveX || joyMoveX;
+      moveY = keyboardMoveY || joyMoveY;
+      turnX = keyboardTurnX || joyTurnX;
+    } else {
+      // Desktop - keyboard only
+      moveX = keyboardMoveX;
+      moveY = keyboardMoveY;
+      turnX = keyboardTurnX;
+    }
+    
+    return { moveX, moveY, turnX };
+  }
+  
+  getControllerInput(session) {
+    let moveX = 0, moveY = 0, turnX = 0;
+    
+    for (const src of session.inputSources) {
+      if (!src.gamepad || !src.gamepad.axes || src.gamepad.axes.length < 4) continue;
+      
+      const axes = src.gamepad.axes;
+      const processAxis = (val) => Math.abs(val) > CONTROLLER_DEADZONE ? val : 0;
+      
+      // Standard thumbstick axes are 2 (x) and 3 (y)
+      const stickX = processAxis(axes[2]);
+      const stickY = processAxis(axes[3]);
+      
+      if (src.handedness === 'left') {
+        moveX = stickX;
+        moveY = -stickY; // Invert Y for forward movement
+      } else if (src.handedness === 'right') {
+        turnX = -stickX; // Right stick X for turning (FIXED INVERSION)
+      } else {
+        // Fallback for controllers without handedness
+        // Assume first controller is for movement, second for turning if available
+        if (moveX === 0 && moveY === 0) {
+            moveX = stickX;
+            moveY = -stickY;
+        }
+        if (turnX === 0) {
+            turnX = stickX;
+        }
+      }
+    }
+    
+    return { moveX, moveY, turnX };
+  }
+}
+
+// =============================================================================
+// WEBGL UTILITIES
+// =============================================================================
+
+class WebGLUtils {
+  static compile(gl, type, src) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, src);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      throw new Error(gl.getShaderInfoLog(shader));
+    }
+    return shader;
+  }
+  
+  static createProgram(gl, vsSrc, fsSrc) {
+    const program = gl.createProgram();
+    gl.attachShader(program, this.compile(gl, gl.VERTEX_SHADER, vsSrc));
+    gl.attachShader(program, this.compile(gl, gl.FRAGMENT_SHADER, fsSrc));
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(program));
+    }
+    return program;
+  }
+  
+  static createVBO(gl, data) {
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    return buffer;
+  }
+}
+
+// =============================================================================
+// APPLICATION STATE
+// =============================================================================
+
+let gl, inputManager;
+let user = { x: 0, y: 1.6, z: 2, yaw: 0, pitch: 0 };
+let lastTime = 0;
+let xrSession = null, xrRefSpace = null, xrOffsetSpace = null;
+
+// Rendering objects
+let gridProgram, hudProgram;
+let gridVAO, hudVAO;
+let hudTexture, hudCanvas, hudContext;
+let modelMatrix, viewMatrix, projMatrix;
+
+// =============================================================================
+// INITIALIZATION
+// =============================================================================
+
+function resize() {
+  const canvas = document.getElementById('c');
+  const w = innerWidth, h = innerHeight, dpr = devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+}
+
+async function init() {
+  const canvas = document.getElementById('c');
+  gl = canvas.getContext('webgl2', { antialias: true, xrCompatible: true });
+  if (!gl) return alert('WebGL2 required');
+  
+  resize();
+  addEventListener('resize', resize);
+  
+  inputManager = new InputManager();
+  
+  // Initialize WebGL resources
+  initShaders();
+  initGeometry();
+  initHUD();
+  
+  // Initialize WebXR
+  initWebXR();
+  
+  // Start render loop
+  requestAnimationFrame(desktopLoop);
+}
+
+function initShaders() {
+  // Grid shader
+  const vsGrid = `#version 300 es
+  precision highp float;
+  layout(location=0) in vec3 pos;
+  uniform mat4 uM,uV,uP;
+  out vec3 vPos;
+  void main(){ vPos=(uM*vec4(pos,1.)).xyz; gl_Position=uP*uV*vec4(vPos,1.); }`;
+  
+  const fsGrid = `#version 300 es
+  precision highp float; in vec3 vPos; out vec4 o;
+  void main(){
+    float cell=2.0;
+    float line = step(abs(fract(vPos.x/cell)-.5),.01)+step(abs(fract(vPos.z/cell)-.5),.01);
+    float grid=clamp(line,0.,1.);
+    vec3 base=mix(vec3(.04),vec3(.08),smoothstep(0.,20.,length(vPos.xz)));
+    o=vec4(base+grid*vec3(.2,.8,1.)*.6,1.);
+  }`;
+  
+  // HUD shader
+  const vsHud = `#version 300 es
+  precision highp float;
+  layout(location=0) in vec3 pos;
+  layout(location=1) in vec2 uv;
+  uniform mat4 uM,uV,uP;
+  out vec2 vUV;
+  void main(){ vUV=uv; gl_Position=uP*uV*uM*vec4(pos,1.); }`;
+  
+  const fsHud = `#version 300 es
+  precision highp float; in vec2 vUV; uniform sampler2D uTex; out vec4 o;
+  void main(){ vec4 c=texture(uTex,vUV); if(c.a<0.01) discard; o=c; }`;
+  
+  gridProgram = WebGLUtils.createProgram(gl, vsGrid, fsGrid);
+  hudProgram = WebGLUtils.createProgram(gl, vsHud, fsHud);
+  
+  // Initialize matrices
+  modelMatrix = M4();
+  viewMatrix = M4();
+  projMatrix = M4();
+}
+
+function initGeometry() {
+  // Ground plane
+  const groundData = new F32([-1e3,0,-1e3, 1e3,0,-1e3, 1e3,0,1e3, -1e3,0,-1e3, 1e3,0,1e3, -1e3,0,1e3]);
+  const groundVBO = WebGLUtils.createVBO(gl, groundData);
+  
+  gridVAO = gl.createVertexArray();
+  gl.bindVertexArray(gridVAO);
+  gl.bindBuffer(gl.ARRAY_BUFFER, groundVBO);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  
+  // HUD quad
+  const hudData = new F32([
+    -0.25, 0.12, 0, 0,1,  0.25, 0.12, 0, 1,1,  0.25,-0.12,0, 1,0,
+    -0.25, 0.12, 0, 0,1,  0.25,-0.12,0, 1,0, -0.25,-0.12,0, 0,0
+  ]);
+  const hudVBO = WebGLUtils.createVBO(gl, hudData);
+  
+  hudVAO = gl.createVertexArray();
+  gl.bindVertexArray(hudVAO);
+  gl.bindBuffer(gl.ARRAY_BUFFER, hudVBO);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 20, 0);
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 20, 12);
+}
+
+function initHUD() {
+  hudCanvas = document.createElement('canvas');
+  hudCanvas.width = 512;
+  hudCanvas.height = 256;
+  hudContext = hudCanvas.getContext('2d');
+  
+  hudTexture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, hudTexture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+
+// =============================================================================
+// RENDERING
+// =============================================================================
+
+function updateHUD(deltaTime, mode) {
+  hudContext.clearRect(0, 0, hudCanvas.width, hudCanvas.height);
+  hudContext.fillStyle = 'rgba(20,30,40,0.85)';
+  hudContext.fillRect(0, 0, hudCanvas.width, hudCanvas.height);
+  
+  hudContext.fillStyle = '#9cf';
+  hudContext.font = '24px system-ui';
+  hudContext.fillText('HUD (head-locked)', 20, 35);
+  
+  hudContext.fillStyle = '#fff';
+  hudContext.font = '18px system-ui';
+  hudContext.fillText(`Mode: ${mode}${isMobile ? ' (Touch)' : ''}`, 20, 65);
+  hudContext.fillText(`Pos: (${user.x.toFixed(1)}, ${user.z.toFixed(1)})`, 20, 90);
+  hudContext.fillText(`Yaw: ${(user.yaw * 180 / Math.PI).toFixed(0)}°`, 20, 115);
+  
+  if (isMobile && mode !== 'VR') {
+    hudContext.fillStyle = '#aaf';
+    hudContext.font = '14px system-ui';
+    hudContext.fillText('Left: Move | Right: Turn', 20, 140);
+  }
+  
+  gl.bindTexture(gl.TEXTURE_2D, hudTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, hudCanvas);
+}
+
+function drawGrid(view, projection) {
+  gl.useProgram(gridProgram);
+  gl.bindVertexArray(gridVAO);
+  
+  const uM = gl.getUniformLocation(gridProgram, 'uM');
+  const uV = gl.getUniformLocation(gridProgram, 'uV');
+  const uP = gl.getUniformLocation(gridProgram, 'uP');
+  
+  gl.uniformMatrix4fv(uM, false, modelMatrix);
+  gl.uniformMatrix4fv(uV, false, view);
+  gl.uniformMatrix4fv(uP, false, projection);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+function drawHUD(worldFromView, view, projection) {
+  const T = TMAT4(M4(), [0, -0.05, -1.2]);
+  const worldMatrix = MULTMAT4(M4(), worldFromView, T);
+  
+  gl.useProgram(hudProgram);
+  gl.bindVertexArray(hudVAO);
+  
+  const uM = gl.getUniformLocation(hudProgram, 'uM');
+  const uV = gl.getUniformLocation(hudProgram, 'uV');
+  const uP = gl.getUniformLocation(hudProgram, 'uP');
+  const uTex = gl.getUniformLocation(hudProgram, 'uTex');
+  
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, hudTexture);
+  gl.uniform1i(uTex, 0);
+  gl.uniformMatrix4fv(uM, false, worldMatrix);
+  gl.uniformMatrix4fv(uV, false, view);
+  gl.uniformMatrix4fv(uP, false, projection);
+  
+  gl.disable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.disable(gl.BLEND);
+  gl.enable(gl.DEPTH_TEST);
+}
+
+// =============================================================================
+// GAME LOOP
+// =============================================================================
+
+function updateMovement(deltaTime, input) {
+  // Apply turning
+  user.yaw += input.turnX * TURN_SPEED * deltaTime;
+  
+  // Build rotation matrices
+  const rotY = RMAT4(M4(), user.yaw, [0, 1, 0]);
+  const rotX = RMAT4(M4(), user.pitch, [1, 0, 0]);
+  const headRotation = M4();
+  MULTMAT4(headRotation, rotY, rotX);
+  
+  // Calculate movement directions (ground-projected)
+  const forward = [-headRotation[8], 0, -headRotation[10]];
+  const right = [headRotation[0], 0, headRotation[2]];
+  
+  // Normalize directions
+  const forwardLength = Math.hypot(forward[0], forward[2]) || 1;
+  const rightLength = Math.hypot(right[0], right[2]) || 1;
+  forward[0] /= forwardLength; forward[2] /= forwardLength;
+  right[0] /= rightLength; right[2] /= rightLength;
+  
+  // Apply movement
+  const speed = MOVEMENT_SPEED * deltaTime;
+  user.x += (right[0] * input.moveX + forward[0] * input.moveY) * speed;
+  user.z += (right[2] * input.moveX + forward[2] * input.moveY) * speed;
+}
+
+function desktopLoop(timestamp) {
+  if (xrSession) return;
+  
+  const deltaTime = ((timestamp - lastTime) / 1000) || 0;
+  lastTime = timestamp;
+  
+  // Get input and update movement
+  const input = inputManager.getMovementInput();
+  updateMovement(deltaTime, input);
+  
+  // Build view matrix
+  const rotY = RMAT4(M4(), user.yaw, [0, 1, 0]);
+  const rotX = RMAT4(M4(), user.pitch, [1, 0, 0]);
+  const headRotation = M4();
+  MULTMAT4(headRotation, rotY, rotX);
+  
+  const eye = [user.x, user.y, user.z];
+  const center = [user.x - headRotation[8], user.y - headRotation[9], user.z - headRotation[10]];
+  const up = [headRotation[4], headRotation[5], headRotation[6]];
+  LOOKAT(viewMatrix, eye, center, up);
+  
+  // Build projection matrix
+  const canvas = document.getElementById('c');
+  PERSP(projMatrix, 60, canvas.width / canvas.height, 0.01, 1000);
+  
+  // Render
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  
+  updateHUD(deltaTime, isMobile ? 'Mobile' : 'Desktop');
+  drawGrid(viewMatrix, projMatrix);
+  
+  const worldFromView = INVERTMAT4(viewMatrix);
+  drawHUD(worldFromView, viewMatrix, projMatrix);
+  
+  requestAnimationFrame(desktopLoop);
+}
+
+// =============================================================================
+// WEBXR SUPPORT
+// =============================================================================
+
+function initWebXR() {
+  const logDiv = document.getElementById('log');
+  const log = (message) => {
+    logDiv.innerHTML += `<br>${message}`;
+    logDiv.scrollTop = logDiv.scrollHeight;
+  };
+  
+  if ('xr' in navigator) {
+    navigator.xr.isSessionSupported('immersive-vr').then(supported => 
+      log(supported ? 'VR supported' : 'VR not supported')
+    );
+  } else {
+    log('WebXR not available');
+  }
+  
+  document.getElementById('enter').onclick = document.getElementById('enter').ontouchstart = async () => {
+    if (xrSession) {
+      xrSession.end();
+      return;
+    }
+    
+    try {
+      xrSession = await navigator.xr.requestSession('immersive-vr', {
+        optionalFeatures: ['local-floor']
+      });
+      document.getElementById('enter').textContent = 'Exit VR';
+      
+      await gl.makeXRCompatible();
+      xrSession.updateRenderState({
+        baseLayer: new XRWebGLLayer(xrSession, gl)
+      });
+      
+      xrRefSpace = await xrSession.requestReferenceSpace('local-floor');
+      
+      xrSession.addEventListener('end', () => {
+        xrSession = null;
+        document.getElementById('enter').textContent = 'Enter VR';
+        requestAnimationFrame(desktopLoop);
+      });
+      
+      lastTime = 0;
+      xrSession.requestAnimationFrame(onXRFrame);
+    } catch (error) {
+      log('Could not start XR: ' + error.message);
+    }
+  };
+}
+
+function onXRFrame(timestamp, frame) {
+  const session = frame.session;
+  session.requestAnimationFrame(onXRFrame);
+  
+  const deltaTime = ((timestamp - lastTime) / 1000) || 0;
+  lastTime = timestamp;
+  
+  const pose = frame.getViewerPose(xrRefSpace);
+  if (!pose) return;
+  
+  // Get controller input and keyboard input, then combine them
+  const controllerInput = inputManager.getControllerInput(session);
+  const keyboardInput = inputManager.getMovementInput();
+  
+  // Combine inputs (keyboard takes priority if both are active)
+  const input = {
+    moveX: controllerInput.moveX || keyboardInput.moveX,
+    moveY: controllerInput.moveY || keyboardInput.moveY,
+    turnX: controllerInput.turnX || keyboardInput.turnX
+  };
+  
+  // Apply turning
+  user.yaw += input.turnX * TURN_SPEED * deltaTime;
+  
+  // Movement relative to head orientation + user yaw
+  const headQuaternion = pose.transform.orientation;
+  const q = [headQuaternion.x, headQuaternion.y, headQuaternion.z, headQuaternion.w];
+  const headForward = qRotate(q, [0, 0, -1]);
+  const headRight = qRotate(q, [1, 0, 0]);
+  
+  // Ground-projected movement vectors
+  const forward = [headForward[0], 0, headForward[2]];
+  const right = [headRight[0], 0, headRight[2]];
+  
+  // Normalize to prevent faster diagonal movement
+  const fLen = Math.hypot(forward[0], forward[2]) || 1;
+  forward[0] /= fLen; forward[2] /= fLen;
+  const rLen = Math.hypot(right[0], right[2]) || 1;
+  right[0] /= rLen; right[2] /= rLen;
+
+  const speed = MOVEMENT_SPEED * deltaTime;
+  user.x += (right[0] * input.moveX + forward[0] * input.moveY) * speed;
+  user.z += (right[2] * input.moveX + forward[2] * input.moveY) * speed;
+  
+  // Apply user offset to reference space
+  const halfYaw = -user.yaw * 0.5;
+  const userOffset = new XRRigidTransform(
+    { x: -user.x, y: -user.y, z: -user.z },
+    { x: 0, y: Math.sin(halfYaw), z: 0, w: Math.cos(halfYaw) }
+  );
+  xrOffsetSpace = xrRefSpace.getOffsetReferenceSpace(userOffset);
+  
+  const relPose = frame.getViewerPose(xrOffsetSpace);
+  if (!relPose) return;
+  
+  gl.bindFramebuffer(gl.FRAMEBUFFER, session.renderState.baseLayer.framebuffer);
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  
+  updateHUD(deltaTime, 'VR');
+  
+  for (const view of relPose.views) {
+    const viewport = session.renderState.baseLayer.getViewport(view);
+    gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+    
+    const viewMatrix = view.transform.inverse.matrix;
+    const worldFromView = view.transform.matrix;
+    const projectionMatrix = view.projectionMatrix;
+    
+    drawGrid(viewMatrix, projectionMatrix);
+    drawHUD(worldFromView, viewMatrix, projectionMatrix);
+  }
+}
+
+// Start the application
+init();
+</script>
+</html>

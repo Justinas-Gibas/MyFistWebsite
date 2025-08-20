@@ -1,0 +1,19 @@
+// Optional: finger tips
+      if(src.hand && typeof XRHand!=='undefined'){ try{
+        const joints=[XRHand.THUMB_TIP, XRHand.INDEX_FINGER_TIP];
+        for(const j of joints){
+          const js=src.hand.get(j), jp = js ? frame.getJointPose(js, off) : null;
+          if(jp){
+            const Jm=new DOMMatrix(jp.transform.matrix).multiply(new DOMMatrix([0.02,0,0,0, 0,0.02,0,0, 0,0,0.02,0, 0,0,0,1])).toFloat32Array();
+            gl.useProgram(PDisc); gl.bindVertexArray(vaoR);
+            gl.uniformMatrix4fv(uMDisc,false,Jm); gl.uniformMatrix4fv(uVDisc,false,v.transform.inverse.matrix); gl.uniformMatrix4fv(uPDisc,false,v.projectionMatrix);
+            gl.uniform4f(uColDisc,col[0],col[1],col[2], 0.85);
+            gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+            gl.drawArrays(gl.TRIANGLES,0,6);
+            gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST);
+          }
+        }
+      }catch(_){}}
+
+
+      

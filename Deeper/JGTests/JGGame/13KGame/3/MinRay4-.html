@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+<title>UniXR — All HUD + Pointer Picking + Top Button</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none}
+  .joystick{position:fixed;width:112px;height:112px;border-radius:50%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.25);z-index:10;display:none}
+  .joystick-handle{position:absolute;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.9);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
+  #leftJoy{bottom:36px;left:36px} #rightJoy{bottom:36px;right:36px}
+  @media (pointer:coarse){.joystick{display:block}}
+</style>
+<canvas id="c"></canvas>
+<div id="leftJoy" class="joystick"><div class="joystick-handle"></div></div>
+<div id="rightJoy" class="joystick"><div class="joystick-handle"></div></div>
+<script>
+// ===== UniXR: All-HUD UI, Pointer-based ray picking, Reticle, Top-of-Canvas HUD Button =====
+const isMobile = matchMedia('(pointer:coarse)').matches;
+const MOVES=3, TURNS=2, DZ=.12;
+let user={x:0,y:1.6,z:2,yaw:0,pitch:0}, last=0, gl, xr=null, ref=null, off=null;
+const C=document.getElementById('c');
+const input={keys:{}, joy:{left:{x:0,y:0,id:null}, right:{x:0,y:0,id:null}}, look:{id:null,x:0,y:0}, pointer:{x:0,y:0}};
+const pressedMap=new Map(); // VR button edge-detect
+
+// --- tiny math ---
+const F32=Float32Array, D2R=Math.PI/180;
+const M4=(v)=>new F32(v||[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+const PERSP=(o,f,a,n,fa)=>{const t=1/Math.tan(f*D2R/2); o.set([t/a,0,0,0, 0,t,0,0, 0,0,(fa+n)/(n-fa),-1, 0,0,(2*fa*n)/(n-fa),0]); return o}
+const LOOKAT=(o,e,c,u)=>{let z0=e[0]-c[0],z1=e[1]-c[1],z2=e[2]-c[2];let il=1/Math.hypot(z0,z1,z2);z0*=il;z1*=il;z2*=il;let x0=u[1]*z2-u[2]*z1,x1=u[2]*z0-u[0]*z2,x2=u[0]*z1-u[1]*z0;il=1/Math.hypot(x0,x1,x2);x0*=il;x1*=il;x2*=il;let y0=z1*x2-z2*x1,y1=z2*x0-z0*x2,y2=z0*x1-z1*x0; o.set([x0,y0,z0,0,x1,y1,z1,0,x2,y2,z2,0,-(x0*e[0]+x1*e[1]+x2*e[2]),-(y0*e[0]+y1*e[1]+y2*e[2]),-(z0*e[0]+z1*e[1]+z2*e[2]),1]); return o}
+const INV=(m)=>new DOMMatrix(m).inverse().toFloat32Array();
+function mulPoint(m, p){ const x=p[0],y=p[1],z=p[2],w=1; return [m[0]*x+m[4]*y+m[8]*z+m[12]*w, m[1]*x+m[5]*y+m[9]*z+m[13]*w, m[2]*x+m[6]*y+m[10]*z+m[14]*w]; }
+function mulDir(m, d){ const x=d[0],y=d[1],z=d[2],w=0; return [m[0]*x+m[4]*y+m[8]*z+m[12]*w, m[1]*x+m[5]*y+m[9]*z+m[13]*w, m[2]*x+m[6]*y+m[10]*z+m[14]*w]; }
+function translateScale(x,y,z,sx,sy,sz){
+  return new F32([sx,0,0,0, 0,sy,0,0, 0,0,sz,0, x,y,z,1]);
+}
+
+// --- unified input (keyboard + Pointer Events for look + pointer-joysticks + VR pads) ---
+document.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase(); input.keys[k]=true;
+  if(k==='h') hudVisible=!hudVisible; // keyboard fallback remains
+});
+document.addEventListener('keyup',e=>input.keys[e.key.toLowerCase()]=false);
+
+// pointer-look on canvas; track pointer coords for picking
+C.addEventListener('pointerdown',e=>{
+  if(e.button===0 && input.look.id===null){ input.look.id=e.pointerId; input.look.x=e.clientX; input.look.y=e.clientY; C.setPointerCapture(e.pointerId); }
+  input.pointer.x=e.clientX; input.pointer.y=e.clientY;
+});
+C.addEventListener('pointermove',e=>{
+  input.pointer.x=e.clientX; input.pointer.y=e.clientY;
+  if(e.pointerId===input.look.id){
+    const dx=e.clientX-input.look.x, dy=e.clientY-input.look.y;
+    input.look.x=e.clientX; input.look.y=e.clientY;
+    user.yaw+=dx*0.002; user.pitch=Math.max(-Math.PI/2,Math.min(Math.PI/2,user.pitch-dy*0.002));
+  }
+});
+C.addEventListener('pointerup',e=>{
+  if(e.pointerId===input.look.id){ input.look.id=null; }
+  input.pointer.x=e.clientX; input.pointer.y=e.clientY;
+  interactDesktopAt(e.clientX,e.clientY);
+});
+C.addEventListener('pointercancel',e=>{ if(e.pointerId===input.look.id){ input.look.id=null; } });
+
+// virtual joysticks via pointer events
+function initJoysticks(){
+  const joys=[{side:'left', el:document.getElementById('leftJoy')},{side:'right', el:document.getElementById('rightJoy')}];
+  const handleSel=s=>document.querySelector('#'+s+'Joy .joystick-handle');
+  for(const j of joys){
+    const handle=handleSel(j.side);
+    j.el.addEventListener('pointerdown',e=>{ j.id=e.pointerId; j.el.setPointerCapture(e.pointerId); updateJoy(j,e,handle); });
+    j.el.addEventListener('pointermove',e=>{ if(e.pointerId===j.id) updateJoy(j,e,handle); });
+    j.el.addEventListener('pointerup',e=>{ if(e.pointerId===j.id){ resetJoy(j,handle); } });
+    j.el.addEventListener('pointercancel',e=>{ if(e.pointerId===j.id){ resetJoy(j,handle); } });
+  }
+  function updateJoy(j,e,handle){
+    const r=j.el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,R=r.width/2-18;
+    const dx=e.clientX-cx, dy=e.clientY-cy; const L=Math.min(Math.hypot(dx,dy),R); const a=Math.atan2(dy,dx);
+    const x=L>12?(L/R)*Math.cos(a):0, y=L>12?(L/R)*Math.sin(a):0;
+    input.joy[j.side].x=x; input.joy[j.side].y=y;
+    handle.style.transform=`translate(calc(-50% + ${x*R}px),calc(-50% + ${y*R}px))`;
+  }
+  function resetJoy(j,handle){ input.joy[j.side].x=0; input.joy[j.side].y=0; handle.style.transform='translate(-50%,-50%)'; j.id=null; }
+}
+initJoysticks();
+
+function getMove(session){
+  const kx=(+!!input.keys.d)-(+!!input.keys.a);
+  const ky=(+!!input.keys.w)-(+!!input.keys.s);
+  const kt=(+!!input.keys.q)-(+!!input.keys.e);
+  const jx=input.joy.left.x, jy=-input.joy.left.y, jt=-input.joy.right.x;
+  let vx=0,vy=0,vt=0;
+  if(session) for(const src of session.inputSources){
+    const a=src.gamepad?.axes; if(!a||a.length<4) continue;
+    const dz=v=>Math.abs(v)>DZ?v:0;
+    const x=dz(a[2]), y=dz(a[3]);
+    if(src.handedness==='left'){vx=x;vy=-y;} else if(src.handedness==='right'){vt=-x;}
+    else if(!vx && !vy){vx=x;vy=-y;}
+  }
+  return {x: vx||kx||jx, y: vy||ky||jy, t: vt||kt||jt};
+}
+
+function step(dt, mv){
+  user.yaw += mv.t * TURNS * dt;
+  const cy=Math.cos(user.yaw), sy=Math.sin(user.yaw);
+  const f=[-sy,0,-cy], r=[cy,0,-sy], sp=MOVES*dt;
+  user.x += (r[0]*mv.x + f[0]*mv.y)*sp;
+  user.z += (r[2]*mv.x + f[2]*mv.y)*sp;
+}
+
+// --- GL setup ---
+gl = C.getContext('webgl2',{antialias:true,xrCompatible:true});
+if(!gl){ alert('WebGL2 required'); }
+function resize(){ const w=innerWidth,h=innerHeight,dpr=devicePixelRatio||1; C.width=w*dpr; C.height=h*dpr; C.style.width=w+'px'; C.style.height=h+'px'; }
+addEventListener('resize',resize); resize();
+
+// grid shader
+const vsG=`#version 300 es
+precision highp float;layout(location=0)in vec3 p;uniform mat4 M,V,P;out vec3 w;void main(){w=(M*vec4(p,1.)).xyz;gl_Position=P*V*vec4(w,1.);}`;
+const fsG=`#version 300 es
+precision highp float;in vec3 w;out vec4 o;void main(){float c=2.,l=step(abs(fract(w.x/c)-.5),.01)+step(abs(fract(w.z/c)-.5),.01);float g=clamp(l,0.,1.);vec3 b=mix(vec3(.04),vec3(.08),smoothstep(0.,20.,length(w.xz)));o=vec4(b+g*vec3(.2,.8,1.)*.6,1.);}`;
+function prog(vs,fs){const p=gl.createProgram(),v=gl.createShader(gl.VERTEX_SHADER),f=gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(v,vs);gl.compileShader(v); if(!gl.getShaderParameter(v,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(v); gl.shaderSource(f,fs);gl.compileShader(f); if(!gl.getShaderParameter(f,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(f); gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw gl.getProgramInfoLog(p); return p;}
+const PG=prog(vsG,fsG), uM=gl.getUniformLocation(PG,'M'),uV=gl.getUniformLocation(PG,'V'),uP=gl.getUniformLocation(PG,'P');
+const vbo=gl.createBuffer(), vao=gl.createVertexArray();
+gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
+gl.bufferData(gl.ARRAY_BUFFER,new F32([-1e3,0,-1e3, 1e3,0,-1e3, 1e3,0,1e3, -1e3,0,-1e3, 1e3,0,1e3, -1e3,0,1e3]),gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+
+// HUD as dynamic canvas texture on a head-locked quad
+let hudTex=gl.createTexture(), hudCan=document.createElement('canvas'), hudCtx=hudCan.getContext('2d');
+hudCan.width=640; hudCan.height=320; // a bit larger for log
+gl.bindTexture(gl.TEXTURE_2D,hudTex);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+
+const vsH=`#version 300 es
+precision highp float;layout(location=0)in vec3 p;layout(location=1)in vec2 uv;uniform mat4 M,V,P;out vec2 U;void main(){U=uv;gl_Position=P*V*M*vec4(p,1.);}`;
+const fsH=`#version 300 es
+precision highp float;in vec2 U;uniform sampler2D T;out vec4 o;void main(){vec4 c=texture(T,U); if(c.a<.01)discard; o=c;}`;
+const PH=prog(vsH,fsH), uMH=gl.getUniformLocation(PH,'M'),uVH=gl.getUniformLocation(PH,'V'),uPH=gl.getUniformLocation(PH,'P'),uT=gl.getUniformLocation(PH,'T');
+const vboH=gl.createBuffer(), vaoH=gl.createVertexArray();
+gl.bindVertexArray(vaoH); gl.bindBuffer(gl.ARRAY_BUFFER,vboH);
+// quad in HUD local space: x in [-0.26,0.26], y in [-0.15,0.15] (slightly bigger)
+gl.bufferData(gl.ARRAY_BUFFER,new F32([-0.26,0.15,0, 0,1, 0.26,0.15,0, 1,1, 0.26,-0.15,0, 1,0, -0.26,0.15,0, 0,1, 0.26,-0.15,0, 1,0, -0.26,-0.15,0, 0,0]),gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,20,0);
+gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,2,gl.FLOAT,false,20,12);
+
+// Reticle (small ground disc)
+const vsR=`#version 300 es
+precision highp float;layout(location=0)in vec2 p;uniform mat4 M,V,P;out vec2 uv;void main(){uv=p*.5+.5;gl_Position=P*V*M*vec4(p.x,0.,p.y,1.);}`;
+const fsR=`#version 300 es
+precision highp float;in vec2 uv;out vec4 o;void main(){float d=distance(uv,vec2(.5)); float ring=smoothstep(.5,.45,d)-smoothstep(.45,.4,d); float fill=smoothstep(.35,.32,d); o=vec4(0.9,1.0,0.9, ring*0.9 + (1.0-fill)*0.25); if(o.a<.02) discard;}`;
+const PR=prog(vsR,fsR), uMR=gl.getUniformLocation(PR,'M'),uVR=gl.getUniformLocation(PR,'V'),uPR=gl.getUniformLocation(PR,'P');
+const vboR=gl.createBuffer(), vaoR=gl.createVertexArray();
+gl.bindVertexArray(vaoR); gl.bindBuffer(gl.ARRAY_BUFFER,vboR);
+gl.bufferData(gl.ARRAY_BUFFER,new F32([-1,-1, 1,-1, 1,1, -1,-1, 1,1, -1,1]),gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+
+// Hand/Controller disc indicator shader
+const vsDisc=`#version 300 es
+precision highp float;layout(location=0)in vec2 p;uniform mat4 M,V,P;out vec2 uv;void main(){uv=p*.5+.5;gl_Position=P*V*M*vec4(p.x,0.,p.y,1.);}`;
+const fsDisc=`#version 300 es
+precision highp float;in vec2 uv;uniform vec4 col;out vec4 o;void main(){float d=distance(uv,vec2(.5)); float ring=smoothstep(.5,.4,d)-smoothstep(.4,.3,d); o=vec4(col.rgb, col.a*ring); if(o.a<.02) discard;}`;
+const PDisc=prog(vsDisc,fsDisc), uMDisc=gl.getUniformLocation(PDisc,'M'),uVDisc=gl.getUniformLocation(PDisc,'V'),uPDisc=gl.getUniformLocation(PDisc,'P'),uColDisc=gl.getUniformLocation(PDisc,'col');
+
+// Controller beam shader
+const vsBeam=`#version 300 es
+precision highp float;layout(location=0)in vec3 p;uniform mat4 M,V,P;void main(){gl_Position=P*V*M*vec4(p,1.);}`;
+const fsBeam=`#version 300 es
+precision highp float;uniform vec4 col;out vec4 o;void main(){o=col;}`;
+const PBeam=prog(vsBeam,fsBeam), uMBeam=gl.getUniformLocation(PBeam,'M'),uVBeam=gl.getUniformLocation(PBeam,'V'),uPBeam=gl.getUniformLocation(PBeam,'P'),uColBeam=gl.getUniformLocation(PBeam,'col');
+const vboBeam=gl.createBuffer(), vaoBeam=gl.createVertexArray();
+gl.bindVertexArray(vaoBeam); gl.bindBuffer(gl.ARRAY_BUFFER,vboBeam);
+gl.bufferData(gl.ARRAY_BUFFER,new F32([0,0,0, 1,0,0, 1,0,1, 0,0,0, 1,0,1, 0,0,1]),gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+
+// world matrices
+const M=M4(), V=M4(), P=M4();
+let PV=M4(), invPV=M4();
+
+// -------- Log + HUD UI state --------
+const LOG=[]; const LOG_MAX=200; let logScroll=0; let logVisible=true; let hudVisible=true;
+function log(s){ LOG.push(s); if(LOG.length>LOG_MAX) LOG.shift(); }
+function logClear(){ LOG.length=0; log('log cleared'); }
+
+// UI sets: main panel + top-of-canvas tab when HUD hidden
+let uiEnterLabel='Enter VR';
+const UI_MAIN=[
+  {id:'reset',  u0:.4,v0:.06,u1:.70,v1:.16, label:'Reset', onClick:()=>{user.x=0;user.z=2;user.yaw=0;user.pitch=0; log('reset position');}},
+  {id:'vr',     u0:.4,v0:.18,u1:.70,v1:.28, label:()=>uiEnterLabel, onClick:()=>toggleXRFromUI()},
+  {id:'logup',  u0:.94,v0:.1,u1:.99,v1:.2, label:'▲', onClick:()=>{logScroll=Math.max(0,logScroll-1);}},
+  {id:'logdn',  u0:.94,v0:.2,u1:.99,v1:.3, label:'▼', onClick:()=>{logScroll=Math.min(Math.max(0,LOG.length-1),logScroll+1);}},
+  {id:'logtog', u0:.94,v0:.3,u1:.99,v1:.4, label:'L', onClick:()=>{logVisible=!logVisible;}},
+  {id:'hudx',   u0:.94,v0:.02,u1:.99,v1:.1, label:'×', onClick:()=>{hudVisible=false;}}
+];
+const UI_TAB=[
+  {id:'hudopen', u0:.4,v0:0,u1:.6,v1:.12, label:'HUD', onClick:()=>{hudVisible=true;}}
+];
+
+function currentUI(){ return hudVisible ? UI_MAIN : UI_TAB; }
+
+// current HUD world matrix for picking
+let HUD_WH_world = M4();
+let hoverBtn=null;
+
+function drawHUDCanvas(mode, hit, uiSet){
+  const ui = uiSet || currentUI();
+  hudCtx.clearRect(0,0,hudCan.width,hudCan.height);
+
+  if(!hudVisible){
+    // Top-of-canvas "HUD" tab
+    const x=ui[0].u0*hudCan.width, y=ui[0].v0*hudCan.height, w=(ui[0].u1-ui[0].u0)*hudCan.width, h=(ui[0].v1-ui[0].v0)*hudCan.height;
+    const hov = hoverBtn && hoverBtn.id==='hudopen';
+    hudCtx.fillStyle= hov ? 'rgba(160,200,255,.28)' : 'rgba(120,160,255,.18)';
+    hudCtx.strokeStyle= hov ? 'rgba(190,220,255,.95)' : 'rgba(160,200,255,.55)';
+    hudCtx.lineWidth=2; hudCtx.beginPath(); hudCtx.roundRect(x,y,w,h,10); hudCtx.fill(); hudCtx.stroke();
+    hudCtx.fillStyle= hov ? '#fff' : '#eef'; hudCtx.font='16px system-ui'; hudCtx.textAlign='center'; hudCtx.textBaseline='middle';
+    hudCtx.fillText('HUD', x+w/2, y+h/2);
+    // subtle hint line (disabled text)
+    hudCtx.textAlign='left'; hudCtx.textBaseline='alphabetic';
+  } else {
+    // Full panel
+    hudCtx.fillStyle='rgba(20,30,40,.90)'; hudCtx.strokeStyle='rgba(255,255,255,.12)';
+    hudCtx.lineWidth=2; hudCtx.beginPath(); hudCtx.roundRect(6,6,hudCan.width-12,hudCan.height-12,16); hudCtx.fill(); hudCtx.stroke();
+    // header
+    hudCtx.fillStyle='#9cf'; hudCtx.font='24px system-ui'; hudCtx.fillText('HUD',20,34);
+    hudCtx.fillStyle='#fff'; hudCtx.font='16px system-ui';
+    hudCtx.fillText(`Mode: ${mode}${isMobile?' (Touch)':''}`,20,62);
+    hudCtx.fillText(`Pos: (${user.x.toFixed(1)}, ${user.z.toFixed(1)})`,20,86);
+    hudCtx.fillText(`Yaw: ${(user.yaw*180/Math.PI|0)}°`,20,110);
+    if(hit){ hudCtx.fillStyle='#afa'; hudCtx.fillText(`Hit @ ground: (${hit[0].toFixed(2)}, ${hit[2].toFixed(2)})`,20,136); }
+    // log box
+    if(logVisible){
+      const x=18,y=150,w=hudCan.width-36,h=hudCan.height-168;
+      hudCtx.fillStyle='rgba(0,0,0,.35)'; hudCtx.strokeStyle='rgba(255,255,255,.1)';
+      hudCtx.beginPath(); hudCtx.roundRect(x,y,w,h,10); hudCtx.fill(); hudCtx.stroke();
+      hudCtx.save(); hudCtx.beginPath(); hudCtx.rect(x+8,y+8,w-16,h-16); hudCtx.clip();
+      hudCtx.fillStyle='#eee'; hudCtx.font='14px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+      const lines=LOG.slice(Math.max(0,LOG.length-12-logScroll), LOG.length-logScroll);
+      for(let i=0;i<lines.length;i++) hudCtx.fillText(lines[i], x+12, y+24+i*16);
+      hudCtx.restore();
+    }
+    // buttons
+    for(const b of UI_MAIN){
+      const lab = (typeof b.label==='function')? b.label(): b.label;
+      const x=b.u0*hudCan.width, y=b.v0*hudCan.height, w=(b.u1-b.u0)*hudCan.width, h=(b.v1-b.v0)*hudCan.height;
+      const hov = hoverBtn && hoverBtn.id===b.id;
+      hudCtx.fillStyle= hov ? 'rgba(150,190,255,.25)' : 'rgba(120,160,255,.12)';
+      hudCtx.strokeStyle= hov ? 'rgba(190,220,255,.9)' : 'rgba(160,200,255,.4)';
+      hudCtx.lineWidth=2; hudCtx.beginPath(); hudCtx.roundRect(x,y,w,h,8); hudCtx.fill(); hudCtx.stroke();
+      hudCtx.fillStyle= hov ? '#fff' : '#eef'; hudCtx.font='16px system-ui'; hudCtx.fillText(lab, x+10, y+h*.65);
+    }
+  }
+  gl.bindTexture(gl.TEXTURE_2D,hudTex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,hudCan);
+}
+
+// Picking utilities
+function HUD_pick(WH, ray, uiSet){
+  const ui = uiSet || currentUI();
+  const inv = INV(WH);
+  const o = mulPoint(inv, ray.o);
+  const d = mulDir(inv, ray.d);
+  const t = -o[2]/d[2];
+  if(t<=0) return null;
+  const x = o[0]+d[0]*t, y=o[1]+d[1]*t;
+  // Bounds for the quad in local space
+  if(x<-0.26||x>0.26||y<-0.15||y>0.15) return null;
+  const u=(x+0.26)/(0.26*2), v=(0.15-y)/(0.15*2);
+  for(const b of ui){ if(u>=b.u0 && u<=b.u1 && v>=b.v0 && v<=b.v1) return {id:b.id,u,v,button:b}; }
+  return {id:null,u,v,button:null};
+}
+
+function rayFromScreen(px,py){
+  const r=C.getBoundingClientRect();
+  const x=( (px - r.left) / r.width )*2-1;
+  const y=1-( (py - r.top) / r.height )*2;
+  const near = [x,y,-1,1], far=[x,y,1,1];
+  const n4 = mul4(invPV, near), f4=mul4(invPV, far);
+  const n=[n4[0]/n4[3], n4[1]/n4[3], n4[2]/n4[3]];
+  const f=[f4[0]/f4[3], f4[1]/f4[3], f4[2]/f4[3]];
+  const d=[f[0]-n[0], f[1]-n[1], f[2]-n[2]];
+  const il=1/Math.hypot(d[0],d[1],d[2]);
+  return {o:n, d:[d[0]*il,d[1]*il,d[2]*il]};
+}
+function mul4(m,v){ return [ m[0]*v[0]+m[4]*v[1]+m[8]*v[2]+m[12]*v[3], m[1]*v[0]+m[5]*v[1]+m[9]*v[2]+m[13]*v[3], m[2]*v[0]+m[6]*v[1]+m[10]*v[2]+m[14]*v[3], m[3]*v[0]+m[7]*v[1]+m[11]*v[2]+m[15]*v[3] ]; }
+
+function rayFrom(mode, frame, src){
+  if(mode==='VR' && frame){
+    if(src && src.targetRaySpace){ const pose=frame.getPose(src.targetRaySpace, off||ref||null); if(pose){ const m=pose.transform.matrix, o=[m[12],m[13],m[14]], d=[-m[8],-m[9],-m[10]]; return {o,d}; } }
+    for(const s of xr.inputSources){ if(s.targetRaySpace){ const pose=frame.getPose(s.targetRaySpace, off||ref||null); if(pose){ const m=pose.transform.matrix, o=[m[12],m[13],m[14]], d=[-m[8],-m[9],-m[10]]; return {o,d}; } } }
+    const pose=frame.getViewerPose(off||ref||null); if(pose){ const m=pose.views[0].transform.matrix; return {o:[m[12],m[13],m[14]], d:[-m[8],-m[9],-m[10]]}; }
+  } else {
+    const cy=Math.cos(user.yaw), sy=Math.sin(user.yaw), cp=Math.cos(user.pitch), sp=Math.sin(user.pitch);
+    const d=[-sy*cp, -sp, -cy*cp]; const o=[user.x,user.y,user.z]; return {o,d};
+  }
+  return null;
+}
+
+function rayHitGround(ray){ const t=(0 - ray.o[1]) / ray.d[1]; if(t>0){ return [ray.o[0]+ray.d[0]*t, 0.001, ray.o[2]+ray.d[2]*t]; } return null; }
+
+// last ground hit for reticle
+let lastHit=null;
+
+function interactDesktopAt(px,py){
+  const ui=currentUI();
+  const r=rayFromScreen(px,py);
+  const WH = HUD_WH_world;
+  const h = HUD_pick(WH, r, ui);
+  if(h && h.button){ h.button.onClick(); return; }
+  const g=rayHitGround(r); if(g){ lastHit=g; log('ground '+g.map(v=>v.toFixed(2)).join(',')); }
+}
+
+// Utility: transforms for HUD panel vs top tab
+function getHudTransform(){
+  if(hudVisible){ // centered slightly below eye
+    return new DOMMatrix([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,-.05,-1.15,1]).toFloat32Array();
+  }
+  // top-of-canvas tab (above eye line)
+  return new DOMMatrix([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,.5,-1.15,1]).toFloat32Array();
+}
+
+// desktop loop
+function loop(t){
+  if(xr) return;
+  const dt=((t-last)/1000)||0; last=t;
+  const mv=getMove(); step(dt,mv);
+  buildViewProj();
+  gl.viewport(0,0,C.width,C.height);
+  gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
+  // grid
+  gl.useProgram(PG); gl.bindVertexArray(vao);
+  gl.uniformMatrix4fv(uM,false,M); gl.uniformMatrix4fv(uV,false,V); gl.uniformMatrix4fv(uP,false,P);
+  gl.drawArrays(gl.TRIANGLES,0,6);
+  // reticle
+  if(lastHit){ const T=translateScale(lastHit[0],0.001,lastHit[2], 0.15,1,0.15); gl.useProgram(PR); gl.bindVertexArray(vaoR); gl.uniformMatrix4fv(uMR,false,T); gl.uniformMatrix4fv(uVR,false,V); gl.uniformMatrix4fv(uPR,false,P); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.DEPTH_TEST); gl.drawArrays(gl.TRIANGLES,0,6); gl.enable(gl.DEPTH_TEST); gl.disable(gl.BLEND); }
+  // HUD transform depends on visibility (panel vs top tab)
+  const T=getHudTransform();
+  const W=INV(V); const WH=new DOMMatrix(W).multiply(new DOMMatrix(T)).toFloat32Array();
+  HUD_WH_world = WH; // store for picking
+  // Hover detection (not while dragging look)
+  hoverBtn=null;
+  if(input.look.id===null){
+    const r=rayFromScreen(input.pointer.x,input.pointer.y);
+    const h=HUD_pick(WH,r,currentUI()); if(h && h.button) hoverBtn=h.button;
+  }
+  updHUD('Desktop', lastHit, currentUI());
+  gl.useProgram(PH); gl.bindVertexArray(vaoH);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,hudTex); gl.uniform1i(uT,0);
+  gl.uniformMatrix4fv(uMH,false,WH); gl.uniformMatrix4fv(uVH,false,V); gl.uniformMatrix4fv(uPH,false,P);
+  gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  gl.drawArrays(gl.TRIANGLES,0,6); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST);
+  requestAnimationFrame(loop);
+}
+
+function updHUD(mode, hit, uiSet){ drawHUDCanvas(mode, hit, uiSet); }
+
+// compute camera/view matrices for desktop
+function buildViewProj(){
+  const cy=Math.cos(user.yaw), sy=Math.sin(user.yaw), cp=Math.cos(user.pitch), sp=Math.sin(user.pitch);
+  const eye=[user.x,user.y,user.z], center=[user.x - sy*cp, user.y - sp, user.z - cy*cp];
+  LOOKAT(V,eye,center,[0,1,0]); PERSP(P,60,C.width/C.height,.01,1e3);
+  PV = new DOMMatrix(P).multiply(new DOMMatrix(V)).toFloat32Array();
+  invPV = INV(PV);
+}
+
+// --- WebXR ---
+function initXR(){
+  if(!('xr' in navigator)){ log('WebXR not available'); return; }
+  navigator.xr.isSessionSupported('immersive-vr').then(s=>log(s?'VR supported':'VR not supported'));
+}
+async function toggleXRFromUI(){
+  try{
+    if(xr){ await xr.end(); return; }
+    xr=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor']});
+    uiEnterLabel='Exit VR';
+    await gl.makeXRCompatible();
+    xr.updateRenderState({baseLayer:new XRWebGLLayer(xr,gl)});
+    ref=await xr.requestReferenceSpace('local-floor');
+    xr.addEventListener('end',()=>{xr=null; uiEnterLabel='Enter VR'; requestAnimationFrame(loop);});
+    last=0; xr.requestAnimationFrame(onXR);
+  }catch(e){ log('XR start fail: '+e.message); }
+}
+
+function onXR(t, frame){
+  const s=frame.session; s.requestAnimationFrame(onXR);
+  const dt=((t-last)/1000)||0; last=t;
+  const pose=frame.getViewerPose(ref); if(!pose) return;
+  const mv=getMove(s); step(dt,mv);
+  // rotate by yaw, then translate XZ
+  const half=-user.yaw*0.5;
+  const rot=new XRRigidTransform({x:0,y:0,z:0},{x:0,y:Math.sin(half),z:0,w:Math.cos(half)});
+  const rRef=ref.getOffsetReferenceSpace(rot);
+  off=rRef.getOffsetReferenceSpace(new XRRigidTransform({x:-user.x,y:0,z:-user.z}));
+  const rel=frame.getViewerPose(off); if(!rel) return;
+
+  // Controller click edge-detect (button[0])
+  for(const src of s.inputSources){
+    const gp=src.gamepad; if(!gp||!gp.buttons||!gp.buttons.length) continue;
+    const now=!!gp.buttons[0].pressed, prev=pressedMap.get(src)||false;
+    if(now && !prev){
+      const r=rayFrom('VR',frame,src);
+      const viewer=frame.getViewerPose(off); if(viewer){
+        const worldFromView=viewer.transform.matrix;
+        const T=getHudTransform();
+        const WH=new DOMMatrix(worldFromView).multiply(new DOMMatrix(T)).toFloat32Array();
+        const h=HUD_pick(WH, r, currentUI());
+        if(h && h.button){ h.button.onClick(); }
+        else{
+          const g=rayHitGround(r); if(g){ lastHit=g; log('ground '+g.map(v=>v.toFixed(2)).join(',')); }
+        }
+      }
+    }
+    pressedMap.set(src, now);
+  }
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER,s.renderState.baseLayer.framebuffer);
+  gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
+
+  for(const v of rel.views){
+    const vp=s.renderState.baseLayer.getViewport(v); gl.viewport(vp.x,vp.y,vp.width,vp.height);
+    
+    // Controller indicators and rays
+    for(const src of s.inputSources){
+      // Hand color based on handedness
+      const col = src.handedness==='left' ? [0,0.8,1] : src.handedness==='right' ? [1,0,0.8] : [0.5,0.5,1];
+      
+      // Hand grip indicator
+      const grip = src.gripSpace ? frame.getPose(src.gripSpace, off) : null;
+      if(grip){
+        const Mhand=new DOMMatrix(grip.transform.matrix).multiply(new DOMMatrix([0.06,0,0,0, 0,0.06,0,0, 0,0,0.06,0, 0,0,0,1])).toFloat32Array();
+        gl.useProgram(PDisc); gl.bindVertexArray(vaoR);
+        gl.uniformMatrix4fv(uMDisc,false,Mhand); gl.uniformMatrix4fv(uVDisc,false,v.transform.inverse.matrix); gl.uniformMatrix4fv(uPDisc,false,v.projectionMatrix);
+        gl.uniform4f(uColDisc,col[0],col[1],col[2], 0.95);
+        gl.disable(gl.DEPTH_TEST); gl.drawArrays(gl.TRIANGLES,0,6); gl.enable(gl.DEPTH_TEST);
+      }
+
+      // Optional: hand-tracking finger tips
+      if(src.hand && typeof XRHand!=='undefined'){
+        try{
+          const joints=[XRHand.THUMB_TIP, XRHand.INDEX_FINGER_TIP];
+          for(const j of joints){
+            const js=src.hand.get(j);
+            const jp = js ? frame.getJointPose(js, off) : null;
+            if(jp){
+              const Jm=new DOMMatrix(jp.transform.matrix).multiply(new DOMMatrix([0.02,0,0,0, 0,0.02,0,0, 0,0,0.02,0, 0,0,0,1])).toFloat32Array();
+              gl.useProgram(PDisc); gl.bindVertexArray(vaoR);
+              gl.uniformMatrix4fv(uMDisc,false,Jm); gl.uniformMatrix4fv(uVDisc,false,v.transform.inverse.matrix); gl.uniformMatrix4fv(uPDisc,false,v.projectionMatrix);
+              gl.uniform4f(uColDisc,col[0],col[1],col[2], 0.85);
+              gl.disable(gl.DEPTH_TEST); gl.drawArrays(gl.TRIANGLES,0,6); gl.enable(gl.DEPTH_TEST);
+            }
+          }
+        }catch(_){}
+      }
+
+      // Laser from controller forward with dynamic length/width by trigger value
+      const targ = src.targetRaySpace ? frame.getPose(src.targetRaySpace, off) : null;
+      if(targ){
+        const r=controllerRay(frame,src);
+        const triggerVal = (src.gamepad && src.gamepad.buttons && src.gamepad.buttons[0]) ? (src.gamepad.buttons[0].value||0) : 0;
+        const w=0.004 + 0.01*triggerVal;
+        let len=3.0;
+        const tlen=(0 - r.o[1]) / r.d[1];
+        if(tlen>0) len=Math.min(5.0, tlen);
+        const S=new DOMMatrix([w,0,0,0, 0,w,0,0, 0,0,len,0, 0,0,0,1]);
+        const Mbeam=new DOMMatrix(targ.transform.matrix).multiply(S).toFloat32Array();
+        gl.useProgram(PBeam); gl.bindVertexArray(vaoBeam);
+        gl.uniformMatrix4fv(uMBeam,false,Mbeam); gl.uniformMatrix4fv(uVBeam,false,v.transform.inverse.matrix); gl.uniformMatrix4fv(uPBeam,false,v.projectionMatrix);
+        gl.uniform4f(uColBeam, col[0],col[1],col[2], 0.8);
+        gl.disable(gl.DEPTH_TEST); gl.drawArrays(gl.TRIANGLES,0,6); gl.enable(gl.DEPTH_TEST);
+        
+        // hit dot (ground)
+        const g=rayHitGround(r);
+        if(g){
+          const Mhit=translateScale(g[0],0.001,g[2], 0.09,1,0.09);
+          gl.useProgram(PDisc); gl.bindVertexArray(vaoR);
+          gl.uniformMatrix4fv(uMDisc,false,Mhit); gl.uniformMatrix4fv(uVDisc,false,v.transform.inverse.matrix); gl.uniformMatrix4fv(uPDisc,false,v.projectionMatrix);
+          gl.uniform4f(uColDisc, 1.0,0.95,0.3, 0.95);
+          gl.disable(gl.DEPTH_TEST); gl.drawArrays(gl.TRIANGLES,0,6); gl.enable(gl.DEPTH_TEST);
+        }
+      }
+    }
+    
+    // grid
+    gl.useProgram(PG); gl.bindVertexArray(vao);
+    gl.uniformMatrix4fv(uM,false,M); gl.uniformMatrix4fv(uV,false,v.transform.inverse.matrix); gl.uniformMatrix4fv(uP,false,v.projectionMatrix);
+    gl.drawArrays(gl.TRIANGLES,0,6);
+    // reticle
+    if(lastHit){ const Tm=translateScale(lastHit[0],0.001,lastHit[2], 0.15,1,0.15); gl.useProgram(PR); gl.bindVertexArray(vaoR); gl.uniformMatrix4fv(uMR,false,Tm); gl.uniformMatrix4fv(uVR,false,v.transform.inverse.matrix); gl.uniformMatrix4fv(uPR,false,v.projectionMatrix); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.DEPTH_TEST); gl.drawArrays(gl.TRIANGLES,0,6); gl.enable(gl.DEPTH_TEST); gl.disable(gl.BLEND); }
+    // HUD/tab (per-eye head-locked)
+    const worldFromView=v.transform.matrix;
+    const T=getHudTransform();
+    const WH=new DOMMatrix(worldFromView).multiply(new DOMMatrix(T)).toFloat32Array();
+    HUD_WH_world = WH; // for completeness
+    updHUD('VR', lastHit, currentUI());
+    gl.useProgram(PH); gl.bindVertexArray(vaoH);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,hudTex); gl.uniform1i(uT,0);
+    gl.uniformMatrix4fv(uMH,false,WH); gl.uniformMatrix4fv(uVH,false,v.transform.inverse.matrix); gl.uniformMatrix4fv(uPH,false,v.projectionMatrix);
+    gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    gl.drawArrays(gl.TRIANGLES,0,6); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST);
+  }
+}
+
+function controllerRay(frame, src){
+  const pose=src.targetRaySpace ? frame.getPose(src.targetRaySpace, off||ref||null) : null;
+  if(pose){
+    const m=pose.transform.matrix;
+    return {o:[m[12],m[13],m[14]], d:[-m[8],-m[9],-m[10]]};
+  }
+  return {o:[0,0,0], d:[0,0,-1]};
+}
+
+(function main(){
+  initXR(); requestAnimationFrame(loop);
+  log(`App initialized ${isMobile?'(Mobile)':'(Desktop)'} — All UI in HUD + VR Indicators`);
+  log('Use the top "HUD" button (or H key) to open/close the panel.');
+  log('VR: colored halos (L=cyan, R=magenta), laser with ground hit dot. Trigger makes the beam thicker.');
+})();
+</script>
+</html>

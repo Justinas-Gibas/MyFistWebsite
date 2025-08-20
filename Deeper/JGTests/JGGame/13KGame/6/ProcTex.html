@@ -1,0 +1,230 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>IQ-style 2D Dynamic Clouds (WebGL2)</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}</style>
+<canvas id="gl"></canvas>
+<script>
+const CAN = document.getElementById('gl');
+const gl = CAN.getContext('webgl2', {antialias:false});
+if(!gl){ alert('WebGL2 required'); }
+
+// ---------- Resize ----------
+function fit() {
+  CAN.width = innerWidth; CAN.height = innerHeight;
+  gl.viewport(0,0,CAN.width,CAN.height);
+}
+addEventListener('resize', fit); fit();
+
+// ---------- Fullscreen quad ----------
+const vs = `#version 300 es
+layout(location=0) in vec2 a_pos;
+out vec2 v_uv;
+uniform vec2 u_scale;           // scale sky (e.g., world meters to tex coords)
+void main(){
+  v_uv = (a_pos*0.5+0.5) * u_scale;
+  gl_Position = vec4(a_pos,0.0,1.0);
+}`;
+const fs = `#version 300 es
+precision highp float;
+
+in vec2 v_uv;
+out vec4 o;
+
+uniform sampler2D u_oct0;
+uniform sampler2D u_oct1;
+uniform sampler2D u_oct2;
+uniform sampler2D u_oct3;
+
+uniform vec2  u_scroll0;
+uniform vec2  u_scroll1;
+uniform vec2  u_scroll2;
+uniform vec2  u_scroll3;
+
+uniform vec2  u_sunDir;     // 2D projected sun dir on cloud plane (normalized)
+uniform float u_lightStep;  // step length for cheap raymarch (in UV units)
+uniform float u_coverageA;  // remap: a (threshold)
+uniform float u_coverageB;  // remap: b (softness)
+
+uniform vec3  u_cloudColHi; // lit color
+uniform vec3  u_cloudColLo; // shadow color
+uniform vec3  u_skyColor;   // background sky color
+uniform float u_mixSky;     // how strongly to lerp sky by alpha
+
+// Compose fBm from 4 octaves. Each octave texture is grayscale in .r
+float fbm(vec2 uv){
+  float n0 = texture(u_oct0, uv + u_scroll0).r; // lowest frequency
+  float n1 = texture(u_oct1, uv + u_scroll1).r;
+  float n2 = texture(u_oct2, uv + u_scroll2).r;
+  float n3 = texture(u_oct3, uv + u_scroll3).r; // highest frequency
+  return 0.5*n0 + 0.25*n1 + 0.125*n2 + 0.0625*n3;
+}
+
+// Linear remap with saturation like MAD_SAT: (x-a)/(b-a) clamped to [0,1]
+float remapSat(float x, float a, float b){
+  float t = (x - a) / max(b - a, 1e-5);
+  return clamp(t, 0.0, 1.0);
+}
+
+void main(){
+  // base fBm
+  float d0 = fbm(v_uv);
+
+  // coverage & sharpness control -> alpha (cloud density mask)
+  float alpha = remapSat(d0, u_coverageA, u_coverageB);
+
+  // Cheap 2D “raymarch” along sun direction (4 taps)
+  // More samples inside = darker (shadowed)
+  float acc = 0.0;
+  float s = u_lightStep;
+  acc += fbm(v_uv + u_sunDir * (1.0*s)) > u_coverageA ? 1.0 : 0.0;
+  acc += fbm(v_uv + u_sunDir * (2.0*s)) > u_coverageA ? 1.0 : 0.0;
+  acc += fbm(v_uv + u_sunDir * (3.0*s)) > u_coverageA ? 1.0 : 0.0;
+  acc += fbm(v_uv + u_sunDir * (4.0*s)) > u_coverageA ? 1.0 : 0.0;
+  float shade = acc * 0.25;                 // 0..1 how “thick” along the ray
+
+  // Shade from Lo (shadow) to Hi (lit). Invert if you like the opposite.
+  vec3 cloud = mix(u_cloudColHi, u_cloudColLo, shade);
+
+  // Composite against sky using alpha
+  vec3 sky = u_skyColor;
+  vec3 col = mix(sky, cloud, alpha * u_mixSky);
+
+  o = vec4(col, alpha);
+}`;
+
+const prog = link(gl, vs, fs);
+gl.useProgram(prog);
+const loc = uniLocs(gl, prog, [
+  'u_scale','u_oct0','u_oct1','u_oct2','u_oct3',
+  'u_scroll0','u_scroll1','u_scroll2','u_scroll3',
+  'u_sunDir','u_lightStep','u_coverageA','u_coverageB',
+  'u_cloudColHi','u_cloudColLo','u_skyColor','u_mixSky'
+]);
+
+// Fullscreen quad VBO
+const quad = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1,  1,-1, -1, 1,
+  -1, 1,  1,-1,  1, 1
+]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+// ---------- Noise octave generation (CPU) ----------
+const TEX_SIZE = 256;
+const OCTAVES = 4;
+const noises = [];
+for (let k=0; k<OCTAVES; k++){
+  noises.push(makeValueNoise(TEX_SIZE, 1<<k)); // step doubles each octave
+}
+
+// Upload textures
+gl.activeTexture(gl.TEXTURE0); const t0 = makeTex(noises[0]); gl.uniform1i(loc.u_oct0,0);
+gl.activeTexture(gl.TEXTURE1); const t1 = makeTex(noises[1]); gl.uniform1i(loc.u_oct1,1);
+gl.activeTexture(gl.TEXTURE2); const t2 = makeTex(noises[2]); gl.uniform1i(loc.u_oct2,2);
+gl.activeTexture(gl.TEXTURE3); const t3 = makeTex(noises[3]); gl.uniform1i(loc.u_oct3,3);
+
+// ---------- Uniforms (tweak these) ----------
+gl.uniform2f(loc.u_scale, 3.0, 3.0);         // how “zoomed” the sky is
+gl.uniform3f(loc.u_cloudColHi, 1.0, 1.0, 1.0);
+gl.uniform3f(loc.u_cloudColLo, 0.65,0.67,0.72);
+gl.uniform3f(loc.u_skyColor,    0.40,0.55,0.85);
+gl.uniform1f(loc.u_mixSky, 1.0);
+
+// Coverage / sharpness (a < b):
+// lower a -> more cloud coverage; (b-a) smaller -> sharper edges
+gl.uniform1f(loc.u_coverageA, 0.52);
+gl.uniform1f(loc.u_coverageB, 0.60);
+
+// Sun direction on the cloud plane (normalized)
+let sun = norm([0.6, 0.3]); // “from right-up”
+gl.uniform2f(loc.u_sunDir, sun[0], sun[1]);
+gl.uniform1f(loc.u_lightStep, 0.02);
+
+// Per-octave scroll speeds (high freq moves faster)
+// (world-space-ish units per second; shader uses UV)
+const vel = [
+  [ 0.00,  0.02],  // slow
+  [ 0.03,  0.00],
+  [-0.05,  0.01],
+  [ 0.10,  0.04],  // fast
+];
+
+let t0ms = performance.now();
+function frame(){
+  const t = (performance.now()-t0ms)/1000;
+
+  // animate scrolls; wrap in shader via texture sampling
+  gl.uniform2f(loc.u_scroll0, t*vel[0][0], t*vel[0][1]);
+  gl.uniform2f(loc.u_scroll1, t*vel[1][0], t*vel[1][1]);
+  gl.uniform2f(loc.u_scroll2, t*vel[2][0], t*vel[2][1]);
+  gl.uniform2f(loc.u_scroll3, t*vel[3][0], t*vel[3][1]);
+
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---------- Helpers ----------
+function link(gl, vsSrc, fsSrc){
+  const v = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(v, vsSrc); gl.compileShader(v);
+  if (!gl.getShaderParameter(v, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(v);
+
+  const f = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(f, fsSrc); gl.compileShader(f);
+  if (!gl.getShaderParameter(f, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(f);
+
+  const p = gl.createProgram();
+  gl.attachShader(p,v); gl.attachShader(p,f); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw gl.getProgramInfoLog(p);
+  return p;
+}
+function uniLocs(gl, prog, names){
+  const o={}; for(const n of names) o[n]=gl.getUniformLocation(prog,n); return o;
+}
+function makeTex(gray){
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+  // expand to RGBA
+  const N = gray.length, data = new Uint8Array(N*4);
+  for (let i=0,j=0;i<N;i++,j+=4){ const g=gray[i]; data[j]=g; data[j+1]=g; data[j+2]=g; data[j+3]=255; }
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, TEX_SIZE, TEX_SIZE, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  return tex;
+}
+// Value-noise with bilinear “interpolate(step)”
+function makeValueNoise(size, step){
+  const rnd = new Uint8Array(size*size);
+  // seed cells
+  for(let y=0;y<size;y+=step)
+  for(let x=0;x<size;x+=step){
+    rnd[(y*size+x)] = (Math.random()*255)|0;
+  }
+  // bilinear smooth (like IQ’s cubic, but good enough; swap to smoothstep if you want)
+  const out = new Uint8Array(size*size);
+  for(let y=0;y<size;y++){
+    for(let x=0;x<size;x++){
+      const x0 = (x/step|0)*step, y0=(y/step|0)*step;
+      const x1 = (x0+step) & (size-1), y1=(y0+step) & (size-1);
+      const fx = (x - x0)/step, fy = (y - y0)/step;
+      const sx = fx*fx*(3-2*fx); // smoothstep
+      const sy = fy*fy*(3-2*fy);
+      const a = rnd[y0*size + x0];
+      const b = rnd[y0*size + x1];
+      const c = rnd[y1*size + x0];
+      const d = rnd[y1*size + x1];
+      const ab = a + (b-a)*sx;
+      const cd = c + (d-c)*sx;
+      out[y*size + x] = (ab + (cd-ab)*sy)|0;
+    }
+  }
+  return out;
+}
+function norm(v){ const l=Math.hypot(v[0],v[1])||1; return [v[0]/l, v[1]/l]; }
+</script>
