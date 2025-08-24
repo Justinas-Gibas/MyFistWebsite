@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>JustGibas 13K Game 2025 — Painterly Trees + Branches</title>
+  <style>
+    html, body { margin:0; height:100%; background:#000; overflow:hidden; touch-action:none; }
+    .joystick { position:fixed; width:112px; height:112px; border-radius:50%; background:rgba(255,255,255,.08); border:2px solid rgba(255,255,255,.25); z-index:10; display:none }
+    .joystick-handle { position:absolute; width:36px; height:36px; border-radius:50%; background:rgba(255,255,255,.9); top:50%; left:50%; transform:translate(-50%,-50%); pointer-events:none }
+    #leftJoy{bottom:36px;left:36px} #rightJoy{bottom:36px;right:36px}
+    @media (pointer:coarse){ .joystick{display:block} }
+  </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="leftJoy" class="joystick"><div class="joystick-handle"></div></div>
+<div id="rightJoy" class="joystick"><div class="joystick-handle"></div></div>
+<script>
+// ====== Minimal diff from your file: branches added + painterly tree shader ======
+const canvas=document.getElementById('canvas');
+const F32=Float32Array, D2R=Math.PI/180; let gl,xr=null,ref=null,off=null; let last=0;
+const user={x:0,y:1.6,z:2,yaw:0,pitch:0};
+const input={keys:{},joy:{left:{x:0,y:0,id:null},right:{x:0,y:0,id:null}},look:{id:null,x:0,y:0},pointer:{x:0,y:0}};
+Object.getOwnPropertyNames(Math).forEach(n=>window[n.toUpperCase()]=Math[n]);
+const M4=v=>new F32(v||[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+const MULTMAT4=(o,a,b)=>(o.set((new DOMMatrix(a)).multiply(new DOMMatrix(b)).toFloat32Array()),o);
+const INV=m=>(new DOMMatrix(m)).inverse().toFloat32Array();
+const PERSP=(o,f,a,n,fa)=>{const t=1/TAN(f*D2R/2);o.set([t/a,0,0,0,0,t,0,0,0,0,(fa+n)/(n-fa),-1,0,0,(2*fa*n)/(n-fa),0]);return o};
+const LOOKAT=(o,e,c,u)=>{const s=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];let z=s(e,c);
+  const l=a=>{const r=1/HYPOT(a[0],a[1],a[2]);return[r*a[0],r*a[1],r*a[2]]};
+  z=l(z); let x=[u[1]*z[2]-u[2]*z[1],u[2]*z[0]-u[0]*z[2],u[0]*z[1]-u[1]*z[0]]; x=l(x);
+  const y=[z[1]*x[2]-z[2]*x[1],z[2]*x[0]-z[0]*x[2],z[0]*x[1]-z[1]*x[0]];
+  o.set([x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-(x[0]*e[0]+x[1]*e[1]+x[2]*e[2]),-(y[0]*e[0]+y[1]*e[1]+y[2]*e[2]),-(z[0]*e[0]+z[1]*e[1]+z[2]*e[2]),1]);return o};
+function translateScale(x,y,z,sx,sy,sz){return new F32([sx,0,0,0, 0,sy,0,0, 0,0,sz,0, x,y,z,1])}
+
+// Input (keyboard + mouse look)
+document.addEventListener('keydown',e=>input.keys[e.key.toLowerCase()]=true);
+document.addEventListener('keyup',e=>input.keys[e.key.toLowerCase()]=false);
+canvas.addEventListener('pointerdown',e=>{ if(e.button===0&&input.look.id===null){input.look.id=e.pointerId;input.look.x=e.clientX;input.look.y=e.clientY;canvas.setPointerCapture(e.pointerId)} input.pointer.x=e.clientX; input.pointer.y=e.clientY; });
+canvas.addEventListener('pointermove',e=>{ input.pointer.x=e.clientX; input.pointer.y=e.clientY; if(e.pointerId===input.look.id){const dx=e.clientX-input.look.x, dy=e.clientY-input.look.y; input.look.x=e.clientX; input.look.y=e.clientY; user.yaw+=dx*0.002; user.pitch=MAX(-PI/2,MIN(PI/2,user.pitch-dy*0.002)); }});
+canvas.addEventListener('pointerup',e=>{ if(e.pointerId===input.look.id) input.look.id=null; });
+
+function getMove(){const kx=(+!!input.keys.d)-(+!!input.keys.a); const ky=(+!!input.keys.w)-(+!!input.keys.s); const kt=(+!!input.keys.q)-(+!!input.keys.e); return {x:kx,y:ky,t:kt};}
+function step(dt,mv){ user.yaw+=mv.t*2*dt; const cy=COS(user.yaw), sy=SIN(user.yaw); const f=[-sy,0,-cy], r=[cy,0,-sy], sp=3*dt; user.x+=(r[0]*mv.x+f[0]*mv.y)*sp; user.z+=(r[2]*mv.x+f[2]*mv.y)*sp; }
+
+// GL init
+function resize(){const dpr=devicePixelRatio||1; canvas.width=innerWidth*dpr; canvas.height=innerHeight*dpr; canvas.style.width=innerWidth+'px'; canvas.style.height=innerHeight+'px';}
+addEventListener('resize',resize); gl=canvas.getContext('webgl2',{antialias:true,xrCompatible:true}); if(!gl) alert('WebGL2 required'); resize();
+function prog(vs,fs){const p=gl.createProgram(),v=gl.createShader(gl.VERTEX_SHADER),f=gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(v,vs); gl.compileShader(v); if(!gl.getShaderParameter(v,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(v); gl.shaderSource(f,fs); gl.compileShader(f); if(!gl.getShaderParameter(f,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(f); gl.attachShader(p,v); gl.attachShader(p,f); gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw gl.getProgramInfoLog(p); return p; }
+
+// Sky (unchanged minimal)
+const vsSky=`#version 300 es
+precision highp float; const vec2 v[3]=vec2[3](vec2(-1.,-1.),vec2(3.,-1.),vec2(-1.,3.)); out vec2 uv; void main(){ uv=v[gl_VertexID]*.5+.5; gl_Position=vec4(v[gl_VertexID],0.,1.); }`;
+const fsSky=`#version 300 es
+precision highp float; in vec2 uv; out vec4 o; uniform vec3 sunDir; uniform mat4 Vinv,invPV; const vec3 zen=vec3(.2,.2,.4), hor=vec3(.20,.28,.36), sunTint=vec3(.8,.6,.1); void main(){ vec3 ro=(Vinv*vec4(0,0,0,1)).xyz; vec2 ndc=uv*2.-1.; vec4 wf=invPV*vec4(ndc,1.,1.); vec3 w=wf.xyz/wf.w; vec3 rd=normalize(w-ro); float t=pow(max(rd.y*.5+.5,0.),1.2); vec3 sky=mix(hor,zen,t); vec3 s=normalize(sunDir); float sd=max(dot(rd,s),0.); float sun=smoothstep(.995,1.,sd); float glow=pow(sd,60.)+.4*pow(sd,12.); o=vec4(sky+sunTint*glow+vec3(1.)*sun*.15,1.); }`;
+const PSKY=prog(vsSky,fsSky); const vaoSky=gl.createVertexArray(); const uVinv=gl.getUniformLocation(PSKY,'Vinv'); const uInvPV=gl.getUniformLocation(PSKY,'invPV'); const uSun=gl.getUniformLocation(PSKY,'sunDir');
+
+// Ground grid (minimal)
+const vsG=`#version 300 es
+precision highp float; layout(location=0)in vec3 p; uniform mat4 V,P; out vec3 w; void main(){ w=p; gl_Position=P*V*vec4(p,1.); }`;
+const fsG=`#version 300 es
+precision highp float; in vec3 w; out vec4 o; void main(){ float c=2.; float l=step(abs(fract(w.x/c)-.5),.01)+step(abs(fract(w.z/c)-.5),.01); float g=clamp(l,0.,1.); vec3 base=mix(vec3(.04),vec3(.08),smoothstep(0.,20.,length(w.xz))); o=vec4(base+g*vec3(.2,1.,.2)*.6,1.); }`;
+const PG=prog(vsG,fsG); const uVG=gl.getUniformLocation(PG,'V'); const uPG=gl.getUniformLocation(PG,'P'); const vaoG=gl.createVertexArray(); const vboG=gl.createBuffer(); gl.bindVertexArray(vaoG); gl.bindBuffer(gl.ARRAY_BUFFER,vboG); gl.bufferData(gl.ARRAY_BUFFER,new F32([-1e3,0,-1e3, 1e3,0,-1e3, 1e3,0,1e3, -1e3,0,-1e3, 1e3,0,1e3, -1e3,0,1e3]),gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+
+// ------- Painterly Tree Shaders (toon + rim + brush noise) -------
+const vsTree=`#version 300 es
+precision highp float; layout(location=0)in vec3 p; layout(location=1)in vec3 n; layout(location=2)in float c; // 0: trunk, 1: leaves
+uniform vec3 sunDir; uniform vec2 uCamXZ; out vec3 vP; out vec3 vN; out vec3 vBase; out float vType;
+// hash
+float h1(float x){ x=fract(x*.1031); x*=x+33.33; x*=x+x; return fract(x);} 
+float h2(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);} 
+void main(){
+  float iid=float(gl_InstanceID);
+  float grid=5., dim=40., halfDim=dim*.5; vec2 cam=floor(uCamXZ/grid);
+  float ix=mod(iid,dim)-halfDim; float iz=floor(iid/dim)-halfDim; vec2 cell=cam+vec2(ix,iz);
+  float cellh=h2(cell);
+  if(cellh<.3){ gl_Position=vec4(0.,-1e3,0.,1.); return; }
+  float jx=(h1(cellh*1.1)-.5)*grid*.9; float jz=(h1(cellh*1.3)-.5)*grid*.9; vec3 T=vec3((cell.x*grid)+jx,0.,(cell.y*grid)+jz);
+  float hr=h1(cellh*1.5); float wr=h1(cellh*1.7); float H=mix(2.5,5.,hr); vec3 S=vec3(mix(.8,1.5,wr), H, mix(.8,1.5,wr));
+  // random orientation + slight lean
+  float yaw=h1(cellh*2.1)*6.2831853; float ax=(h1(cellh*2.7)-.5)*.18; float az=(h1(cellh*3.1)-.5)*.18;
+  mat3 RY=mat3(cos(yaw),0.,sin(yaw), 0.,1.,0., -sin(yaw),0.,cos(yaw));
+  mat3 RX=mat3(1.,0.,0., 0.,cos(ax),-sin(ax), 0.,sin(ax),cos(ax));
+  mat3 RZ=mat3(cos(az),-sin(az),0., sin(az),cos(az),0., 0.,0.,1.);
+  mat3 R=RY*RX*RZ; 
+  vec3 wp=T + R*(p*S); vP=wp; vN=normalize(R*n);
+  vec3 trunk=vec3(.40,.25,.20); vec3 leaf=vec3(.20,.55,.25)*(0.82+0.38*h1(cellh*1.9)); vBase=mix(trunk,leaf,c); vType=c;
+  // MVP done in JS: we only output position here; fragment uses vP/vN
+  // We still need clip pos, so pack via a dummy MVP fed from JS (we'll multiply here):
+  // gl_Position is set in JS with P*V, so here use a placeholder; overridden by gl_Position = PV * vec4(vP,1) via gl_Position replacement? -> we pass PV as uniform in JS.
+}
+`;
+// NOTE: We'll compute gl_Position on JS side using transform feedback style: easier is to keep MVP in vertex. Provide V,P as uniforms:
+const vsTreeFixed = `#version 300 es
+precision highp float; layout(location=0)in vec3 p; layout(location=1)in vec3 n; layout(location=2)in float c; 
+uniform mat4 V,P; uniform vec3 sunDir; uniform vec2 uCamXZ; out vec3 vP; out vec3 vN; out vec3 vBase; out float vType; 
+float h1(float x){ x=fract(x*.1031); x*=x+33.33; x*=x+x; return fract(x);} float h2(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);} 
+void main(){ float iid=float(gl_InstanceID); float grid=5., dim=40., halfDim=dim*.5; vec2 cam=floor(uCamXZ/grid); float ix=mod(iid,dim)-halfDim; float iz=floor(iid/dim)-halfDim; vec2 cell=cam+vec2(ix,iz); float cellh=h2(cell); if(cellh<.3){ gl_Position=vec4(0.,-1e3,0.,1.); return; } float jx=(h1(cellh*1.1)-.5)*grid*.9; float jz=(h1(cellh*1.3)-.5)*grid*.9; vec3 T=vec3((cell.x*grid)+jx,0.,(cell.y*grid)+jz); float hr=h1(cellh*1.5); float wr=h1(cellh*1.7); vec3 S=vec3(mix(.8,1.5,wr), mix(2.5,5.,hr), mix(.8,1.5,wr)); float yaw=h1(cellh*2.1)*6.2831853; float ax=(h1(cellh*2.7)-.5)*.18; float az=(h1(cellh*3.1)-.5)*.18; mat3 RY=mat3(cos(yaw),0.,sin(yaw), 0.,1.,0., -sin(yaw),0.,cos(yaw)); mat3 RX=mat3(1.,0.,0., 0.,cos(ax),-sin(ax), 0.,sin(ax),cos(ax)); mat3 RZ=mat3(cos(az),-sin(az),0., sin(az),cos(az),0., 0.,0.,1.); mat3 R=RY*RX*RZ; vec3 wp=T + R*(p*S); vP=wp; vN=normalize(R*n); vec3 trunk=vec3(.40,.25,.20); vec3 leaf=vec3(.20,.55,.25)*(0.82+0.38*h1(cellh*1.9)); vBase=mix(trunk,leaf,c); vType=c; gl_Position=P*V*vec4(wp,1.); }
+`;
+
+const fsTree=`#version 300 es
+precision highp float; in vec3 vP; in vec3 vN; in vec3 vBase; in float vType; uniform vec3 sunDir; uniform vec3 uEye; out vec4 o;
+float n3(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,45.164)))*43758.5453); }
+void main(){ vec3 N=normalize(vN); vec3 L=normalize(sunDir); vec3 V=normalize(uEye - vP);
+  float ndl=max(dot(N,L),0.);
+  // Toon steps with jitter for brushy feel
+  float j = (n3(vP*2.5)-.5)*.18; float shade = clamp(ndl + j, 0., 1.);
+  float bands = floor(pow(shade, .7)*3.999)/3.0; // 4 bands
+  // Cool-to-warm shift
+  vec3 cool=vec3(.55,.65,1.0), warm=vec3(1.0,.95,.85);
+  vec3 lit = vBase * mix(cool, warm, bands);
+  // Rim light to fake painted edge highlight (stronger on leaves)
+  float rim = pow(max(1. - max(dot(N,V),0.), 0.), vType>0.5 ? 2.0 : 3.0);
+  vec3 rimCol = mix(vec3(.9,.9,1.), vec3(1.,.9,.6), .4);
+  // Ambient from sky vs ground
+  float skyA = clamp(N.y*.5+.5, 0., 1.);
+  vec3 ambient = mix(vec3(.08,.09,.10), vec3(.18,.22,.28), skyA);
+  // Subtle stroke noise modulation
+  float stroke = 0.94 + 0.12*(n3(vP*6.0)-.5);
+  vec3 col = ambient + lit*stroke + rimCol*rim*0.25*(vType>0.5?1.2:0.7);
+  o = vec4(col,1.0);
+}`;
+
+const PTREE=prog(vsTreeFixed,fsTree);
+const uVTree=gl.getUniformLocation(PTREE,'V');
+const uPTree=gl.getUniformLocation(PTREE,'P');
+const uSunTree=gl.getUniformLocation(PTREE,'sunDir');
+const uCamXZTree=gl.getUniformLocation(PTREE,'uCamXZ');
+const uEyeTree=gl.getUniformLocation(PTREE,'uEye');
+
+let treeVao, treeVbo, treeIndexCount;
+function createTreeGeometry(){
+  const vertices=[]; const indices=[]; let indexOffset=0;
+  function pushV(px,py,pz,nx,ny,nz,c){ vertices.push(px,py,pz, nx,ny,nz, c); }
+  // Trunk (low segments keeps verts small)
+  const trunkR=0.1, trunkH=0.5, seg=8;
+  for(let i=0;i<=seg;i++){ const a=i/seg*2*PI, x=COS(a)*trunkR, z=SIN(a)*trunkR; pushV(x,0,z, x,0,z, 0); pushV(x,trunkH,z, x,0,z, 0); }
+  for(let i=0;i<seg;i++){ const i0=indexOffset+i*2, i1=i0+1, i2=i0+2, i3=i0+3; indices.push(i0,i1,i2, i1,i3,i2); }
+  indexOffset += (seg+1)*2;
+  // Simple branches: 3 quads (two tris each), tapered, pointing upward/outward
+  function addBranch(angle, y, len, thick){
+    const bx=COS(angle)*trunkR, bz=SIN(angle)*trunkR; const base=[bx,y,bz];
+    let d=[COS(angle)*0.7, 0.6, SIN(angle)*0.7]; { const l=1/HYPOT(d[0],d[1],d[2]); d=[d[0]*l,d[1]*l,d[2]*l]; }
+    // side vector (perp)
+    let w=[d[1]*0 - d[2]*1, d[2]*0 - d[0]*0, d[0]*1 - d[1]*0]; // cross(d, up)
+    let wl=HYPOT(w[0],w[1],w[2]); if(wl<1e-5){ w=[0,0,1]; wl=1; } w=[w[0]/wl, w[1]/wl, w[2]/wl];
+    const t0=[base[0]+w[0]*thick, base[1], base[2]+w[2]*thick];
+    const t1=[base[0]-w[0]*thick, base[1], base[2]-w[2]*thick];
+    const tip=[base[0]+d[0]*len, base[1]+d[1]*len, base[2]+d[2]*len];
+    const t2=[tip[0]+w[0]*thick*0.5, tip[1], tip[2]+w[2]*thick*0.5];
+    const t3=[tip[0]-w[0]*thick*0.5, tip[1], tip[2]-w[2]*thick*0.5];
+    // face normal
+    function nrm(a,b,c){ const u=[b[0]-a[0],b[1]-a[1],b[2]-a[2]]; const v=[c[0]-a[0],c[1]-a[1],c[2]-a[2]]; const nx=u[1]*v[2]-u[2]*v[1], ny=u[2]*v[0]-u[0]*v[2], nz=u[0]*v[1]-u[1]*v[0]; const L=1/HYPOT(nx,ny,nz); return [nx*L,ny*L,nz*L]; }
+    const n=nrm(t0,t1,t2);
+    const baseIndex=indexOffset;
+    pushV(t0[0],t0[1],t0[2], n[0],n[1],n[2], 0);
+    pushV(t1[0],t1[1],t1[2], n[0],n[1],n[2], 0);
+    pushV(t2[0],t2[1],t2[2], n[0],n[1],n[2], 0);
+    pushV(t3[0],t3[1],t3[2], n[0],n[1],n[2], 0);
+    indices.push(baseIndex,baseIndex+1,baseIndex+2, baseIndex+1,baseIndex+3,baseIndex+2);
+    indexOffset+=4;
+  }
+  // Three branches around trunk
+  addBranch(0.0, 0.28, 0.8, 0.05);
+  addBranch(2.1, 0.36, 0.9, 0.05);
+  addBranch(4.0, 0.42, 1.0, 0.05);
+
+  // Leaves: low-poly icosphere (subdivisions = 1)
+  let leafRadius=0.6, leafSub=1; const t=(1+SQRT(5))/2; const ico=[-1,t,0, 1,t,0, -1,-t,0, 1,-t,0, 0,-1,t, 0,1,t, 0,-1,-t, 0,1,-t, t,0,-1, t,0,1, -1,0,-1, -1,0,1];
+  let idx=[0,11,5, 0,5,1, 0,1,7, 0,7,10, 0,10,11, 1,5,9, 5,11,4, 11,10,2, 10,7,6, 7,1,8, 3,9,4, 3,4,2, 3,2,6, 3,6,8, 3,8,9, 4,9,5, 2,4,11, 6,2,10, 8,6,7, 9,8,1];
+  const midCache={}; function mid(i1,i2){ const a=i1<i2? i1+","+i2 : i2+","+i1; if(midCache[a]!=null) return midCache[a]; const v=[ico[i1*3],ico[i1*3+1],ico[i1*3+2]], w=[ico[i2*3],ico[i2*3+1],ico[i2*3+2]]; const m=[(v[0]+w[0])/2,(v[1]+w[1])/2,(v[2]+w[2])/2]; ico.push(m[0],m[1],m[2]); return midCache[a]=(ico.length/3-1); }
+  for(let s=0;s<leafSub;s++){ const nidx=[]; for(let i=0;i<idx.length;i+=3){ const a=idx[i], b=idx[i+1], c=idx[i+2]; const ab=mid(a,b), bc=mid(b,c), ca=mid(c,a); nidx.push(a,ab,ca, b,bc,ab, c,ca,bc, ab,bc,ca); } idx=nidx; }
+  function norm(v){ const L=1/HYPOT(v[0],v[1],v[2]); return [v[0]*L,v[1]*L,v[2]*L]; }
+  const leafStart=indexOffset;
+  for(let i=0;i<ico.length;i+=3){ const v=norm([ico[i],ico[i+1],ico[i+2]]); const px=v[0]*leafRadius, py=v[1]*leafRadius + (trunkH + leafRadius*.7), pz=v[2]*leafRadius; pushV(px,py,pz, v[0],v[1],v[2], 1.0); }
+  for(const id of idx){ indices.push(leafStart + id); }
+
+  // Upload
+  treeVao=gl.createVertexArray(); gl.bindVertexArray(treeVao);
+  treeVbo=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,treeVbo); gl.bufferData(gl.ARRAY_BUFFER,new F32(vertices),gl.STATIC_DRAW);
+  const ebo=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ebo); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indices),gl.STATIC_DRAW);
+  treeIndexCount=indices.length;
+  const stride=7*4; gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,stride,0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,3,gl.FLOAT,false,stride,12);
+  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2,1,gl.FLOAT,false,stride,24);
+}
+createTreeGeometry();
+
+// Simple HUD-less loop focusing on scene
+const V=M4(), P=M4();
+let PV = M4(), invPV = M4();
+function buildVP(){ const cy=COS(user.yaw), sy=SIN(user.yaw), cp=COS(user.pitch), sp=SIN(user.pitch); const eye=[user.x,user.y,user.z]; const center=[user.x - sy*cp, user.y - sp, user.z - cy*cp]; LOOKAT(V,eye,center,[0,1,0]); PERSP(P,60,canvas.width/canvas.height,0.01,1e3); PV=MULTMAT4(M4(),P,V); invPV=INV(PV); return eye; }
+
+function drawTrees(Vm,Pm,eye,camXZ,sun){ gl.useProgram(PTREE); gl.bindVertexArray(treeVao); gl.uniformMatrix4fv(uVTree,false,Vm); gl.uniformMatrix4fv(uPTree,false,Pm); gl.uniform2f(uCamXZTree,camXZ[0],camXZ[1]); gl.uniform3fv(uSunTree,sun); gl.uniform3f(uEyeTree,eye[0],eye[1],eye[2]); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.enable(gl.DEPTH_TEST); gl.drawElementsInstanced(gl.TRIANGLES,treeIndexCount,gl.UNSIGNED_SHORT,0,40*40); }
+
+function loop(t){ const dt=((t-last)/1000)||0; last=t; step(dt,getMove()); const eye=buildVP(); const sun=[0.1,0.5,-0.9]; gl.viewport(0,0,canvas.width,canvas.height); gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  // sky
+  gl.useProgram(PSKY); gl.bindVertexArray(vaoSky); gl.disable(gl.DEPTH_TEST); gl.uniformMatrix4fv(uVinv,false,INV(V)); gl.uniformMatrix4fv(uInvPV,false,invPV); gl.uniform3fv(uSun,sun); gl.drawArrays(gl.TRIANGLES,0,3); gl.enable(gl.DEPTH_TEST);
+  // grid
+  gl.useProgram(PG); gl.bindVertexArray(vaoG); gl.uniformMatrix4fv(uVG,false,V); gl.uniformMatrix4fv(uPG,false,P); gl.drawArrays(gl.TRIANGLES,0,6);
+  // trees
+  drawTrees(V,P,eye,[user.x,user.z],sun);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

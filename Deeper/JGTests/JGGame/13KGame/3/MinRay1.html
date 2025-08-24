@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
+<title>UniXR Min</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none}
+  #ui{position:fixed;left:12px;top:12px;z-index:9;font:14px/1.2 system-ui;color:#fff}
+  button{font:inherit;padding:.45rem .7rem;border-radius:.6rem;border:0;cursor:pointer}
+  #log{opacity:.8;margin-top:.4rem;max-height:160px;overflow-y:auto;font-size:11px}
+  .joystick{position:fixed;width:112px;height:112px;border-radius:50%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.25);z-index:10;display:none}
+  .joystick-handle{position:absolute;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.9);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
+  #leftJoy{bottom:36px;left:36px} #rightJoy{bottom:36px;right:36px}
+  @media (pointer:coarse){.joystick{display:block}}
+</style>
+<div id="ui">
+  <button id="enter">Enter VR</button>
+  <div id="log">Desktop: WASD + mouse drag | Mobile: joysticks | VR: thumbsticks. Click/touch = raycast to ground.</div>
+</div>
+<canvas id="c"></canvas>
+<div id="leftJoy" class="joystick"><div class="joystick-handle"></div></div>
+<div id="rightJoy" class="joystick"><div class="joystick-handle"></div></div>
+<script>
+// ===== Minimal, unified XR + input + HUD + ground-ray =====
+const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints>0;
+const MOVES=3, TURNS=2, DZ=.12;
+let user={x:0,y:1.6,z:2,yaw:0,pitch:0}, last=0, gl, xr=null, ref=null, off=null;
+const C=document.getElementById('c'), logDiv=document.getElementById('log');
+const input={keys:{}, mouse:{b:0}, joy:{left:{x:0,y:0}, right:{x:0,y:0}}, touch:{}};
+
+// --- tiny math ---
+const F32=Float32Array, D2R=Math.PI/180;
+const M4=(v)=>new F32(v||[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+const PERSP=(o,f,a,n,fa)=>{const t=1/Math.tan(f*D2R/2); o.set([t/a,0,0,0, 0,t,0,0, 0,0,(fa+n)/(n-fa),-1, 0,0,(2*fa*n)/(n-fa),0]); return o}
+const LOOKAT=(o,e,c,u)=>{let z0=e[0]-c[0],z1=e[1]-c[1],z2=e[2]-c[2];let il=1/Math.hypot(z0,z1,z2);z0*=il;z1*=il;z2*=il;let x0=u[1]*z2-u[2]*z1,x1=u[2]*z0-u[0]*z2,x2=u[0]*z1-u[1]*z0;il=1/Math.hypot(x0,x1,x2);x0*=il;x1*=il;x2*=il;let y0=z1*x2-z2*x1,y1=z2*x0-z0*x2,y2=z0*x1-z1*x0; o.set([x0,y0,z0,0,x1,y1,z1,0,x2,y2,z2,0,-(x0*e[0]+x1*e[1]+x2*e[2]),-(y0*e[0]+y1*e[1]+y2*e[2]),-(z0*e[0]+z1*e[1]+z2*e[2]),1]); return o}
+const INV=(m)=>new DOMMatrix(m).inverse().toFloat32Array();
+
+// --- unified input (keyboard + mouse drag + mobile joysticks + VR pads) ---
+document.body.onkeydown=document.body.onkeyup=e=>input.keys[e.key.toLowerCase()]=e.type==='keydown';
+C.onmousedown=C.onmouseup=e=>input.mouse.b=e.buttons;
+C.onmousemove=e=>{ if(input.mouse.b===1 && !isMobile){ user.yaw+=e.movementX*0.002; user.pitch=Math.max(-Math.PI/2,Math.min(Math.PI/2,user.pitch-e.movementY*0.002)); } };
+if(isMobile) (function initJoysticks(){
+  const joys=['left','right'].map(s=>({el:document.getElementById(s+'Joy'),h:document.querySelector('#'+s+'Joy .joystick-handle'),d:input.joy[s]}));
+  const upd=(j,t)=>{const r=j.el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,R=r.width/2-18,dx=t.clientX-cx,dy=t.clientY-cy;const L=Math.min(Math.hypot(dx,dy),R),a=Math.atan2(dy,dx); j.d.x=L>12?(L/R)*Math.cos(a):0; j.d.y=L>12?(L/R)*Math.sin(a):0; j.h.style.transform=`translate(calc(-50% + ${j.d.x*R}px),calc(-50% + ${j.d.y*R}px))`};
+  const reset=j=>{j.d.x=j.d.y=0; j.h.style.transform='translate(-50%,-50%)'};
+  document.addEventListener('touchstart',e=>{e.preventDefault(); for(const t of e.changedTouches){const x=t.clientX,y=t.clientY; for(const j of joys){const r=j.el.getBoundingClientRect(); if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom){input.touch[j.el.id]=t.identifier; upd(j,t); return;} } if(!input.touch.look){input.touch.look=t.identifier; input.touch.x=x; input.touch.y=y;}}},{passive:false});
+  document.addEventListener('touchmove',e=>{e.preventDefault(); for(const t of e.changedTouches){for(const j of joys){if(input.touch[j.el.id]===t.identifier){upd(j,t);} } if(input.touch.look===t.identifier){const dx=t.clientX-input.touch.x,dy=t.clientY-input.touch.y; input.touch.x=t.clientX; input.touch.y=t.clientY; user.yaw+=dx*0.002; user.pitch=Math.max(-Math.PI/2,Math.min(Math.PI/2,user.pitch-dy*0.002));}}},{passive:false});
+  document.addEventListener('touchend',e=>{e.preventDefault(); for(const t of e.changedTouches){for(const j of joys){if(input.touch[j.el.id]===t.identifier){reset(j); delete input.touch[j.el.id];} } if(input.touch.look===t.identifier){delete input.touch.look;}}},{passive:false});
+})();
+
+function getMove(session){
+  const kx=(+!!input.keys.d)-(+!!input.keys.a);
+  const ky=(+!!input.keys.w)-(+!!input.keys.s);
+  const kt=(+!!input.keys.q)-(+!!input.keys.e);
+  const jx=input.joy.left.x, jy=-input.joy.left.y, jt=-input.joy.right.x;
+  let vx=0,vy=0,vt=0;
+  if(session) for(const src of session.inputSources){
+    const a=src.gamepad?.axes; if(!a||a.length<4) continue;
+    const dz=v=>Math.abs(v)>DZ?v:0;
+    const x=dz(a[2]), y=dz(a[3]);
+    if(src.handedness==='left'){vx=x;vy=-y;} else if(src.handedness==='right'){vt=-x;}
+    else if(!vx && !vy){vx=x;vy=-y;}
+  }
+  return {x: vx||kx||jx, y: vy||ky||jy, t: vt||kt||jt};
+}
+
+function step(dt, mv){
+  user.yaw += mv.t * TURNS * dt;
+  const cy=Math.cos(user.yaw), sy=Math.sin(user.yaw);
+  const f=[-sy,0,-cy], r=[cy,0,-sy], sp=MOVES*dt;
+  user.x += (r[0]*mv.x + f[0]*mv.y)*sp;
+  user.z += (r[2]*mv.x + f[2]*mv.y)*sp;
+}
+
+// --- GL setup ---
+gl = C.getContext('webgl2',{antialias:true,xrCompatible:true});
+if(!gl){ alert('WebGL2 required'); }
+function resize(){ const w=innerWidth,h=innerHeight,dpr=devicePixelRatio||1; C.width=w*dpr; C.height=h*dpr; C.style.width=w+'px'; C.style.height=h+'px'; }
+addEventListener('resize',resize); resize();
+
+// grid shader
+const vsG=`#version 300 es
+precision highp float;layout(location=0)in vec3 p;uniform mat4 M,V,P;out vec3 w;void main(){w=(M*vec4(p,1.)).xyz;gl_Position=P*V*vec4(w,1.);}`;
+const fsG=`#version 300 es
+precision highp float;in vec3 w;out vec4 o;void main(){float c=2.,l=step(abs(fract(w.x/c)-.5),.01)+step(abs(fract(w.z/c)-.5),.01);float g=clamp(l,0.,1.);vec3 b=mix(vec3(.04),vec3(.08),smoothstep(0.,20.,length(w.xz)));o=vec4(b+g*vec3(.2,.8,1.)*.6,1.);}`;
+function prog(vs,fs){const p=gl.createProgram(),v=gl.createShader(gl.VERTEX_SHADER),f=gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(v,vs);gl.compileShader(v); if(!gl.getShaderParameter(v,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(v); gl.shaderSource(f,fs);gl.compileShader(f); if(!gl.getShaderParameter(f,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(f); gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw gl.getProgramInfoLog(p); return p}
+const PG=prog(vsG,fsG), uM=gl.getUniformLocation(PG,'M'),uV=gl.getUniformLocation(PG,'V'),uP=gl.getUniformLocation(PG,'P');
+const vbo=gl.createBuffer(), vao=gl.createVertexArray();
+gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER,vbo);
+gl.bufferData(gl.ARRAY_BUFFER,new F32([-1e3,0,-1e3, 1e3,0,-1e3, 1e3,0,1e3, -1e3,0,-1e3, 1e3,0,1e3, -1e3,0,1e3]),gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+
+// HUD as dynamic canvas texture on a head-locked quad
+let hudTex=gl.createTexture(), hudCan=document.createElement('canvas'), hudCtx=hudCan.getContext('2d');
+hudCan.width=512; hudCan.height=256;
+gl.bindTexture(gl.TEXTURE_2D,hudTex);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+
+const vsH=`#version 300 es
+precision highp float;layout(location=0)in vec3 p;layout(location=1)in vec2 uv;uniform mat4 M,V,P;out vec2 U;void main(){U=uv;gl_Position=P*V*M*vec4(p,1.);}`;
+const fsH=`#version 300 es
+precision highp float;in vec2 U;uniform sampler2D T;out vec4 o;void main(){vec4 c=texture(T,U); if(c.a<.01)discard; o=c;}`;
+const PH=prog(vsH,fsH), mH=M4(), uMH=gl.getUniformLocation(PH,'M'),uVH=gl.getUniformLocation(PH,'V'),uPH=gl.getUniformLocation(PH,'P'),uT=gl.getUniformLocation(PH,'T');
+const vboH=gl.createBuffer(), vaoH=gl.createVertexArray();
+gl.bindVertexArray(vaoH); gl.bindBuffer(gl.ARRAY_BUFFER,vboH);
+gl.bufferData(gl.ARRAY_BUFFER,new F32([-0.25,0.12,0, 0,1, 0.25,0.12,0, 1,1, 0.25,-0.12,0, 1,0, -0.25,0.12,0, 0,1, 0.25,-0.12,0, 1,0, -0.25,-0.12,0, 0,0]),gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,20,0);
+gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,2,gl.FLOAT,false,20,12);
+
+// world matrices
+const M=M4(), V=M4(), P=M4();
+
+function updHUD(dt, mode, hit){
+  hudCtx.clearRect(0,0,hudCan.width,hudCan.height);
+  hudCtx.fillStyle='rgba(20,30,40,.85)'; hudCtx.fillRect(0,0,hudCan.width,hudCan.height);
+  hudCtx.fillStyle='#9cf'; hudCtx.font='24px system-ui'; hudCtx.fillText('HUD',20,34);
+  hudCtx.fillStyle='#fff'; hudCtx.font='16px system-ui';
+  hudCtx.fillText(`Mode: ${mode}${isMobile?' (Touch)':''}`,20,62);
+  hudCtx.fillText(`Pos: (${user.x.toFixed(1)}, ${user.z.toFixed(1)})`,20,86);
+  hudCtx.fillText(`Yaw: ${(user.yaw*180/Math.PI|0)}°`,20,110);
+  if(hit){ hudCtx.fillStyle='#afa'; hudCtx.fillText(`Hit @ ground: (${hit[0].toFixed(2)}, ${hit[2].toFixed(2)})`,20,136); }
+  gl.bindTexture(gl.TEXTURE_2D,hudTex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,hudCan);
+}
+
+// compute camera/view matrices for desktop
+function buildViewProj(){
+  const cy=Math.cos(user.yaw), sy=Math.sin(user.yaw), cp=Math.cos(user.pitch), sp=Math.sin(user.pitch);
+  const eye=[user.x,user.y,user.z], center=[user.x - sy*cp, user.y - sp, user.z - cy*cp];
+  LOOKAT(V,eye,center,[0,1,0]); PERSP(P,60,C.width/C.height,.01,1e3);
+}
+
+// --- simple ray from camera/controller, hit plane y=0 ---
+function rayFrom(mode, frame){
+  // dir = -Z axis of the source
+  if(mode==='VR' && frame){
+    // prefer right controller target ray
+    for(const s of xr.inputSources){ if(s.targetRaySpace){ const pose=frame.getPose(s.targetRaySpace, off||ref||null); if(pose){ const m=pose.transform.matrix, o=[m[12],m[13],m[14]], d=[-m[8],-m[9],-m[10]]; return {o,d}; } } }
+    // fallback to viewer
+    const pose=frame.getViewerPose(off||ref||null); if(pose){ const m=pose.views[0].transform.matrix; return {o:[m[12],m[13],m[14]], d:[-m[8],-m[9],-m[10]]}; }
+  } else {
+    const cy=Math.cos(user.yaw), sy=Math.sin(user.yaw), cp=Math.cos(user.pitch), sp=Math.sin(user.pitch);
+    const d=[-sy*cp, -sp, -cy*cp]; const o=[user.x,user.y,user.z]; return {o,d};
+  }
+  return null;
+}
+function rayHitGround(ray){ const t=(0 - ray.o[1]) / ray.d[1]; if(t>0){ return [ray.o[0]+ray.d[0]*t, 0, ray.o[2]+ray.d[2]*t]; } return null; }
+
+// click/touch to raycast
+C.addEventListener('click', ()=>{ const r=rayFrom('Desktop'); const h=r&&rayHitGround(r); if(h) log('hit '+h.map(v=>v.toFixed(2)).join(',')); });
+function log(s){ logDiv.innerHTML+=`<br>${s}`; logDiv.scrollTop=logDiv.scrollHeight; }
+
+// desktop loop
+function loop(t){
+  if(xr) return;
+  const dt=((t-last)/1000)||0; last=t;
+  const mv=getMove(); step(dt,mv);
+  buildViewProj();
+  gl.viewport(0,0,C.width,C.height);
+  gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
+  // grid
+  gl.useProgram(PG); gl.bindVertexArray(vao);
+  gl.uniformMatrix4fv(uM,false,M); gl.uniformMatrix4fv(uV,false,V); gl.uniformMatrix4fv(uP,false,P);
+  gl.drawArrays(gl.TRIANGLES,0,6);
+  // HUD (translate 1.15m forward, -0.05m down)
+  const T=new DOMMatrix([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,-.05,-1.15,1]).toFloat32Array();
+  const W=INV(V); const WH=new DOMMatrix(W).multiply(new DOMMatrix(T)).toFloat32Array();
+  updHUD(dt,isMobile?'Mobile':'Desktop', null);
+  gl.useProgram(PH); gl.bindVertexArray(vaoH);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,hudTex); gl.uniform1i(uT,0);
+  gl.uniformMatrix4fv(uMH,false,WH); gl.uniformMatrix4fv(uVH,false,V); gl.uniformMatrix4fv(uPH,false,P);
+  gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  gl.drawArrays(gl.TRIANGLES,0,6); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST);
+  requestAnimationFrame(loop);
+}
+
+// --- WebXR ---
+function initXR(){
+  if(!('xr' in navigator)){ log('WebXR not available'); return; }
+  navigator.xr.isSessionSupported('immersive-vr').then(s=>log(s?'VR supported':'VR not supported'));
+  const btn=document.getElementById('enter');
+  const toggle=async()=>{
+    if(xr){ xr.end(); return; }
+    try{
+      xr=await navigator.xr.requestSession('immersive-vr',{optionalFeatures:['local-floor']});
+      btn.textContent='Exit VR';
+      await gl.makeXRCompatible();
+      xr.updateRenderState({baseLayer:new XRWebGLLayer(xr,gl)});
+      ref=await xr.requestReferenceSpace('local-floor');
+      xr.addEventListener('end',()=>{xr=null; btn.textContent='Enter VR'; requestAnimationFrame(loop);});
+      last=0; xr.requestAnimationFrame(onXR);
+    }catch(e){ log('XR start fail: '+e.message); }
+  };
+  btn.onclick=btn.ontouchstart=(e)=>{e&&e.preventDefault(); toggle();};
+}
+
+function onXR(t, frame){
+  const s=frame.session; s.requestAnimationFrame(onXR);
+  const dt=((t-last)/1000)||0; last=t;
+  const pose=frame.getViewerPose(ref); if(!pose) return;
+  const mv=getMove(s); step(dt,mv);
+  // rotate by yaw, then translate XZ
+  const half=-user.yaw*0.5;
+  const rot=new XRRigidTransform({x:0,y:0,z:0},{x:0,y:Math.sin(half),z:0,w:Math.cos(half)});
+  const rRef=ref.getOffsetReferenceSpace(rot);
+  off=rRef.getOffsetReferenceSpace(new XRRigidTransform({x:-user.x,y:0,z:-user.z}));
+  const rel=frame.getViewerPose(off); if(!rel) return;
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER,s.renderState.baseLayer.framebuffer);
+  gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
+
+  // update HUD with ray hit if any (using viewer ray fallback)
+  const r=rayFrom('VR',frame); const hit=r&&rayHitGround(r);
+
+  for(const v of rel.views){
+    const vp=s.renderState.baseLayer.getViewport(v); gl.viewport(vp.x,vp.y,vp.width,vp.height);
+    // grid
+    gl.useProgram(PG); gl.bindVertexArray(vao);
+    gl.uniformMatrix4fv(uM,false,M); gl.uniformMatrix4fv(uV,false,v.transform.inverse.matrix); gl.uniformMatrix4fv(uP,false,v.projectionMatrix);
+    gl.drawArrays(gl.TRIANGLES,0,6);
+    // HUD
+    const worldFromView=v.transform.matrix;
+    const T=new DOMMatrix([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,-.05,-1.15,1]).toFloat32Array();
+    const WH=new DOMMatrix(worldFromView).multiply(new DOMMatrix(T)).toFloat32Array();
+    updHUD(dt,'VR', hit);
+    gl.useProgram(PH); gl.bindVertexArray(vaoH);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,hudTex); gl.uniform1i(uT,0);
+    gl.uniformMatrix4fv(uMH,false,WH); gl.uniformMatrix4fv(uVH,false,v.transform.inverse.matrix); gl.uniformMatrix4fv(uPH,false,v.projectionMatrix);
+    gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    gl.drawArrays(gl.TRIANGLES,0,6); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST);
+  }
+}
+
+(function main(){
+  initXR(); requestAnimationFrame(loop);
+  log(`App initialized ${isMobile?'(Mobile)':'(Desktop)'}`);
+})();
+</script>
+</html>

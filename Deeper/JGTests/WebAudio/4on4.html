@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8" />
+<title>Web Audio Minimal — 4‑Note Loop (No UI)</title>
+<!--
+  A single-file, edit-in-code Web Audio sandbox.
+  Goal: the smallest practical example that still shows a "real" synth voice
+  (VCO → VCF → VCA), a master bus (gain + compressor), a delay send, and a
+  sample-accurate step scheduler running a 4-note loop. No visible UI — you
+  start it by clicking anywhere in the page (required by browser autoplay policy).
+
+  How to use:
+  1) Open this file in your browser.
+  2) Click once anywhere to start audio.
+  3) Edit constants below (BPM, NOTES, envelopes, filter, delay) in VS Code.
+  4) Reload the page to hear changes.
+
+  Tweakable quick-start: Search for "EDIT ME" markers.
+-->
+<style>
+  html,body{height:100%;margin:0;background:#0b0d12;color:#cfe8ff;font:14px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  .center{display:grid;place-items:center;height:100%}
+  .hint .note{opacity:.8}
+</style>
+<body>
+<div class="center"><div>
+  <h1>Web Audio Minimal — Note Loop</h1>
+  <p class="hint">Click anywhere to start. </p>
+  <p class="hint">NOTES: <span>A</span></p>
+  <p class="note">NOTE: <span>A</span></p>
+</div></div>
+<script>
+'use strict';
+
+
+// ===========================
+// EDIT ME — Musical settings
+// ===========================
+const BPM = 69;                 // beats per minute
+const STEPS_PER_BEAT = 4;        // 16th notes
+const NOTES = [46, 46, 50, 37,  0, 42, 0, 44,  34, 48, 45, 30]; // MIDI note numbers (0-127)
+const NOTE_LEN_STEPS = 2;        // hold length in 16ths (2 = 1/8 note)
+const ROOT_TRANSPOSE = 0;       // shift all notes by semitones
+
+// Synth voice defaults
+const VOICE = {
+  wave: 'triangle',     // 'sine'|'square'|'sawtooth'|'triangle'
+  gain: .12,           // peak amp before envelope
+  // Filter (VCF)
+  cutoff: 1400,          // Hz (base cutoff)
+  resonance: 18,         // Q
+  envAmt: 10000,         // how much the cutoff rises with envelope
+  // Amp envelope (Attack, Decay, Sustain, Release in seconds)
+  A: .01, D: .1, S: .12, R: .15,
+  // Filter envelope shares the same A/D/S/R timing for simplicity
+  // LFO → cutoff
+  lfoHz: 1.5,           // Hz
+  lfoAmt: 1100           // modulation depth in Hz
+};
+
+// Master/FX
+const MASTER = { level: 0.9, compThreshold: -14, compRatio: 6 };
+const DELAY  = { time: 0.28, feedback: 0.33, mix: 0.18 };
+
+
+
+// =============
+// Setup engine
+// =============
+let ctx, masterGain, comp, delayNode, delayFb, delayMix, busIn;
+let lfoOsc; // shared LFO source
+let schedulerTimer, nextNoteTime = 0, stepIndex = 0;
+
+function setup() {
+  if (ctx) return;
+  ctx = new (window.AudioContext||window.webkitAudioContext)();
+
+  document.querySelector('.hint span').textContent = NOTES
+  // Master bus: everything → masterGain → compressor → destination
+  masterGain = ctx.createGain();
+  masterGain.gain.value = MASTER.level;
+
+  comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = MASTER.compThreshold;
+  comp.ratio.value = MASTER.compRatio;
+  comp.knee.value = 20; comp.attack.value = 0.003; comp.release.value = 0.25;
+
+  // FX: simple delay line in parallel (send/return)
+  delayNode = ctx.createDelay(2.0);
+  delayNode.delayTime.value = DELAY.time;
+  delayFb = ctx.createGain(); delayFb.gain.value = DELAY.feedback;
+  delayMix = ctx.createGain(); delayMix.gain.value = DELAY.mix;
+  delayNode.connect(delayFb).connect(delayNode); // feedback loop
+
+  // Central mix point for all voices
+  busIn = ctx.createGain();
+
+  // Dry path and delay return path sum into post
+  const dry = ctx.createGain(); dry.gain.value = 1.0;
+  const post = ctx.createGain();
+  busIn.connect(dry).connect(post);
+  delayNode.connect(delayMix).connect(post);
+
+  // Post → master chain → destination
+  post.connect(masterGain).connect(comp).connect(ctx.destination);
+
+  // Global LFO (shared mod source). We will attach it to each voice's filter
+  // via a per-voice gain node (so each voice can have its own depth if needed).
+  lfoOsc = ctx.createOscillator();
+  lfoOsc.type = 'sine';
+  lfoOsc.frequency.value = VOICE.lfoHz;
+  lfoOsc.start();
+
+  console.log('[setup] Audio graph created.');
+}
+
+// =============================
+// Voice: VCO → VCF → VCA chain
+// =============================
+function midiToHz(m) { return 440 * Math.pow(2, (m-69)/12); }
+
+function triggerVoice(midi, when, holdSteps = NOTE_LEN_STEPS) {
+  const freq = midiToHz(midi + ROOT_TRANSPOSE);
+  const length = holdSteps * (60 / BPM) / STEPS_PER_BEAT; // seconds
+
+  // VCO
+  const osc = ctx.createOscillator();
+  osc.type = VOICE.wave;
+  osc.frequency.setValueAtTime(freq, when);
+
+  // VCF
+  const vcf = ctx.createBiquadFilter(); vcf.type = 'lowpass';
+  vcf.frequency.setValueAtTime(VOICE.cutoff, when);
+  vcf.Q.value = VOICE.resonance;
+
+  // LFO routing: shared LFO → (depth) → this vcf.frequency
+  const lfoDepth = ctx.createGain();
+  lfoDepth.gain.value = VOICE.lfoAmt; // Hz depth
+  lfoOsc.connect(lfoDepth).connect(vcf.frequency);
+
+  // VCA
+  const vca = ctx.createGain(); vca.gain.value = 0.0001; // start silent
+
+  // Wire voice to bus and delay send
+  // Dry
+  osc.connect(vcf).connect(vca).connect(busIn);
+  // Delay send: tap pre-master with a per-voice send (optional subtle)
+  const send = ctx.createGain(); send.gain.value = 0.6; // reduce if too wet
+  vca.connect(send).connect(delayNode);
+
+  // ===== Envelopes (sample-accurate) =====
+  // Amp ADSR
+  const A=VOICE.A, D=VOICE.D, S=VOICE.S, R=VOICE.R;
+  vca.gain.cancelScheduledValues(when);
+  vca.gain.setValueAtTime(0.0001, when);
+  vca.gain.linearRampToValueAtTime(VOICE.gain, when + A);
+  vca.gain.linearRampToValueAtTime(VOICE.gain * S, when + A + D);
+  // release after hold time
+  const off = when + length;
+  vca.gain.setValueAtTime(VOICE.gain * S, off);
+  vca.gain.linearRampToValueAtTime(0.0001, off + R);
+
+  // Filter envelope (simple: add envAmt to cutoff then decay)
+  const base = VOICE.cutoff, amt = VOICE.envAmt;
+  vcf.frequency.cancelScheduledValues(when);
+  vcf.frequency.setValueAtTime(base, when);
+  vcf.frequency.linearRampToValueAtTime(base + amt, when + Math.max(0.01, A));
+  vcf.frequency.linearRampToValueAtTime(base + amt*S, when + A + D);
+  vcf.frequency.linearRampToValueAtTime(base, off + R);
+
+  // Lifetimes
+  osc.start(when);
+  osc.stop(off + R + 0.05);
+}
+
+// =====================
+// Sample-accurate clock
+// =====================
+function secondsPerStep() { return (60 / BPM) / STEPS_PER_BEAT; }
+
+function scheduleStep(step, time) {
+  // Choose note for this step
+  if (step % NOTE_LEN_STEPS === 0) {
+    const idx = (step / NOTE_LEN_STEPS) % NOTES.length;
+    const midi = NOTES[idx];
+    triggerVoice(midi, time, NOTE_LEN_STEPS);
+  }
+}
+
+function nextTick() {
+  const stepDur = secondsPerStep();
+  nextNoteTime += stepDur;
+  stepIndex = (stepIndex + 1) % (NOTES.length * NOTE_LEN_STEPS);
+}
+
+function scheduler() {
+  // Schedule ahead by ~100ms
+  const ahead = 0.1;
+  while (nextNoteTime < ctx.currentTime + ahead) {
+    scheduleStep(stepIndex, nextNoteTime);
+        // show current note
+    document.querySelector('.note span').textContent = NOTES[stepIndex % NOTES.length];
+    nextTick();
+  }
+}
+
+// ===== Transport =====
+async function start() {
+  setup();
+  await ctx.resume();
+  nextNoteTime = ctx.currentTime + 0.05; // slight offset to avoid race
+  stepIndex = 0;
+  schedulerTimer = setInterval(scheduler, 25); // lookahead
+  console.log('[transport] started @', BPM, 'BPM');
+}
+
+function stop() {
+  if (!ctx) return;
+  clearInterval(schedulerTimer);
+  try { ctx.close(); } catch {}
+  ctx = null;
+  console.log('[transport] stopped');
+}
+
+// Click anywhere to start; press Escape to stop (handy for rapid iteration)
+window.addEventListener('pointerdown', () => { if (!ctx) start(); sessionStorage.setItem('played', 'true'); });
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') stop(); });
+
+// Log a quick cheat sheet for you in DevTools
+console.log(`\nWeb Audio Minimal ready.\n\nTweak these constants and reload:\n  BPM, STEPS_PER_BEAT, NOTES (MIDI), NOTE_LEN_STEPS, ROOT_TRANSPOSE\n  VOICE: wave, gain, cutoff, resonance, envAmt, A/D/S/R, lfoHz, lfoAmt\n  MASTER: level, compThreshold, compRatio\n  DELAY: time, feedback, mix\nShortcuts:\n  • Click anywhere to start audio\n  • Press Esc to stop\n`);
+//try play audio after live server reload
+if (sessionStorage.getItem('played') === 'true') {
+  start();
+}
+</script>
+</body>
+</html>

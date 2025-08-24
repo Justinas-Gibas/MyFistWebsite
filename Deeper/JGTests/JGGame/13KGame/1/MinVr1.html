@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Minimal WebXR: ground + move</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;}
+  #ui{position:fixed;left:12px;top:12px;z-index:9;font:14px/1.2 system-ui;color:#fff}
+  button{font:inherit;padding:.5rem .8rem;border-radius:.6rem;border:0;cursor:pointer}
+  #log{opacity:.7;margin-top:.5rem;max-height:200px;overflow-y:auto;font-size:12px}
+</style>
+<div id="ui">
+  <button id="enter">Enter VR</button>
+  <div id="log">WASD/QE to move. Mouse/Touch to look.</div>
+</div>
+<canvas id="c"></canvas>
+<script>
+// Minimal WebXR demo: ground grid with desktop (WASD/mouse) and VR (thumbstick) navigation
+
+// Input state tracking
+var KEYS = {},
+    MOUSE = {pos:[0,0],delta:[0,0],buttons:0,wheel:0};
+
+/** WebGL2 rendering context. Initialized in IIFE. @type {WebGL2RenderingContext} */
+var gl = 0,
+    /** Cached DOM references. */
+    BODY = document.body,
+    C = document.getElementById('c');
+
+// Track key presses
+BODY.onkeydown = BODY.onkeyup = e => {
+  var v = e.type == "keydown";
+  KEYS[e.key.toLowerCase()] = v;
+};
+
+// Math helpers and typed arrays
+var D2R = 0.0174532925, F32 = Float32Array,
+    V3 = (v)=>new F32(v||3),
+    M4 = (v)=>new F32(v||[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
+
+// Expose Math functions as uppercase
+var maths = Object.getOwnPropertyNames(Math); for (var i in maths) window[maths[i].toUpperCase()] = Math[maths[i]];
+
+// Matrix operations using DOMMatrix for brevity
+var MULTMAT4 = (t,n,r)=>{ t.set((new DOMMatrix(n)).multiply(new DOMMatrix(r)).toFloat32Array()); return t },
+    INVERTMAT4 = (v)=>(new DOMMatrix(v)).inverse().toFloat32Array();
+
+// Build lookAt view matrix
+var LOOKAT=(t,n,r,u)=>{var o=V3(),i=V3(),s=V3();SUB(s,n,r);NORM(s,s);CROSS(o,u,s);NORM(o,o);CROSS(i,s,o);return t[0]=o[0],t[1]=i[0],t[2]=s[0],t[3]=0,t[4]=o[1],t[5]=i[1],t[6]=s[1],t[7]=0,t[8]=o[2],t[9]=i[2],t[10]=s[2],t[11]=0,t[12]=-DOT(o,n),t[13]=-DOT(i,n),t[14]=-DOT(s,n),t[15]=1,t}
+
+// Perspective projection matrix
+var PERSP=(t,n,r,a,e)=>{var u=1/TAN(n*D2R/2);return t[0]=u/r,t[1]=0,t[2]=0,t[3]=0,t[4]=0,t[5]=u,t[6]=0,t[7]=0,t[8]=0,t[9]=0,t[10]=(e+a)/(a-e),t[11]=-1,t[12]=0,t[13]=0,t[14]=2*e*a/(a-e),t[15]=0,t}
+
+// Vector math
+var SUB=(t,n,r)=>(t[0]=n[0]-r[0],t[1]=n[1]-r[1],t[2]=n[2]-r[2],t)
+var DOT=(t,n)=>t[0]*n[0]+t[1]*n[1]+t[2]*n[2];
+var CROSS=(t,n,r)=>(t[0]=n[1]*r[2]-n[2]*r[1],t[1]=n[2]*r[0]-n[0]*r[2],t[2]=n[0]*r[1]-n[1]*r[0],t)
+var NORM=(t,n)=>{var r=LEN(n);return r>0&&(t[0]=n[0]/r,t[1]=n[1]/r,t[2]=n[2]/r),t}
+var LEN=(t)=>SQRT(t[0]*t[0]+t[1]*t[1]+t[2]*t[2]);
+var CLAMP=(a,b,c)=>MIN(MAX(a,b),c);
+
+// Rotation matrix around axis
+var RMAT4=(t,n,r)=>{var e=r[0],u=r[1],o=r[2],i=SQRT(e*e+u*u+o*o),s=0,c=0,f=0;if(i<1e-4)return null;i=1/i;e*=i;u*=i;o*=i;s=SIN(n);c=COS(n);f=1-c;return t[0]=e*e*f+c,t[1]=u*e*f+o*s,t[2]=o*e*f-u*s,t[3]=0,t[4]=e*u*f-o*s,t[5]=u*u*f+c,t[6]=o*u*f+e*s,t[7]=0,t[8]=e*o*f+u*s,t[9]=u*o*f-e*s,t[10]=o*o*f+c,t[11]=0,t[12]=0,t[13]=0,t[14]=0,t[15]=1,t};
+
+// Apply rotation to existing matrix
+var APPLYROT=(m,n,a,v)=>{var r=M4();RMAT4(r,a,v);return MULTMAT4(m||r,n,r)};
+
+// Rotate vector by quaternion
+var qRotate=(q,v)=>{const [x,y,z,w]=q,vx=v[0],vy=v[1],vz=v[2],tx=2*(y*vz-z*vy),ty=2*(z*vx-x*vz),tz=2*(x*vy-y*vx);return[vx+w*tx+(y*tz-z*ty),vy+w*ty+(z*tx-x*tz),vz+w*tz+(x*ty-y*tx)]}
+
+// WebGL shader compilation
+function compile(type,src){
+  const s=gl.createShader(type);
+  gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s);
+  return s;
+}
+
+// Link shader program
+function program(vs,fs){
+  const p=gl.createProgram();
+  gl.attachShader(p,vs); gl.attachShader(p,fs); gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw gl.getProgramInfoLog(p);
+  return p;
+}
+
+// Create vertex buffer
+function createVbo(data){
+  const v=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,v);
+  gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER,null);
+  return v;
+}
+
+// Initializes the WebXR session and starts the rendering loop
+(async () => {
+  const logDiv = document.getElementById('log');
+  function log(msg) { logDiv.innerHTML += `<br>${msg}`; logDiv.scrollTop = logDiv.scrollHeight; }
+
+  // Create WebXR-compatible WebGL2 context
+  gl = C.getContext('webgl2', { antialias: true, xrCompatible: true });
+  if(!gl) return alert('WebGL2 required');
+  log('WebGL2 context created');
+
+  // Handle canvas resize for HiDPI displays
+  function resize(){
+    const w=innerWidth,h=innerHeight,dpr=devicePixelRatio||1;
+    C.width=w*dpr; C.height=h*dpr;
+    C.style.width=w+'px'; C.style.height=h+'px';
+  }
+  addEventListener('resize', resize); resize();
+
+  // Shaders: grid pattern based on world position
+  const vs = `#version 300 es
+    precision highp float;
+    layout(location=0) in vec3 pos;
+    uniform mat4 uM, uV, uP;
+    out vec3 vPos;
+    // Vertex shader main function
+    void main(){ vPos = (uM * vec4(pos,1.)).xyz; gl_Position = uP * uV * vec4(vPos,1.); }`;
+  const fs = `#version 300 es
+    precision highp float;
+    in vec3 vPos; out vec4 o;
+    void main(){
+      // Grid pattern
+      float cell=2.0, line=step(abs(fract(vPos.x/cell)-.5),.01)+step(abs(fract(vPos.z/cell)-.5),.01);
+      float grid=clamp(line,0.,1.);
+      // Grid color
+      vec3 base=mix(vec3(.04,.04,.05),vec3(.07,.07,.1),smoothstep(0.,10.,length(vPos.xz)));
+      o=vec4(base+grid*vec3(.2,.8,1.)*.6,1.);
+    }`;
+  
+  const prog = program(compile(gl.VERTEX_SHADER, vs), compile(gl.FRAGMENT_SHADER, fs));
+  const uM = gl.getUniformLocation(prog, 'uM');
+  const uV = gl.getUniformLocation(prog, 'uV');
+  const uP = gl.getUniformLocation(prog, 'uP');
+
+  // Ground plane: large XZ plane at y=0
+  const groundVBO = createVbo(new F32([-1e3,0,-1e3,1e3,0,-1e3,1e3,0,1e3,-1e3,0,-1e3,1e3,0,1e3,-1e3,0,1e3]));
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, groundVBO);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  
+  // User position and orientation state
+  let user = { x:0, y:1.6, z:2, yaw:0, pitch:0 };
+
+  const modelMatrix = M4(), viewMatrix = M4(), projMatrix = M4();
+
+  // Mouse/touch look controls
+  function handlePointerMove(e) {
+    if (MOUSE.buttons !== 1) return;
+    // Horizontal moves yaw around world up (Y). Vertical moves pitch around camera right (X).
+    user.yaw -= e.movementX * 0.002;
+    user.pitch -= e.movementY * 0.002;
+    user.pitch = CLAMP(user.pitch, -PI/2, PI/2);
+  }
+
+  // Mouse events
+  C.onmousedown = e => { MOUSE.buttons = e.buttons; }
+  C.onmouseup   = e => { MOUSE.buttons = e.buttons; }
+  C.onmousemove = handlePointerMove;
+
+  // Touch events for mobile
+  /** @type {number} */ let touchStartX,
+  /** @type {number} */ touchStartY;
+  C.ontouchstart = e => { MOUSE.buttons=1; touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; e.preventDefault(); }
+  C.ontouchend   = e => { MOUSE.buttons=0; e.preventDefault(); }
+  C.ontouchmove  = e => {
+    if (MOUSE.buttons !== 1) return;
+    const touch = e.touches[0];
+    handlePointerMove({ movementX: touch.clientX - touchStartX, movementY: touch.clientY - touchStartY });
+    touchStartX = touch.clientX; touchStartY = touch.clientY;
+    e.preventDefault();
+  }
+
+  // Render scene with given matrices
+  function drawScene(view, proj) {
+    gl.useProgram(prog);
+    gl.bindVertexArray(vao);
+    gl.uniformMatrix4fv(uM, false, modelMatrix);
+    gl.uniformMatrix4fv(uV, false, view);
+    gl.uniformMatrix4fv(uP, false, proj);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
+  // Desktop movement with head orientation support (for VR compatibility)
+  function updateMovement(dt, headOrientation = [0,0,0,1]) {
+    const spd = 2 * dt;
+    const fwd = (KEYS['w']?1:0) - (KEYS['s']?1:0);
+    const str = (KEYS['d']?1:0) - (KEYS['a']?1:0);
+    user.yaw += ((KEYS['e']?1:0) - (KEYS['q']?1:0)) * 0.03;
+
+    // Head-relative movement directions
+    const forward = qRotate(headOrientation, [0,0,-1]);
+    const right   = qRotate(headOrientation, [1,0,0]);
+    
+    user.x += (right[0] * str + forward[0] * fwd) * spd;
+    user.z += (right[2] * str + forward[2] * fwd) * spd;
+  }
+
+  // Desktop rendering loop
+  /** @type {number} */ let lastTime = 0;
+
+  function desktopLoop(t) {
+    if (xrSession) return;
+    const dt = (t - lastTime) / 1000 || 0;
+    lastTime = t;
+
+    const spd = 2 * dt;
+
+    // Handle rotation and movement
+    user.yaw += ((KEYS['e']?1:0) - (KEYS['q']?1:0)) * 3 * dt;
+
+    // Build head rotation matrix for view direction
+    const headRot = M4();
+    APPLYROT(headRot, M4(), -user.yaw, [0,1,0]);
+    APPLYROT(headRot, headRot, -user.pitch, [1,0,0]);
+
+    // Extract direction vectors from rotation matrix
+    const fwdFull = [-headRot[8], -headRot[9], -headRot[10]];
+
+    // Ground-projected movement (ignore Y component to prevent flying)
+    let fwd = [fwdFull[0], 0, fwdFull[2]];
+    let right = [headRot[0], 0, headRot[2]];
+
+    // Normalize and handle edge case when looking straight up/down
+    const fl = Math.hypot(fwd[0], fwd[2]) || 1;
+    const rl = Math.hypot(right[0], right[2]) || 1;
+    fwd[0] /= fl; fwd[2] /= fl;
+    right[0] /= rl; right[2] /= rl;
+
+    // Apply WASD movement
+    const fwdAmt = (KEYS['w']?1:0) - (KEYS['s']?1:0);
+    const strAmt = (KEYS['d']?1:0) - (KEYS['a']?1:0);
+    user.x += (right[0] * strAmt + fwd[0] * fwdAmt) * spd;
+    user.z += (right[2] * strAmt + fwd[2] * fwdAmt) * spd;
+
+    // Build view and projection matrices
+    const eye = [user.x, user.y, user.z];
+    const center = [user.x + fwdFull[0], user.y + fwdFull[1], user.z + fwdFull[2]];
+    const up = [headRot[4], headRot[5], headRot[6]];
+    LOOKAT(viewMatrix, eye, center, up);
+    PERSP(projMatrix, 60, C.width/C.height, 0.01, 1000);
+
+    gl.viewport(0, 0, C.width, C.height);
+    gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    drawScene(viewMatrix, projMatrix);
+    requestAnimationFrame(desktopLoop);
+  }
+  
+  // WebXR session management
+  /** @type {XRSession|null} */ let xrSession = null;
+  /** @type {XRReferenceSpace|null} */ let xrRefSpace = null;
+  /** @type {XRReferenceSpace|null} */ let xrOffsetSpace = null;
+
+  // Check VR support
+  if ('xr' in navigator) {
+    navigator.xr.isSessionSupported('immersive-vr').then(supported => {
+      if(supported) log('VR supported');
+      else log('VR not supported');
+    });
+  } else {
+    log('WebXR not available');
+  }
+
+  // VR session toggle
+  document.getElementById('enter').onclick = async () => {
+    if (xrSession) { xrSession.end(); return; }
+    try {
+      xrSession = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] });
+      document.getElementById('enter').textContent = 'Exit VR';
+      await gl.makeXRCompatible();
+      xrSession.updateRenderState({ baseLayer: new XRWebGLLayer(xrSession, gl) });
+      xrRefSpace = await xrSession.requestReferenceSpace('local-floor');
+      xrSession.addEventListener('end', () => {
+        xrSession = null;
+        document.getElementById('enter').textContent = 'Enter VR';
+        requestAnimationFrame(desktopLoop);
+      });
+      xrSession.requestAnimationFrame(onXRFrame);
+    } catch (e) { log(`Could not start XR session: ${e.message}`); }
+  };
+
+  // VR frame loop
+  function onXRFrame(t, frame) {
+    const session = frame.session;
+    session.requestAnimationFrame(onXRFrame);
+    const dt = (t - lastTime) / 1000;
+    lastTime = t;
+
+    const pose = frame.getViewerPose(xrRefSpace);
+    if (!pose) return;
+
+    // Read thumbstick input from controllers
+    let mvX = 0, mvY = 0;
+    for (const src of session.inputSources) {
+      if (src.gamepad && src.gamepad.axes.length >= 2) {
+        const ax = src.gamepad.axes;
+        const sx = (ax[2] !== undefined ? ax[2] : ax[0]) || 0;
+        const sy = (ax[3] !== undefined ? ax[3] : ax[1]) || 0;
+        // Apply deadzone
+        if (ABS(sx) > 0.1) mvX += sx;
+        if (ABS(sy) > 0.1) mvY += -sy;
+      }
+    }
+    
+    // Move relative to head direction
+    const headQ = pose.transform.orientation;
+    const q = [headQ.x, headQ.y, headQ.z, headQ.w];
+    const forward = qRotate(q, [0,0,-1]);
+    const right = qRotate(q, [1,0,0]);
+    const spd = 2 * dt;
+    user.x += (right[0] * mvX + forward[0] * mvY) * spd;
+    user.z += (right[2] * mvX + forward[2] * mvY) * spd;
+    
+    // Apply user offset to reference space
+    const userOffset = new XRRigidTransform({x: -user.x, y: -user.y, z: -user.z});
+    xrOffsetSpace = xrRefSpace.getOffsetReferenceSpace(userOffset);
+    const relativePose = frame.getViewerPose(xrOffsetSpace);
+
+    // Render to VR display
+    gl.bindFramebuffer(gl.FRAMEBUFFER, session.renderState.baseLayer.framebuffer);
+    gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+
+    for (const view of relativePose.views) {
+      const vp = session.renderState.baseLayer.getViewport(view);
+      gl.viewport(vp.x, vp.y, vp.width, vp.height);
+      drawScene(view.transform.inverse.matrix, view.projectionMatrix);
+    }
+  }
+
+  log('App initialized');
+  requestAnimationFrame(desktopLoop);
+})();
+</script>
+</html>
