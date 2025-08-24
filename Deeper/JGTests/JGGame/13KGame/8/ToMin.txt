@@ -1,3 +1,7 @@
+
+Nice
+node pack.cjs index1.html index1.min.html
+
 SAFE
 npx html-minifier-terser index2+.html -o index2+.min.html `
   --collapse-whitespace `

@@ -117,13 +117,16 @@ function createVbo(data){
     layout(location=0) in vec3 pos;
     uniform mat4 uM, uV, uP;
     out vec3 vPos;
+    // Vertex shader main function
     void main(){ vPos = (uM * vec4(pos,1.)).xyz; gl_Position = uP * uV * vec4(vPos,1.); }`;
   const fs = `#version 300 es
     precision highp float;
     in vec3 vPos; out vec4 o;
     void main(){
+      // Grid pattern
       float cell=2.0, line=step(abs(fract(vPos.x/cell)-.5),.01)+step(abs(fract(vPos.z/cell)-.5),.01);
       float grid=clamp(line,0.,1.);
+      // Grid color
       vec3 base=mix(vec3(.04,.04,.05),vec3(.07,.07,.1),smoothstep(0.,10.,length(vPos.xz)));
       o=vec4(base+grid*vec3(.2,.8,1.)*.6,1.);
     }`;

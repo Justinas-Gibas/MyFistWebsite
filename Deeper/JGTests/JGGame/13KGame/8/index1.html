@@ -594,8 +594,7 @@
         vec2 baseCenter = (cellF + vec2(0.5)) * uCell;
 
         // Per-cell randomization for grass placement, height, width, etc.
-        vec2 tileKey = floor(baseCenter / uCell) + vec2(uSeed);   // integer cell used for randomnes
-        //vec2 tileKey = cellF + vec2(uSeed);
+        vec2 tileKey = cellF + vec2(uSeed);
         vec2 jitter = (hash22(tileKey) - 0.5) * (uCell * 0.9);
         float hRand = hash12(tileKey * 3.1);
         float wRand = hash12(tileKey * 7.7);
@@ -625,9 +624,7 @@
         vec2 baseXZ = baseCenter + jitter;
         vec3 base = vec3(baseXZ.x, 0.0, baseXZ.y);
         vec3 right = NORMALIZE(uCamRight); // Billboard the blade towards the camera.
-        vec2 w = vec2(cos(0.3 * uTime), sin(0.32 * uTime)); // Two phases out of sync
-        w *= inversesqrt(dot(w,w) + 1e-3);   // add  0.001 to not mult by near 0
-        vec2 windDir = w; // consider calculating once per frame
+        vec2 windDir = NORMALIZE(vec2(cos(uTime*0.3), sin(uTime*0.32)));
         vec3 bendOff = vec3(windDir.x, 0.0, windDir.y) * bend * H;
         vec3 pos = base + right * (side * width) + vec3(0.0, t * H, 0.0) + bendOff;
 
@@ -835,7 +832,7 @@
     // --- HUD Drawing and Interaction ---
 
     // Draws the entire HUD onto the 2D canvas
-    function drawHUDCanvas(mode, hit, uiSet, dt) {
+    function drawHUDCanvas(mode, hit, uiSet) {
         const ui = uiSet || currentUI();
         hudCtx.clearRect(0, 0, hudCan.width, hudCan.height);
 
@@ -877,13 +874,11 @@
             hudCtx.fillText('HUD', 20, 34);
             hudCtx.fillStyle = '#fff';
             hudCtx.font = '16px system-ui';
-            hudCtx.fillText(`Mode: ${mode}${isMobile ? ' (Touch)' : ''}`, 20, 60);
-            hudCtx.fillText(`FPS: ${Math.round(1/dt)}`, 20, 80);
-            hudCtx.fillText(`MS: ${dt.toFixed(3)}`, 100, 80);
-            hudCtx.fillText(`Pos: (${user.x.toFixed(1)}, ${user.z.toFixed(1)})`, 100, 100);
-            hudCtx.fillText(`Yaw: ${(user.yaw * 180 / PI | 0)}°`, 20, 100);
+            hudCtx.fillText(`Mode: ${mode}${isMobile ? ' (Touch)' : ''}`, 20, 62);
+            hudCtx.fillText(`Pos: (${user.x.toFixed(1)}, ${user.z.toFixed(1)})`, 20, 86);
+            hudCtx.fillText(`Yaw: ${(user.yaw * 180 / PI | 0)}°`, 20, 110);
             if (hit) { hudCtx.fillStyle = '#afa';
-            hudCtx.fillText(`Hit @ ground: (${hit[0].toFixed(2)}, ${hit[2].toFixed(2)})`, 20, 120); }
+            hudCtx.fillText(`Hit @ ground: (${hit[0].toFixed(2)}, ${hit[2].toFixed(2)})`, 20, 136); }
 
             // Log box
             if (logVisible) {
@@ -1158,7 +1153,7 @@
             if (h && h.button) hoverBtn = h.button;
         }
 
-        updHUD('Desktop', lastHit, currentUI(), dt); // Redraw and upload HUD texture
+        updHUD('Desktop', lastHit, currentUI()); // Redraw and upload HUD texture
 
         gl.useProgram(PH);
         gl.bindVertexArray(vaoH);
@@ -1179,8 +1174,8 @@
     }
 
     // Helper to update the HUD canvas content
-    function updHUD(mode, hit, uiSet, dt) {
-        drawHUDCanvas(mode, hit, uiSet, dt);
+    function updHUD(mode, hit, uiSet) {
+        drawHUDCanvas(mode, hit, uiSet);
     }
 
     // Helper to submit a grass draw call
@@ -1393,7 +1388,7 @@
                 const h = HUD_pick(WH, r, currentUI());
                 if (h && h.button) { hoverBtn = h.button; break; }
             }
-            updHUD('VR', lastHit, currentUI(), dt);
+            updHUD('VR', lastHit, currentUI());
             gl.useProgram(PH);
             gl.bindVertexArray(vaoH);
             gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, hudTex); gl.uniform1i(uT, 0);

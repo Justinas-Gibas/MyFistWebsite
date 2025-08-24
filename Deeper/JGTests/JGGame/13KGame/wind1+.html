@@ -85,6 +85,8 @@
     // Creates a translation and scale matrix
     function translateScale(x,y,z,sx,sy,sz) { return new F32([sx,0,0,0, 0,sy,0,0, 0,0,sz,0, x,y,z,1]); }
 
+    
+
     // --- Global State and Constants ---
 
     // Check if the primary input is a coarse pointer (like a finger), indicating a mobile/touch device
@@ -123,12 +125,13 @@
     document.addEventListener('keydown', e => {
         const k = e.key.toLowerCase();
         input.keys[k] = true;
-        if (k === 'h') hudVisible = !hudVisible; // 'H' key toggles HUD visibility
+        if (k === 'h') {playClickSound(); hudVisible = !hudVisible;} // 'H' key toggles HUD visibility
     });
     document.addEventListener('keyup', e => input.keys[e.key.toLowerCase()] = false);
 
     // Pointer event listeners on the canvas for mouse-look and interaction
     canvas.addEventListener('pointerdown', e => {
+        initAudio(); // NEW: Initialize audio on first user interaction
         // Start mouse-look on left-click
         if (e.button === 0 && input.look.id === null) {
             input.look.id = e.pointerId;
@@ -185,7 +188,7 @@
 
         for (const j of joys) {
             const handle = handleSel(j.side);
-            j.el.addEventListener('pointerdown', e => { j.id = e.pointerId; j.el.setPointerCapture(e.pointerId); updateJoy(j, e, handle); });
+            j.el.addEventListener('pointerdown', e => { initAudio(); j.id = e.pointerId; j.el.setPointerCapture(e.pointerId); updateJoy(j, e, handle); });
             j.el.addEventListener('pointermove', e => { if (e.pointerId === j.id) updateJoy(j, e, handle); });
             j.el.addEventListener('pointerup', e => { if (e.pointerId === j.id) { resetJoy(j, handle); } });
             j.el.addEventListener('pointercancel', e => { if (e.pointerId === j.id) { resetJoy(j, handle); } });
@@ -258,6 +261,13 @@
 
     // Updates the user's position and orientation based on movement input and delta time
     function step(dt, mv) {
+        // NEW: Play step sound
+        const now = performance.now();
+        const moveMagnitude = Math.hypot(mv.x, mv.y);
+        if(moveMagnitude > 0.1 && now - lastStepTime > stepInterval){
+          playStepSound();
+          lastStepTime = now;
+        }
         user.yaw += mv.t * TURNS * dt; // Apply turning
 
         // Calculate forward and right vectors based on current yaw
@@ -270,6 +280,131 @@
         // Apply movement along forward and right vectors
         user.x += (r[0] * mv.x + f[0] * mv.y) * sp;
         user.z += (r[2] * mv.x + f[2] * mv.y) * sp;
+    }
+
+    // NEW: Web Audio setup
+    let audioCtx = null;
+    let lastStepTime = 0;
+    const stepInterval = 400; // ms between walking sounds
+    
+    function initAudio(){
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (!window.windPlaying) { window.windPlaying = true; playWindSound(); }
+    }
+
+    function playWindSound(){
+      if(!audioCtx) return;
+            // if already created, do nothing
+            if (audioCtx.windGain) return;
+
+            const t = audioCtx.currentTime;
+            const bufferSize = audioCtx.sampleRate * 3; // 3 seconds of audio
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+
+            // Generate brown noise (filtered white noise for wind-like sound)
+            let lastOut = 0;
+            for (let i = 0; i < bufferSize; i++) {
+                const white = Math.random() * 2 - 1;
+                const brown = (lastOut + (0.01 * white)) / 1.11;
+                data[i] = brown;
+                lastOut = brown;
+            }
+
+            const source = audioCtx.createBufferSource();
+            const filter = audioCtx.createBiquadFilter();
+            const gain = audioCtx.createGain();
+
+            source.buffer = buffer;
+            source.loop = true;
+
+            // Low-pass filter for wind character
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(200, t);
+            filter.Q.setValueAtTime(1.1, t);
+
+            source.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            // initial gain ramp-in
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(0.2, t + 4);
+
+            source.start(t);
+
+            // expose nodes so we can modulate them each frame to match grass gusts
+            audioCtx.windSource = source;
+            audioCtx.windGain = gain;
+            audioCtx.windFilter = filter;
+    }
+
+        // --- Wind gust math (mirror of grass shader) ---
+        // Compute gust/sway values using same vectors and time constants as the grass vertex shader
+        function computeGustAt(x, z, timeSec) {
+            // same direction vectors used in the grass vertex shader
+            const w1x = 0.07, w1y = 0.05;
+            const w2x = -0.03, w2y = 0.04;
+
+            const dot1 = x * w1x + z * w1y;
+            const dot2 = x * w2x + z * w2y;
+
+            const g = 0.6 * Math.sin(dot1 + timeSec * 0.7) + 0.4 * Math.sin(dot2 - timeSec * 1.2);
+            // small global phase term similar to per-blade phase in shader
+            const sway = 0.25 * g + 0.07 * Math.sin(timeSec * 1.7 + 0.0);
+            return { gust: g, sway: sway };
+        }
+
+        // Update audio parameters (gain and filter) to follow gusts
+        function updateWind(timeSec, camX, camZ) {
+            if (!audioCtx || !audioCtx.windGain || !audioCtx.windFilter) return;
+            const now = audioCtx.currentTime;
+            const s = computeGustAt(camX, camZ, timeSec);
+
+            // Map sway into a sensible gain range
+            const baseGain = 0.08; // quiet baseline
+            const gainScale = 0.6; // how strongly gust affects loudness
+            let targetGain = baseGain + gainScale * s.sway;
+            targetGain = Math.max(0.01, Math.min(1.0, targetGain));
+            audioCtx.windGain.gain.setTargetAtTime(targetGain, now, 0.25);
+
+            // Modulate lowpass frequency to make gusts brighter when stronger
+            const baseFreq = 200;
+            // normalize sway (~ -0.32..0.32) to 0..1
+            const norm = (s.sway + 0.32) / 0.64;
+            const freq = baseFreq + norm * 1200; // ~200..1400
+            audioCtx.windFilter.frequency.setTargetAtTime(freq, now, 0.25);
+        }
+
+    function playClickSound(){
+      if(!audioCtx) return;
+      const t = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(300, t);
+      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+      osc.start(t);
+      osc.stop(t + 0.1);
+    }
+
+    function playStepSound(){
+      if(!audioCtx) return;
+      const t = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(100, t);
+      osc.frequency.exponentialRampToValueAtTime(60, t + 0.6);
+      gain.gain.setValueAtTime(0.4, t);
+      gain.gain.exponentialRampToValueAtTime(0.1, t + 0.45);
+      osc.start(t);
+      osc.stop(t + 0.35);
     }
 
     // --- WebGL Setup ---
@@ -626,7 +761,7 @@
         vec3 base = vec3(baseXZ.x, 0.0, baseXZ.y);
         vec3 right = NORMALIZE(uCamRight); // Billboard the blade towards the camera.
         vec2 w = vec2(cos(0.3 * uTime), sin(0.32 * uTime)); // Two phases out of sync
-        w *= inversesqrt(dot(w,w) + 1e-3);   // add  0.001 to not mult by near 0
+        w *= inversesqrt(dot(w,w) + 1e-2);   // add  0.001 to not mult by near 0
         vec2 windDir = w; // consider calculating once per frame
         vec3 bendOff = vec3(windDir.x, 0.0, windDir.y) * bend * H;
         vec3 pos = base + right * (side * width) + vec3(0.0, t * H, 0.0) + bendOff;
@@ -814,15 +949,15 @@
     // UI button definitions. Each object defines a button's ID, position (in UV space), label, and click handler
     let uiEnterLabel = 'Enter VR';
     const UI_MAIN = [
-        { id: 'reset', u0: 0.4, v0: 0.1, u1: 0.7, v1: 0.2, label: 'Reset', onClick: () => { user.x = 0; user.z = 2; user.yaw = 0; user.pitch = 0; log('reset position'); } },
-        { id: 'vr', u0: 0.4, v0: 0.3, u1: 0.7, v1: 0.4, label: () => uiEnterLabel, onClick: () => toggleXRFromUI() },
-        { id: 'logtog', u0: 0.85, v0: 0.5, u1: 0.98, v1: 0.6 , label: 'LOG', onClick: () => { logVisible = !logVisible; } },
-        { id: 'logup', u0: 0.85, v0: 0.7, u1: 0.98, v1: 0.8, label: 'Up', onClick: () => { logScroll = MAX(0, logScroll - 1); } },
-        { id: 'logdn', u0: 0.85, v0: 0.8, u1: 0.98, v1: 0.9, label: 'Down', onClick: () => { logScroll = MIN(MAX(0, LOG.length - 1), logScroll + 1); } },
-        { id: 'hudx', u0: 0.8, v0: 0.03, u1: 0.98, v1: 0.1, label: 'Close', onClick: () => { hudVisible = false; } }
+        { id: 'reset', u0: 0.4, v0: 0.1, u1: 0.7, v1: 0.2, label: 'Reset', onClick: () => { playClickSound(); user.x = 0; user.z = 2; user.yaw = 0; user.pitch = 0; log('reset position'); } },
+        { id: 'vr', u0: 0.4, v0: 0.3, u1: 0.7, v1: 0.4, label: () => uiEnterLabel, onClick: () => { playClickSound(); toggleXRFromUI(); } },
+        { id: 'logtog', u0: 0.85, v0: 0.5, u1: 0.98, v1: 0.6 , label: 'LOG', onClick: () => { playClickSound(); logVisible = !logVisible; } },
+        { id: 'logup', u0: 0.85, v0: 0.7, u1: 0.98, v1: 0.8, label: 'Up', onClick: () => { playClickSound(); logScroll = MAX(0, logScroll - 1); } },
+        { id: 'logdn', u0: 0.85, v0: 0.8, u1: 0.98, v1: 0.9, label: 'Down', onClick: () => { playClickSound(); logScroll = MIN(MAX(0, LOG.length - 1), logScroll + 1); } },
+        { id: 'hudx', u0: 0.8, v0: 0.03, u1: 0.98, v1: 0.1, label: 'Close', onClick: () => { playClickSound(); hudVisible = false; } }
     ];
     const UI_TAB = [
-        { id: 'hudopen', u0: 0.4, v0: 0, u1: 0.6, v1: 0.12, label: 'HUD', onClick: () => { hudVisible = true; } }
+        { id: 'hudopen', u0: 0.4, v0: 0, u1: 0.6, v1: 0.12, label: 'HUD', onClick: () => { playClickSound(); hudVisible = true; } }
     ];
 
     // Returns the currently active set of UI buttons
@@ -1233,6 +1368,7 @@
                 await xr.end(); // End the current session
                 return;
             }
+            //initAudio(); // NEW: Initialize audio on first user interaction
             // Request a new session
             xr = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'hand-tracking'] });
             uiEnterLabel = 'Exit VR';
@@ -1290,6 +1426,7 @@
 
             // On button press (edge detection)
             if (now && !prev) {
+                playClickSound();
                 const r = rayFrom('VR', frame, src);
                 const viewer = frame.getViewerPose(off);
                 if (viewer) {
@@ -1470,6 +1607,7 @@
     (function main() {
         initXR();
         requestAnimationFrame(loop);
+        //initAudio()
         log(`App initialized ${isMobile ? '(Mobile)' : '(Desktop)'} — JustGibas VR 13K Game 2025`);
         log('Use the top "HUD" button (or H key) to open/close HUD');
         log('Use (WASD) to move and (Q & E) to rotate');

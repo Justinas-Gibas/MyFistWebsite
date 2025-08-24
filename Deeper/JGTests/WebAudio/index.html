@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Web Audio Playground — Synth + Drums + FX + Sequencer</title>
+  <style>
+    :root{
+      --bg:#0b0d12;--panel:#121620;--ink:#e7ebf3;--muted:#8590a6;--accent:#7bd8ff;--good:#6ef7a7;--warn:#ffd46e;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    .app{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:16px;max-width:1400px;margin:0 auto}
+    .card{background:var(--panel);border:1px solid #1f2636;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .pad{padding:16px}
+    h1{font-size:18px;margin:0 0 6px}
+    h2{font-size:14px;margin:14px 0 8px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+    button, input, select{font:inherit}
+    button{background:#1d2434;color:var(--ink);border:1px solid #2a3248;border-radius:10px;padding:8px 12px;cursor:pointer}
+    button.primary{background:linear-gradient(180deg,#1e3346,#162635);border-color:#20455f}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .row{display:flex;align-items:center;gap:10px}
+    .grid{display:grid;gap:12px}
+    .kv{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+    .small{font-size:12px;color:var(--muted)}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+    .steps{display:grid;grid-template-columns:repeat(16,1fr);gap:6px}
+    .steps input[type="checkbox"]{appearance:none;width:22px;height:22px;border-radius:6px;border:1px solid #33415f;background:#0e1320;outline:none;cursor:pointer}
+    .steps input[type="checkbox"]:checked{background:var(--accent);border-color:#57c9ff}
+    .track{display:grid;grid-template-columns:80px 1fr;align-items:center;gap:10px}
+    .meter{height:12px;background:#0e1320;border:1px solid #2a3248;border-radius:999px;overflow:hidden}
+    .meter > i{display:block;height:100%;background:linear-gradient(90deg, #34d399, #60a5fa);width:0%}
+    canvas{width:100%;height:200px;display:block;background:#06070c;border-bottom-left-radius:16px;border-bottom-right-radius:16px}
+    details{border:1px dashed #2a3248;border-radius:10px;padding:8px}
+    summary{cursor:pointer;color:var(--accent)}
+    .note{color:#a5b4fc}
+  </style>
+</head>
+<body>
+<div class="app">
+  <!-- LEFT: Controls / Handbook -->
+  <section class="card pad" id="controls">
+    <h1>Web Audio Playground</h1>
+    <p class="small">A compact, commented sandbox to design sounds and sketch patterns. Start audio, tweak, and iterate. All nodes are vanilla <span class="mono">Web Audio API</span>.</p>
+    <div class="row" style="gap:12px;margin:8px 0 14px">
+      <button id="startBtn" class="primary">▶︎ Start Audio</button>
+      <button id="stopBtn" disabled>■ Stop</button>
+      <label class="row">BPM <input id="bpm" type="range" min="60" max="180" value="120" step="1"> <span id="bpmVal">120</span></label>
+    </div>
+
+    <h2>Master</h2>
+    <div class="grid">
+      <div class="kv">Master Gain <input id="masterGain" type="range" min="0" max="1" value="0.8" step="0.01"></div>
+      <div class="kv">Limiter/Comp Threshold <input id="compThresh" type="range" min="-60" max="0" value="-12" step="1"></div>
+      <div class="kv">Comp Ratio <input id="compRatio" type="range" min="1" max="20" value="6" step="0.5"></div>
+    </div>
+
+    <h2>Synth (Bass)</h2>
+    <div class="grid">
+      <div class="kv">Wave <select id="bassWave">
+        <option>sawtooth</option><option>square</option><option selected>triangle</option><option>sine</option>
+      </select></div>
+      <div class="kv">Cutoff Hz <input id="bassCut" type="range" min="50" max="6000" value="800" step="1"></div>
+      <div class="kv">Resonance Q <input id="bassQ" type="range" min="0.1" max="20" value="8" step="0.1"></div>
+      <div class="kv">Env Amt (Hz) <input id="bassEnvAmt" type="range" min="0" max="4000" value="1200" step="1"></div>
+      <div class="kv">ADSR A <input id="bassA" type="range" min="0" max="1" value="0.01" step="0.01"></div>
+      <div class="kv">ADSR D <input id="bassD" type="range" min="0" max="1" value="0.1" step="0.01"></div>
+      <div class="kv">ADSR S <input id="bassS" type="range" min="0" max="1" value="0.6" step="0.01"></div>
+      <div class="kv">ADSR R <input id="bassR" type="range" min="0" max="2" value="0.2" step="0.01"></div>
+      <div class="kv">LFO Hz <input id="lfoHz" type="range" min="0" max="20" value="2" step="0.1"></div>
+      <div class="kv">LFO → Cutoff (Hz) <input id="lfoAmt" type="range" min="0" max="4000" value="600" step="1"></div>
+    </div>
+
+    <h2>FX</h2>
+    <div class="grid">
+      <div class="kv">Delay Time (s) <input id="delayTime" type="range" min="0" max="1" value="0.25" step="0.005"></div>
+      <div class="kv">Delay Feedback <input id="delayFb" type="range" min="0" max="0.95" value="0.35" step="0.01"></div>
+      <div class="kv">Delay Mix <input id="delayMix" type="range" min="0" max="1" value="0.2" step="0.01"></div>
+      <div class="kv">Drive (Waveshaper) <input id="drive" type="range" min="0" max="1" value="0.1" step="0.01"></div>
+      <div class="kv">Reverb IR <input id="irFile" type="file" accept="audio/*"></div>
+      <div class="kv">Reverb Mix <input id="revMix" type="range" min="0" max="1" value="0.15" step="0.01"></div>
+    </div>
+
+    <h2>Handbook</h2>
+    <details open>
+      <summary>Cheatsheet</summary>
+      <ul class="small">
+        <li><b>Graph</b>: source → filter → gain → sends → master → compressor → destination</li>
+        <li><b>ADSR</b>: use <span class="mono">AudioParam</span> ramps on Gain / Filter cutoff.</li>
+        <li><b>Scheduler</b>: schedule against <span class="mono">audioCtx.currentTime</span> with a small lookahead (0.1s).</li>
+        <li><b>FX Sends</b>: split dry into parallel chains with <span class="mono">GainNode</span> mixers.</li>
+        <li><b>IR Reverb</b>: load impulse response (WAV) into <span class="mono">ConvolverNode</span>.</li>
+        <li><b>Distortion</b>: set <span class="mono">WaveShaperNode.curve</span> to a precomputed curve; mix in parallel.</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- RIGHT: Sequencer, Tracks, Analyzer -->
+  <section class="card" id="right">
+    <div class="pad">
+      <h1>Pattern (16 steps, 1/16th)</h1>
+      <div class="grid small" style="margin-bottom:8px">
+        <div class="row" style="gap:8px">
+          <button id="clearBtn">Clear</button>
+          <button id="randBtn">Randomize</button>
+          <button id="saveBtn">Save</button>
+          <button id="loadBtn">Load</button>
+          <span id="nowPlaying" class="small mono">Step: -</span>
+        </div>
+      </div>
+
+      <div class="grid" style="gap:10px">
+        <div class="track"><strong>Kick</strong><div class="steps" id="kickRow"></div></div>
+        <div class="track"><strong>Snare</strong><div class="steps" id="snareRow"></div></div>
+        <div class="track"><strong>Hat</strong><div class="steps" id="hatRow"></div></div>
+        <div class="track"><strong>Bass</strong><div class="steps" id="bassRow"></div></div>
+      </div>
+
+      <h2 style="margin-top:14px">Output</h2>
+      <div class="kv">Master Level <div class="meter"><i id="meterFill"></i></div></div>
+    </div>
+    <canvas id="scope" width="1400" height="260"></canvas>
+  </section>
+</div>
+
+<script>
+/**
+ * Web Audio Playground (no frameworks)
+ * -----------------------------------
+ * Goals:
+ *  - Minimal but complete signal flow (synth + drums + FX bus + master)
+ *  - Step sequencer with sample-accurate scheduling
+ *  - Clear, commented building blocks you can extend
+ *
+ * Design notes:
+ *  - We avoid external assets; the reverb uses a file input for any IR.
+ *  - Simple drum synthesis (kick/snare/hat) to keep everything self-contained.
+ *  - Analyzer + basic meter for visual feedback.
+ */
+
+let audioCtx, masterGain, masterComp, analyser, meterData;
+let fx = {};
+let lfoOsc, lfoGain;
+
+// Sequencer state
+const STEPS = 16; // 16th notes per bar
+let bpm = 120;
+let currentStep = 0;
+let nextNoteTime = 0; // in AudioContext time
+const lookahead = 25; // ms interval for scheduler
+const scheduleAhead = 0.1; // seconds ahead
+let timerID;
+
+// Patterns (booleans)
+const pattern = {
+  kick: new Array(STEPS).fill(false),
+  snare: new Array(STEPS).fill(false),
+  hat: new Array(STEPS).fill(false),
+  bass: new Array(STEPS).fill(false),
+};
+
+// Basic UI helpers
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+// Create step checkboxes
+function buildRow(id, defaults=[]) {
+  const el = $(id);
+  el.innerHTML = "";
+  for(let i=0;i<STEPS;i++){
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    if (defaults.includes(i)) box.checked = true;
+    el.appendChild(box);
+  }
+}
+
+// Default groove
+buildRow('#kickRow',[0, 8]);
+buildRow('#snareRow',[4, 12]);
+buildRow('#hatRow', [0,2,4,6,8,10,12,14]);
+buildRow('#bassRow', [0,7,8,11]);
+
+// Wire step arrays to pattern object
+function syncPatternFromUI(){
+  pattern.kick  = $$('#kickRow input').map(x=>x.checked);
+  pattern.snare = $$('#snareRow input').map(x=>x.checked);
+  pattern.hat   = $$('#hatRow input').map(x=>x.checked);
+  pattern.bass  = $$('#bassRow input').map(x=>x.checked);
+}
+
+// === Audio Setup ===
+function setupAudio(){
+  if (audioCtx) return; // idempotent
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Master bus: masterGain -> masterComp -> destination
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = parseFloat($('#masterGain').value);
+
+  masterComp = audioCtx.createDynamicsCompressor();
+  masterComp.threshold.value = parseFloat($('#compThresh').value);
+  masterComp.ratio.value = parseFloat($('#compRatio').value);
+  masterComp.knee.value = 20; masterComp.attack.value = 0.003; masterComp.release.value = 0.25;
+
+  // FX: delay (with feedback) + convolver + waveshaper, mixed in parallel
+  fx.delay = audioCtx.createDelay(2.0);
+  fx.delay.delayTime.value = parseFloat($('#delayTime').value);
+
+  fx.delayFb = audioCtx.createGain();
+  fx.delayFb.gain.value = parseFloat($('#delayFb').value);
+
+  fx.delayMix = audioCtx.createGain();
+  fx.delayMix.gain.value = parseFloat($('#delayMix').value);
+
+  fx.delay.connect(fx.delayFb).connect(fx.delay); // feedback loop
+
+  fx.conv = audioCtx.createConvolver(); // IR set later via file input
+  fx.revMix = audioCtx.createGain(); fx.revMix.gain.value = parseFloat($('#revMix').value);
+
+  fx.shaper = audioCtx.createWaveShaper();
+  fx.drive = audioCtx.createGain(); fx.drive.gain.value = parseFloat($('#drive').value);
+  updateWaveshaper();
+
+  // Master analyser for scope + simple meter
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048; // oscilloscope-like
+  meterData = new Uint8Array(analyser.frequencyBinCount);
+
+  // Router: we create a send bus function for any source
+  fx.input = audioCtx.createGain(); // everything sums here first
+
+  // Split to dry and to FX parallel chains
+  const dry = audioCtx.createGain(); dry.gain.value = 1.0;
+  fx.input.connect(dry);
+
+  // FX parallel paths
+  const fxSum = audioCtx.createGain();
+  // Delay path
+  const delaySend = audioCtx.createGain(); delaySend.gain.value = 1.0;
+  fx.input.connect(delaySend).connect(fx.delay).connect(fx.delayMix).connect(fxSum);
+  // Reverb path
+  const revSend = audioCtx.createGain(); revSend.gain.value = 1.0;
+  fx.input.connect(revSend).connect(fx.conv).connect(fx.revMix).connect(fxSum);
+  // Distortion path (parallel drive)
+  const distSend = audioCtx.createGain(); distSend.gain.value = 1.0;
+  fx.input.connect(distSend).connect(fx.drive).connect(fx.shaper).connect(fxSum);
+
+  // Sum dry + FX -> masterGain -> comp -> analyser -> destination
+  const post = audioCtx.createGain();
+  dry.connect(post);
+  fxSum.connect(post);
+  post.connect(masterGain).connect(masterComp).connect(analyser).connect(audioCtx.destination);
+
+  // LFO for bass filter cutoff modulation
+  lfoOsc = audioCtx.createOscillator();
+  lfoOsc.type = 'sine'; lfoOsc.frequency.value = parseFloat($('#lfoHz').value);
+  lfoGain = audioCtx.createGain(); lfoGain.gain.value = parseFloat($('#lfoAmt').value);
+  lfoOsc.connect(lfoGain);
+  lfoOsc.start();
+}
+
+function updateWaveshaper(){
+  if (!fx.shaper) return;
+  const drive = parseFloat($('#drive').value);
+  fx.shaper.curve = makeDistortionCurve(1 + drive*100); // soft to harder
+  fx.shaper.oversample = '4x';
+}
+
+function makeDistortionCurve(amount){
+  // Classic arctangent-like curve
+  const n = 2048, curve = new Float32Array(n);
+  const k = typeof amount === 'number' ? amount : 50;
+  for (let i=0;i<n;i++){
+    const x = (i*2/n - 1);
+    curve[i] = (1 + k) * x / (1 + k * Math.abs(x));
+  }
+  return curve;
+}
+
+// === Drums (synthesized) ===
+function trigKick(time){
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  // Pitch envelope: 120 -> 50 Hz
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(120, time);
+  osc.frequency.exponentialRampToValueAtTime(50, time + 0.1);
+  // Amp envelope
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(1.0, time + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.25);
+  osc.connect(g).connect(fx.input);
+  osc.start(time);
+  osc.stop(time + 0.35);
+}
+
+function trigSnare(time){
+  // Noise burst + quiet tone body
+  const noiseBuf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.25, audioCtx.sampleRate);
+  const data = noiseBuf.getChannelData(0);
+  for (let i=0;i<data.length;i++) data[i] = Math.random()*2-1;
+  const noise = audioCtx.createBufferSource(); noise.buffer = noiseBuf;
+
+  const bp = audioCtx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1800; bp.Q.value=0.8;
+  const hp = audioCtx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=700;
+
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(1.0, time + 0.003);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.15);
+
+  noise.connect(bp).connect(hp).connect(g).connect(fx.input);
+  noise.start(time); noise.stop(time + 0.2);
+
+  // Body tone
+  const osc = audioCtx.createOscillator(); osc.type='triangle';
+  const gt = audioCtx.createGain(); gt.gain.setValueAtTime(0.0001, time);
+  gt.gain.exponentialRampToValueAtTime(0.3, time + 0.002);
+  gt.gain.exponentialRampToValueAtTime(0.0001, time + 0.1);
+  osc.frequency.setValueAtTime(180, time);
+  osc.connect(gt).connect(fx.input);
+  osc.start(time); osc.stop(time + 0.12);
+}
+
+function trigHat(time){
+  // Bright noise through highpass
+  const noiseBuf = audioCtx.createBuffer(1, audioCtx.sampleRate*0.1, audioCtx.sampleRate);
+  const data = noiseBuf.getChannelData(0);
+  for (let i=0;i<data.length;i++) data[i] = Math.random()*2-1;
+  const noise = audioCtx.createBufferSource(); noise.buffer = noiseBuf;
+  const hp = audioCtx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=8000; hp.Q.value=0.7;
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(0.6, time + 0.001);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+  noise.connect(hp).connect(g).connect(fx.input);
+  noise.start(time); noise.stop(time + 0.06);
+}
+
+// === Bass Synth ===
+// Returns a function that triggers a note with ADSR + filter env
+function createBass(){
+  const cutoff = $('#bassCut');
+  const res = $('#bassQ');
+  const envAmt = $('#bassEnvAmt');
+  const A=$('#bassA'), D=$('#bassD'), S=$('#bassS'), R=$('#bassR');
+
+  return function trigger(freq, time, length=0.25){
+    const osc = audioCtx.createOscillator();
+    const vca = audioCtx.createGain();
+    const vcf = audioCtx.createBiquadFilter(); vcf.type='lowpass';
+
+    osc.type = $('#bassWave').value;
+    osc.frequency.setValueAtTime(freq, time);
+
+    // Static settings
+    vcf.frequency.setValueAtTime(parseFloat(cutoff.value), time);
+    vcf.Q.value = parseFloat(res.value);
+
+    // LFO -> cutoff modulation
+    lfoGain.connect(vcf.frequency);
+
+    // Filter envelope (simple: add envAmt to cutoff and decay back)
+    const base = parseFloat(cutoff.value);
+    const amt = parseFloat(envAmt.value);
+    vcf.frequency.setValueAtTime(base, time);
+    vcf.frequency.linearRampToValueAtTime(base + amt, time + Math.max(0.01, parseFloat(A.value)));
+    vcf.frequency.linearRampToValueAtTime(base + amt*parseFloat(S.value), time + parseFloat(D.value));
+    vcf.frequency.linearRampToValueAtTime(base, time + length + parseFloat(R.value));
+
+    // Amp ADSR
+    vca.gain.cancelScheduledValues(time);
+    vca.gain.setValueAtTime(0, time);
+    vca.gain.linearRampToValueAtTime(1, time + parseFloat(A.value));
+    vca.gain.linearRampToValueAtTime(parseFloat(S.value), time + parseFloat(D.value));
+    vca.gain.setValueAtTime(parseFloat(S.value), time + length);
+    vca.gain.linearRampToValueAtTime(0, time + length + parseFloat(R.value));
+
+    osc.connect(vcf).connect(vca).connect(fx.input);
+    osc.start(time);
+    osc.stop(time + length + parseFloat(R.value) + 0.05);
+  }
+}
+let trigBass; // set after setupAudio
+
+// Simple minor pentatonic for bass
+const PENTA = [0, 3, 5, 7, 10];
+function midiToHz(m){ return 440 * Math.pow(2, (m-69)/12); }
+
+// Pattern scheduling
+function nextStepTime(){
+  const secPerBeat = 60 / bpm;
+  return secPerBeat / 4; // 16th
+}
+
+function scheduler(){
+  while (nextNoteTime < audioCtx.currentTime + scheduleAhead){
+    scheduleStep(currentStep, nextNoteTime);
+    nextNote();
+  }
+}
+function nextNote(){
+  const stepDur = nextStepTime();
+  nextNoteTime += stepDur;
+  currentStep = (currentStep + 1) % STEPS;
+}
+
+function scheduleStep(step, time){
+  $('#nowPlaying').textContent = `Step: ${step+1}`;
+
+  // Read UI to pattern each cycle (cheap enough)
+  syncPatternFromUI();
+
+  if (pattern.kick[step])  trigKick(time);
+  if (pattern.snare[step]) trigSnare(time);
+  if (pattern.hat[step])   trigHat(time);
+  if (pattern.bass[step]){
+    // Bass notes: map step to a scale degree around A2 (midi 45)
+    const degree = PENTA[step % PENTA.length];
+    const midi = 45 + degree; // A2 pentatonic
+    const hz = midiToHz(midi);
+    trigBass(hz, time, 0.3);
+  }
+}
+
+// Visualization
+const scope = $('#scope');
+const ctx2d = scope.getContext('2d');
+function draw(){
+  requestAnimationFrame(draw);
+  if (!analyser) return;
+  const bufLen = analyser.fftSize;
+  const data = new Uint8Array(bufLen);
+  analyser.getByteTimeDomainData(data);
+
+  ctx2d.fillStyle = '#05060b';
+  ctx2d.fillRect(0,0,scope.width, scope.height);
+  ctx2d.lineWidth = 2; ctx2d.strokeStyle = '#7bd8ff';
+  ctx2d.beginPath();
+  const slice = scope.width / bufLen;
+  let x=0;
+  for (let i=0;i<bufLen;i++){
+    const v = data[i]/128.0; // 0..2
+    const y = v * scope.height/2;
+    if (i===0) ctx2d.moveTo(x,y); else ctx2d.lineTo(x,y);
+    x += slice;
+  }
+  ctx2d.stroke();
+
+  // Simple meter from frequency bins
+  analyser.getByteFrequencyData(meterData);
+  let avg = 0; for (let i=0;i<meterData.length;i++) avg += meterData[i];
+  avg = avg / meterData.length; // 0..255
+  $('#meterFill').style.width = Math.min(100, (avg/255)*100) + '%';
+}
+
+// === Transport ===
+function start(){
+  setupAudio();
+  // Wire LFO params
+  lfoOsc.frequency.value = parseFloat($('#lfoHz').value);
+  lfoGain.gain.value = parseFloat($('#lfoAmt').value);
+
+  // Create bass trigger bound to current UI
+  trigBass = createBass();
+
+  // Initialize scheduling
+  bpm = parseInt($('#bpm').value,10); $('#bpmVal').textContent = bpm;
+  currentStep = 0;
+  nextNoteTime = audioCtx.currentTime + 0.05; // tiny offset
+  timerID = setInterval(scheduler, lookahead);
+
+  // Vis
+  draw();
+
+  $('#startBtn').disabled = true; $('#stopBtn').disabled = false;
+}
+
+function stop(){
+  if (!audioCtx) return;
+  clearInterval(timerID);
+  try{ audioCtx.close(); } catch(e){}
+  audioCtx = null;
+  $('#startBtn').disabled = false; $('#stopBtn').disabled = true;
+  $('#nowPlaying').textContent = 'Step: -';
+}
+
+// === UI wiring ===
+$('#startBtn').addEventListener('click', async()=>{
+  await (audioCtx?.resume?.() || Promise.resolve());
+  start();
+});
+$('#stopBtn').addEventListener('click', stop);
+
+$('#bpm').addEventListener('input', e=>{ bpm = parseInt(e.target.value,10); $('#bpmVal').textContent=bpm; });
+$('#masterGain').addEventListener('input', e=>{ if(masterGain) masterGain.gain.value = parseFloat(e.target.value); });
+$('#compThresh').addEventListener('input', e=>{ if(masterComp) masterComp.threshold.value = parseFloat(e.target.value); });
+$('#compRatio').addEventListener('input', e=>{ if(masterComp) masterComp.ratio.value = parseFloat(e.target.value); });
+
+['delayTime','delayFb','delayMix'].forEach(id=>{
+  $('#'+id).addEventListener('input', e=>{
+    if(!fx.delay) return;
+    if(id==='delayTime') fx.delay.delayTime.value = parseFloat(e.target.value);
+    if(id==='delayFb') fx.delayFb.gain.value = parseFloat(e.target.value);
+    if(id==='delayMix') fx.delayMix.gain.value = parseFloat(e.target.value);
+  });
+});
+
+$('#revMix').addEventListener('input', e=>{ if(fx.revMix) fx.revMix.gain.value = parseFloat(e.target.value); });
+$('#drive').addEventListener('input', ()=>{ if(fx.drive){ fx.drive.gain.value = parseFloat($('#drive').value); updateWaveshaper(); } });
+
+$('#lfoHz').addEventListener('input', e=>{ if(lfoOsc) lfoOsc.frequency.value = parseFloat(e.target.value); });
+$('#lfoAmt').addEventListener('input', e=>{ if(lfoGain) lfoGain.gain.value = parseFloat(e.target.value); });
+
+$('#irFile').addEventListener('change', async e=>{
+  if (!audioCtx) setupAudio();
+  const file = e.target.files[0]; if(!file) return;
+  const arrayBuf = await file.arrayBuffer();
+  audioCtx.decodeAudioData(arrayBuf, buf=>{ fx.conv.buffer = buf; }, err=>console.error(err));
+});
+
+$('#clearBtn').addEventListener('click', ()=>{
+  ['kickRow','snareRow','hatRow','bassRow'].forEach(id=>{
+    $$('#'+id+' input').forEach(b=>b.checked=false);
+  });
+});
+$('#randBtn').addEventListener('click', ()=>{
+  // Light randomization: hats dense, others sparse
+  $$('#kickRow input').forEach((b,i)=> b.checked = Math.random()<0.25 || i===0);
+  $$('#snareRow input').forEach((b,i)=> b.checked = Math.random()<0.2 || i===4 || i===12);
+  $$('#hatRow input').forEach((b)=> b.checked = Math.random()<0.6);
+  $$('#bassRow input').forEach((b)=> b.checked = Math.random()<0.3);
+});
+$('#saveBtn').addEventListener('click', ()=>{
+  syncPatternFromUI();
+  localStorage.setItem('wa-pattern', JSON.stringify(pattern));
+});
+$('#loadBtn').addEventListener('click', ()=>{
+  const p = JSON.parse(localStorage.getItem('wa-pattern')||'null'); if(!p) return;
+  ['kick','snare','hat','bass'].forEach(name=>{
+    const row = $('#'+name+'Row');
+    const arr = p[name]||[];
+    $$('#'+name+'Row input').forEach((b,i)=> b.checked = !!arr[i]);
+  });
+});
+
+// Initial label
+$('#bpmVal').textContent = $('#bpm').value;
+
+</script>
+</body>
+</html>
