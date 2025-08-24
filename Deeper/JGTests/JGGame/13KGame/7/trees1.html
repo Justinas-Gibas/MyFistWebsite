@@ -51,7 +51,6 @@
 </head>
 <body>
     <!-- The main canvas for WebGL rendering -->
-    <!-- <canvas id="C"></canvas> -->
     <canvas id="canvas"></canvas>
 
     <!-- HTML elements for the virtual joysticks -->
@@ -62,8 +61,6 @@
     // ===== UniXR: All-HUD UI, Pointer-based ray picking, Reticle, Top-of-Canvas HUD Button =====
 
     // --- Global State and Constants ---
-    // const D = document
-    //const C = D.getElementById('canvas');
     const canvas = document.getElementById('canvas');
     const F32 = Float32Array;
     const D2R = Math.PI / 180;
@@ -77,7 +74,7 @@
     // Movement and input constants.
     const MOVES = 3;    // Movement speed in meters per second.
     const TURNS = 2;    // Turning speed in radians per second.
-    const DZ = 0.1;    // Deadzone for joystick/gamepad axes to prevent drift.
+    const DZ = 0.1;     // Deadzone for joystick/gamepad axes to prevent drift.
 
     // Grass rendering constants.
     const GRASS_SEG = 4; // Number of segments per blade of grass.
@@ -277,6 +274,8 @@
     }
 
     // --- WebGL Setup ---
+
+    // Initialize the WebGL2 context with settings for anti-aliasing and WebXR compatibility.
     gl = canvas.getContext('webgl2', { antialias: true, xrCompatible: true });
     if (!gl) { alert('WebGL2 is required for this application.'); }
 
@@ -290,65 +289,6 @@
     }
     addEventListener('resize', resize);
     resize(); // Initial resize.
-
-    // --- new: CPU tileable noise texture generation + cloud params ---
-    let noiseTex = gl.createTexture();
-    let cloudCoverage = 0.45;      // threshold knob -> more/less cloud
-    let cloudSharpness = 0.12;     // edge softness knob
-    let shadowSamples = 3;         // cheap self-shadow sampling count
-
-    function makeTileableNoise(size) {
-        const n = size|0;
-        // make a small random grid then bilinearly sample with wrap to create smooth tileable texture
-        const grid = new Float32Array(n * n);
-        for (let i = 0; i < grid.length; i++) grid[i] = Math.random();
-
-        // bilinear sampling helper with wrap
-        function sampleGrid(u, v) {
-            const x = u * n;
-            const y = v * n;
-            const x0 = ((x|0) + n) % n;
-            const y0 = ((y|0) + n) % n;
-            const x1 = (x0 + 1) % n;
-            const y1 = (y0 + 1) % n;
-            const fx = x - Math.floor(x);
-            const fy = y - Math.floor(y);
-            const a = grid[y0 * n + x0];
-            const b = grid[y0 * n + x1];
-            const c = grid[y1 * n + x0];
-            const d = grid[y1 * n + x1];
-            const ab = a * (1 - fx) + b * fx;
-            const cd = c * (1 - fx) + d * fx;
-            return ab * (1 - fy) + cd * fy;
-        }
-
-        const img = new Uint8Array(n * n * 4);
-        for (let y = 0; y < n; y++) {
-            for (let x = 0; x < n; x++) {
-                const u = (x + 0.5) / n;
-                const v = (y + 0.5) / n;
-                // sample at multiple fractional offsets then combine to get smoother noise
-                const v0 = sampleGrid(u, v);
-                const v1 = sampleGrid(u + 0.5 / n, v + 0.3 / n);
-                const val = Math.max(0, Math.min(1, (v0 * 0.6 + v1 * 0.4)));
-                const idx = (y * n + x) * 4;
-                const c = (val * 255) | 0;
-                img[idx + 0] = c;
-                img[idx + 1] = c;
-                img[idx + 2] = c;
-                img[idx + 3] = 255;
-            }
-        }
-
-        gl.bindTexture(gl.TEXTURE_2D, noiseTex);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, n, n, 0, gl.RGBA, gl.UNSIGNED_BYTE, img);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
-        gl.bindTexture(gl.TEXTURE_2D, null);
-    }
-    makeTileableNoise(128);
 
     // Helper function to compile and link a shader program.
     function prog(vs, fs) {
@@ -376,7 +316,6 @@
         gl_Position = vec4(v[gl_VertexID], 0.0, 1.0); // Output clip space position.
     }`;
 
-    // Replaced fragment shader: fBm from a tileable noise texture + coverage/sharpness + self-shadowing
     const fsSky = `#version 300 es
     precision highp float;
     in vec2 uv;
@@ -384,102 +323,34 @@
     uniform vec3 sunDir;    // Direction of the sun in world space.
     uniform mat4 Vinv;      // Inverse of the view matrix (world-from-view).
     uniform mat4 invPV;     // Inverse of the combined projection*view matrix.
-    uniform sampler2D uNoise;
-    uniform float uTime;
-    uniform float uCloudCoverage;
-    uniform float uCloudSharpness;
-    uniform int   uCloudShadowSamples;
 
     // Color palette for the sky.
     const vec3 zen = vec3(0.2, 0.2, 0.4); // Zenith color (top of the sky).
     const vec3 hor = vec3(0.20, 0.28, 0.36); // Horizon color.
     const vec3 sunTint = vec3(0.8, 0.6, 0.1); // Color of the sun's glow.
 
-    // simple noise sample wrapper (texture is tileable and repeated)
-    float n2(vec2 p) {
-        return texture(uNoise, p).r;
-    }
-
-    // 4-octave moving fBm using the tileable texture; each octave can have its own velocity
-    float fbm4(vec2 p) {
-        float sum = 0.0;
-        float amp = 0.5;
-        // per-octave velocity offsets (small, produce slow drift)
-        vec2 vel0 = vec2( 0.012,  0.007);
-        vec2 vel1 = vec2(-0.008,  0.015);
-        vec2 vel2 = vec2( 0.017, -0.011);
-        vec2 vel3 = vec2(-0.011, -0.018);
-        sum += amp * n2(p + uTime * vel0);
-        p *= 2.0; amp *= 0.5;
-        sum += amp * n2(p + uTime * vel1);
-        p *= 2.0; amp *= 0.5;
-        sum += amp * n2(p + uTime * vel2);
-        p *= 2.0; amp *= 0.5;
-        sum += amp * n2(p + uTime * vel3);
-        return sum;
-    }
-
     void main(){
-        // camera origin and ray in world space
+        // Get the camera's position in world space from the inverse view matrix.
         vec3 ro = (Vinv * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+        
+        // Calculate the world-space ray direction for this pixel by unprojecting.
         vec2 ndc = uv * 2.0 - 1.0;
         vec4 clipFar = vec4(ndc, 1.0, 1.0);
         vec4 worldFar4 = invPV * clipFar;
         vec3 worldFar = worldFar4.xyz / worldFar4.w;
         vec3 rd = normalize(worldFar - ro);
 
-        // base sky gradient
+        // Create a vertical gradient for the sky color.
         float t = pow(max(rd.y * 0.5 + 0.5, 0.0), 1.2);
         vec3 sky = mix(hor, zen, t);
 
-        // sun + glow as before
+        // Add the sun and its glow.
         vec3 s = normalize(sunDir);
         float sd = max(dot(rd, s), 0.0);
-        float sun = smoothstep(0.995, 1.0, sd);
-        float glow = pow(sd, 60.0) + 0.4 * pow(sd, 12.0);
+        float sun = smoothstep(0.995, 1.0, sd); // A small, sharp sun disc.
+        float glow = pow(sd, 60.0) + 0.4 * pow(sd, 12.0); // A wider glow.
+
         vec3 col = sky + sunTint * glow + vec3(1.0) * sun * 0.15;
-
-        // --- Clouds: map ray direction to 2D sampling coordinates ---
-        // Use the horizon plane projection for stable, tileable cloud mapping
-        vec2 cloudUV = rd.xz * 0.25; // scale controls overall cloud scale
-        // fold/rotate a bit for variety and better tiling usage
-        cloudUV = cloudUV + vec2(0.0, 0.0);
-
-        // build fBm
-        float f = fbm4(cloudUV);
-
-        // remap fBm -> coverage via threshold (coverage) and softness (sharpness)
-        float coverage = clamp(uCloudCoverage, 0.0, 1.0);
-        float sharp = max(0.001, uCloudSharpness);
-        float cloudMask = smoothstep(coverage, coverage + sharp, f);
-
-        // cheap self-shadowing: sample the cloud density a few steps toward the sun direction
-        vec2 sunStep = normalize(s.xz);
-        float occ = 0.0;
-        int samples = max(1, uCloudShadowSamples);
-        float stepSize = 0.03;
-        // accumulate a few fbm samples toward the sun to approximate thickness
-        for (int i = 1; i <= 6; ++i) {
-            if(i > samples) break;
-            vec2 p = cloudUV + sunStep * float(i) * stepSize;
-            occ += fbm4(p);
-        }
-        occ /= float(samples);
-        // convert occlusion to a light factor (more occlusion → darker)
-        float lightFactor = 1.0 - clamp(occ * 1.6, 0.0, 1.0);
-
-        // cloud base color (slightly tinted), modulated by lightFactor
-        vec3 cloudBase = vec3(0.95, 0.98, 1.0);
-        vec3 cloudShaded = cloudBase * (0.45 + 0.55 * lightFactor);
-
-        // also brighten cloud edges facing the sun a bit
-        float facingSun = clamp(dot(normalize(vec3(s.x, s.y, s.z)), normalize(rd)), 0.0, 1.0);
-        cloudShaded += 0.25 * sun * facingSun;
-
-        // blend clouds over sky: darker where shadowed
-        float cloudAlpha = cloudMask * 0.95; // overall opacity factor
-        col = mix(col, cloudShaded, cloudAlpha);
-
         o = vec4(col, 1.0);
     }`;
 
@@ -488,15 +359,6 @@
     const uVinv = gl.getUniformLocation(PSKY, 'Vinv');
     const uInvPV = gl.getUniformLocation(PSKY, 'invPV');
     const uSun = gl.getUniformLocation(PSKY, 'sunDir');
-
-    // --- new: sky shader uniform locations for noise & cloud params ---
-    const uNoiseSky = gl.getUniformLocation(PSKY, 'uNoise');
-    const uTimeSky = gl.getUniformLocation(PSKY, 'uTime');
-    const uCoverage = gl.getUniformLocation(PSKY, 'uCloudCoverage');
-    const uSharpness = gl.getUniformLocation(PSKY, 'uCloudSharpness');
-    const uShadowSamples = gl.getUniformLocation(PSKY, 'uCloudShadowSamples');
-
-    // --- Clouds Shader ---
 
     // --- Grid Shader ---
     // A simple shader to draw a grid on the ground plane.
@@ -536,11 +398,209 @@
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
 
+    // --- Tree Shaders and Geometry ---
+    const vsTree = `#version 300 es
+    precision highp float;
+    layout(location=0) in vec3 p; // vertex position in model space
+    layout(location=1) in vec3 n; // vertex normal in model space
+    layout(location=2) in float c; // vertex color ID (0=trunk, 1=leaves)
+
+    uniform mat4 V, P;
+    uniform vec3 sunDir;
+    uniform vec2 uCamXZ;
+
+    out vec3 vCol;
+
+    // Simple hash function to get pseudo-random values from an integer instance ID
+    float hash11(float p) {
+        p = fract(p * .1031);
+        p *= p + 33.33;
+        p *= p + p;
+        return fract(p);
+    }
+
+    void main() {
+        // --- Instance-based procedural placement ---
+        float iid = float(gl_InstanceID);
+        
+        // Place trees in a grid, but with random jitter
+        float grid_size = 5.0;
+        float grid_dim = 40.0; // Render a 40x40 grid of possible tree locations
+        float grid_half = grid_dim * 0.5;
+
+        // Determine cell for this instance, centered around camera's cell
+        vec2 camCell = floor(uCamXZ / grid_size);
+        float ix = mod(iid, grid_dim) - grid_half;
+        float iz = floor(iid / grid_dim) - grid_half;
+        vec2 cell = camCell + vec2(ix, iz);
+        
+        // Use a hash of the cell position for consistent randomness
+        float cell_hash = hash11(cell.x * 31.7 + cell.y * 13.9);
+
+        // Only draw a tree in about 70% of cells
+        if (cell_hash < 0.3) {
+            gl_Position = vec4(0.0, -1000.0, 0.0, 1.0); // Cull this instance
+            return;
+        }
+
+        // Randomize position within the cell
+        float jitterX = (hash11(cell_hash * 1.1) - 0.5) * grid_size * 0.9;
+        float jitterZ = (hash11(cell_hash * 1.3) - 0.5) * grid_size * 0.9;
+        vec3 pos_offset = vec3(cell.x * grid_size + jitterX, 0.0, cell.y * grid_size + jitterZ);
+
+        // Randomize scale
+        float h_rand = hash11(cell_hash * 1.5);
+        float w_rand = hash11(cell_hash * 1.7);
+        float height = mix(2.5, 5.0, h_rand);
+        float width = mix(0.8, 1.5, w_rand);
+        vec3 scale = vec3(width, height, width);
+        
+        // Construct per-instance model matrix
+        mat4 M = mat4(
+            scale.x, 0, 0, 0,
+            0, scale.y, 0, 0,
+            0, 0, scale.z, 0,
+            pos_offset.x, pos_offset.y, pos_offset.z, 1.0
+        );
+
+        // --- Lighting and Coloring ---
+        vec3 trunkCol = vec3(0.4, 0.25, 0.2);
+        vec3 leafCol = vec3(0.2, 0.5, 0.25) * (0.8 + 0.4 * hash11(cell_hash * 1.9));
+        vec3 baseCol = mix(trunkCol, leafCol, c);
+
+        // Simple directional lighting
+        vec3 worldNormal = normalize(mat3(M) * n);
+        float light = max(0.2, dot(worldNormal, normalize(sunDir)));
+        
+        vCol = baseCol * light;
+        
+        gl_Position = P * V * M * vec4(p, 1.0);
+    }`;
+
+    const fsTree = `#version 300 es
+    precision highp float;
+    in vec3 vCol;
+    out vec4 o;
+    void main() {
+        o = vec4(vCol, 1.0);
+    }`;
+    
+    const PTREE = prog(vsTree, fsTree);
+    const uVTree = gl.getUniformLocation(PTREE, 'V');
+    const uPTree = gl.getUniformLocation(PTREE, 'P');
+    const uSunTree = gl.getUniformLocation(PTREE, 'sunDir');
+    const uCamXZTree = gl.getUniformLocation(PTREE, 'uCamXZ');
+    
+    let treeVao, treeVbo, treeIndexCount;
+
+    // Function to create tree geometry (trunk + leaves)
+    function createTreeGeometry() {
+        const vertices = [];
+        const indices = [];
+        let indexOffset = 0;
+
+        // --- Trunk (Cylinder) ---
+        const trunkRadius = 0.1;
+        const trunkHeight = 0.5;
+        const trunkSegments = 8;
+        for (let i = 0; i <= trunkSegments; i++) {
+            const angle = (i / trunkSegments) * 2 * PI;
+            const x = COS(angle) * trunkRadius;
+            const z = SIN(angle) * trunkRadius;
+            // Bottom vertex
+            vertices.push(x, 0, z,  x, 0, z, 0);
+            // Top vertex
+            vertices.push(x, trunkHeight, z, x, 0, z, 0);
+        }
+        for (let i = 0; i < trunkSegments; i++) {
+            const i0 = indexOffset + i * 2;
+            const i1 = i0 + 1;
+            const i2 = i0 + 2;
+            const i3 = i0 + 3;
+            indices.push(i0, i1, i2, i1, i3, i2);
+        }
+        indexOffset += (trunkSegments + 1) * 2;
+
+        // --- Leaves (Icosphere) ---
+        const leafRadius = 0.6;
+        const leafSubdivisions = 1;
+        const t = (1 + SQRT(5)) / 2;
+        const icoVerts = [
+            -1, t, 0,  1, t, 0,  -1, -t, 0,  1, -t, 0,
+            0, -1, t,  0, 1, t,  0, -1, -t,  0, 1, -t,
+            t, 0, -1,  t, 0, 1,  -1, 0, -1,  -1, 0, 1
+        ];
+        const icoIndices = [
+            0, 11, 5,  0, 5, 1,  0, 1, 7,  0, 7, 10,  0, 10, 11,
+            1, 5, 9,  5, 11, 4,  11, 10, 2,  10, 7, 6,  7, 1, 8,
+            3, 9, 4,  3, 4, 2,  3, 2, 6,  3, 6, 8,  3, 8, 9,
+            4, 9, 5,  2, 4, 11,  6, 2, 10,  8, 6, 7,  9, 8, 1
+        ];
+
+        let leafVerts = {};
+        function getMidPoint(p1, p2) {
+            const key = `${Math.min(p1, p2)}_${Math.max(p1, p2)}`;
+            if (leafVerts[key]) return leafVerts[key];
+            const v1 = [icoVerts[p1*3], icoVerts[p1*3+1], icoVerts[p1*3+2]];
+            const v2 = [icoVerts[p2*3], icoVerts[p2*3+1], icoVerts[p2*3+2]];
+            const mid = [(v1[0]+v2[0])/2, (v1[1]+v2[1])/2, (v1[2]+v2[2])/2];
+            icoVerts.push(...mid);
+            return leafVerts[key] = (icoVerts.length / 3) - 1;
+        }
+
+        let currentIndices = [...icoIndices];
+        for(let i=0; i<leafSubdivisions; i++) {
+            const newIndices = [];
+            for(let j=0; j<currentIndices.length; j+=3) {
+                const a = getMidPoint(currentIndices[j], currentIndices[j+1]);
+                const b = getMidPoint(currentIndices[j+1], currentIndices[j+2]);
+                const c = getMidPoint(currentIndices[j+2], currentIndices[j]);
+                newIndices.push(currentIndices[j], a, c, currentIndices[j+1], b, a, currentIndices[j+2], c, b, a, b, c);
+            }
+            currentIndices = newIndices;
+        }
+
+        for (let i = 0; i < icoVerts.length; i+=3) {
+            const v = V3([icoVerts[i], icoVerts[i+1], icoVerts[i+2]]);
+            NORM(v, v);
+            vertices.push(
+                v[0] * leafRadius, v[1] * leafRadius + (trunkHeight + leafRadius * 0.7), v[2] * leafRadius, // Position
+                v[0], v[1], v[2], // Normal
+                1.0 // Color ID (leaves)
+            );
+        }
+        for (const idx of currentIndices) {
+            indices.push(indexOffset + idx);
+        }
+
+        // --- Setup GL Buffers ---
+        treeVao = gl.createVertexArray();
+        gl.bindVertexArray(treeVao);
+
+        treeVbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, treeVbo);
+        gl.bufferData(gl.ARRAY_BUFFER, new F32(vertices), gl.STATIC_DRAW);
+
+        const ebo = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+        treeIndexCount = indices.length;
+
+        const stride = 7 * 4; // 7 floats, 4 bytes each
+        gl.enableVertexAttribArray(0); // pos
+        gl.vertexAttribPointer(0, 3, gl.FLOAT, false, stride, 0);
+        gl.enableVertexAttribArray(1); // normal
+        gl.vertexAttribPointer(1, 3, gl.FLOAT, false, stride, 12);
+        gl.enableVertexAttribArray(2); // color ID
+        gl.vertexAttribPointer(2, 1, gl.FLOAT, false, stride, 24);
+    }
+    createTreeGeometry();
+
+
     // --- Grass Shaders ---
     // Uses instanced rendering to draw many blades of grass efficiently.
     const vsGrass = `#version 300 es
     precision highp float;
-    #define NORMALIZE normalize
     uniform mat4 V, P;
     uniform vec2 uCamXZ;      // Camera's XZ position for LOD and culling.
     uniform vec3 uCamRight;   // Camera's right vector for billboarding.
@@ -575,7 +635,10 @@
 
         // Cull instances outside the radius.
         float dist = length(baseCenter - uCamXZ);
-        float inRadius = step(dist, uRadius);
+        if (dist > uRadius) {
+            gl_Position = vec4(0.0, -1000.0, 0.0, 1.0); // Move offscreen to cull
+            return;
+        }
 
         // Define the shape of a single grass blade (a triangle strip).
         float H = mix(0.6, 0.9, hRand);
@@ -596,13 +659,10 @@
         // Construct the final vertex position.
         vec2 baseXZ = baseCenter + jitter;
         vec3 base = vec3(baseXZ.x, 0.0, baseXZ.y);
-        vec3 right = NORMALIZE(uCamRight); // Billboard the blade towards the camera.
-        vec2 windDir = NORMALIZE(vec2(cos(uTime*0.3), sin(uTime*0.32)));
+        vec3 right = normalize(uCamRight); // Billboard the blade towards the camera.
+        vec2 windDir = normalize(vec2(cos(uTime*0.3), sin(uTime*0.32)));
         vec3 bendOff = vec3(windDir.x, 0.0, windDir.y) * bend * H;
         vec3 pos = base + right * (side * width) + vec3(0.0, t * H, 0.0) + bendOff;
-
-        // Hide culled instances by moving them below the ground.
-        //pos.y -= (1.0 - inRadius) * 1000.0;   
 
         // Color the grass with a vertical gradient and slight random tint.
         vec3 c0 = vec3(0.14, 0.32, 0.10);
@@ -663,9 +723,8 @@
     }`;
     const fsH = `#version 300 es
     precision highp float;
-    #define UNIFORM uniform
     in vec2 U;
-    UNIFORM sampler2D T;
+    uniform sampler2D T;
     out vec4 o;
     void main(){
         vec4 c = texture(T, U);
@@ -1050,6 +1109,8 @@
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.clearColor(0, 0, 0, 1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        
+        const sunDirection = [0.1, 0.5, -0.9];
 
         // Render Sky (depth test disabled).
         gl.useProgram(PSKY);
@@ -1058,17 +1119,7 @@
         const Vinv = INV(V);
         gl.uniformMatrix4fv(uVinv, false, Vinv);
         gl.uniformMatrix4fv(uInvPV, false, invPV);
-        gl.uniform3fv(uSun, [0.1, 0.1, -0.9]);
-
-        // --- new: bind noise texture + set cloud uniforms ---
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, noiseTex);
-        gl.uniform1i(uNoiseSky, 1);
-        gl.uniform1f(uTimeSky, t * 0.001);
-        gl.uniform1f(uCoverage, cloudCoverage);
-        gl.uniform1f(uSharpness, cloudSharpness);
-        gl.uniform1i(uShadowSamples, shadowSamples);
-
+        gl.uniform3fv(uSun, sunDirection);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
         gl.enable(gl.DEPTH_TEST);
 
@@ -1079,6 +1130,9 @@
         gl.uniformMatrix4fv(uV, false, V);
         gl.uniformMatrix4fv(uP, false, P);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+        // Render Trees
+        drawTrees(V, P, [user.x, user.z], sunDirection);
 
         // Render Grass in multiple passes for density and LOD.
         {
@@ -1143,6 +1197,21 @@
     // Helper to update the HUD canvas content.
     function updHUD(mode, hit, uiSet) {
         drawHUDCanvas(mode, hit, uiSet);
+    }
+    
+    // Helper to submit a tree draw call.
+    function drawTrees(Vmat, Pmat, camXZ, sunDir) {
+        gl.useProgram(PTREE);
+        gl.bindVertexArray(treeVao);
+        gl.uniformMatrix4fv(uVTree, false, Vmat);
+        gl.uniformMatrix4fv(uPTree, false, Pmat);
+        gl.uniform2f(uCamXZTree, camXZ[0], camXZ[1]);
+        gl.uniform3fv(uSunTree, sunDir);
+        gl.enable(gl.CULL_FACE);
+        gl.cullFace(gl.BACK);
+        gl.enable(gl.DEPTH_TEST);
+        const treeInstanceCount = 40 * 40;
+        gl.drawElementsInstanced(gl.TRIANGLES, treeIndexCount, gl.UNSIGNED_SHORT, 0, treeInstanceCount);
     }
 
     // Helper to submit a grass draw call.
@@ -1240,6 +1309,8 @@
         off = rRef.getOffsetReferenceSpace(new XRRigidTransform({ x: -user.x, y: 0, z: -user.z }));
         const rel = frame.getViewerPose(off);
         if (!rel) return;
+        
+        const sunDirection = [0.1, 0.5, -0.9];
 
         // --- VR Input and Interaction ---
         for (const src of s.inputSources) {
@@ -1293,17 +1364,7 @@
             gl.disable(gl.DEPTH_TEST);
             gl.uniformMatrix4fv(uVinv, false, VinvEye);
             gl.uniformMatrix4fv(uInvPV, false, invPVEye);
-            gl.uniform3fv(uSun, [0.1, 0.1, -0.9]);
-
-            // --- new: set cloud uniforms for XR eye ---
-            gl.activeTexture(gl.TEXTURE1);
-            gl.bindTexture(gl.TEXTURE_2D, noiseTex);
-            gl.uniform1i(uNoiseSky, 1);
-            gl.uniform1f(uTimeSky, t * 0.001);
-            gl.uniform1f(uCoverage, cloudCoverage);
-            gl.uniform1f(uSharpness, cloudSharpness);
-            gl.uniform1i(uShadowSamples, shadowSamples);
-
+            gl.uniform3fv(uSun, sunDirection);
             gl.drawArrays(gl.TRIANGLES, 0, 3);
             gl.enable(gl.DEPTH_TEST);
 
@@ -1314,6 +1375,11 @@
             gl.uniformMatrix4fv(uV, false, v.transform.inverse.matrix);
             gl.uniformMatrix4fv(uP, false, v.projectionMatrix);
             gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+            // Render Trees
+            const worldFromViewForTrees = v.transform.matrix;
+            const camXZForTrees = [worldFromViewForTrees[12], worldFromViewForTrees[14]];
+            drawTrees(v.transform.inverse.matrix, v.projectionMatrix, camXZForTrees, sunDirection);
 
             // Render Grass.
             {
@@ -1339,8 +1405,6 @@
                 gl.enable(gl.DEPTH_TEST); gl.disable(gl.BLEND);
             }
             
-            
-
             // Render HUD.
             const worldFromView = v.transform.matrix;
             const T = getHudTransform();
