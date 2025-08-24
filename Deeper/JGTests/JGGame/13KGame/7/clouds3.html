@@ -404,11 +404,11 @@
     float fbm4(vec2 p) {
         float sum = 0.0;
         float amp = 0.5;
-        // per-octave velocity offsets (small, produce slow drift)
-        vec2 vel0 = vec2( 0.012,  0.007);
-        vec2 vel1 = vec2(-0.008,  0.015);
-        vec2 vel2 = vec2( 0.017, -0.011);
-        vec2 vel3 = vec2(-0.011, -0.018);
+        // per-octave velocity offsets (reduced for more natural movement)
+        vec2 vel0 = vec2( 0.004,  0.002);
+        vec2 vel1 = vec2(-0.003,  0.005);
+        vec2 vel2 = vec2( 0.006, -0.004);
+        vec2 vel3 = vec2(-0.004, -0.006);
         sum += amp * n2(p + uTime * vel0);
         p *= 2.0; amp *= 0.5;
         sum += amp * n2(p + uTime * vel1);
@@ -440,8 +440,9 @@
         vec3 col = sky + sunTint * glow + vec3(1.0) * sun * 0.15;
 
         // --- Clouds: map ray direction to 2D sampling coordinates ---
-        // Use the horizon plane projection for stable, tileable cloud mapping
-        vec2 cloudUV = rd.xz * 0.25; // scale controls overall cloud scale
+        // Use perspective-corrected projection to prevent horizon stretching
+        float perspective = max(0.1, rd.y + 0.5); // Avoid division by zero and provide smooth horizon mapping
+        vec2 cloudUV = rd.xz / perspective * 0.25; // scale controls overall cloud scale
         // fold/rotate a bit for variety and better tiling usage
         cloudUV = cloudUV + vec2(0.0, 0.0);
 
