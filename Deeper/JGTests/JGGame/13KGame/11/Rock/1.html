@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>'Wild Cats' 13K Game 2025</title>
+    <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="55%" x="50%" dominant-baseline="middle" text-anchor="middle" font-size="80">🐈‍⬛</text></svg>'>
+    <style>
+        /* Basic styles to make the canvas and joysticks fill the screen */
+        html, body {
+            margin: 0;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+            touch-action: none; /* Prevents default touch actions like scrolling */
+        }
+    </style>
+</head>
+<body>
+    <!-- The main canvas for WebGL rendering -->
+    <!-- <canvas id="C"></canvas> -->
+    <canvas id="canvas"></canvas>
+
+    <!-- HTML elements for the virtual joysticks -->
+    
+    <script>
+    // -- FEATURE: Core --
+    // Expose Math functions to global scope
+    Object.getOwnPropertyNames(Math).forEach(n => window[n.toUpperCase()] = Math[n]);
+    // --- Math Library ---
+    const D2R = 0.0174532925 // or Math.PI / 180;
+    const F32 = Float32Array;
+    const M4 = (v) => new F32(v || [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+    const V3 = (v) => new F32(v || 3);
+    const T_V3_A = V3(), T_V3_B = V3(), T_V3_C = V3(); // Reusable temporary V3s
+    const SUB=(t,n,r)=>(t[0]=n[0]-r[0],t[1]=n[1]-r[1],t[2]=n[2]-r[2],t);
+    const DOT=(t,n)=>t[0]*n[0]+t[1]*n[1]+t[2]*n[2];
+    const CROSS=(t,n,r)=>(t[0]=n[1]*r[2]-n[2]*r[1],t[1]=n[2]*r[0]-n[0]*r[2],t[2]=n[0]*r[1]-n[1]*r[0],t);
+    const LEN=(t)=>HYPOT(t[0],t[1],t[2]);
+    const NORM=(t,n)=>{var r=LEN(n);return r>0&&(t[0]=n[0]/r,t[1]=n[1]/r,t[2]=n[2]/r),t};
+    const MULTMAT4 = (o, a, b) => (o.set((new DOMMatrix(a)).multiply(new DOMMatrix(b)).toFloat32Array()), o);
+    const INV = (m) => (new DOMMatrix(m)).inverse().toFloat32Array();
+    const PERSP = (o, f, a, n, fa) => { const t = 1 / TAN(f * D2R / 2); o.set([t/a,0,0,0, 0,t,0,0, 0,0,(fa+n)/(n-fa),-1, 0,0,(2*fa*n)/(n-fa),0]); return o; };
+    const LOOKAT = (o, e, c, u) => { SUB(T_V3_A,e,c); NORM(T_V3_A,T_V3_A); CROSS(T_V3_B,u,T_V3_A); NORM(T_V3_B,T_V3_B); CROSS(T_V3_C,T_V3_A,T_V3_B); o.set([T_V3_B[0],T_V3_C[0],T_V3_A[0],0, T_V3_B[1],T_V3_C[1],T_V3_A[1],0, T_V3_B[2],T_V3_C[2],T_V3_A[2],0, -DOT(T_V3_B,e),-DOT(T_V3_C,e),-DOT(T_V3_A,e),1]); return o; };
+    // --- World Matrices ---
+    const M = M4(), V = M4(), P = M4(); // Model, View, Projection
+    let PV = M4(), invPV = M4(); // Combined and inverse matrices for picking
+
+    // Multiplies a 3D point (w=1) by a 4x4 matrix
+    function mulPoint(m, p) { const x=p[0],y=p[1],z=p[2],w=1; return [m[0]*x+m[4]*y+m[8]*z+m[12]*w, m[1]*x+m[5]*y+m[9]*z+m[13]*w, m[2]*x+m[6]*y+m[10]*z+m[14]*w]; }
+
+    // Multiplies a 3D direction (w=0) by a 4x4 matrix
+    function mulDir(m, d) { const x=d[0],y=d[1],z=d[2],w=0; return [m[0]*x+m[4]*y+m[8]*z+m[12]*w, m[1]*x+m[5]*y+m[9]*z+m[13]*w, m[2]*x+m[6]*y+m[10]*z+m[14]*w]; }
+
+    function mul4(m, v) { return [m[0]*v[0]+m[4]*v[1]+m[8]*v[2]+m[12]*v[3], m[1]*v[0]+m[5]*v[1]+m[9]*v[2]+m[13]*v[3], m[2]*v[0]+m[6]*v[1]+m[10]*v[2]+m[14]*v[3], m[3]*v[0]+m[7]*v[1]+m[11]*v[2]+m[15]*v[3]]; }
+
+    // Creates a translation and scale matrix
+    function translateScale(x,y,z,sx,sy,sz) { return new F32([sx,0,0,0, 0,sy,0,0, 0,0,sz,0, x,y,z,1]); }
+
+    // const D = document
+    // const C = D.getElementById('canvas');
+    const canvas = document.getElementById('canvas');
+    
+   // State variables for the user/camera, rendering loop, and WebGL/WebXR contexts
+    let user = { x: 0, y: 1.6, z: 2, yaw: 0, pitch: 0 }; // User position and orientation
+    let last = 0; // Timestamp of the last frame for calculating delta time
+    let gl, xr = null, ref = null, off = null; // WebGL and WebXR objects
+
+    gl = canvas.getContext('webgl2', { antialias: true, xrCompatible: true });
+    if (!gl) { alert('WebGL2 is required for this application.'); }
+
+    // Resize the canvas to fill the window, accounting for device pixel ratio
+    function resize() {
+        const w = innerWidth, h = innerHeight, dpr = devicePixelRatio || 1;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+    }
+    addEventListener('resize', resize);
+    resize(); // Initial resize
+
+    // Helper function to compile and link a shader program
+    function prog(vs, fs) {
+        const p = gl.createProgram();
+        const v = gl.createShader(gl.VERTEX_SHADER);
+        const f = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(v, vs); gl.compileShader(v);
+        if (!gl.getShaderParameter(v, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(v);
+        gl.shaderSource(f, fs); gl.compileShader(f);
+        if (!gl.getShaderParameter(f, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(f);
+        gl.attachShader(p, v); gl.attachShader(p, f); gl.linkProgram(p);
+        if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw gl.getProgramInfoLog(p);
+        return p;
+    }
+    // -- /FEATURE: Core --
+
+    // -- FEATURE: Input --
+    // -- MODULE: Input-Core --
+    // --- Unified Input Handling ---
+    // Unified input state object for keyboard, joysticks, pointer-look, and pointer coordinates
+    const input = {
+        keys: {},
+        joy: { left: { x: 0, y: 0, id: null }, right: { x: 0, y: 0, id: null } }, // 
+        look: { id: null, x: 0, y: 0 },
+        pointer: { x: 0, y: 0 }
+    };
+    const DZ = 0.1;    // Deadzone for joystick/gamepad axes to prevent drift
+    // A map to track the previous pressed state of VR controller buttons for edge detection (press/release)
+    const pressedMap = new Map();
+
+    // State for the raycast
+    let lastHit = null;
+    // -- /MODULE: Input-Core --
+    
+    // -- MODULE: Input-KeyPoint --
+    // Keyboard event listeners for movement and HUD toggle
+    document.addEventListener('keydown', e => {
+        const k = e.key.toLowerCase();
+        input.keys[k] = true;
+        if (k === 'h' || k === 'escape') {playClickSound(); hudVisible = !hudVisible;} // 'H' and escape key toggles HUD visibility
+        if (k === 'f') {playClickSound(); beastMode = !beastMode;} // 'F' key toggles beastMode
+    });
+    document.addEventListener('keyup', e => input.keys[e.key.toLowerCase()] = false);
+    
+    // Pointer event listeners on the canvas for mouse-look and interaction
+    canvas.addEventListener('pointerdown', e => {
+        initAudio(); // NEW: Initialize audio on first user interaction
+        // Start mouse-look on left-click
+        if (e.button === 0 && input.look.id === null) {
+            input.look.id = e.pointerId;
+            input.look.x = e.clientX;
+            input.look.y = e.clientY;
+            canvas.setPointerCapture(e.pointerId); // Lock the pointer to the canvas
+        }
+        // Always update pointer position for picking
+        input.pointer.x = e.clientX;
+        input.pointer.y = e.clientY;
+    });
+    
+    canvas.addEventListener('pointermove', e => {
+        // Update pointer position for hover effects
+        input.pointer.x = e.clientX;
+        input.pointer.y = e.clientY;
+        
+        // If we are in mouse-look mode, update camera orientation
+        if (e.pointerId === input.look.id) {
+            const dx = e.clientX - input.look.x;
+            const dy = e.clientY - input.look.y;
+            input.look.x = e.clientX;
+            input.look.y = e.clientY;
+            user.yaw += dx * 0.002;
+            user.pitch = MAX(-PI / 2, MIN(PI / 2, user.pitch - dy * 0.002));
+        }
+    });
+    
+    canvas.addEventListener('pointerup', e => {
+        // Stop mouse-look mode.
+        if (e.pointerId === input.look.id) {
+            input.look.id = null;
+        }
+        // Update pointer position and trigger an interaction check
+        input.pointer.x = e.clientX;
+        input.pointer.y = e.clientY;
+    });
+    
+    canvas.addEventListener('pointercancel', e => {
+        if (e.pointerId === input.look.id) {
+            input.look.id = null;
+        }
+    });
+    // -- /MODULE: Input-KeyPoint --
+    
+    // -- MODULE: Input-Joystick --
+    // --- Virtual Joysticks for Touch Devices ---
+    // -- /MODULE:Input-Joystick --
+    // -- MODULE: Input-Ray --
+    // -- /MODULE: Input-Ray --
+    // -- /FEATURE: Input --
+
+    // -- FEATURE: Gameplay --
+    let beastMode = false; // toggle beast mode
+    // -- MODULE: Gameplay-Movement --
+    // --- Movement Logic ---
+    // Movement and input constants
+    const MOVES = 3;    // Movement speed in meters per second
+    const TURNS = 2;    // Turning speed in radians per second
+
+    // Consolidates input from keyboard, joysticks, and VR controllers into a single movement vector
+    function getMove(session) {
+        let vx = 0, vy = 0, vt = 0;
+        // -- SOLUTION: Gameplay-Movement-Keyboard --
+        // Keyboard input (WASD for move, QE for turn)
+        const kx = (+!!input.keys.d) - (+!!input.keys.a);
+        const ky = (+!!input.keys.w) - (+!!input.keys.s);
+        const kt = (+!!input.keys.q) - (+!!input.keys.e);
+        // -- /SOLUTION: Gameplay-Movement-Keyboard --
+    
+        // -- SOLUTION: Gameplay-Movement-Joystick --
+        // -- /SOLUTION: Gameplay-Movement-Joystick --
+
+        // -- SOLUTION: Gameplay-Movement-VR --
+        // -- /SOLUTION: Gameplay-Movement-VR --
+
+        // Return combined movement, prioritizing VR, then keyboard, then joystick
+        return { x: vx || kx, y: vy || ky, t: vt || kt};
+    }
+
+    // -- SOLUTION: Gameplay-Movement-Step --
+    // Updates the user's position and orientation based on movement input and delta time
+    function step(dt, mv) {
+        const now = performance.now();
+        const moveMagnitude = Math.hypot(mv.x, mv.y);
+        if(moveMagnitude > 0.1 && now - lastStepTime > stepInterval){
+            playStepSound();
+            lastStepTime = now;
+        }
+        user.yaw += mv.t * TURNS * dt; // Apply turning
+        
+        // Calculate forward and right vectors based on current yaw
+        const cy = COS(user.yaw);
+        const sy = SIN(user.yaw);
+        T_V3_A[0] = -sy; T_V3_A[1] = 0; T_V3_A[2] = -cy; // 'f' vector
+        T_V3_B[0] = cy;  T_V3_B[1] = 0; T_V3_B[2] = -sy;  // 'r' vector
+        const sp = MOVES * dt;
+        
+        // Apply movement along forward and right vectors
+        user.x += (T_V3_B[0] * mv.x + T_V3_A[0] * mv.y) * sp;
+        user.z += (T_V3_B[2] * mv.x + T_V3_A[2] * mv.y) * sp;
+    }
+    // -- /SOLUTION: Gameplay-Movement-Step --
+    // -- /MODULE: Gameplay-Movement --
+    // -- /FEATURE: Gameplay --
+    
+    // -- FEATURE: Scene --
+    // -- MODULE: Scene-Audio --
+    // todo: implement stereo sources to get spatial audio (directional wind sound)
+    let audioCtx = null;
+    let lastStepTime = 0;
+    const stepInterval = 500; // ms between walking sounds
+    
+    function initAudio(){
+    }
+    // -- SOLUTION: Scene-Audio-Wind --
+    function playWindSound(){}
+    // -- /SOLUTION: Scene-Audio-Wind --
+    // -- SOLUTION: Scene-Audio-Click --
+    function playClickSound(){}
+    // -- /SOLUTION: Scene-Audio-Click --
+    // -- SOLUTION: Scene-Audio-Step --
+    function playStepSound(){}
+    // -- /SOLUTION: Scene-Audio-Step --
+    // -- /MODULE: Scene-Audio --
+
+    // -- MODULE: Scene-HUD --
+    // -- /MODULE: Scene-HUD --
+    // -- MODULE: Scene-Sky --
+    
+    // -- /MODULE: Scene-Sky --
+    // -- MODULE: Scene-Ground --
+    // --- Grid Shader ---
+    // A simple shader to draw a grid on the ground plane
+    const vsG = `#version 300 es
+    precision highp float;
+    layout(location=0) in vec3 p;
+    uniform mat4 M, V, P;
+    out vec3 w; // Pass world position to fragment shader.
+    void main(){
+        w = (M * vec4(p, 1.0)).xyz;
+        gl_Position = P * V * vec4(w, 1.0);
+    }`;
+    const fsG = `#version 300 es
+    precision highp float;
+    in vec3 w;
+    out vec4 o;
+    void main(){
+        float c = 2.0; // Grid cell size.
+        // Draw lines using fract() and step().
+        float l = step(abs(fract(w.x/c) - 0.5), 0.01) + step(abs(fract(w.z/c) - 0.5), 0.01);
+        float g = clamp(l, 0.0, 1.0);
+        // Fade to a darker color in the distance.
+        vec3 b = mix(vec3(0.04), vec3(0.08), smoothstep(0.0, 20.0, length(w.xz)));
+        o = vec4(b + g * vec3(0.2, 1.0, 0.2) * 0.6, 1.0);
+    }`;
+
+    const PG = prog(vsG, fsG);
+    const uM = gl.getUniformLocation(PG, 'M');
+    const uV = gl.getUniformLocation(PG, 'V');
+    const uP = gl.getUniformLocation(PG, 'P');
+    const vbo = gl.createBuffer();
+    const vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    // A large quad to serve as the ground plane.
+    gl.bufferData(gl.ARRAY_BUFFER, new F32([-1e3,0,-1e3, 1e3,0,-1e3, 1e3,0,1e3, -1e3,0,-1e3, 1e3,0,1e3, -1e3,0,1e3]), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+
+    // -- /MODULE: Scene-Ground --
+    // -- MODULE: Scene-Grass --
+    
+    // -- /MODULE: Scene-Grass --
+    // -- MODULE: Scene-Plant --
+    
+    // -- /MODULE: Scene-Plant --
+    
+    // -- MODULE: Scene-Rock --
+    // Rock shader program
+    const vsR = `#version 300 es
+    precision highp float;
+    layout(location=0) in vec3 p;
+    layout(location=1) in vec3 n;
+    uniform mat4 M, V, P;
+    out vec3 normal;
+    out vec3 pos;
+    void main() {
+        normal = (M * vec4(n, 0.0)).xyz;
+        pos = (M * vec4(p, 1.0)).xyz;
+        gl_Position = P * V * vec4(pos, 1.0);
+    }`;
+
+    const fsR = `#version 300 es
+    precision highp float;
+    in vec3 normal;
+    in vec3 pos;
+    out vec4 o;
+    void main() {
+        vec3 light = normalize(vec3(1.0, 1.0, 0.5));
+        float diff = max(dot(normalize(normal), light), 0.0);
+        vec3 color = mix(vec3(0.4, 0.4, 0.4), vec3(0.6, 0.6, 0.6), diff);
+        float dist = length(pos.xz);
+        float fade = 1.0 - smoothstep(30.0, 40.0, dist);
+        o = vec4(color, fade);
+    }`;
+
+    // Initialize rock rendering
+    const PR = prog(vsR, fsR);
+    const uMR = gl.getUniformLocation(PR, 'M');
+    const uVR = gl.getUniformLocation(PR, 'V');
+    const uPR = gl.getUniformLocation(PR, 'P');
+
+    // Generate rock geometry
+    function createRockGeometry() {
+        const vertices = [];
+        const normals = [];
+        const indices = [];
+        
+        // Simple octahedron base shape
+        const p = [[0,1,0], [1,0,0], [0,0,1], [-1,0,0], [0,0,-1], [0,-1,0]];
+        const f = [[0,1,2], [0,2,3], [0,3,4], [0,4,1], [5,2,1], [5,3,2], [5,4,3], [5,1,4]];
+        
+        // Subdivide and displace vertices for more rock-like appearance
+        f.forEach(face => {
+            const [a, b, c] = face;
+            const va = p[a], vb = p[b], vc = p[c];
+            const n = NORM(V3(), CROSS(V3(), SUB(V3(), vb, va), SUB(V3(), vc, va)));
+            
+            vertices.push(...va, ...vb, ...vc);
+            normals.push(...n, ...n, ...n);
+        });
+
+        return { vertices: new F32(vertices), normals: new F32(normals) };
+    }
+
+    // Create rock VAO
+    const rockGeo = createRockGeometry();
+    const rockVAO = gl.createVertexArray();
+    const rockVBO = gl.createBuffer();
+    const rockNBO = gl.createBuffer();
+    
+    gl.bindVertexArray(rockVAO);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, rockVBO);
+    gl.bufferData(gl.ARRAY_BUFFER, rockGeo.vertices, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, rockNBO);
+    gl.bufferData(gl.ARRAY_BUFFER, rockGeo.normals, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
+
+    // Generate random rock positions
+    const NUM_ROCKS = 50;
+    const rockPositions = Array(NUM_ROCKS).fill().map(() => ({
+        x: (RANDOM() - 0.5) * 40,
+        y: 0,
+        z: (RANDOM() - 0.5) * 40,
+        scale: 0.3 + RANDOM() * 0.7,
+        rot: RANDOM() * PI * 2
+    }));
+
+    // Rock rendering function
+    function drawRocks() {
+        gl.useProgram(PR);
+        gl.bindVertexArray(rockVAO);
+        gl.uniformMatrix4fv(uVR, false, V);
+        gl.uniformMatrix4fv(uPR, false, P);
+        
+        rockPositions.forEach(rock => {
+            const model = translateScale(rock.x, rock.y, rock.z, 
+                                      rock.scale, rock.scale, rock.scale);
+            gl.uniformMatrix4fv(uMR, false, model);
+            gl.drawArrays(gl.TRIANGLES, 0, rockGeo.vertices.length / 3);
+        });
+    }
+    // -- /MODULE: Scene-Rock --
+    
+    // -- MODULE: Scene-Reticle --
+    
+    // -- /MODULE: Scene-Reticle --
+
+    // -- MODULE: Scene-VR --
+    // -- /MODULE: Scene-VR --
+
+    // -- /FEATURE: Scene --
+    
+    // -- CORE: render --
+    // --- Main Render Loop (Desktop) ---
+
+    function loop(t) {
+        // Calculate delta time
+        const dt = ((t - last) / 1000) || 0;
+        last = t;
+
+        // Update user position
+        const mv = getMove();
+        step(dt, mv);
+
+        // Update camera matrices
+        buildViewProj();
+
+        // --- Rendering ---
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // Render Sky
+        
+        // Noise texture for clouds
+
+        // Render Grid
+        gl.useProgram(PG);
+        gl.bindVertexArray(vao);
+        gl.uniformMatrix4fv(uM, false, M);
+        gl.uniformMatrix4fv(uV, false, V);
+        gl.uniformMatrix4fv(uP, false, P);
+        if (beastMode===true){
+        gl.enable(gl.CULL_FACE);
+        gl.cullFace(gl.FRONT)}
+        else {gl.disable(gl.CULL_FACE);};
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+        // Render Rocks
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        drawRocks();
+
+        // Render Grass in multiple passes for density and LOD
+        
+        // Render L-System Plants
+        
+        // Render Reticle if there's a ground hit
+        
+        // Render HUD
+        
+        requestAnimationFrame(loop);
+    }
+
+    // Helper to update the HUD canvas content
+    
+    // Helper to submit a grass draw call
+
+    // Computes the view and projection matrices for desktop mode
+    function buildViewProj() {
+        const cy = COS(user.yaw),
+              sy = SIN(user.yaw);
+        const cp = COS(user.pitch),
+              sp = SIN(user.pitch);
+        const eye = [user.x, user.y, user.z];
+        const center = [user.x - sy * cp, user.y - sp, user.z - cy * cp];
+        LOOKAT(V, eye, center, [0, 1, 0]);
+        PERSP(P, 60, canvas.width / canvas.height, 0.01, 1e3);
+        PV = MULTMAT4(M4(), P, V);
+        invPV = INV(PV);
+    }
+    // -- /CORE: Render --
+
+    // -- FEATURE: VR --
+    // -- /FEATURE: VR --
+    
+    // -- FEATURE: CORE --
+    // --- Application Entry Point ---
+    (function main() {
+        requestAnimationFrame(loop);
+    })();
+    
+    // -- /FEATURE: CORE --
+    </script>
+</body>
+</html>
