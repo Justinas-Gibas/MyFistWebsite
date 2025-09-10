@@ -68,6 +68,7 @@
 
     gl = canvas.getContext('webgl2', { antialias: true, xrCompatible: true });
     if (!gl) { alert('WebGL2 is required for this application.'); }
+    gl.enable(gl.DEPTH_TEST); // NEW: needed for proper 3D rendering
 
     // Resize the canvas to fill the window, accounting for device pixel ratio
     function resize() {
@@ -180,6 +181,87 @@
 
     // -- FEATURE: Gameplay --
     let beastMode = false; // toggle beast mode
+    // --- NEW: Gameplay-SpeedBoost / Items / Obstacles / Capsule Collision ---
+    const BOOST_DURATION = 5;          // seconds per pickup
+    const BOOST_AMOUNT  = 0.25;        // +25% per stack
+    const MAX_BOOSTS    = 8;           // safety cap
+    const speedBoosts = [];            // {timeLeft, amount}
+    const items = [];                  // pickup spheres {x,y,z,r,active:true}
+    const obstacles = [];              // solid spheres for collision {x,y,z,r}
+    const playerCapsule = { radius: 0.3, height: 1.6, eyeOffset: 1.6 };
+
+    function spawnTestContent(){
+        // Pickup items
+        for (let i=0;i<6;i++){
+            items.push({ x: i*2 - 5, y: 0.5, z: -4 - i*2, r:0.4, active:true });
+        }
+        // One obstacle sphere to demonstrate collision
+        obstacles.push({ x: 0, y: 0.8, z: -2, r: 0.8 });
+    }
+    spawnTestContent();
+
+    function currentSpeedMult(){
+        let m = 1;
+        for (const b of speedBoosts) m += b.amount;
+        return m;
+    }
+
+    function updateBoosts(dt){
+        for (let i=speedBoosts.length-1;i>=0;i--){
+            speedBoosts[i].timeLeft -= dt;
+            if (speedBoosts[i].timeLeft<=0) speedBoosts.splice(i,1);
+        }
+    }
+
+    function tryPickupItems(){
+        // Closest point on capsule (horizontal only since player moves on XZ)
+        const baseY = user.y - playerCapsule.eyeOffset;
+        const topY  = baseY + playerCapsule.height;
+        for (const itm of items){
+            if (!itm.active) continue;
+            // Nearest Y on capsule segment
+            const ny = Math.max(baseY, Math.min(topY, itm.y));
+            const dx = itm.x - user.x;
+            const dy = itm.y - ny;
+            const dz = itm.z - user.z;
+            const dist = Math.hypot(dx,dy,dz);
+            if (dist < itm.r + playerCapsule.radius){
+                itm.active = false;
+                if (speedBoosts.length < MAX_BOOSTS){
+                    speedBoosts.push({ timeLeft: BOOST_DURATION, amount: BOOST_AMOUNT });
+                }
+                playClickSound && playClickSound();
+            }
+        }
+    }
+
+    function resolveCollisions(prevX, prevZ){
+        // Capsule vs sphere obstacles
+        const baseY = user.y - playerCapsule.eyeOffset;
+        const topY  = baseY + playerCapsule.height;
+        for (const o of obstacles){
+            const ny = Math.max(baseY, Math.min(topY, o.y));
+            let dx = user.x - o.x;
+            let dy = ny - o.y;
+            let dz = user.z - o.z;
+            const dist = Math.hypot(dx,dy,dz);
+            const minDist = playerCapsule.radius + o.r;
+            if (dist < minDist){
+                if (dist < 1e-4){ // avoid division by zero
+                    user.x = prevX; user.z = prevZ;
+                } else {
+                    const push = (minDist - dist);
+                    dx /= dist; dz /= dist; // horizontal push preferred
+                    user.x += dx * push;
+                    user.z += dz * push;
+                }
+            }
+        }
+        // Ground collision (keep eye at least capsule height above 0)
+        if (user.y - playerCapsule.eyeOffset < 0) user.y = playerCapsule.eyeOffset;
+    }
+    // --- /NEW ---
+
     // -- MODULE: Gameplay-Movement --
     // --- Movement Logic ---
     // Movement and input constants
@@ -209,27 +291,30 @@
     // -- SOLUTION: Gameplay-Movement-Step --
     // Updates the user's position and orientation based on movement input and delta time
     function step(dt, mv) {
+        updateBoosts(dt);
+        const speed = MOVES * (currentSpeedMult());
         const now = performance.now();
         const moveMagnitude = Math.hypot(mv.x, mv.y);
         if(moveMagnitude > 0.1 && now - lastStepTime > stepInterval){
             playStepSound();
             lastStepTime = now;
         }
-        user.yaw += mv.t * TURNS * dt; // Apply turning
-        
-        // Calculate forward and right vectors based on current yaw
-        const cy = COS(user.yaw);
-        const sy = SIN(user.yaw);
-        T_V3_A[0] = -sy; T_V3_A[1] = 0; T_V3_A[2] = -cy; // 'f' vector
-        T_V3_B[0] = cy;  T_V3_B[1] = 0; T_V3_B[2] = -sy;  // 'r' vector
-        const sp = MOVES * dt;
-        
-        // Apply movement along forward and right vectors
+        user.yaw += mv.t * TURNS * dt;
+        const cy = COS(user.yaw), sy = SIN(user.yaw);
+        T_V3_A[0] = -sy; T_V3_A[1] = 0; T_V3_A[2] = -cy;
+        T_V3_B[0] = cy;  T_V3_B[1] = 0; T_V3_B[2] = -sy;
+        const sp = speed * dt;
+        const prevX = user.x, prevZ = user.z;
         user.x += (T_V3_B[0] * mv.x + T_V3_A[0] * mv.y) * sp;
         user.z += (T_V3_B[2] * mv.x + T_V3_A[2] * mv.y) * sp;
+        resolveCollisions(prevX, prevZ);
+        tryPickupItems();
     }
     // -- /SOLUTION: Gameplay-Movement-Step --
     // -- /MODULE: Gameplay-Movement --
+    // -- MODULE: Gameplay-Item --
+    // --- New: items ---
+    // -- /MODULE: Gameplay-Item --
     // -- /FEATURE: Gameplay --
     
     // -- FEATURE: Scene --
@@ -296,186 +381,72 @@
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
 
-    // -- /MODULE: Scene-Ground --
+    // NEW: Sphere (items/obstacles) minimal shader + geometry
+    const vsSphere = `#version 300 es
+    layout(location=0) in vec3 p;
+    uniform mat4 V,P;
+    uniform vec3 uPos;
+    uniform float uS;
+    void main(){
+        vec3 wp = p * uS + uPos;
+        gl_Position = P * V * vec4(wp,1.0);
+    }`;
+    const fsSphere = `#version 300 es
+    precision highp float;
+    uniform vec3 uColor;
+    out vec4 o;
+    void main(){ o = vec4(uColor,1.0); }`;
+
+    function buildSphere(lat=10, lon=12){
+        const v=[];
+        for(let i=0;i<lat;i++){
+            const t1=PI*i/lat, t2=PI*(i+1)/lat;
+            for(let j=0;j<lon;j++){
+                const p1=2*PI*j/lon, p2=2*PI*(j+1)/lon;
+                const quad=[
+                    sph(t1,p1),sph(t2,p1),sph(t2,p2),
+                    sph(t1,p1),sph(t2,p2),sph(t1,p2)
+                ];
+                for(const q of quad) v.push(q[0],q[1],q[2]);
+            }
+        }
+        return new Float32Array(v);
+    }
+    function sph(t,p){ return [SIN(t)*COS(p), COS(t), SIN(t)*SIN(p)]; }
+
+    const PS = prog(vsSphere, fsSphere);
+    const sphereVao = gl.createVertexArray();
+    const sphereBuf = gl.createBuffer();
+    gl.bindVertexArray(sphereVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sphereBuf);
+    const sphereVerts = buildSphere();
+    gl.bufferData(gl.ARRAY_BUFFER, sphereVerts, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+    const uS_V = gl.getUniformLocation(PS,'V');
+    const uS_P = gl.getUniformLocation(PS,'P');
+    const uS_Pos = gl.getUniformLocation(PS,'uPos');
+    const uS_S = gl.getUniformLocation(PS,'uS');
+    const uS_Color = gl.getUniformLocation(PS,'uColor');
+
+    function drawSphere(x,y,z,r,col){
+        gl.useProgram(PS);
+        gl.bindVertexArray(sphereVao);
+        gl.uniformMatrix4fv(uS_V,false,V);
+        gl.uniformMatrix4fv(uS_P,false,P);
+        gl.uniform3f(uS_Pos,x,y,z);
+        gl.uniform1f(uS_S,r);
+        gl.uniform3f(uS_Color,col[0],col[1],col[2]);
+        gl.drawArrays(gl.TRIANGLES,0,sphereVerts.length/3);
+    }
+    // /NEW
+
     // -- MODULE: Scene-Grass --
     
     // -- /MODULE: Scene-Grass --
     // -- MODULE: Scene-Plant --
     
     // -- /MODULE: Scene-Plant --
-    
-    // -- MODULE: Scene-Rock --
-    // --- Rock Generation and Rendering ---
-    // Vertex shader for rocks with basic lighting
-    const vsR = `#version 300 es
-    precision highp float;
-    layout(location=0) in vec3 p;
-    layout(location=1) in vec3 n;
-    uniform mat4 M, V, P;
-    uniform vec3 lightDir;
-    out vec3 vNormal;
-    out float vLight;
-    void main(){
-        vec4 worldPos = M * vec4(p, 1.0);
-        vNormal = normalize((M * vec4(n, 0.0)).xyz);
-        vLight = max(0.3, dot(vNormal, normalize(lightDir)));
-        gl_Position = P * V * worldPos;
-    }`;
-
-    const fsR = `#version 300 es
-    precision highp float;
-    in vec3 vNormal;
-    in float vLight;
-    out vec4 o;
-    void main(){
-        vec3 rockColor = vec3(0.4, 0.35, 0.3) * vLight;
-        o = vec4(rockColor, 1.0);
-    }`;
-
-    const PR = prog(vsR, fsR);
-    const uMR = gl.getUniformLocation(PR, 'M');
-    const uVR = gl.getUniformLocation(PR, 'V');
-    const uPR = gl.getUniformLocation(PR, 'P');
-    const uLightDir = gl.getUniformLocation(PR, 'lightDir');
-
-    // Rock geometry data
-    let rockVAO, rockVertexCount;
-    const rockPositions = []; // Array to store rock positions and scales
-
-    // Generate a procedural rock mesh by distorting a sphere
-    function generateRockGeometry() {
-        const vertices = [];
-        const normals = [];
-        const indices = [];
-        
-        // Sphere generation parameters
-        const rings = 12;
-        const sectors = 16;
-        const radius = 1.0;
-        
-        // Generate vertices with procedural distortion
-        for (let r = 0; r <= rings; r++) {
-            const phi = (r / rings) * PI;
-            const y = COS(phi);
-            const ringRadius = SIN(phi);
-            
-            for (let s = 0; s <= sectors; s++) {
-                const theta = (s / sectors) * 2 * PI;
-                const x = ringRadius * COS(theta);
-                const z = ringRadius * SIN(theta);
-                
-                // Apply procedural distortion using multiple noise frequencies
-                const noise1 = SIN(x * 3 + z * 2) * SIN(y * 4) * 0.15;
-                const noise2 = SIN(x * 7 - z * 5) * SIN(y * 6 + x * 2) * 0.08;
-                const noise3 = SIN(x * 12 + y * 8 - z * 3) * 0.04;
-                const distortion = 1.0 + noise1 + noise2 + noise3;
-                
-                const vx = x * radius * distortion;
-                const vy = y * radius * distortion;
-                const vz = z * radius * distortion;
-                
-                vertices.push(vx, vy, vz);
-                
-                // Calculate normal (approximate)
-                const len = SQRT(vx*vx + vy*vy + vz*vz);
-                normals.push(vx/len, vy/len, vz/len);
-            }
-        }
-        
-        // Generate indices for triangles
-        for (let r = 0; r < rings; r++) {
-            for (let s = 0; s < sectors; s++) {
-                const first = r * (sectors + 1) + s;
-                const second = first + sectors + 1;
-                
-                indices.push(first, second, first + 1);
-                indices.push(second, second + 1, first + 1);
-            }
-        }
-        
-        // Create VAO and buffers
-        rockVAO = gl.createVertexArray();
-        gl.bindVertexArray(rockVAO);
-        
-        // Vertex buffer
-        const vboRock = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, vboRock);
-        gl.bufferData(gl.ARRAY_BUFFER, new F32(vertices), gl.STATIC_DRAW);
-        gl.enableVertexAttribArray(0);
-        gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
-        
-        // Normal buffer
-        const nboRock = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, nboRock);
-        gl.bufferData(gl.ARRAY_BUFFER, new F32(normals), gl.STATIC_DRAW);
-        gl.enableVertexAttribArray(1);
-        gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
-        
-        // Index buffer
-        const eboRock = gl.createBuffer();
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, eboRock);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
-        
-        rockVertexCount = indices.length;
-    }
-
-    // Scatter rocks randomly across the terrain
-    function generateRockPositions() {
-        const numRocks = 50;
-        const areaSize = 200; // Scatter within 200x200 area
-
-        for (let i = 0; i < numRocks; i++) {
-            const x = (RANDOM() - 0.5) * areaSize;
-            const z = (RANDOM() - 0.5) * areaSize;
-            const scale = 1 + RANDOM() * 10; // Random scale between 1 and 2.2
-            const rotY = RANDOM() * 2 * PI; // Random rotation
-            
-            rockPositions.push({ x, y: 0, z, scale, rotY });
-        }
-    }
-
-    // Render all rocks
-    function renderRocks() {
-        if (!rockVAO) return;
-        
-        gl.useProgram(PR);
-        gl.bindVertexArray(rockVAO);
-        gl.uniformMatrix4fv(uVR, false, V);
-        gl.uniformMatrix4fv(uPR, false, P);
-        gl.uniform3f(uLightDir, 0.5, 1.0, 0.3); // Simple directional light
-        
-        gl.enable(gl.DEPTH_TEST);
-        //gl.enable(gl.CULL_FACE);
-        //gl.cullFace(gl.BACK);
-        
-        // Render each rock with its own model matrix
-        for (const rock of rockPositions) {
-            const distance = HYPOT(rock.x - user.x, rock.z - user.z);
-            if (distance > 50) continue; // Simple LOD - skip distant rocks
-            
-            // Create model matrix with translation, rotation, and scale
-            const cosY = COS(rock.rotY);
-            const sinY = SIN(rock.rotY);
-            const s = rock.scale;
-            
-            M.set([
-                s * cosY, 0, s * sinY, 0,
-                0, s, 0, 0,
-                -s * sinY, 0, s * cosY, 0,
-                rock.x, rock.y, rock.z, 1
-            ]);
-            
-            gl.uniformMatrix4fv(uMR, false, M);
-            gl.drawElements(gl.TRIANGLES, rockVertexCount, gl.UNSIGNED_SHORT, 0);
-        }
-        
-        //gl.disable(gl.CULL_FACE);
-    }
-
-    // Initialize rock system
-    generateRockGeometry();
-    generateRockPositions();
-    // -- /MODULE: Scene-Rock --
     
     // -- MODULE: Scene-Reticle --
     
@@ -522,8 +493,9 @@
         else {gl.disable(gl.CULL_FACE);};
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-        // Render Rocks
-        renderRocks();
+        // --- NEW: Render Items & Obstacles (now works because drawSphere exists) ---
+        for(const itm of items) if (itm.active) drawSphere(itm.x,itm.y,itm.z,itm.r,[0.2,1.0,0.3]);
+        for(const o of obstacles) drawSphere(o.x,o.y,o.z,o.r,[0.9,0.2,0.2]);
 
         // Render Grass in multiple passes for density and LOD
         
