@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<title>Voxel Blueprint Editor — MVP</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<style>
+		:root {
+			--bg:#0b0f14; --panel:#111827; --ink:#e5e7eb; --muted:#9ca3af; --accent:#60a5fa;
+			--grid:#1f2937; --line:#334155;
+		}
+		* { box-sizing: border-box; }
+		html, body { height:100%; margin:0; background:var(--bg); color:var(--ink); font: 13px/1.4 system-ui, Segoe UI, Roboto, Inter, Arial, sans-serif; }
+		.app { display:grid; grid-template-columns: 320px 1fr; height:100%; gap:10px; }
+		aside { background:var(--panel); padding:10px; overflow:auto; border-right:1px solid var(--line); }
+		main { display:flex; flex-direction:column; gap:10px; padding:10px; overflow:hidden; }
+		.controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+		label.inline { display:flex; gap:6px; align-items:center; border:1px solid var(--line); padding:4px 6px; border-radius:6px; }
+		input[type=number] { width:64px; background:#0f172a; color:var(--ink); border:1px solid var(--line); padding:2px 6px; border-radius:4px; }
+		select, input[type=color] { background:#0f172a; color:var(--ink); border:1px solid var(--line); padding:2px 6px; border-radius:4px; }
+		button { background:#0f172a; color:var(--ink); border:1px solid var(--line); padding:6px 10px; border-radius:6px; cursor:pointer; }
+		button.primary { background:var(--accent); color:#051225; border-color:#2b74d4; }
+		.row { display:flex; gap:10px; min-height:0; }
+		.canvasWrap { background:#0f172a; border:1px solid var(--line); padding:6px; border-radius:6px; }
+		.canvasTitle { font-weight:600; color:var(--muted); margin-bottom:6px; }
+		canvas { background:#0b1020; border:1px solid var(--grid); image-rendering: pixelated; cursor:crosshair; touch-action:none; }
+		#preview { background:#0b1020; border:1px solid var(--line); width:100%; height:100%; }
+		.layers h3 { margin:6px 0 8px; font-size:14px; }
+		.layerItem { display:flex; align-items:center; gap:6px; padding:6px; border:1px solid var(--line); border-radius:6px; margin-bottom:6px; background:#0e1628; }
+		.layerItem input[type=text] { background:#0f172a; color:var(--ink); border:1px solid var(--line); padding:2px 6px; border-radius:4px; width:110px; }
+		.small { font-size:12px; color:var(--muted); }
+		.sep { height:1px; background:var(--line); margin:8px 0; }
+	</style>
+</head>
+<body>
+<div class="app">
+	<aside>
+		<div class="controls">
+			<label class="inline">W <input id="inW" type="number" min="4" max="128" value="32"></label>
+			<label class="inline">H <input id="inH" type="number" min="4" max="128" value="32"></label>
+			<label class="inline">D <input id="inD" type="number" min="4" max="128" value="32"></label>
+			<button id="btnApply" class="primary">Apply Grid</button>
+		</div>
+		<div class="controls" style="margin-top:6px;">
+			<label class="inline">Threshold
+				<select id="selThresh">
+					<option value="1">≥1 view (union)</option>
+					<option value="2" selected>≥2 views</option>
+					<option value="3">≥3 views (intersection)</option>
+				</select>
+			</label>
+			<label class="inline">Mode
+				<select id="selMode">
+					<option value="paint" selected>Paint</option>
+					<option value="erase">Erase</option>
+				</select>
+			</label>
+			<label class="inline">Brush <input id="inBrush" type="number" min="1" max="32" value="1"></label>
+		</div>
+		<div class="sep"></div>
+		<div class="layers">
+			<h3>Layers</h3>
+			<div class="controls">
+				<button id="btnAddLayer">Add Layer</button>
+				<button id="btnToggleAll">Toggle All</button>
+				<button id="btnClearActive">Clear Active</button>
+			</div>
+			<div id="layerList" style="margin-top:8px;"></div>
+			<div class="sep"></div>
+			<div class="small">Tip: Each layer owns its Top/Front/Right silhouettes. Paint into any view with the active layer selected.</div>
+		</div>
+	</aside>
+	<main>
+		<div class="row">
+			<div class="canvasWrap">
+				<div class="canvasTitle">Top (X × Z)</div>
+				<canvas id="canTop" width="384" height="384"></canvas>
+			</div>
+			<div class="canvasWrap">
+				<div class="canvasTitle">Front (X × Y)</div>
+				<canvas id="canFront" width="384" height="384"></canvas>
+			</div>
+			<div class="canvasWrap">
+				<div class="canvasTitle">Right (Z × Y)</div>
+				<canvas id="canRight" width="384" height="384"></canvas>
+			</div>
+		</div>
+		<div class="row" style="flex:1; min-height:240px;">
+			<canvas id="preview"></canvas>
+		</div>
+	</main>
+</div>
+
+<script>
+(function(){
+	// ----- State -----
+	let W=32,H=32,D=32;
+	let threshold=2;
+	let brushSize=1;
+	let mode='paint';
+
+	const $ = (id)=>document.getElementById(id);
+	const el = {
+		inW: $('inW'), inH: $('inH'), inD: $('inD'), btnApply:$('btnApply'),
+		selThresh:$('selThresh'), selMode:$('selMode'), inBrush:$('inBrush'),
+		btnAddLayer:$('btnAddLayer'), btnToggleAll:$('btnToggleAll'), btnClearActive:$('btnClearActive'),
+		layerList:$('layerList'),
+		canTop:$('canTop'), canFront:$('canFront'), canRight:$('canRight'),
+		preview:$('preview'),
+	};
+	const ctxTop = el.canTop.getContext('2d');
+	const ctxFront = el.canFront.getContext('2d');
+	const ctxRight = el.canRight.getContext('2d');
+	const ctxPrev = el.preview.getContext('2d');
+
+	let layers = [];
+	let activeLayer = -1;
+
+	// Reconstruction buffers
+	let occ = new Uint16Array(W*H*D); // 0 = empty, else layerIdx+1
+
+	// Render scheduling
+	let needs2D = true, needs3D = true;
+	function request2D(){ needs2D = true; }
+	function request3D(){ needs3D = true; }
+	function frame(){
+		if(needs2D){ renderAllCanvases(); needs2D=false; }
+		if(needs3D){ reconstruct(); renderPreview(); needs3D=false; }
+		requestAnimationFrame(frame);
+	}
+
+	// ----- Utils -----
+	function idx(x,y,z){ return (y*D + z)*W + x; }
+	function clamp(v,min,max){ return v<min?min:(v>max?max:v); }
+	function randomColor(){
+		const c = ()=> (Math.floor(Math.random()*200)+30).toString(16).padStart(2,'0');
+		return '#'+c()+c()+c();
+	}
+	function shade(hex, f){
+		const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+		return 'rgb('+Math.floor(r*f)+','+Math.floor(g*f)+','+Math.floor(b*f)+')';
+	}
+	function resampleMask(src, sw, sh, dw, dh){
+		const dst = new Uint8Array(dw*dh);
+		for(let y=0;y<dh;y++){
+			const sy = Math.min(sh-1, Math.floor(y * sh / dh));
+			for(let x=0;x<dw;x++){
+				const sx = Math.min(sw-1, Math.floor(x * sw / dw));
+				dst[y*dw + x] = src[sy*sw + sx] ? 1 : 0;
+			}
+		}
+		return dst;
+	}
+
+	// ----- Layers -----
+	function newLayer(name, color){
+		const layer = {
+			name: name || 'Layer '+(layers.length+1),
+			color: color || randomColor(),
+			visible: true,
+			top: new Uint8Array(W*D),
+			front: new Uint8Array(W*H),
+			right: new Uint8Array(D*H),
+		};
+		layers.push(layer);
+		activeLayer = layers.length-1;
+		renderLayerList();
+		request2D(); request3D();
+	}
+	function clearLayer(i){
+		if(i<0) return;
+		layers[i].top.fill(0);
+		layers[i].front.fill(0);
+		layers[i].right.fill(0);
+		request2D(); request3D();
+	}
+	function deleteLayer(i){
+		if(i<0) return;
+		layers.splice(i,1);
+		if(layers.length===0){ activeLayer=-1; } else { activeLayer = Math.max(0, Math.min(activeLayer, layers.length-1)); }
+		renderLayerList();
+		request2D(); request3D();
+	}
+	function renderLayerList(){
+		el.layerList.innerHTML = '';
+		layers.forEach((L, i)=>{
+			const row = document.createElement('div');
+			row.className = 'layerItem';
+			row.innerHTML = `
+				<input type="radio" name="activeLayer" ${i===activeLayer?'checked':''} />
+				<input type="checkbox" ${L.visible?'checked':''} title="Visible" />
+				<input type="color" value="${L.color}" />
+				<input type="text" value="${L.name}" />
+				<button data-act="clear">Clear</button>
+				<button data-act="del">Del</button>
+			`;
+			const [rad, vis, col, nameIn] = row.querySelectorAll('input');
+			rad.onchange = ()=>{ activeLayer=i; request2D(); request3D(); };
+			vis.onchange = ()=>{ L.visible = vis.checked; request2D(); request3D(); };
+			col.oninput = ()=>{ L.color = col.value; request2D(); request3D(); };
+			nameIn.oninput = ()=>{ L.name = nameIn.value; };
+			row.querySelector('button[data-act="clear"]').onclick = ()=> clearLayer(i);
+			row.querySelector('button[data-act="del"]').onclick = ()=> deleteLayer(i);
+			el.layerList.appendChild(row);
+		});
+	}
+	el.btnAddLayer.onclick = ()=> newLayer();
+	el.btnToggleAll.onclick = ()=>{
+		const anyHidden = layers.some(l=>!l.visible);
+		layers.forEach(l=> l.visible = anyHidden ? true : !l.visible);
+		renderLayerList(); request2D(); request3D();
+	};
+	el.btnClearActive.onclick = ()=> clearLayer(activeLayer);
+
+	// ----- Grid resize -----
+	el.btnApply.onclick = ()=>{
+		const nW = clamp(parseInt(el.inW.value||W,10),4,128);
+		const nH = clamp(parseInt(el.inH.value||H,10),4,128);
+		const nD = clamp(parseInt(el.inD.value||D,10),4,128);
+		resizeGrid(nW,nH,nD);
+	};
+	function resizeGrid(nW,nH,nD){
+		if(nW===W && nH===H && nD===D) return;
+		layers.forEach(L=>{
+			L.top   = resampleMask(L.top,   W, D, nW, nD);
+			L.front = resampleMask(L.front, W, H, nW, nH);
+			L.right = resampleMask(L.right, D, H, nD, nH);
+		});
+		W=nW; H=nH; D=nD;
+		occ = new Uint16Array(W*H*D);
+		request2D(); request3D();
+	}
+
+	// ----- Controls -----
+	el.selThresh.onchange = ()=>{ threshold = parseInt(el.selThresh.value,10); request3D(); };
+	el.selMode.onchange = ()=>{ mode = el.selMode.value; };
+	el.inBrush.oninput = ()=>{ brushSize = clamp(parseInt(el.inBrush.value||1,10),1,32); };
+
+	// ----- 2D canvases -----
+	function drawGrid(ctx, cols, rows, cw, ch, offX, offY){
+		ctx.save();
+		ctx.strokeStyle = '#1e293b';
+		ctx.lineWidth = 1;
+		for(let x=0;x<=cols;x++){
+			const px = Math.floor(offX + x*cw)+0.5;
+			ctx.beginPath(); ctx.moveTo(px, offY); ctx.lineTo(px, offY + rows*ch); ctx.stroke();
+		}
+		for(let y=0;y<=rows;y++){
+			const py = Math.floor(offY + y*ch)+0.5;
+			ctx.beginPath(); ctx.moveTo(offX, py); ctx.lineTo(offX + cols*chw, py); // fixed below
+		}
+		ctx.restore();
+	}
+	function renderView(ctx, type){
+		const cols = (type==='top'||type==='front') ? W : D;
+		const rows = (type==='top') ? D : H;
+
+		const w = ctx.canvas.width, h = ctx.canvas.height;
+		ctx.clearRect(0,0,w,h);
+
+		// compute cell size and margins
+		const cw = Math.floor(Math.min(w / cols, h / rows));
+		const ch = cw;
+		const offX = Math.floor((w - cols*cw)/2);
+		const offY = Math.floor((h - rows*ch)/2);
+
+		// fill backdrop
+		ctx.fillStyle = '#0b1224';
+		ctx.fillRect(0,0,w,h);
+
+		// draw filled cells for visible layers
+		layers.forEach((L,i)=>{
+			if(!L.visible) return;
+			const alpha = (i===activeLayer)? 0.9 : 0.35;
+			ctx.globalAlpha = alpha;
+			ctx.fillStyle = L.color;
+			if(type==='top'){
+				const buf = L.top;
+				for(let z=0;z<rows;z++){
+					for(let x=0;x<cols;x++){
+						if(buf[z*cols+x]){
+							ctx.fillRect(offX + x*cw, offY + z*ch, cw, ch);
+						}
+					}
+				}
+			}else if(type==='front'){
+				const buf = L.front;
+				for(let y=0;y<rows;y++){
+					for(let x=0;x<cols;x++){
+						if(buf[y*cols+x]){
+							ctx.fillRect(offX + x*cw, offY + (rows-1-y)*ch, cw, ch);
+						}
+					}
+				}
+			}else{
+				const buf = L.right;
+				for(let y=0;y<rows;y++){
+					for(let z=0;z<cols;z++){
+						if(buf[y*cols+z]){
+							ctx.fillRect(offX + z*cw, offY + (rows-1-y)*ch, cw, ch);
+						}
+					}
+				}
+			}
+			ctx.globalAlpha = 1;
+		});
+
+		// grid lines
+		ctx.strokeStyle = '#1f2a44';
+		ctx.lineWidth = 1;
+		ctx.globalAlpha = 0.6;
+		for(let x=0;x<=cols;x++){
+			const px = 0.5 + offX + x*cw;
+			ctx.beginPath(); ctx.moveTo(px, offY); ctx.lineTo(px, offY + rows*ch); ctx.stroke();
+		}
+		for(let y=0;y<=rows;y++){
+			const py = 0.5 + offY + y*ch;
+			ctx.beginPath(); ctx.moveTo(offX, py); ctx.lineTo(offX + cols*cw, py); ctx.stroke();
+		}
+		ctx.globalAlpha = 1;
+
+		// store mapping for interactions
+		ctx.canvas._map = { cols, rows, cw, ch, offX, offY, type };
+	}
+	function renderAllCanvases(){
+		renderView(ctxTop, 'top');
+		renderView(ctxFront, 'front');
+		renderView(ctxRight, 'right');
+	}
+
+	function applyBrushToLayer(type, gx, gy){
+		if(activeLayer<0) return;
+		const L = layers[activeLayer];
+		const r = Math.max(0, brushSize-1);
+		if(type==='top'){
+			for(let dz=-r;dz<=r;dz++){
+				for(let dx=-r;dx<=r;dx++){
+					const x=gx+dx, z=gy+dz;
+					if(x<0||x>=W||z<0||z>=D) continue;
+					const k = z*W + x;
+					L.top[k] = (mode==='paint') ? 1 : 0;
+				}
+			}
+		}else if(type==='front'){
+			for(let dy=-r;dy<=r;dy++){
+				for(let dx=-r;dx<=r;dx++){
+					const x=gx+dx, y=gy+dy;
+					if(x<0||x>=W||y<0||y>=H) continue;
+					const k = y*W + x;
+					L.front[k] = (mode==='paint') ? 1 : 0;
+				}
+			}
+		}else{
+			for(let dy=-r;dy<=r;dy++){
+				for(let dz=-r;dz<=r;dz++){
+					const z=gx+dz, y=gy+dy; // note: gx maps to z in right view
+					if(z<0||z>=D||y<0||y>=H) continue;
+					const k = y*D + z;
+					L.right[k] = (mode==='paint') ? 1 : 0;
+				}
+			}
+		}
+		request2D(); request3D();
+	}
+	function canvasPointToGrid(canvas, evt){
+		const map = canvas._map; if(!map) return null;
+		const rect = canvas.getBoundingClientRect();
+		const cx = (evt.clientX - rect.left);
+		const cy = (evt.clientY - rect.top);
+		const gx = Math.floor((cx - map.offX) / map.cw);
+		const gy = Math.floor((cy - map.offY) / map.ch);
+		if(gx<0||gy<0||gx>=map.cols||gy>=map.rows) return null;
+		// flip Y for vertical views
+		if(map.type==='front' || map.type==='right'){
+			return { type:map.type, gx: gx, gy: (map.rows-1-gy) };
+		}
+		return { type:map.type, gx, gy };
+	}
+	function bindCanvasPaint(canvas){
+		let painting=false;
+		canvas.addEventListener('pointerdown', (e)=>{
+			canvas.setPointerCapture(e.pointerId);
+			const g = canvasPointToGrid(canvas, e);
+			if(!g) return;
+			painting = true;
+			applyBrushToLayer(g.type, g.gx, g.gy);
+		});
+		canvas.addEventListener('pointermove', (e)=>{
+			if(!painting) return;
+			const g = canvasPointToGrid(canvas, e);
+			if(!g) return;
+			applyBrushToLayer(g.type, g.gx, g.gy);
+		});
+		const end = (e)=>{ painting=false; try{ canvas.releasePointerCapture(e.pointerId); }catch{} };
+		canvas.addEventListener('pointerup', end);
+		canvas.addEventListener('pointercancel', end);
+	}
+	bindCanvasPaint(el.canTop);
+	bindCanvasPaint(el.canFront);
+	bindCanvasPaint(el.canRight);
+
+	// ----- Reconstruction -----
+	function reconstruct(){
+		occ.fill(0);
+		// For each visible layer, reconstruct independently and write layer index+1
+		for(let li=0; li<layers.length; li++){
+			const L = layers[li];
+			if(!L.visible) continue;
+			const top=L.top, front=L.front, right=L.right;
+			for(let y=0;y<H;y++){
+				for(let z=0;z<D;z++){
+					for(let x=0;x<W;x++){
+						let c = 0;
+						if(top[z*W + x]) c++;
+						if(front[y*W + x]) c++;
+						if(right[y*D + z]) c++;
+						if(c >= threshold){
+							occ[idx(x,y,z)] = li+1; // last visible layer wins on overlap
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// ----- 3D Preview (isometric software renderer) -----
+	function computeIsoScale(w, h){
+		// Fit entire grid into preview canvas; derive dx, dy, v
+		const estDx = Math.max(2, Math.floor(w / ((W + D) * 1.2)));
+		const dy = Math.max(2, Math.floor(estDx * 0.9));
+		const v = Math.max(2, Math.floor(dy * 1.2));
+		// Check height and adjust
+		const totalH = Math.floor(((W + D) * (dy/2)) + (H * v) + 40);
+		const scale = totalH > h ? (h / totalH) : 1;
+		const dx = Math.max(2, Math.floor(estDx * scale));
+		const dy2 = Math.max(2, Math.floor(dy * scale));
+		const v2 = Math.max(2, Math.floor(v * scale));
+		return { dx, dy:dy2, v:v2 };
+	}
+	function renderPreview(){
+		const cvs = el.preview;
+		// Resize preview to container
+		const parent = cvs.parentElement;
+		const w = Math.floor(parent.clientWidth);
+		const h = Math.floor(parent.clientHeight);
+		if(cvs.width !== w || cvs.height !== h){ cvs.width = w; cvs.height = h; }
+		const ctx = ctxPrev;
+		ctx.clearRect(0,0,w,h);
+		ctx.fillStyle = '#0b1020'; ctx.fillRect(0,0,w,h);
+
+		if(W*H*D===0) return;
+
+		const { dx, dy, v } = computeIsoScale(w,h);
+
+		// collect surface voxels
+		const vox = [];
+		for(let y=0;y<H;y++){
+			for(let z=0;z<D;z++){
+				for(let x=0;x<W;x++){
+					const k = idx(x,y,z);
+					const li = occ[k];
+					if(li===0) continue;
+					// surface test
+					let surf=false;
+					if(x===0 || occ[idx(x-1,y,z)]===0) surf=true;
+					else if(x===W-1 || occ[idx(x+1,y,z)]===0) surf=true;
+					else if(z===0 || occ[idx(x,y,z-1)]===0) surf=true;
+					else if(z===D-1 || occ[idx(x,y,z+1)]===0) surf=true;
+					else if(y===0 || occ[idx(x-1+1,y-1,z)]===0 || occ[idx(x,y-1,z)]===0) surf=true; // y-1 neighbor
+					else if(y===H-1) surf=true;
+					if(!surf) continue;
+					vox.push({x,y,z, li: li-1});
+				}
+			}
+		}
+		// sort back-to-front by x+y+z
+		vox.sort((a,b)=> (a.x+a.y+a.z) - (b.x+b.y+b.z));
+
+		// center offsets
+		const totalW = (W + D) * dx;
+		const baseX = Math.floor(w/2);
+		const baseY = Math.floor(20 + (W + D) * (dy/2));
+
+		// draw cubes
+		for(const vxl of vox){
+			const L = layers[vxl.li];
+			if(!L) continue;
+			const {x,y,z} = vxl;
+			const sx = (x - z) * dx + baseX;
+			const sy = (x + z) * (dy/2) - y * v + baseY;
+
+			// top face
+			ctx.fillStyle = shade(L.color, 1.00);
+			ctx.beginPath();
+			ctx.moveTo(sx, sy - v);
+			ctx.lineTo(sx + dx, sy - v/2);
+			ctx.lineTo(sx, sy);
+			ctx.lineTo(sx - dx, sy - v/2);
+			ctx.closePath();
+			ctx.fill();
+
+			// right face
+			ctx.fillStyle = shade(L.color, 0.78);
+			ctx.beginPath();
+			ctx.moveTo(sx + dx, sy - v/2);
+			ctx.lineTo(sx, sy);
+			ctx.lineTo(sx, sy + v);
+			ctx.lineTo(sx + dx, sy - v/2 + v);
+			ctx.closePath();
+			ctx.fill();
+
+			// left face
+			ctx.fillStyle = shade(L.color, 0.62);
+			ctx.beginPath();
+			ctx.moveTo(sx - dx, sy - v/2);
+			ctx.lineTo(sx, sy);
+			ctx.lineTo(sx, sy + v);
+			ctx.lineTo(sx - dx, sy - v/2 + v);
+			ctx.closePath();
+			ctx.fill();
+		}
+	}
+
+	// ----- Boot -----
+	newLayer('Base', '#4cc9f0');
+	request2D(); request3D(); frame();
+})();
+</script>
+</body>
+</html>

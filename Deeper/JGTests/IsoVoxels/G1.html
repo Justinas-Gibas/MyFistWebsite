@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voxel Blueprint Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+        }
+        canvas {
+            cursor: crosshair;
+            touch-action: none;
+        }
+        .canvas-container {
+            border: 1px solid #4a5568;
+            background-color: #1a202c;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        }
+        #renderer-canvas {
+            cursor: grab;
+        }
+        #renderer-canvas:active {
+            cursor: grabbing;
+        }
+        .tool-btn.active {
+            background-color: #4299e1;
+            color: white;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4299e1;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4299e1;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+    </style>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap">
+</head>
+<body class="bg-gray-800 text-gray-200 flex flex-col h-screen overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-gray-900 text-white p-2 flex justify-between items-center shadow-md z-10">
+        <h1 class="text-xl font-bold">Voxel Blueprint Editor</h1>
+        <div class="flex items-center gap-4">
+            <button id="export-gltf" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200">Export GLTF</button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex flex-1 overflow-hidden">
+
+        <!-- Left Panel: Controls & 2D Canvases -->
+        <aside class="w-1/3 xl:w-1/4 bg-gray-900 p-4 overflow-y-auto flex flex-col gap-4">
+            <!-- Grid Controls -->
+            <div class="bg-gray-800 p-3 rounded-lg shadow-lg">
+                <h2 class="text-lg font-semibold mb-2 border-b border-gray-700 pb-2">Grid Controls</h2>
+                <div class="grid grid-cols-3 gap-2 text-sm items-center">
+                    <label for="grid-size">Size:</label>
+                    <input type="number" id="grid-size" value="16" min="4" max="64" step="4" class="col-span-2 bg-gray-700 border border-gray-600 rounded-md p-1 text-center">
+                    <button id="apply-grid-size" class="col-span-3 mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1 px-3 rounded-md transition-colors duration-200">Apply & Reset</button>
+                </div>
+            </div>
+
+            <!-- Tool Palette -->
+            <div class="bg-gray-800 p-3 rounded-lg shadow-lg">
+                <h2 class="text-lg font-semibold mb-2 border-b border-gray-700 pb-2">Tools</h2>
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-center gap-2">
+                         <button id="pencil-tool" class="tool-btn flex-1 bg-gray-700 hover:bg-gray-600 font-semibold py-2 px-3 rounded-md transition-colors duration-200 active">Pencil</button>
+                         <button id="eraser-tool" class="tool-btn flex-1 bg-gray-700 hover:bg-gray-600 font-semibold py-2 px-3 rounded-md transition-colors duration-200">Eraser</button>
+                    </div>
+                    <label for="color-picker" class="block mt-2">Voxel Color:</label>
+                    <input type="color" id="color-picker" value="#4299e1" class="w-full h-10 p-1 bg-gray-700 border border-gray-600 rounded-md cursor-pointer">
+                </div>
+            </div>
+
+            <!-- Layer Controls -->
+            <div class="bg-gray-800 p-3 rounded-lg shadow-lg">
+                <h2 class="text-lg font-semibold mb-2 border-b border-gray-700 pb-2">Layer Slice</h2>
+                 <div class="flex items-center gap-2">
+                    <span id="layer-label" class="font-mono text-lg">0</span>
+                    <input type="range" id="layer-slider" min="0" max="15" value="0" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                </div>
+            </div>
+
+            <!-- 2D Views -->
+            <div class="flex-1 flex flex-col gap-4 min-h-0">
+                <div class="flex-1 flex flex-col">
+                    <h3 class="font-semibold text-center mb-1">Top View (X/Z)</h3>
+                    <div class="canvas-container flex-1 rounded-md overflow-hidden aspect-w-1 aspect-h-1">
+                        <canvas id="top-canvas"></canvas>
+                    </div>
+                </div>
+                <div class="flex-1 flex flex-col">
+                    <h3 class="font-semibold text-center mb-1">Front View (X/Y)</h3>
+                    <div class="canvas-container flex-1 rounded-md overflow-hidden aspect-w-1 aspect-h-1">
+                        <canvas id="front-canvas"></canvas>
+                    </div>
+                </div>
+                <div class="flex-1 flex flex-col">
+                    <h3 class="font-semibold text-center mb-1">Side View (Y/Z)</h3>
+                    <div class="canvas-container flex-1 rounded-md overflow-hidden aspect-w-1 aspect-h-1">
+                        <canvas id="side-canvas"></canvas>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Right Panel: 3D Renderer -->
+        <main id="renderer-container" class="flex-1 bg-gray-700 relative">
+             <canvas id="renderer-canvas"></canvas>
+             <div class="absolute bottom-2 left-2 bg-black bg-opacity-50 p-2 rounded-md text-xs">
+                Use mouse to Orbit/Zoom/Pan
+             </div>
+        </main>
+    </div>
+
+    <!-- Three.js and GLTFExporter -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+        // --- GLOBAL STATE & CONFIG ---
+        let GRID_SIZE = 16;
+        let voxelData = []; // 3D array for voxel data [y][z][x]
+        let currentLayer = 0;
+        let currentTool = 'pencil'; // 'pencil' or 'eraser'
+        let currentColor = '#4299e1';
+        let isDrawing = false;
+        
+        // --- DOM ELEMENTS ---
+        const topCanvas = document.getElementById('top-canvas');
+        const frontCanvas = document.getElementById('front-canvas');
+        const sideCanvas = document.getElementById('side-canvas');
+        const rendererCanvas = document.getElementById('renderer-canvas');
+        const rendererContainer = document.getElementById('renderer-container');
+        const layerSlider = document.getElementById('layer-slider');
+        const layerLabel = document.getElementById('layer-label');
+        const colorPicker = document.getElementById('color-picker');
+        const pencilToolBtn = document.getElementById('pencil-tool');
+        const eraserToolBtn = document.getElementById('eraser-tool');
+        const gridSizeInput = document.getElementById('grid-size');
+        const applyGridBtn = document.getElementById('apply-grid-size');
+        const exportGltfBtn = document.getElementById('export-gltf');
+
+        // --- 2D CANVAS SETUP ---
+        const topCtx = topCanvas.getContext('2d');
+        const frontCtx = frontCanvas.getContext('2d');
+        const sideCtx = sideCanvas.getContext('2d');
+        const canvases = [
+            { canvas: topCanvas, ctx: topCtx, type: 'top' },
+            { canvas: frontCanvas, ctx: frontCtx, type: 'front' },
+            { canvas: sideCanvas, ctx: sideCtx, type: 'side' }
+        ];
+
+        // --- 3D RENDERER SETUP (THREE.JS) ---
+        let scene, camera, renderer, controls, voxelGroup;
+        
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x4a5568);
+
+            // Camera
+            const aspect = rendererContainer.clientWidth / rendererContainer.clientHeight;
+            camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 1000);
+            camera.position.set(GRID_SIZE * 1.5, GRID_SIZE * 1.2, GRID_SIZE * 1.5);
+            camera.lookAt(0, 0, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ canvas: rendererCanvas, antialias: true });
+            renderer.setSize(rendererContainer.clientWidth, rendererContainer.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            directionalLight.position.set(1, 1, 0.5).normalize();
+            scene.add(directionalLight);
+            
+            // Controls
+            controls = new OrbitControls(camera, renderer);
+            controls.enableDamping = true;
+            controls.target.set(0, GRID_SIZE / 2, 0);
+
+            // Voxel Group (to hold all the cubes)
+            voxelGroup = new THREE.Group();
+            scene.add(voxelGroup);
+            
+            // Grid Helper
+            const gridHelper = new THREE.GridHelper(GRID_SIZE, GRID_SIZE, 0x888888, 0x444444);
+            gridHelper.position.y = -0.5;
+            scene.add(gridHelper);
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- VOXEL DATA & LOGIC ---
+        function initializeVoxelData() {
+            voxelData = Array.from({ length: GRID_SIZE }, () =>
+                Array.from({ length: GRID_SIZE }, () =>
+                    Array.from({ length: GRID_SIZE }, () => null)
+                )
+            );
+        }
+
+        function setVoxel(x, y, z, color) {
+             if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE || z < 0 || z >= GRID_SIZE) {
+                return;
+            }
+            voxelData[y][z][x] = color;
+        }
+
+        function getVoxel(x, y, z) {
+            return voxelData[y][z][x];
+        }
+
+        // --- DRAWING & UPDATING ---
+        function drawAllCanvases() {
+            drawCanvas(topCtx, GRID_SIZE, 'top');
+            drawCanvas(frontCtx, GRID_SIZE, 'front');
+            drawCanvas(sideCtx, GRID_SIZE, 'side');
+        }
+
+        function drawCanvas(ctx, size, type) {
+            const canvas = ctx.canvas;
+            const pixelSize = canvas.width / size;
+            
+            // Clear canvas
+            ctx.fillStyle = '#1a202c';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw voxels
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size; j++) {
+                    let color = null;
+                    if (type === 'top')   color = getVoxel(j, currentLayer, i); // x, z at layer y
+                    if (type === 'front') color = getVoxel(j, i, currentLayer); // x, y at layer z
+                    if (type === 'side')  color = getVoxel(currentLayer, j, i); // z, y at layer x
+
+                    if (color) {
+                        ctx.fillStyle = color;
+                        ctx.fillRect(j * pixelSize, i * pixelSize, pixelSize, pixelSize);
+                    }
+                }
+            }
+
+            // Draw grid lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= size; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * pixelSize, 0);
+                ctx.lineTo(i * pixelSize, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * pixelSize);
+                ctx.lineTo(canvas.width, i * pixelSize);
+                ctx.stroke();
+            }
+        }
+        
+        function update3DView() {
+            // Clear existing voxels
+            while(voxelGroup.children.length) {
+                voxelGroup.remove(voxelGroup.children[0]);
+            }
+            
+            const voxelGeometry = new THREE.BoxGeometry(1, 1, 1);
+            
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let z = 0; z < GRID_SIZE; z++) {
+                    for (let x = 0; x < GRID_SIZE; x++) {
+                        const color = voxelData[y][z][x];
+                        if(color) {
+                            const voxelMaterial = new THREE.MeshLambertMaterial({ color: color });
+                            const voxel = new THREE.Mesh(voxelGeometry, voxelMaterial);
+                            
+                            // Center the grid around the origin
+                            voxel.position.set(
+                                x - GRID_SIZE / 2 + 0.5,
+                                y,
+                                z - GRID_SIZE / 2 + 0.5
+                            );
+                            voxelGroup.add(voxel);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // --- EVENT HANDLERS ---
+        function handleCanvasDraw(e, type) {
+            e.preventDefault();
+            if (!isDrawing && e.type !== 'mousedown') return;
+
+            const rect = e.target.getBoundingClientRect();
+            // Adjust for multi-touch and different event types
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            const x = Math.floor(((clientX - rect.left) / rect.width) * GRID_SIZE);
+            const y = Math.floor(((clientY - rect.top) / rect.height) * GRID_SIZE);
+            
+            if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) return;
+
+            const colorToSet = currentTool === 'pencil' ? currentColor : null;
+
+            switch (type) {
+                case 'top':   setVoxel(x, currentLayer, y, colorToSet); break;
+                case 'front': setVoxel(x, y, currentLayer, colorToSet); break;
+                case 'side':  setVoxel(currentLayer, y, x, colorToSet); break;
+            }
+
+            drawAllCanvases();
+            update3DView();
+        }
+        
+        function setupCanvasEventListeners() {
+            canvases.forEach(({ canvas, type }) => {
+                const drawHandler = (e) => handleCanvasDraw(e, type);
+
+                canvas.addEventListener('mousedown', (e) => {
+                    isDrawing = true;
+                    drawHandler(e);
+                });
+                canvas.addEventListener('mousemove', drawHandler);
+                canvas.addEventListener('mouseup', () => isDrawing = false);
+                canvas.addEventListener('mouseleave', () => isDrawing = false);
+
+                // Touch events
+                canvas.addEventListener('touchstart', (e) => {
+                    isDrawing = true;
+                    drawHandler(e);
+                });
+                canvas.addEventListener('touchmove', drawHandler);
+                canvas.addEventListener('touchend', () => isDrawing = false);
+                canvas.addEventListener('touchcancel', () => isDrawing = false);
+            });
+        }
+        
+        layerSlider.addEventListener('input', (e) => {
+            currentLayer = parseInt(e.target.value);
+            layerLabel.textContent = currentLayer;
+            drawAllCanvases();
+        });
+
+        colorPicker.addEventListener('input', (e) => {
+            currentColor = e.target.value;
+        });
+        
+        pencilToolBtn.addEventListener('click', () => {
+            currentTool = 'pencil';
+            pencilToolBtn.classList.add('active');
+            eraserToolBtn.classList.remove('active');
+        });
+        
+        eraserToolBtn.addEventListener('click', () => {
+            currentTool = 'eraser';
+            eraserToolBtn.classList.add('active');
+            pencilToolBtn.classList.remove('active');
+        });
+
+        applyGridBtn.addEventListener('click', () => {
+            let newSize = parseInt(gridSizeInput.value);
+            if (isNaN(newSize) || newSize < 4 || newSize > 64) {
+                alert("Please enter a grid size between 4 and 64.");
+                gridSizeInput.value = GRID_SIZE;
+                return;
+            }
+            GRID_SIZE = newSize;
+            reset();
+        });
+
+        exportGltfBtn.addEventListener('click', () => {
+            const exporter = new GLTFExporter();
+            exporter.parse(
+                scene,
+                function (result) {
+                    const output = JSON.stringify(result, null, 2);
+                    const blob = new Blob([output], { type: 'text/plain' });
+                    const link = document.createElement('a');
+                    link.style.display = 'none';
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'voxel-model.gltf';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+                function (error) {
+                    console.error('An error happened during GLTF export:', error);
+                },
+                {
+                    onlyVisible: true,
+                    truncateDrawRange: true
+                }
+            );
+        });
+        
+        // --- RESIZING ---
+        function resizeHandler() {
+            // 2D Canvases
+            canvases.forEach(({ canvas, ctx }) => {
+                const container = canvas.parentElement;
+                const size = Math.min(container.clientWidth, container.clientHeight);
+                canvas.width = size;
+                canvas.height = size;
+            });
+            drawAllCanvases();
+
+            // 3D Canvas
+            if (renderer && camera) {
+                const width = rendererContainer.clientWidth;
+                const height = rendererContainer.clientHeight;
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+                renderer.setSize(width, height);
+            }
+        }
+        
+        window.addEventListener('resize', resizeHandler);
+
+        // --- INITIALIZATION ---
+        function reset() {
+            layerSlider.max = GRID_SIZE - 1;
+            layerSlider.value = 0;
+            currentLayer = 0;
+            layerLabel.textContent = 0;
+            initializeVoxelData();
+            
+            // Re-init or update 3D scene elements related to grid size
+            scene.remove(scene.getObjectByName("gridHelper"));
+            const gridHelper = new THREE.GridHelper(GRID_SIZE, GRID_SIZE, 0x888888, 0x444444);
+            gridHelper.position.y = -0.5;
+            gridHelper.name = "gridHelper";
+            scene.add(gridHelper);
+
+            camera.position.set(GRID_SIZE * 1.5, GRID_SIZE * 1.2, GRID_SIZE * 1.5);
+            controls.target.set(0, GRID_SIZE / 2 - 0.5, 0);
+
+            drawAllCanvases();
+            update3DView();
+            resizeHandler();
+        }
+
+        function init() {
+            initThree();
+            setupCanvasEventListeners();
+            reset();
+        }
+
+        init();
+    </script>
+</body>
+</html>

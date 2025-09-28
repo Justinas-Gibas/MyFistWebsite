@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Voxel Blueprint Editor — MVP</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<style>
+		:root {
+			--bg: #111;
+			--fg: #e8e8e8;
+			--muted: #999;
+			--panel: #1a1a1a;
+			--accent: #4ea1ff;
+			--danger: #ff5d5d;
+		}
+		html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.35 system-ui, sans-serif; }
+		.app {
+			display: grid;
+			grid-template-columns: 380px 1fr;
+			grid-template-rows: auto 1fr;
+			gap: 8px;
+			height: 100%;
+			padding: 8px;
+			box-sizing: border-box;
+		}
+		.header {
+			grid-column: 1 / -1;
+			display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+			background: var(--panel); padding: 8px; border-radius: 6px;
+		}
+		.header .group { display: flex; gap: 6px; align-items: center; }
+		.header label { color: var(--muted); }
+		input[type=number] { width: 64px; }
+		input, select, button {
+			background: #222; color: var(--fg); border: 1px solid #333; border-radius: 4px; padding: 4px 6px;
+		}
+		button.primary { background: var(--accent); border-color: var(--accent); color: #001327; }
+		button.danger { background: #2a0000; border-color: #4a0000; color: var(--danger); }
+		.sidebar {
+			display: flex; flex-direction: column; gap: 8px;
+		}
+		.panel {
+			background: var(--panel); border-radius: 6px; padding: 8px;
+		}
+		.layers { display: flex; flex-direction: column; gap: 6px; max-height: 38vh; overflow: auto; }
+		.layer-row {
+			display: grid; grid-template-columns: 18px 1fr 74px 24px 24px; gap: 6px; align-items: center;
+			padding: 6px; border: 1px solid #2a2a2a; border-radius: 6px;
+		}
+		.layer-row[aria-selected="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+		.views { display: grid; grid-template-columns: 1fr; gap: 8px; }
+		.view {
+			background: #0e0e0e; border: 1px solid #2a2a2a; border-radius: 6px; padding: 8px;
+		}
+		.view h3 { margin: 0 0 6px 0; font-size: 12px; color: var(--muted); }
+		canvas.pixel {
+			width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; background: #141414; display: block;
+			border-radius: 4px; border: 1px solid #222;
+		}
+		.preview3d {
+			background: #0b0b0b; border: 1px solid #2a2a2a; border-radius: 6px; position: relative; overflow: hidden;
+		}
+		.toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; color: var(--muted); }
+		.small { font-size: 12px; color: var(--muted); }
+		.flex { display: flex; gap: 8px; }
+		.grow { flex: 1; }
+		hr { border: none; border-top: 1px solid #2a2a2a; margin: 8px 0; }
+		a { color: var(--accent); text-decoration: none; }
+	</style>
+</head>
+<body>
+	<div class="app">
+		<div class="header">
+			<div class="group">
+				<strong>Voxel Blueprint Editor — MVP</strong>
+			</div>
+			<div class="group">
+				<label>W</label><input id="inpW" type="number" min="1" max="256" step="1" value="32">
+				<label>H</label><input id="inpH" type="number" min="1" max="256" step="1" value="32">
+				<label>D</label><input id="inpD" type="number" min="1" max="256" step="1" value="32">
+				<button id="btnResize">Apply</button>
+			</div>
+			<div class="group">
+				<label>Threshold</label>
+				<select id="selThresh">
+					<option value="1">≥1 view</option>
+					<option value="2" selected>≥2 views</option>
+					<option value="3">All 3 views</option>
+				</select>
+			</div>
+			<div class="group">
+				<label>Tool</label>
+				<select id="selTool">
+					<option value="brush" selected>Brush</option>
+					<option value="erase">Eraser</option>
+				</select>
+				<label><input id="chkGrid" type="checkbox" checked> Grid</label>
+			</div>
+			<div class="group small">Target: smooth editing up to 64³</div>
+			<div class="group grow"></div>
+			<div class="group small">Drag in 3D to orbit</div>
+		</div>
+
+		<div class="sidebar">
+			<div class="panel">
+				<div class="toolbar">
+					<button id="btnAddLayer" class="primary">Add Layer</button>
+					<button id="btnDelLayer" class="danger">Delete</button>
+				</div>
+				<div id="layers" class="layers"></div>
+			</div>
+
+			<div class="views">
+				<div class="view">
+					<h3>Top (X×Z)</h3>
+					<canvas id="cvTop" class="pixel" width="320" height="320" data-view="top"></canvas>
+				</div>
+				<div class="view">
+					<h3>Front (X×Y)</h3>
+					<canvas id="cvFront" class="pixel" width="320" height="320" data-view="front"></canvas>
+				</div>
+				<div class="view">
+					<h3>Right (Z×Y)</h3>
+					<canvas id="cvRight" class="pixel" width="320" height="320" data-view="right"></canvas>
+				</div>
+			</div>
+		</div>
+
+		<div class="preview3d panel">
+			<canvas id="cv3d" width="1200" height="900" style="width:100%;height:100%;"></canvas>
+		</div>
+	</div>
+
+	<script>
+		// --- State ---
+		let W = 32, H = 32, D = 32;
+		let threshold = 2;
+		let showGrid = true;
+		let tool = 'brush';
+		let nextLayerId = 1;
+
+		const layers = [];
+		let activeLayerId = null;
+
+		const cvTop = document.getElementById('cvTop');
+		const cvFront = document.getElementById('cvFront');
+		const cvRight = document.getElementById('cvRight');
+		const cv3d = document.getElementById('cv3d');
+		const ctxTop = cvTop.getContext('2d');
+		const ctxFront = cvFront.getContext('2d');
+		const ctxRight = cvRight.getContext('2d');
+		const ctx3d = cv3d.getContext('2d');
+
+		const elLayers = document.getElementById('layers');
+		document.getElementById('inpW').value = W;
+		document.getElementById('inpH').value = H;
+		document.getElementById('inpD').value = D;
+
+		// Typed arrays for reconstruction
+		let occLayer = new Uint16Array(W*H*D); // 0 = empty, >0 layerId (1..)
+		let surface = []; // array of {x,y,z,color:[r,g,b]}
+
+		// --- Helpers ---
+		const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+		const hexToRgb = (hex) => {
+			hex = hex.replace('#','');
+			if (hex.length === 3) hex = hex.split('').map(c=>c+c).join('');
+			const n = parseInt(hex, 16);
+			return [(n>>16)&255, (n>>8)&255, n&255];
+		};
+		const rgbStr = (r,g,b,a=1)=>`rgba(${r|0},${g|0},${b|0},${a})`;
+		const idx3D = (x,y,z)=> x + y*W + z*W*H;
+		const idxTop = (x,z)=> x + z*W;      // size W x D
+		const idxFront = (x,y)=> x + y*W;    // size W x H
+		const idxRight = (z,y)=> z + y*D;    // size D x H
+
+		function makeBitmap(w,h){ return new Uint8Array(w*h); }
+
+		function createLayer(name=`Layer ${nextLayerId}`, color=randomColor()) {
+			const layer = {
+				id: nextLayerId++,
+				name,
+				color,
+				visible: true,
+				top: makeBitmap(W, D),
+				front: makeBitmap(W, H),
+				right: makeBitmap(D, H),
+			};
+			layers.push(layer);
+			activeLayerId = layer.id;
+			renderLayerUI();
+			draw2DViews();
+			queueReconstruct();
+		}
+
+		function deleteActiveLayer() {
+			if (layers.length <= 1) return;
+			const idx = layers.findIndex(l=>l.id===activeLayerId);
+			if (idx>=0) layers.splice(idx,1);
+			activeLayerId = layers[0].id;
+			renderLayerUI();
+			draw2DViews();
+			queueReconstruct();
+		}
+
+		function getActiveLayer() {
+			return layers.find(l=>l.id===activeLayerId) || layers[0];
+		}
+
+		function randomColor() {
+			const hue = Math.floor(Math.random()*360);
+			const rgb = hslToRgb(hue/360, 0.6, 0.6);
+			return '#'+((1<<24)+(rgb[0]<<16)+(rgb[1]<<8)+rgb[2]).toString(16).slice(1);
+		}
+		function hslToRgb(h, s, l) {
+			const f = (n, k=(n+h*12)%12)=>l - s*Math.min(l,1-l)*Math.max(-1,Math.min(k-3, 9-k, 1));
+			return [Math.round(255*f(0)), Math.round(255*f(8)), Math.round(255*f(4))];
+		}
+
+		function resampleBinaryBitmap(src, sW, sH, dW, dH) {
+			const dst = new Uint8Array(dW*dH);
+			for (let y=0; y<dH; y++){
+				const sy = Math.min(sH-1, Math.floor((y+0.5)*sH/dH));
+				for (let x=0; x<dW; x++){
+					const sx = Math.min(sW-1, Math.floor((x+0.5)*sW/dW));
+					dst[x + y*dW] = src[sx + sy*sW];
+				}
+			}
+			return dst;
+		}
+
+		function resizeGrid(newW, newH, newD) {
+			const oW=W, oH=H, oD=D;
+			W=newW|0; H=newH|0; D=newD|0;
+			for (const L of layers) {
+				L.top   = resampleBinaryBitmap(L.top,   oW, oD, W, D);
+				L.front = resampleBinaryBitmap(L.front, oW, oH, W, H);
+				L.right = resampleBinaryBitmap(L.right, oD, oH, D, H);
+			}
+			occLayer = new Uint16Array(W*H*D);
+			layout2DCanvases();
+			draw2DViews();
+			queueReconstruct(true);
+		}
+
+		function layout2DCanvases() {
+			// Adjust canvas internal size to keep pixels crisp while fitting container width
+			function fitCanvas(cv, gw, gh) {
+				const cssW = cv.clientWidth || cv.parentElement.clientWidth - 16;
+				const scale = Math.max(2, Math.floor(cssW / Math.max(gw, gh)));
+				cv.width = gw * scale;
+				cv.height = gh * scale;
+				cv.dataset.scale = String(scale);
+			}
+			fitCanvas(cvTop, W, D);
+			fitCanvas(cvFront, W, H);
+			fitCanvas(cvRight, D, H);
+		}
+
+		// --- UI ---
+		function renderLayerUI() {
+			elLayers.innerHTML = '';
+			for (const L of layers) {
+				const row = document.createElement('div');
+				row.className = 'layer-row';
+				row.setAttribute('aria-selected', String(L.id===activeLayerId));
+				row.innerHTML = `
+					<input type="radio" name="layerSel" ${L.id===activeLayerId?'checked':''}>
+					<input type="text" value="${L.name}">
+					<input type="color" value="${L.color}">
+					<input type="checkbox" ${L.visible?'checked':''} title="visible">
+					<button title="select">↕</button>
+				`;
+				const [rb, name, color, vis, selBtn] = row.querySelectorAll('input,button');
+				rb.addEventListener('change', ()=>{ activeLayerId=L.id; renderLayerUI(); draw2DViews(); queueReconstruct(); });
+				name.addEventListener('change', ()=>{ L.name=name.value; });
+				color.addEventListener('input', ()=>{ L.color=color.value; draw2DViews(); queueReconstruct(); });
+				vis.addEventListener('change', ()=>{ L.visible=vis.checked; draw2DViews(); queueReconstruct(); });
+				row.addEventListener('click', (e)=>{ if (e.target===selBtn) { activeLayerId=L.id; renderLayerUI(); draw2DViews(); queueReconstruct(); }});
+				elLayers.appendChild(row);
+			}
+		}
+
+		// --- 2D Painting ---
+		let painting = false;
+		function viewFromCanvas(cv) { return cv.dataset.view; }
+		function canvasToGrid(cv, x, y) {
+			const scale = parseInt(cv.dataset.scale||'8',10);
+			return [Math.floor(x/scale), Math.floor(y/scale)];
+		}
+		function paintAt(cv, gx, gy, isDown) {
+			const L = getActiveLayer(); if (!L) return;
+			const v = tool==='brush' ? 1 : 0;
+			switch (viewFromCanvas(cv)) {
+				case 'top':   if (gx>=0 && gx<W && gy>=0 && gy<D) L.top[idxTop(gx,gy)] = v; break;      // gx=x, gy=z
+				case 'front': if (gx>=0 && gx<W && gy>=0 && gy<H) L.front[idxFront(gx,gy)] = v; break;  // gx=x, gy=y
+				case 'right': if (gx>=0 && gx<D && gy>=0 && gy<H) L.right[idxRight(gx,gy)] = v; break;  // gx=z, gy=y
+			}
+			draw2DView(cv);
+			if (!isDown) queueReconstruct();
+			else scheduleReconstructSoon();
+		}
+		function attachPaintHandlers(cv) {
+			cv.addEventListener('pointerdown', (e)=>{
+				cv.setPointerCapture(e.pointerId);
+				painting = true;
+				const rect = cv.getBoundingClientRect();
+				const [gx,gy] = canvasToGrid(cv, e.clientX-rect.left, e.clientY-rect.top);
+				paintAt(cv, gx, gy, true);
+			});
+			cv.addEventListener('pointermove', (e)=>{
+				if (!painting) return;
+				const rect = cv.getBoundingClientRect();
+				const [gx,gy] = canvasToGrid(cv, e.clientX-rect.left, e.clientY-rect.top);
+				paintAt(cv, gx, gy, true);
+			});
+			const stop = (e)=>{ if (painting){ painting=false; queueReconstruct(); } };
+			cv.addEventListener('pointerup', stop);
+			cv.addEventListener('pointercancel', stop);
+			cv.addEventListener('pointerleave', ()=>{ /* no-op */ });
+		}
+
+		attachPaintHandlers(cvTop);
+		attachPaintHandlers(cvFront);
+		attachPaintHandlers(cvRight);
+
+		// --- 2D Rendering ---
+		function draw2DView(cv) {
+			const ctx = cv.getContext('2d');
+			const view = viewFromCanvas(cv);
+			const scale = parseInt(cv.dataset.scale||'8',10);
+			let gw=1, gh=1;
+			if (view==='top') { gw=W; gh=D; }
+			if (view==='front') { gw=W; gh=H; }
+			if (view==='right') { gw=D; gh=H; }
+
+			ctx.clearRect(0,0,cv.width,cv.height);
+			// Draw layers: others faint, active bold
+			for (const L of layers) {
+				if (!L.visible) continue;
+				const rgb = hexToRgb(L.color);
+				const alpha = (L.id===activeLayerId) ? 0.95 : 0.3;
+				ctx.fillStyle = rgbStr(rgb[0],rgb[1],rgb[2],alpha);
+				const bmp = view==='top' ? L.top : view==='front' ? L.front : L.right;
+				const w = gw, h = gh;
+				for (let y=0; y<h; y++){
+					for (let x=0; x<w; x++){
+						const idx =
+							(view==='top')   ? idxTop(x,y) :
+							(view==='front') ? idxFront(x,y) :
+							/* right */        idxRight(x,y);
+						if (bmp[idx]) ctx.fillRect(x*scale, y*scale, scale, scale);
+					}
+				}
+			}
+			// Grid
+			if (showGrid && scale>=6) {
+				ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+				ctx.lineWidth = 1;
+				ctx.beginPath();
+				for (let x=0; x<=gw; x++){ ctx.moveTo(x*scale+0.5, 0); ctx.lineTo(x*scale+0.5, gh*scale); }
+				for (let y=0; y<=gh; y++){ ctx.moveTo(0, y*scale+0.5); ctx.lineTo(gw*scale, y*scale+0.5); }
+				ctx.stroke();
+			}
+			// Border highlight
+			ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+			ctx.strokeRect(0.5,0.5, gw*scale-1, gh*scale-1);
+		}
+		function draw2DViews() {
+			draw2DView(cvTop);
+			draw2DView(cvFront);
+			draw2DView(cvRight);
+		}
+
+		// --- Reconstruction ---
+		let reconstructQueued = false;
+		let reconstructSoon = false;
+		function scheduleReconstructSoon(){ reconstructSoon = true; if (!reconstructQueued) requestAnimationFrame(tick); }
+		function queueReconstruct(force){ reconstructQueued = true; if (force) reconstructSoon=false; requestAnimationFrame(tick); }
+
+		function tick() {
+			if (reconstructQueued || reconstructSoon) {
+				reconstructQueued = false;
+				reconstructSoon = false;
+				reconstruct();
+				render3D();
+			}
+		}
+
+		function reconstruct() {
+			occLayer.fill(0);
+			// Last layer wins
+			for (const L of layers) {
+				const lid = L.id;
+				const top = L.top, front = L.front, right = L.right;
+				for (let z=0; z<D; z++){
+					for (let y=0; y<H; y++){
+						for (let x=0; x<W; x++){
+							let c = 0;
+							if (top[idxTop(x,z)]) c++;
+							if (front[idxFront(x,y)]) c++;
+							if (right[idxRight(z,y)]) c++;
+							if (c >= threshold) {
+								occLayer[idx3D(x,y,z)] = lid;
+							}
+						}
+					}
+				}
+			}
+			// Extract surface voxels
+			surface = [];
+			const present = (x,y,z)=> (x>=0 && x<W && y>=0 && y<H && z>=0 && z<D) ? (occLayer[idx3D(x,y,z)]!==0) : false;
+			for (let z=0; z<D; z++){
+				for (let y=0; y<H; y++){
+					for (let x=0; x<W; x++){
+						const id = occLayer[idx3D(x,y,z)];
+						if (!id) continue;
+						// Check if any neighbor is empty: surface
+						if (!(present(x-1,y,z) && present(x+1,y,z) && present(y,z,y) && present(x,y+1,z) && present(x,y,z-1) && present(x,y,z+1))) {
+							const L = layers.find(l=>l.id===id);
+							if (L && L.visible){
+								surface.push({x,y,z,color:hexToRgb(L.color)});
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// --- 3D Renderer (software, point-sprite) ---
+		let rotX = -0.6, rotY = 0.8, zoom = 10;
+		let isDragging=false, lastX=0, lastY=0;
+		cv3d.addEventListener('pointerdown', (e)=>{
+			isDragging=true; lastX=e.clientX; lastY=e.clientY; cv3d.setPointerCapture(e.pointerId);
+		});
+		cv3d.addEventListener('pointermove', (e)=>{
+			if (!isDragging) return;
+			const dx = e.clientX - lastX, dy = e.clientY - lastY; lastX=e.clientX; lastY=e.clientY;
+			rotY += dx * 0.005;
+			rotX += dy * 0.005;
+			queueReconstruct(); // only re-render, but reconstruction is cheap on surf list already computed
+		});
+		const stopDrag = ()=>{ isDragging=false; };
+		cv3d.addEventListener('pointerup', stopDrag);
+		cv3d.addEventListener('pointercancel', stopDrag);
+		cv3d.addEventListener('wheel', (e)=>{ zoom = clamp(zoom * (e.deltaY<0?1.1:0.9), 2, 60); queueReconstruct(); });
+
+		function render3D() {
+			const w = cv3d.width = cv3d.clientWidth|0;
+			const h = cv3d.height = cv3d.clientHeight|0;
+			ctx3d.clearRect(0,0,w,h);
+			// Center and scale
+			const cx = (W-1)/2, cy = (H-1)/2, cz = (D-1)/2;
+
+			// Precompute rotation matrix Ry * Rx
+			const cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+			const cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+			function rot(v){
+				// Rotate around Y
+				let x = v[0]-cx, y = v[1]-cy, z = v[2]-cz;
+				let x1 =  cosY*x + sinY*z;
+				let z1 = -sinY*x + cosY*z;
+				// Rotate around X
+				let y2 =  cosX*y - sinX*z1;
+				let z2 =  sinX*y + cosX*z1;
+				return [x1, y2, z2];
+			}
+			// Light dir
+			const Lx=-0.5, Ly=-1.0, Lz=-0.3;
+			const Llen = Math.hypot(Lx,Ly,Lz);
+			const ldx=Lx/Llen, ldy=Ly/Llen, ldz=Lz/Llen;
+
+			// Prepare points, compute depth and shade
+			const points = [];
+			const total = surface.length;
+			let step = 1;
+			if (total > 60000) step = 4;
+			else if (total > 30000) step = 2;
+
+			// For shading, approximate normal by local gradient of occupancy
+			const present = (x,y,z)=> (x>=0 && x<W && y>=0 && y<H && z>=0 && z<D) ? (occLayer[idx3D(x,y,z)]!==0) : false;
+
+			for (let i=0; i<total; i+=step){
+				const p = surface[i];
+				// gradient
+				const gx = (present(p.x-1,p.y,p.z)?1:0) - (present(p.x+1,p.y,p.z)?1:0);
+				const gy = (present(p.x,p.y-1,p.z)?1:0) - (present(p.x,p.y+1,p.z)?1:0);
+				const gz = (present(p.x,p.y,p.z-1)?1:0) - (present(p.x,p.y,p.z+1)?1:0);
+				let gl = Math.hypot(gx,gy,gz); if (gl===0) gl=1;
+				const nx=gx/gl, ny=gy/gl, nz=gz/gl;
+				const shade = clamp(0.25 + 0.75*((nx*ldx + ny*ldy + nz*ldz)*0.5 + 0.5), 0.2, 1.0);
+
+				const [rx, ry, rz] = rot([p.x, p.y, p.z]);
+				const sx = Math.round(w*0.5 + rx*zoom);
+				const sy = Math.round(h*0.5 + ry*zoom);
+				points.push({sx, sy, d: rz, r:p.color[0]*shade, g:p.color[1]*shade, b:p.color[2]*shade});
+			}
+			points.sort((a,b)=> a.d - b.d);
+
+			// Draw
+			const size = clamp(Math.round(zoom*0.3), 1, 6);
+			for (const q of points) {
+				ctx3d.fillStyle = rgbStr(q.r,q.g,q.b, 0.95);
+				ctx3d.fillRect(q.sx - (size>>1), q.sy - (size>>1), size, size);
+			}
+
+			// Axes and info
+			ctx3d.fillStyle = 'rgba(255,255,255,0.6)';
+			ctx3d.fillText(`Voxels(surface): ${surface.length}  step:${step}  W×H×D=${W}×${H}×${D}  thr≥${threshold}`, 10, 18);
+		}
+
+		// --- Wire up controls ---
+		document.getElementById('btnAddLayer').addEventListener('click', ()=>createLayer());
+		document.getElementById('btnDelLayer').addEventListener('click', ()=>deleteActiveLayer());
+		document.getElementById('btnResize').addEventListener('click', ()=>{
+			const nw = clamp(parseInt(document.getElementById('inpW').value||W,10), 1, 256);
+			const nh = clamp(parseInt(document.getElementById('inpH').value||H,10), 1, 256);
+			const nd = clamp(parseInt(document.getElementById('inpD').value||D,10), 1, 256);
+			resizeGrid(nw, nh, nd);
+		});
+		document.getElementById('selThresh').addEventListener('change', (e)=>{ threshold = parseInt(e.target.value,10); queueReconstruct(); });
+		document.getElementById('selTool').addEventListener('change', (e)=>{ tool = e.target.value; });
+		document.getElementById('chkGrid').addEventListener('change', (e)=>{ showGrid = e.target.checked; draw2DViews(); });
+
+		// --- Init ---
+		createLayer('Layer 1', '#ff8844');
+		layout2DCanvases();
+		draw2DViews();
+		queueReconstruct(true);
+
+		// On resize, relayout canvases
+		let resizeTo = null;
+		window.addEventListener('resize', ()=>{
+			clearTimeout(resizeTo);
+			resizeTo = setTimeout(()=>{ layout2DCanvases(); draw2DViews(); render3D(); }, 60);
+		});
+	</script>
+</body>
+</html>

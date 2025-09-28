@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voxel Blueprint Editor</title>
+    <style>
+        /* --- Basic Layout & Theming --- */
+        :root {
+            --bg-color: #282c34;
+            --panel-color: #3a3f4b;
+            --text-color: #abb2bf;
+            --border-color: #4b5263;
+            --accent-color: #61afef;
+            --canvas-bg: #1e2127;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        h2, h3 {
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            font-weight: 500;
+        }
+
+        /* --- Main Structure --- */
+        #controls-panel {
+            width: 280px;
+            padding: 16px;
+            background-color: var(--panel-color);
+            overflow-y: auto;
+            border-right: 2px solid var(--border-color);
+        }
+        #main-content {
+            flex-grow: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 10px;
+            padding: 10px;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        
+        /* --- UI Controls --- */
+        .control-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+        }
+        input[type="number"], select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+        .dimension-inputs {
+            display: flex;
+            gap: 5px;
+        }
+        .tool-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        button {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: var(--border-color);
+        }
+        button.active {
+            background-color: var(--accent-color);
+            color: var(--bg-color);
+            font-weight: bold;
+        }
+
+        /* --- Layers --- */
+        #layer-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .layer-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            border-radius: 4px;
+            margin-bottom: 5px;
+            background-color: var(--bg-color);
+        }
+        .layer-item.active-layer {
+            outline: 2px solid var(--accent-color);
+        }
+        .layer-item input[type="color"] {
+            width: 30px;
+            height: 30px;
+            border: none;
+            padding: 0;
+            background: none;
+        }
+        .layer-name { flex-grow: 1; }
+        .delete-layer { font-size: 1.2em; cursor: pointer; }
+
+
+        /* --- Canvases --- */
+        .canvas-container {
+            position: relative;
+            background-color: var(--canvas-bg);
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .canvas-label {
+            position: absolute;
+            top: 5px;
+            left: 10px;
+            color: #fff;
+            background: rgba(0,0,0,0.5);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            pointer-events: none; /* So it doesn't block mouse events on the canvas */
+        }
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            image-rendering: pixelated; /* Sharp pixels */
+        }
+        #preview-3d-container {
+             grid-column: 2 / 3;
+             grid-row: 1 / 3; /* Make 3D view span two rows */
+        }
+    </style>
+</head>
+<body>
+
+    <aside id="controls-panel">
+        <h2>Controls</h2>
+
+        <div class="control-group">
+            <h3>Grid Dimensions</h3>
+            <div class="dimension-inputs">
+                <input type="number" id="grid-width" value="32" min="8" max="128" step="8">
+                <input type="number" id="grid-height" value="32" min="8" max="128" step="8">
+                <input type="number" id="grid-depth" value="32" min="8" max="128" step="8">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Tools</h3>
+            <div class="tool-buttons">
+                <button id="tool-brush" class="active">Brush</button>
+                <button id="tool-eraser">Eraser</button>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <h3>Reconstruction</h3>
+            <label for="reconstruction-threshold">Voxels must appear in ≥ N views:</label>
+            <select id="reconstruction-threshold">
+                <option value="1">1 (Union)</option>
+                <option value="2">2</option>
+                <option value="3" selected>3 (Intersection)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <h3>Layers</h3>
+            <ul id="layer-list">
+                </ul>
+            <button id="add-layer" style="width: 100%; margin-top: 10px;">Add New Layer</button>
+        </div>
+    </aside>
+
+    <main id="main-content">
+        <div class="canvas-container">
+            <span class="canvas-label">Top (X/Z)</span>
+            <canvas id="canvas-top" width="512" height="512"></canvas>
+        </div>
+        <div class="canvas-container" id="preview-3d-container">
+            <span class="canvas-label">3D Preview</span>
+            <canvas id="canvas-3d-preview" width="1024" height="1024"></canvas>
+        </div>
+        <div class="canvas-container">
+            <span class="canvas-label">Front (X/Y)</span>
+            <canvas id="canvas-front" width="512" height="512"></canvas>
+        </div>
+         <div class="canvas-container">
+            <span class="canvas-label">Right (Z/Y)</span>
+            <canvas id="canvas-right" width="512" height="512"></canvas>
+        </div>
+    </main>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // ===================================================================
+        // 1. STATE MANAGEMENT
+        // ===================================================================
+        const state = {
+            gridSize: { w: 32, h: 32, d: 32 },
+            activeTool: 'brush', // 'brush' or 'eraser'
+            activeLayerId: null,
+            layers: [], // Array of layer objects: { id, color, visible, data: {top, front, right} }
+            reconstructionThreshold: 3,
+        };
+
+        let nextLayerId = 0;
+
+
+        // ===================================================================
+        // 2. DOM ELEMENT REFERENCES
+        // ===================================================================
+        const canvasTop = document.getElementById('canvas-top');
+        const canvasFront = document.getElementById('canvas-front');
+        const canvasRight = a= document.getElementById('canvas-right');
+        const canvas3D = document.getElementById('canvas-3d-preview');
+        
+        const gridWidthInput = document.getElementById('grid-width');
+        const gridHeightInput = document.getElementById('grid-height');
+        const gridDepthInput = document.getElementById('grid-depth');
+        
+        const toolBrushBtn = document.getElementById('tool-brush');
+        const toolEraserBtn = document.getElementById('tool-eraser');
+        
+        const thresholdSelect = document.getElementById('reconstruction-threshold');
+        
+        const addLayerBtn = document.getElementById('add-layer');
+        const layerList = document.getElementById('layer-list');
+
+        const orthographicCanvases = {
+            top: { el: canvasTop, ctx: canvasTop.getContext('2d') },
+            front: { el: canvasFront, ctx: canvasFront.getContext('2d') },
+            right: { el: canvasRight, ctx: canvasRight.getContext('2d') }
+        };
+
+
+        // ===================================================================
+        // 3. CORE LOGIC (Function Scaffolds)
+        // ===================================================================
+
+        /**
+         * Initializes the application state and creates the first layer.
+         */
+        function initialize() {
+            console.log("Initializing Voxel Blueprint Editor...");
+            addLayer();
+            // TODO: Set up initial event listeners for all UI elements.
+            // TODO: Perform an initial render of all canvases.
+        }
+
+        /**
+         * Adds a new layer to the state and updates the UI.
+         */
+        function addLayer() {
+            const layerId = nextLayerId++;
+            const newLayer = {
+                id: layerId,
+                name: `Layer ${layerId + 1}`,
+                color: `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`,
+                visible: true,
+                // Each Uint8Array represents the 2D blueprint for that view. 1 = filled, 0 = empty.
+                data: {
+                    top: new Uint8Array(state.gridSize.w * state.gridSize.d),
+                    front: new Uint8Array(state.gridSize.w * state.gridSize.h),
+                    right: new Uint8Array(state.gridSize.d * state.gridSize.h)
+                }
+            };
+            state.layers.push(newLayer);
+            setActiveLayer(layerId);
+            renderLayerList();
+        }
+
+        /**
+         * Sets the currently active layer for editing.
+         * @param {number} layerId - The ID of the layer to activate.
+         */
+        function setActiveLayer(layerId) {
+            state.activeLayerId = layerId;
+            console.log(`Active layer set to ${layerId}`);
+            renderLayerList(); // Re-render to show active state
+        }
+
+        /**
+         * Rebuilds the layer list UI from the state.
+         */
+        function renderLayerList() {
+            layerList.innerHTML = ''; // Clear existing list
+            // TODO: Loop through state.layers and create the HTML for each layer item.
+            // Each item should have a color picker, visibility toggle, name, and delete button.
+            // The active layer should have a special class ('active-layer').
+            // Add event listeners for each control in the layer item.
+        }
+
+        /**
+         * Handles mouse events on a 2D canvas to draw or erase.
+         * @param {MouseEvent} event - The mouse event.
+         * @param {string} view - 'top', 'front', or 'right'.
+         */
+        function handleCanvasPaint(event, view) {
+            if (event.buttons !== 1) return; // Only draw on left-click-drag
+            
+            const activeLayer = state.layers.find(l => l.id === state.activeLayerId);
+            if (!activeLayer) return;
+
+            // TODO:
+            // 1. Get mouse coordinates relative to the canvas.
+            // 2. Convert canvas coordinates to grid coordinates for the given view.
+            // 3. Update the corresponding Uint8Array in activeLayer.data[view].
+            //    Set value to 1 for 'brush', 0 for 'eraser'.
+            // 4. Call `draw2DCanvases()` to reflect the change visually.
+            // 5. Trigger `reconstructAndRender3D()` for real-time preview.
+        }
+
+        /**
+         * Redraws all 2D canvases based on the current layer data.
+         */
+        function draw2DCanvases() {
+            // TODO:
+            // 1. Clear all three 2D canvases.
+            // 2. Iterate through all visible layers in `state.layers`.
+            // 3. For each layer, read its data arrays (top, front, right).
+            // 4. Draw filled rectangles on each canvas corresponding to the data.
+            //    Use the layer's color. Use `globalAlpha` for transparency if needed.
+        }
+
+        /**
+         * Main voxel generation logic.
+         * @returns {Uint8Array} A 3D array (W*H*D) where each value is 0 or a layer ID.
+         */
+        function reconstructVoxelModel() {
+            const { w, h, d } = state.gridSize;
+            const voxelData = new Uint8Array(w * h * d);
+
+            console.log("Reconstructing voxel model...");
+
+            // TODO:
+            // This is the core algorithm.
+            // 1. Iterate through each voxel coordinate (x, y, z).
+            // 2. For each voxel, check how many visible layers' blueprints "claim" this voxel.
+            //    - A voxel at (x, y, z) is claimed by a layer's 'top' view if its data at (x, z) is 1.
+            //    - It's claimed by 'front' if data at (x, y) is 1.
+            //    - It's claimed by 'right' if data at (z, y) is 1.
+            // 3. Count how many views claim this voxel for each layer.
+            // 4. If the count for a layer meets or exceeds `state.reconstructionThreshold`,
+            //    then the voxel is "solid" for that layer.
+            // 5. Store the layer's ID (or color) in the `voxelData` array at the corresponding index.
+            //    (Handle cases where multiple layers claim the same voxel, e.g., topmost layer wins).
+
+            return voxelData;
+        }
+
+        /**
+         * Renders the 3D voxel model to the 3D canvas.
+         * @param {Uint8Array} voxelData - The generated 3D voxel grid.
+         */
+        function render3DView(voxelData) {
+            // TODO:
+            // This could be a WebGL renderer or a simple 2D software renderer.
+            // For an MVP software renderer:
+            // 1. Clear the 3D canvas.
+            // 2. Iterate through the voxelData from back-to-front or using a painter's algorithm.
+            // 3. For each non-zero voxel, calculate its projected 2D screen coordinates (isometric or similar).
+            // 4. Draw a small shape (e.g., a rhombus or sprite) representing the voxel using the layer's color.
+            //    Add simple shading by making top faces brighter, side faces darker.
+        }
+
+        /**
+         * A wrapper function that calls reconstruction and then rendering.
+         */
+        function reconstructAndRender3D() {
+            const voxelData = reconstructVoxelModel();
+            render3DView(voxelData);
+        }
+
+
+        // ===================================================================
+        // 4. EVENT LISTENERS
+        // ===================================================================
+
+        // TODO: Add listeners for grid dimension inputs.
+        // On change, update state, potentially resize data arrays, and re-render everything.
+
+        // TODO: Add listeners for tool buttons to change `state.activeTool`.
+        
+        // TODO: Add listener for the threshold select to update `state.reconstructionThreshold`.
+        
+        // TODO: Add listener for the 'Add Layer' button.
+        addLayerBtn.addEventListener('click', addLayer);
+        
+        // TODO: Add mouse listeners (mousedown, mousemove, mouseup) to each 2D canvas
+        // that call `handleCanvasPaint`.
+
+        // Kick off the application
+        initialize();
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Voxel Blueprint Editor — vanilla JS</title>
+  <style>
+    :root { --bg:#0b0f14; --panel:#111827; --ink:#e5e7eb; --muted:#9ca3af; --accent:#60a5fa; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.4 system-ui, Segoe UI, Roboto, Inter, Arial, sans-serif; }
+    .app { display: grid; grid-template-columns: 360px 1fr; gap: 10px; height: 100%; }
+    aside { background: var(--panel); padding: 10px; overflow: auto; border-right: 1px solid #1f2937; }
+    main { display: grid; grid-template-rows: auto 1fr; gap: 8px; padding: 10px; }
+    h1 { font-size: 14px; margin: 0 0 8px; color: #cbd5e1; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .row > label { color: var(--muted); }
+    .section { border: 1px solid #1f2937; border-radius: 10px; padding: 10px; margin-bottom: 10px; background:#0f1622; }
+    .views { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .view { border:1px solid #1f2937; border-radius: 8px; overflow:hidden; background:#0a0e15; }
+    .view header { display:flex; justify-content:space-between; align-items:center; padding:6px 8px; background:#0b111b; border-bottom:1px solid #1f2937; color:#9fb2c8; font-weight:600; }
+    canvas { display:block; width:100%; height:auto; image-rendering: pixelated; cursor: crosshair; }
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; }
+    button, select, input[type="number"], input[type="text"] { background:#0e1622; color:var(--ink); border:1px solid #223047; border-radius:8px; padding:6px 8px; }
+    button:hover { border-color:#385377; }
+    .small { font-size: 12px; color: var(--muted); }
+    .layers { display:flex; flex-direction:column; gap:6px; }
+    .layer { display:flex; align-items:center; gap:6px; padding:6px; border:1px solid #1f2937; border-radius:8px; background:#0b121d; }
+    .layer input[type="color"] { width:28px; height:28px; padding:0; border:none; background:none; }
+    .layer input[type="text"] { flex:1; min-width: 0; }
+    .layer button { padding:4px 6px; }
+    .layer.active { outline:1px solid var(--accent); }
+    .preview { position:relative; border:1px solid #1f2937; border-radius:10px; background:#0a0f16; display:grid; grid-template-rows: 1fr auto; }
+    #preview { width:100%; height:100%; background:#05070a; }
+    .slider { display:flex; gap:10px; align-items:center; padding:8px; border-top:1px solid #1f2937; background:#0b111a; }
+    .badge { padding:2px 6px; border:1px solid #1f2937; border-radius: 999px; color:#9fb2c8; }
+    .muted { color:#9ca3af; }
+    .k { color:#cbd5e1; }
+    .hint { color:#9fb2c8; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <h1>Voxel from Blueprints (MVP)</h1>
+
+      <div class="section">
+        <div class="row">
+          <label>Dims (vox, 1 voxel = 1 cm):</label>
+        </div>
+        <div class="row">
+          <label>W</label><input id="inW" type="number" min="4" max="128" value="32"/>
+          <label>H</label><input id="inH" type="number" min="4" max="128" value="32"/>
+          <label>D</label><input id="inD" type="number" min="4" max="128" value="32"/>
+        </div>
+        <div class="row">
+          <button id="btnResize">Resize & Resample</button>
+          <span class="small">Nearest-neighbour resample of masks.</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="row">
+          <label>Edit mode:</label>
+          <select id="tool">
+            <option value="brush">Brush</option>
+            <option value="erase">Erase</option>
+          </select>
+          <span class="badge" title="Minimum number of views that must agree for a voxel to exist">Views required:</span>
+          <select id="viewsRequired">
+            <option value="1">≥ 1</option>
+            <option value="2" selected>≥ 2</option>
+            <option value="3">= 3</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>Brush size:</label>
+          <input id="brush" type="number" min="1" max="16" value="1"/>
+          <span class="small">Left-drag to paint; right-drag to pan; wheel to zoom.</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="row" style="justify-content:space-between; align-items:center">
+          <label>Layers / Materials</label>
+          <button id="addLayer">+ Add</button>
+        </div>
+        <div id="layers" class="layers"></div>
+      </div>
+
+      <div class="section">
+        <div class="hint">Workflow: paint silhouettes in the three orthographic canvases. The 3D volume is reconstructed by intersecting/combining the silhouettes (threshold above). Toggle layers for different parts/materials.</div>
+      </div>
+    </aside>
+
+    <main>
+      <div class="views">
+        <div class="view"><header><span>Top (X–Z)</span><span class="muted" id="topInfo"></span></header><canvas id="top"></canvas></div>
+        <div class="view"><header><span>Front (X–Y)</span><span class="muted" id="frontInfo"></span></header><canvas id="front"></canvas></div>
+        <div class="view"><header><span>Right (Z–Y)</span><span class="muted" id="rightInfo"></span></header><canvas id="right"></canvas></div>
+        <div class="view" style="grid-column: span 2;">
+          <header><span>3D Preview (software canvas)</span><span class="muted" id="previewInfo"></span></header>
+          <div class="preview">
+            <canvas id="preview"></canvas>
+            <div class="slider">
+              <label>Yaw</label><input id="yaw" type="range" min="0" max="360" value="30"/>
+              <label>Pitch</label><input id="pitch" type="range" min="-60" max="60" value="20"/>
+              <label>Zoom</label><input id="zoom" type="range" min="0.5" max="2.5" value="1.1" step="0.1"/>
+              <span class="badge" id="stats"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+(function(){
+  // ---------- State ----------
+  let W=32,H=32,D=32; // vox dims
+  const MAX_VIEWS=3;
+
+  function makeMask(w,h){ return new Uint8Array(w*h); }
+  function idx2(x,y,w){ return x + y*w; }
+  function clamp(v,min,max){ return v<min?min:(v>max?max:v); }
+
+  const layers=[]; // {id,name,color,visible, masks:{top,front,right}}
+  let activeLayerId=null;
+  let layerSeq=1;
+
+  // UI elements
+  const el = {
+    inW: document.getElementById('inW'),
+    inH: document.getElementById('inH'),
+    inD: document.getElementById('inD'),
+    btnResize: document.getElementById('btnResize'),
+    tool: document.getElementById('tool'),
+    brush: document.getElementById('brush'),
+    viewsRequired: document.getElementById('viewsRequired'),
+    layers: document.getElementById('layers'),
+    addLayer: document.getElementById('addLayer'),
+    top: document.getElementById('top'),
+    front: document.getElementById('front'),
+    right: document.getElementById('right'),
+    topInfo: document.getElementById('topInfo'),
+    frontInfo: document.getElementById('frontInfo'),
+    rightInfo: document.getElementById('rightInfo'),
+    preview: document.getElementById('preview'),
+    yaw: document.getElementById('yaw'),
+    pitch: document.getElementById('pitch'),
+    zoom: document.getElementById('zoom'),
+    stats: document.getElementById('stats'),
+    previewInfo: document.getElementById('previewInfo'),
+  };
+
+  // ----- Layers -----
+  function addLayer(name="Layer "+layerSeq, color="#66ccff"){
+    const id = 'L'+(layerSeq++);
+    const L = {
+      id,
+      name,
+      color,
+      visible:true,
+      masks: {
+        top: makeMask(W*D, 1),
+        front: makeMask(W*H, 1),
+        right: makeMask(D*H, 1),
+      }
+    };
+    layers.push(L);
+    if(!activeLayerId) activeLayerId = id;
+    renderLayerList();
+    redrawViews();
+    schedulePreview();
+  }
+
+  function removeLayer(id){
+    const i = layers.findIndex(l=>l.id===id);
+    if(i>=0){ layers.splice(i,1); if(activeLayerId===id){ activeLayerId = layers[0]?.id||null; } }
+    renderLayerList();
+    redrawViews();
+    schedulePreview();
+  }
+
+  function getActiveLayer(){ return layers.find(l=>l.id===activeLayerId)||null; }
+
+  function renderLayerList(){
+    el.layers.innerHTML='';
+    for(const L of layers){
+      const div=document.createElement('div');
+      div.className='layer'+(L.id===activeLayerId?' active':'');
+      const vis=document.createElement('input'); vis.type='checkbox'; vis.checked=L.visible; vis.title='Toggle visibility';
+      vis.oninput=()=>{ L.visible=vis.checked; redrawViews(); schedulePreview(); };
+      const color=document.createElement('input'); color.type='color'; color.value=L.color; color.oninput=()=>{ L.color=color.value; schedulePreview(); };
+      const name=document.createElement('input'); name.type='text'; name.value=L.name; name.oninput=()=>{ L.name=name.value; };
+      const sel=document.createElement('button'); sel.textContent='Edit'; sel.onclick=()=>{ activeLayerId=L.id; renderLayerList(); };
+      const del=document.createElement('button'); del.textContent='Del'; del.onclick=()=>{ if(confirm('Delete '+L.name+'?')) removeLayer(L.id); };
+      div.append(vis,color,name,sel,del);
+      el.layers.append(div);
+    }
+  }
+
+  // ----- Views (Top, Front, Right) with pan/zoom & painting -----
+  const views = {
+    top: { canvas: el.top,  getSize:()=>[W,D],  label: el.topInfo,  toMask:(x,z)=>['top', x,z] },
+    front:{ canvas: el.front,getSize:()=>[W,H],  label: el.frontInfo,toMask:(x,y)=>['front', x,y] },
+    right:{ canvas: el.right,getSize:()=>[D,H],  label: el.rightInfo,toMask:(z,y)=>['right', z,y] },
+  };
+
+  for(const key in views){
+    const v = views[key];
+    v.ctx = v.canvas.getContext('2d');
+    v.zoom = 12; // px per cell
+    v.offset = {x:0,y:0};
+    v.isPanning=false; v.last={x:0,y:0};
+
+    v.canvas.addEventListener('contextmenu', e=>e.preventDefault());
+    v.canvas.addEventListener('wheel', e=>{
+      const delta = Math.sign(e.deltaY);
+      const oldZoom=v.zoom;
+      v.zoom = clamp(v.zoom + (delta>0?-1:1), 4, 32);
+      // zoom around mouse
+      const rect=v.canvas.getBoundingClientRect();
+      const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+      const [gw,gh]=v.getSize();
+      const wx = (mx - v.offset.x)/oldZoom;
+      const wy = (my - v.offset.y)/oldZoom;
+      v.offset.x = mx - wx * v.zoom;
+      v.offset.y = my - wy * v.zoom;
+      e.preventDefault();
+      redrawView(v);
+    }, {passive:false});
+
+    v.canvas.addEventListener('mousedown', e=>{
+      if(e.button===2){ v.isPanning=true; v.last.x=e.clientX; v.last.y=e.clientY; return; }
+      paintAt(v,e);
+      v.isPainting=true;
+    });
+    window.addEventListener('mousemove', e=>{
+      if(v.isPanning){ v.offset.x += (e.clientX - v.last.x); v.offset.y += (e.clientY - v.last.y); v.last.x=e.clientX; v.last.y=e.clientY; redrawView(v); return; }
+      if(v.isPainting){ paintAt(v,e); }
+    });
+    window.addEventListener('mouseup', ()=>{ v.isPanning=false; v.isPainting=false; });
+  }
+
+  function paintAt(v,e){
+    const L = getActiveLayer(); if(!L) return;
+    const rect=v.canvas.getBoundingClientRect();
+    const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    const x = Math.floor((mx - v.offset.x)/v.zoom);
+    const y = Math.floor((my - v.offset.y)/v.zoom);
+    const [gw,gh] = v.getSize();
+    const b = parseInt(el.brush.value)|0;
+    for(let dy=-Math.floor(b/2); dy<=Math.floor((b-1)/2); dy++){
+      for(let dx=-Math.floor(b/2); dx<=Math.floor((b-1)/2); dx++){
+        const cx=x+dx, cy=y+dy;
+        if(cx>=0 && cy>=0 && cx<gw && cy<gh){
+          const [maskKey, u, vpos] = v.toMask(cx, cy);
+          const mask = L.masks[maskKey];
+          const w = (maskKey==='top')?W:(maskKey==='front'?W:D);
+          const idx = idx2(u, vpos, w);
+          mask[idx] = (el.tool.value==='brush')?1:0;
+        }
+      }
+    }
+    redrawViews();
+    schedulePreview();
+  }
+
+  function redrawViews(){
+    redrawView(views.top); redrawView(views.front); redrawView(views.right);
+  }
+
+  function redrawView(v){
+    const [gw,gh] = v.getSize();
+    const pxW = Math.floor(gw * v.zoom), pxH = Math.floor(gh * v.zoom);
+    v.canvas.width = Math.max(200, pxW + 2*32);
+    v.canvas.height= Math.max(200, pxH + 2*32);
+    const ctx=v.ctx; ctx.save(); ctx.clearRect(0,0,v.canvas.width,v.canvas.height);
+    ctx.translate(v.offset.x, v.offset.y);
+
+    // background
+    ctx.fillStyle = '#0c1421'; ctx.fillRect(0,0,gw*v.zoom, gh*v.zoom);
+
+    // aggregate mask of visible layers (tinted by active layer color)
+    // Draw all visible layers; active layer drawn stronger grid
+    for(const L of layers){
+      if(!L.visible) continue;
+      const maskKey = (v===views.top?'top': v===views.front?'front':'right');
+      const mask = L.masks[maskKey];
+      const w = (maskKey==='top')?W:(maskKey==='front'?W:D);
+      const h = (maskKey==='top')?D:(maskKey==='front'?H:H);
+      ctx.fillStyle = hexWithAlpha(L.color, L.id===activeLayerId?0.9:0.45);
+      for(let yy=0; yy<h; yy++){
+        for(let xx=0; xx<w; xx++){
+          if(mask[idx2(xx,yy,w)]){
+            ctx.fillRect(xx*v.zoom, yy*v.zoom, v.zoom, v.zoom);
+          }
+        }
+      }
+    }
+
+    // grid
+    ctx.strokeStyle = '#152235'; ctx.lineWidth = 1;
+    const gstep = v.zoom;
+    ctx.beginPath();
+    for(let x=0; x<=gw; x++){ ctx.moveTo(x*gstep,0); ctx.lineTo(x*gstep, gh*gstep); }
+    for(let y=0; y<=gh; y++){ ctx.moveTo(0,y*gstep); ctx.lineTo(gw*gstep, y*gstep); }
+    ctx.stroke();
+
+    ctx.restore();
+
+    // Info label
+    const label = (v===views.top?`W×D ${W}×${D}`: v===views.front?`W×H ${W}×${H}`:`D×H ${D}×${H}`);
+    (v.label).textContent = label+` • zoom ${v.zoom}x`;
+  }
+
+  function hexWithAlpha(hex, a){
+    const c = hex.replace('#','');
+    const r=parseInt(c.substring(0,2),16), g=parseInt(c.substring(2,4),16), b=parseInt(c.substring(4,6),16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  // ----- Reconstruction from silhouettes -----
+  function reconstructVoxelSet(){
+    const need = parseInt(el.viewsRequired.value,10);
+    const voxels = new Map(); // key:"x,y,z" => {color}
+
+    const W_ = W, H_=H, D_=D;
+    // For each voxel, check how many views agree across visible layers; store topmost layer color (active prioritized)
+    for(let z=0; z<D_; z++){
+      for(let y=0; y<H_; y++){
+        for(let x=0; x<W_; x++){
+          let votes=0; let col="#000"; let got=false; // pick first visible layer that marks this triplet in enough views
+          // Combine across layers: if any layer reaches threshold, we take that layer's color; multiple layers can overlap (later we could Z-order by list)
+          for(const L of layers){
+            if(!L.visible) continue;
+            const v1 = L.masks.top[idx2(x,z,W_)];
+            const v2 = L.masks.front[idx2(x,y,W_)];
+            const v3 = L.masks.right[idx2(z,y,D_)];
+            const c = (v1?1:0) + (v2?1:0) + (v3?1:0);
+            if(c >= need){ col=L.color; got=true; break; }
+          }
+          if(got){ voxels.set(`${x},${y},${z}`, {color:col}); }
+        }
+      }
+    }
+    return voxels; // sparse set
+  }
+
+  // ----- Software 3D preview -----
+  const pctx = el.preview.getContext('2d');
+  let previewDirty=true;
+  function schedulePreview(){ previewDirty=true; }
+  function loop(){ if(previewDirty){ drawPreview(); previewDirty=false; } requestAnimationFrame(loop); }
+  requestAnimationFrame(loop);
+
+  function drawPreview(){
+    // size canvas
+    const cw = el.preview.clientWidth || el.preview.parentElement.clientWidth - 2;
+    const ch = Math.max(220, (el.preview.parentElement.clientHeight||420) - 48);
+    el.preview.width=cw; el.preview.height=ch;
+    const ctx=pctx; ctx.clearRect(0,0,cw,ch);
+
+    const vox = reconstructVoxelSet();
+    const count = vox.size;
+
+    // build surface quads from voxels
+    const faces=[]; // {pts:[[x,y],[x,y],...], depth, color}
+    const yaw = parseFloat(el.yaw.value)*Math.PI/180;
+    const pitch = parseFloat(el.pitch.value)*Math.PI/180;
+    const zoom = parseFloat(el.zoom.value);
+
+    // camera/projection
+    const s = Math.sin, c = Math.cos;
+    const Ry = (x,y,z)=>{ const X =  c(yaw)*x + s(yaw)*z; const Z = -s(yaw)*x + c(yaw)*z; return [X,y,Z]; };
+    const Rx = (x,y,z)=>{ const Y =  c(pitch)*y - s(pitch)*z; const Z =  s(pitch)*y + c(pitch)*z; return [x,Y,Z]; };
+    function rot(x,y,z){ let r=Ry(x,y,z); r=Rx(r[0],r[1],r[2]); return r; }
+
+    // normalize space to [-0.5..0.5]
+    const cx = (W-1)/2, cy=(H-1)/2, cz=(D-1)/2;
+    const scale = 8 * zoom; // px per voxel unit
+
+    const light = norm3(rot(1,-1,1));
+
+    // neighbor offsets
+    const nbs = [
+      {name:'+X', d:[1,0,0],  quad:(x,y,z)=>[[x+1,y,z],[x+1,y+1,z],[x+1,y+1,z+1],[x+1,y,z+1]]},
+      {name:'-X', d:[-1,0,0], quad:(x,y,z)=>[[x,y,z+1],[x,y+1,z+1],[x,y+1,z],[x,y,z]]},
+      {name:'+Y', d:[0,1,0],  quad:(x,y,z)=>[[x,y+1,z],[x+1,y+1,z],[x+1,y+1,z+1],[x,y+1,z+1]]},
+      {name:'-Y', d:[0,-1,0], quad:(x,y,z)=>[[x,y,z+1],[x+1,y,z+1],[x+1,y,z],[x,y,z]]},
+      {name:'+Z', d:[0,0,1],  quad:(x,y,z)=>[[x,y,z+1],[x+1,y,z+1],[x+1,y+1,z+1],[x,y+1,z+1]]},
+      {name:'-Z', d:[0,0,-1], quad:(x,y,z)=>[[x,y,z],[x,y+1,z],[x+1,y+1,z],[x+1,y,z]]},
+    ];
+
+    function get(x,y,z){ return vox.has(`${x},${y},${z}`); }
+
+    // iterate voxels to create faces only where neighbor empty
+    vox.forEach((v, key)=>{
+      const [x,y,z] = key.split(',').map(Number);
+      for(const nb of nbs){
+        const nx=x+nb.d[0], ny=y+nb.d[1], nz=z+nb.d[2];
+        if(nx<0||ny<0||nz<0||nx>=W||ny>=H||nz>=D || !get(nx,ny,nz)){
+          const q = nb.quad(x,y,z);
+          // project 4 pts
+          const pts=[]; let depth=0;
+          for(const [qx,qy,qz] of q){
+            // center
+            const X = (qx - cx)/Math.max(W,H,D);
+            const Y = (qy - cy)/Math.max(W,H,D);
+            const Z = (qz - cz)/Math.max(W,H,D);
+            const r = rot(X,Y,Z);
+            const sx = cw/2 + r[0]*scale;
+            const sy = ch*0.55 - r[1]*scale;
+            pts.push([sx,sy]); depth += r[2];
+          }
+          depth/=4;
+          // simple lambert shading by face normal
+          const fn = faceNormal(q);
+          const fr = rot(fn[0],fn[1],fn[2]);
+          const shade = Math.max(0.1, dot(norm3(fr), light));
+          faces.push({pts, depth, color: shadeHex(v.color, shade)});
+        }
+      }
+    });
+
+    // painter's order sort back-to-front
+    faces.sort((a,b)=>a.depth-b.depth);
+
+    // draw
+    for(const f of faces){
+      ctx.beginPath(); ctx.moveTo(f.pts[0][0], f.pts[0][1]);
+      for(let i=1;i<4;i++) ctx.lineTo(f.pts[i][0], f.pts[i][1]);
+      ctx.closePath(); ctx.fillStyle=f.color; ctx.fill();
+      // thin edge
+      ctx.strokeStyle = '#0b0f14'; ctx.lineWidth=0.5; ctx.stroke();
+    }
+
+    el.stats.textContent = `${count} vox, ${faces.length} faces`;
+    el.previewInfo.textContent = `W×H×D ${W}×${H}×${D} • views≥${el.viewsRequired.value}`;
+  }
+
+  function faceNormal(q){
+    // q: 4 vertices in voxel space (no centering). Compute normal of first triangle
+    const a=q[0], b=q[1], c=q[2];
+    const AB=[b[0]-a[0], b[1]-a[1], b[2]-a[2]];
+    const AC=[c[0]-a[0], c[1]-a[1], c[2]-a[2]];
+    const n=[ AB[1]*AC[2]-AB[2]*AC[1], AB[2]*AC[0]-AB[0]*AC[2], AB[0]*AC[1]-AB[1]*AC[0] ];
+    return norm3(n);
+  }
+  function norm3(v){ const l=Math.hypot(v[0],v[1],v[2])||1; return [v[0]/l, v[1]/l, v[2]/l]; }
+  function dot(a,b){ return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+
+  function shadeHex(hex, k){
+    const c = hex.replace('#','');
+    let r=parseInt(c.substring(0,2),16), g=parseInt(c.substring(2,4),16), b=parseInt(c.substring(4,6),16);
+    r = Math.round(r*k); g=Math.round(g*k); b=Math.round(b*k);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  // ----- Resize & resample -----
+  function resizeAndResample(newW,newH,newD){
+    newW = clamp(newW, 4, 128); newH=clamp(newH,4,128); newD=clamp(newD,4,128);
+    for(const L of layers){
+      // resample each mask with nearest neighbour
+      L.masks.top   = resampleMask(L.masks.top,   W, D, newW, newD);
+      L.masks.front = resampleMask(L.masks.front, W, H, newW, newH);
+      L.masks.right = resampleMask(L.masks.right, D, H, newD, newH);
+    }
+    W=newW; H=newH; D=newD;
+    redrawViews();
+    schedulePreview();
+  }
+
+  function resampleMask(src, sw, sh, dw, dh){
+    const dst = new Uint8Array(dw*dh);
+    for(let y=0;y<dh;y++){
+      for(let x=0;x<dw;x++){
+        const sx = Math.min(sw-1, Math.floor(x * sw / dw));
+        const sy = Math.min(sh-1, Math.floor(y * sh / dh));
+        dst[idx2(x,y,dw)] = src[idx2(sx,sy,sw)];
+      }
+    }
+    return dst;
+  }
+
+  // ----- Wire up UI -----
+  el.btnResize.onclick = ()=>{
+    const nw=parseInt(el.inW.value), nh=parseInt(el.inH.value), nd=parseInt(el.inD.value);
+    resizeAndResample(nw,nh,nd);
+  };
+  el.yaw.oninput = el.pitch.oninput = el.zoom.oninput = ()=> schedulePreview();
+  el.viewsRequired.oninput = ()=> schedulePreview();
+
+  // ----- Boot -----
+  addLayer('Base', '#6cf');
+  addLayer('Part B', '#f66'); layers[layers.length-1].visible=false; renderLayerList();
+  redrawViews(); schedulePreview();
+})();
+</script>
+</body>
+</html>

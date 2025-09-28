@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<title>Voxel Blueprint Editor — MVP</title>
+	<style>
+		body { font-family: Arial, sans-serif; margin: 12px; background:#f3f3f3; color:#111; }
+		.header { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
+		.controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+		.canvas-row { display:flex; gap:12px; margin-top:10px; }
+		.canvas-wrap { background:#fff; padding:6px; border:1px solid #ccc; }
+		.layer-list { max-height:240px; overflow:auto; padding:6px; background:#fff; border:1px solid #ccc; }
+		.layer-item { display:flex; gap:8px; align-items:center; padding:4px; border-bottom:1px solid #eee; }
+		button, input[type="number"], select { padding:6px; }
+		label { font-size:13px; }
+		.preview { background:#222; width:480px; height:360px; border:1px solid #000; }
+	</style>
+</head>
+<body>
+	<div class="header">
+		<h2>Voxel Blueprint Editor — MVP</h2>
+	</div>
+
+	<div class="controls">
+		<label>W <input id="inW" type="number" value="32" min="4" max="128" style="width:72px"></label>
+		<label>H <input id="inH" type="number" value="32" min="4" max="128" style="width:72px"></label>
+		<label>D <input id="inD" type="number" value="32" min="4" max="128" style="width:72px"></label>
+		<label>Threshold <input id="inThresh" type="number" value="2" min="1" max="3" style="width:64px"></label>
+		<button id="btnResize">Apply Grid</button>
+
+		<button id="btnAddLayer">Add Layer</button>
+		<select id="selBrushMode">
+			<option value="paint">Paint</option>
+			<option value="erase">Erase</option>
+		</select>
+		<label>Brush <input id="inBrushSize" type="number" value="1" min="1" max="16" style="width:64px"></label>
+	</div>
+
+	<div style="display:flex; gap:12px; margin-top:10px;">
+		<div style="width:360px;">
+			<div style="display:flex; gap:8px; align-items:center;">
+				<div style="flex:1">
+					<label>Layers</label>
+					<div id="layerList" class="layer-list"></div>
+				</div>
+				<div style="width:120px">
+					<label>Active Color</label>
+					<input id="activeColor" type="color" value="#ff0000" style="width:100%">
+					<div style="margin-top:6px;">
+						<button id="btnToggleAll">Toggle All</button>
+						<button id="btnClearLayer">Clear Layer</button>
+					</div>
+				</div>
+			</div>
+
+			<div class="canvas-row">
+				<div class="canvas-wrap">
+					<div style="text-align:center">Top (X × Z)</div>
+					<canvas id="canTop" width="256" height="256"></canvas>
+				</div>
+				<div class="canvas-wrap">
+					<div style="text-align:center">Front (X × Y)</div>
+					<canvas id="canFront" width="256" height="256"></canvas>
+				</div>
+				<div class="canvas-wrap">
+					<div style="text-align:center">Right (Z × Y)</div>
+					<canvas id="canRight" width="256" height="256"></canvas>
+				</div>
+			</div>
+		</div>
+
+		<div>
+			<div style="margin-bottom:8px;">3D Preview</div>
+			<canvas id="can3d" class="preview" width="480" height="360"></canvas>
+		</div>
+	</div>
+
+	<script>
+		// Minimal helpers
+		const $ = id=>document.getElementById(id);
+		let W=32,H=32,D=32;
+		let thresh=2;
+		let layers = []; // each layer: {name, color, visible, top, front, right}
+		let activeLayer = null;
+		let brushMode = 'paint';
+		let brushSize = 1;
+
+		// canvases and contexts
+		const canTop = $('canTop'), ctxTop = canTop.getContext('2d');
+		const canFront = $('canFront'), ctxFront = canFront.getContext('2d');
+		const canRight = $('canRight'), ctxRight = canRight.getContext('2d');
+		const can3d = $('can3d'), ctx3d = can3d.getContext('2d');
+
+		function makeSilhouette(size){ return new Uint8Array(size); }
+
+		function newLayer(name, color='#ff0000'){
+			const l = {
+				name: name || ('Layer ' + (layers.length+1)),
+				color,
+				visible: true,
+				top: makeSilhouette(W*D),
+				front: makeSilhouette(W*H),
+				right: makeSilhouette(D*H)
+			};
+			layers.push(l);
+			activeLayer = l;
+			refreshLayerList();
+			renderAllCanvases();
+			reconstructAndRender();
+		}
+
+		function clearLayer(l){
+			l.top.fill(0); l.front.fill(0); l.right.fill(0);
+		}
+
+		// UI wiring
+		$('btnAddLayer').addEventListener('click', ()=> newLayer());
+		$('btnResize').addEventListener('click', ()=>{
+			W = Math.max(4, Math.min(128, parseInt($('inW').value)||32));
+			H = Math.max(4, Math.min(128, parseInt($('inH').value)||32));
+			D = Math.max(4, Math.min(128, parseInt($('inD').value)||32));
+			thresh = Math.max(1, Math.min(3, parseInt($('inThresh').value)||2));
+			// Resample strategy: reset silhouettes for simplicity (MVP)
+			layers.forEach(l=>{
+				l.top = makeSilhouette(W*D);
+				l.front = makeSilhouette(W*H);
+				l.right = makeSilhouette(D*H);
+			});
+			renderAllCanvases();
+			reconstructAndRender();
+		});
+		$('inBrushSize').addEventListener('change', e=> brushSize = Math.max(1,parseInt(e.target.value)||1));
+		$('selBrushMode').addEventListener('change', e=> brushMode = e.target.value);
+		$('activeColor').addEventListener('change', e=>{
+			if(activeLayer){ activeLayer.color = e.target.value; renderAllCanvases(); reconstructAndRender(); refreshLayerList(); }
+		});
+		$('btnToggleAll').addEventListener('click', ()=>{
+			layers.forEach(l=> l.visible = !l.visible);
+			refreshLayerList(); renderAllCanvases(); reconstructAndRender();
+		});
+		$('btnClearLayer').addEventListener('click', ()=>{
+			if(activeLayer){ clearLayer(activeLayer); renderAllCanvases(); reconstructAndRender(); }
+		});
+
+		function refreshLayerList(){
+			const list = $('layerList');
+			list.innerHTML = '';
+			layers.slice().reverse().forEach(l=>{
+				const div = document.createElement('div');
+				div.className = 'layer-item';
+				div.innerHTML = `
+					<input type="radio" name="activeLayer" ${l===activeLayer? 'checked' : ''}>
+					<input type="color" value="${l.color}">
+					<span style="flex:1">${l.name}</span>
+					<label><input type="checkbox" ${l.visible? 'checked':''}> vis</label>
+					<button style="margin-left:6px">✕</button>
+				`;
+				// wire events
+				const colorInput = div.querySelector('input[type="color"]');
+				colorInput.addEventListener('input', e=>{ l.color = e.target.value; renderAllCanvases(); reconstructAndRender(); });
+				const radio = div.querySelector('input[type="radio"]');
+				radio.addEventListener('change', ()=> { activeLayer = l; $('activeColor').value = l.color; });
+				const vis = div.querySelector('input[type="checkbox"]');
+				vis.addEventListener('change', e=>{ l.visible = e.target.checked; renderAllCanvases(); reconstructAndRender(); });
+				const del = div.querySelector('button');
+				del.addEventListener('click', ()=>{
+					const idx = layers.indexOf(l);
+					if(idx>=0) layers.splice(idx,1);
+					if(activeLayer===l) activeLayer = layers[layers.length-1] || null;
+					refreshLayerList(); renderAllCanvases(); reconstructAndRender();
+				});
+				list.appendChild(div);
+			});
+		}
+
+		// Canvas drawing helpers
+		function drawGridOnCanvas(ctx, gridW, gridH, arr, color, scale){
+			ctx.clearRect(0,0,ctx.canvas.width, ctx.canvas.height);
+			// background subtle grid
+			ctx.fillStyle = '#fff';
+			ctx.fillRect(0,0,ctx.canvas.width, ctx.canvas.height);
+			const sX = ctx.canvas.width / gridW, sY = ctx.canvas.height / gridH;
+			// draw pixels
+			for(let y=0;y<gridH;y++){
+				for(let x=0;x<gridW;x++){
+					const v = arr[x + y*gridW];
+					if(v){
+						ctx.fillStyle = color;
+						ctx.fillRect(Math.floor(x*sX), Math.floor(y*sY), Math.ceil(sX), Math.ceil(sY));
+					}
+				}
+			}
+			// optional grid lines
+			ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+			ctx.lineWidth = 1;
+			for(let x=0;x<=gridW;x++){
+				const px = x*sX+0.5;
+				ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,ctx.canvas.height); ctx.stroke();
+			}
+			for(let y=0;y<=gridH;y++){
+				const py = y*sY+0.5;
+				ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(ctx.canvas.width,py); ctx.stroke();
+			}
+		}
+
+		function renderAllCanvases(){
+			// Merge layers for display without altering per-layer data
+			const topMerge = new Uint8Array(W*D);
+			const frontMerge = new Uint8Array(W*H);
+			const rightMerge = new Uint8Array(D*H);
+			for(const l of layers){
+				if(!l.visible) continue;
+				for(let i=0;i<topMerge.length;i++) topMerge[i] = topMerge[i] || l.top[i];
+				for(let i=0;i<frontMerge.length;i++) frontMerge[i] = frontMerge[i] || l.front[i];
+				for(let i=0;i<rightMerge.length;i++) rightMerge[i] = rightMerge[i] || l.right[i];
+			}
+			// Use active layer color for painting overlay; otherwise use layer colors (MVP: show merged black)
+			drawGridOnCanvas(ctxTop, W, D, topMerge, '#8888ff');
+			drawGridOnCanvas(ctxFront, W, H, frontMerge, '#88ff88');
+			drawGridOnCanvas(ctxRight, D, H, rightMerge, '#ff8888');
+		}
+
+		// Painting logic: map mouse to grid coordinate and set/remove cells in activeLayer arrays
+		function canvasPointerSetup(canvas, type){
+			let drawing = false;
+			const ctx = canvas.getContext('2d');
+			function posToGrid(e){
+				const rect = canvas.getBoundingClientRect();
+				const x = Math.floor(((e.clientX - rect.left) / rect.width) * canvas.width);
+				const y = Math.floor(((e.clientY - rect.top) / rect.height) * canvas.height);
+				// map to grid coords depending on type
+				if(type==='top'){ // canvas: X × Z (grid W x D)
+					const gx = Math.floor(x / (canvas.width / W));
+					const gz = Math.floor(y / (canvas.height / D));
+					return {gx, gz};
+				}else if(type==='front'){ // X × Y (W x H)
+					const gx = Math.floor(x / (canvas.width / W));
+					const gy = Math.floor(y / (canvas.height / H));
+					return {gx, gy};
+				}else{ // right: Z × Y (D x H)
+					const gz = Math.floor(x / (canvas.width / D));
+					const gy = Math.floor(y / (canvas.height / H));
+					return {gz, gy};
+				}
+			}
+			function applyAt(e){
+				if(!activeLayer) return;
+				const p = posToGrid(e);
+				if(type==='top'){
+					for(let oy=0; oy<brushSize; oy++){
+						for(let ox=0; ox<brushSize; ox++){
+							const x = p.gx+ox; const z = p.gz+oy;
+							if(x>=0 && x<W && z>=0 && z<D){
+								activeLayer.top[x + z*W] = (brushMode==='paint')?1:0;
+							}
+						}
+					}
+				}else if(type==='front'){
+					for(let oy=0; oy<brushSize; oy++){
+						for(let ox=0; ox<brushSize; ox++){
+							const x = p.gx+ox; const y = p.gy+oy;
+							if(x>=0 && x<W && y>=0 && y<H){
+								activeLayer.front[x + y*W] = (brushMode==='paint')?1:0;
+							}
+						}
+					}
+				}else{
+					for(let oy=0; oy<brushSize; oy++){
+						for(let ox=0; ox<brushSize; ox++){
+							const z = p.gz+ox; const y = p.gy+oy;
+							if(z>=0 && z<D && y>=0 && y<H){
+								activeLayer.right[z + y*D] = (brushMode==='paint')?1:0;
+							}
+						}
+					}
+				}
+				renderAllCanvases();
+				reconstructAndRender();
+			}
+			canvas.addEventListener('mousedown', e=>{ drawing=true; applyAt(e); });
+			window.addEventListener('mouseup', ()=> drawing=false);
+			canvas.addEventListener('mousemove', e=>{ if(drawing) applyAt(e); });
+			canvas.addEventListener('click', applyAt);
+		}
+		canvasPointerSetup(canTop, 'top');
+		canvasPointerSetup(canFront, 'front');
+		canvasPointerSetup(canRight, 'right');
+
+		// Reconstruction engine
+		let voxelBuffer = new Uint8Array(W*H*D);
+		function idx3(x,y,z){ return x + y*W + z*(W*H); }
+		function reconstructAndRender(){
+			// rebuild voxelBuffer as union across layers with per-layer silhouettes and per-layer visibility
+			voxelBuffer = new Uint8Array(W*H*D);
+			// Precompute merged silhouettes per view per voxel threshold check: for each layer individually we must consider its silhouettes
+			// For each voxel coordinate, count how many views (top/front/right) have any visible layer marking it
+			// To support multiple layers, treat all visible layers as contributing equally. (MVP: layers do not have boolean priority)
+			// Build merged per-view arrays
+			const topMerge = new Uint8Array(W*D);
+			const frontMerge = new Uint8Array(W*H);
+			const rightMerge = new Uint8Array(D*H);
+			for(const l of layers){
+				if(!l.visible) continue;
+				for(let i=0;i<topMerge.length;i++) if(l.top[i]) topMerge[i]=1;
+				for(let i=0;i<frontMerge.length;i++) if(l.front[i]) frontMerge[i]=1;
+				for(let i=0;i<rightMerge.length;i++) if(l.right[i]) rightMerge[i]=1;
+			}
+			// For each voxel, check corresponding coords in each merged view
+			for(let z=0; z<D; z++){
+				for(let y=0; y<H; y++){
+					for(let x=0; x<W; x++){
+						let count=0;
+						if(frontMerge[x + y*W]) count++;
+						if(topMerge[x + z*W]) count++;
+						if(rightMerge[z + y*D]) count++;
+						if(count >= (thresh || 1)){
+							voxelBuffer[idx3(x,y,z)] = 1;
+						}
+					}
+				}
+			}
+			render3DPreview(voxelBuffer);
+		}
+
+		// Simple isometric renderer for voxels (painter's algorithm)
+		function render3DPreview(vox){
+			ctx3d.clearRect(0,0,can3d.width, can3d.height);
+			ctx3d.fillStyle = '#111';
+			ctx3d.fillRect(0,0,can3d.width, can3d.height);
+			// simple iso parameters
+			const scale = Math.min(can3d.width / (W + D), can3d.height / (W + H)) * 0.9;
+			const originX = can3d.width/2;
+			const originY = 40;
+			// collect visible voxels for drawing
+			const drawList = [];
+			for(let z=0; z<D; z++){
+				for(let y=0; y<H; y++){
+					for(let x=0; x<W; x++){
+						if(vox[idx3(x,y,z)]){
+							// compute iso projection for voxel center
+							const px = (x - z) * (scale*0.5);
+							const py = (x + z) * (scale*0.25) - y * (scale*0.5);
+							drawList.push({x,y,z,px,py});
+						}
+					}
+				}
+			}
+			// sort by depth (y then z then x) for painter's algorithm
+			drawList.sort((a,b)=>{
+				if(a.x+a.y+a.z !== b.x+b.y+b.z) return (a.x+a.y+a.z) - (b.x+b.y+b.z);
+				return a.z - b.z;
+			});
+			// draw cubes as simple shaded squares (top + left face)
+			for(const v of drawList){
+				const screenX = originX + v.px;
+				const screenY = originY + v.py;
+				// get color from layers: find topmost visible layer that contributed to any silhouette for this voxel (approx)
+				const layerColor = pickColorForVoxel(v.x, v.y, v.z) || '#aaaaaa';
+				// top face
+				ctx3d.fillStyle = shadeColor(layerColor, 1.12);
+				ctx3d.beginPath();
+				ctx3d.moveTo(screenX, screenY);
+				ctx3d.lineTo(screenX + scale*0.5, screenY + scale*0.25);
+				ctx3d.lineTo(screenX, screenY + scale*0.5);
+				ctx3d.lineTo(screenX - scale*0.5, screenY + scale*0.25);
+				ctx3d.closePath();
+				ctx3d.fill();
+				// left face
+				ctx3d.fillStyle = shadeColor(layerColor, 0.9);
+				ctx3d.beginPath();
+				ctx3d.moveTo(screenX - scale*0.5, screenY + scale*0.25);
+				ctx3d.lineTo(screenX, screenY + scale*0.5);
+				ctx3d.lineTo(screenX, screenY + scale*1.0);
+				ctx3d.lineTo(screenX - scale*0.5, screenY + scale*0.75);
+				ctx3d.closePath();
+				ctx3d.fill();
+				// right face
+				ctx3d.fillStyle = shadeColor(layerColor, 0.75);
+				ctx3d.beginPath();
+				ctx3d.moveTo(screenX + scale*0.5, screenY + scale*0.25);
+				ctx3d.lineTo(screenX + scale*0.5, screenY + scale*0.75);
+				ctx3d.lineTo(screenX, screenY + scale*1.0);
+				ctx3d.lineTo(screenX, screenY + scale*0.5);
+				ctx3d.closePath();
+				ctx3d.fill();
+			}
+		}
+
+		function pickColorForVoxel(x,y,z){
+			// Find any visible layer where the three silhouettes would support this voxel (MVP: check per-layer)
+			for(let i=layers.length-1;i>=0;i--){
+				const l = layers[i];
+				if(!l.visible) continue;
+				let count = 0;
+				if(l.front[x + y*W]) count++;
+				if(l.top[x + z*W]) count++;
+				if(l.right[z + y*D]) count++;
+				if(count >= thresh) return l.color;
+			}
+			// fallback: blended visible layers (not strict)
+			for(let i=layers.length-1;i>=0;i--) if(layers[i].visible) return layers[i].color;
+			return '#999999';
+		}
+
+		function shadeColor(hex, factor){
+			// simple hex shade
+			const c = hex.replace('#','');
+			const r = Math.min(255, Math.max(0, parseInt(c.substr(0,2),16) * factor|0));
+			const g = Math.min(255, Math.max(0, parseInt(c.substr(2,2),16) * factor|0));
+			const b = Math.min(255, Math.max(0, parseInt(c.substr(4,2),16) * factor|0));
+			return `rgb(${r},${g},${b})`;
+		}
+
+		// init with one layer
+		newLayer('Base', '#ff5555');
+
+		// initial render
+		renderAllCanvases();
+		reconstructAndRender();
+	</script>
+</body>
+</html>
