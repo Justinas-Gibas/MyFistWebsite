@@ -1,0 +1,606 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>Market Agentic Simulation — LOB (Refactor)</title>
+	<style>
+		body { font-family: Arial, sans-serif; margin: 10px; background: #111; color: #ddd; }
+		.controls { display:flex; gap:12px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+		label { font-size:13px; white-space:nowrap; }
+		input[type=number], input[type=range], select { margin-left:6px; }
+		canvas { background:#000; border:1px solid #444; display:block; }
+		.info { font-size:12px; color:#aaa; margin-top:6px; max-width:1200px; }
+		.controls .group { display:flex; gap:8px; align-items:center; }
+	</style>
+</head>
+<body>
+	<div class="controls">
+		<div class="group">
+			<label>Makers/sec: <input id="makerRate" type="number" min="0" max="2000" value="200"></label>
+			<label>Takers/sec: <input id="takerRate" type="number" min="0" max="2000" value="40"></label>
+			<label>Tick size: <input id="tickSize" type="number" step="0.01" value="0.01"></label>
+			<label>Bin (s): <input id="binWidth" type="number" step="0.5" value="5"></label>
+		</div>
+		<div class="group">
+			<label>Maker spread (ticks): <input id="makerSpread" type="number" min="0" value="2"></label>
+			<label>Cancel rate (/s): <input id="cancelRate" type="number" min="0" value="0.1"></label>
+			<label>Latency ms: <input id="latency" type="number" min="0" value="50"></label>
+		</div>
+		<div class="group">
+			<button id="startBtn">Start</button>
+			<button id="pauseBtn">Pause</button>
+			<button id="resetBtn">Reset</button>
+			<label>Speed: <input id="speed" type="range" min="1" max="60" value="20"></label>
+		</div>
+	</div>
+
+	<canvas id="simCanvas" width="1200" height="600"></canvas>
+	<div class="info">Refactored LOB: tick indices increase with price (price = tick * tickSize). Makers place passive limit orders (never cross). Takers are market orders consuming from best quotes. Last trade price drives price history; mid is derived from best bid/ask. OHLCV candles and Volume-at-Price heatmap rendered.</div>
+
+<script>
+(() => {
+	// Basic UI bindings
+	const canvas = document.getElementById('simCanvas');
+	const ctx = canvas.getContext('2d');
+	const W = canvas.width, H = canvas.height;
+
+	const makerRateInput = document.getElementById('makerRate');
+	const takerRateInput = document.getElementById('takerRate');
+	const tickSizeInput = document.getElementById('tickSize');
+	const binWidthInput = document.getElementById('binWidth');
+	const makerSpreadInput = document.getElementById('makerSpread');
+	const cancelRateInput = document.getElementById('cancelRate');
+	const latencyInput = document.getElementById('latency');
+
+	const startBtn = document.getElementById('startBtn');
+	const pauseBtn = document.getElementById('pauseBtn');
+	const resetBtn = document.getElementById('resetBtn');
+	const speedInput = document.getElementById('speed');
+
+	// Layout constants
+	const orderbookWidth = 260;
+	const volBand = 110;
+	const chartX0 = 80;
+	const chartW = W - chartX0 - orderbookWidth - 10;
+	const chartH = H - volBand;
+	const priceLabelX = 6;
+	const maxHistory = 1200;
+
+	// Simulation parameters (configurable)
+	let tickSize = Number(tickSizeInput.value);   // price per tick
+	let makerSpread = Number(makerSpreadInput.value); // minimal ticks away from inside
+	let binWidth = Number(binWidthInput.value);   // seconds per candle
+	let cancelRate = Number(cancelRateInput.value); // cancels/sec per maker
+	let latencyMs = Number(latencyInput.value);
+
+	// Core LOB structures (sparse by tick index)
+	// bids: Map<tick, Array<Order>>; asks: Map<tick, Array<Order>>
+	const bids = new Map();
+	const asks = new Map();
+
+	// aggregated depth: Map<tick, totalVolume> (recomputed when needed but cheap for sparse maps)
+	const aggBids = new Map();
+	const aggAsks = new Map();
+
+	let orderIdSeq = 1;
+	const ordersById = new Map(); // orderId -> order
+
+	// Trade & price history
+	let lastTradeTick = 10000; // absolute tick index
+	let lastTradePrice = tickToPrice(lastTradeTick);
+	let priceHistory = []; // {timeMs, price}
+	let tradedVolumeMap = new Map(); // tick -> total traded volume (heatmap)
+	let candles = []; // rolling OHLCV candles
+
+	// Simulation state
+	let running = false;
+	let timer = null;
+	let step = 0;
+	const simIntervalMs = 100; // base clock tick (can vary with speed control)
+	let simTimeMs = Date.now();
+
+	// Helper constructors
+	function tickToPrice(t) { return t * tickSize; }
+	function priceToTick(p) { return Math.round(p / tickSize); }
+	function now() { return simTimeMs; }
+
+	// Order object: {id, owner:'maker', side:'bid'|'ask', tick, vol, placedAt, expiresAt(optional)}
+	function placeLimit(owner, side, tick, vol, lifetimeSec = null, delayMs = 0) {
+		const schedule = () => {
+			const id = orderIdSeq++;
+			const o = { id, owner, side, tick, vol, placedAt: now() };
+			if (lifetimeSec) o.expiresAt = now() + lifetimeSec * 1000;
+			ordersById.set(id, o);
+			const map = (side === 'bid') ? bids : asks;
+			if (!map.has(tick)) map.set(tick, []);
+			map.get(tick).push(o);
+			// update agg
+			const agg = (side==='bid') ? aggBids : aggAsks;
+			agg.set(tick, (agg.get(tick) || 0) + vol);
+			return o;
+		};
+		if (delayMs > 0) {
+			setTimeout(schedule, delayMs);
+		} else {
+			return schedule();
+		}
+	}
+
+	function removeOrder(o) {
+		const map = (o.side === 'bid') ? bids : asks;
+		const list = map.get(o.tick);
+		if (list) {
+			const idx = list.findIndex(x => x.id === o.id);
+			if (idx >= 0) list.splice(idx, 1);
+			if (list.length === 0) map.delete(o.tick);
+		}
+		ordersById.delete(o.id);
+		const agg = (o.side==='bid') ? aggBids : aggAsks;
+		agg.set(o.tick, Math.max(0, (agg.get(o.tick) || 0) - o.vol));
+		if (agg.get(o.tick) === 0) agg.delete(o.tick);
+	}
+
+	// Depth / best-quote helpers
+	function bestAskTick() {
+		if (aggAsks.size === 0) return null;
+		let best = Infinity;
+		for (let t of aggAsks.keys()) if (t < best) best = t;
+		return best;
+	}
+	function bestBidTick() {
+		if (aggBids.size === 0) return null;
+		let best = -Infinity;
+		for (let t of aggBids.keys()) if (t > best) best = t;
+		return best;
+	}
+	function deriveMidPrice() {
+		const b = bestBidTick();
+		const a = bestAskTick();
+		if (b != null && a != null) return 0.5 * (tickToPrice(b) + tickToPrice(a));
+		if (lastTradePrice) return lastTradePrice;
+		return tickToPrice(lastTradeTick);
+	}
+
+	// Market order consumption: buy consumes asks lowest tick upward; sell consumes bids highest tick downward.
+	// Returns list of trade executions: {tick, price, vol, side}
+	function marketOrder(side, size) {
+		const executions = [];
+		let remaining = size;
+		if (side === 'buy') {
+			// consume asks from lowest tick upward
+			const askTicks = Array.from(asks.keys()).sort((x,y)=>x-y);
+			for (const t of askTicks) {
+				if (remaining <= 0) break;
+				const arr = asks.get(t);
+				while (arr && arr.length && remaining > 0) {
+					const o = arr[0]; // FIFO price-time priority
+					const take = Math.min(o.vol, remaining);
+					// reduce order
+					o.vol -= take;
+					remaining -= take;
+					aggAsks.set(t, Math.max(0, (aggAsks.get(t) || 0) - take));
+					// record trade
+					executions.push({ tick: t, price: tickToPrice(t), vol: take, side: 'buy' });
+					// if order depleted remove it
+					if (o.vol <= 0) {
+						arr.shift();
+						ordersById.delete(o.id);
+					}
+					if (aggAsks.get(t) === 0) { asks.delete(t); aggAsks.delete(t); break; }
+				}
+			}
+		} else {
+			// sell: consume bids from highest tick downward
+			const bidTicks = Array.from(bids.keys()).sort((x,y)=>y-x);
+			for (const t of bidTicks) {
+				if (remaining <= 0) break;
+				const arr = bids.get(t);
+				while (arr && arr.length && remaining > 0) {
+					const o = arr[0];
+					const take = Math.min(o.vol, remaining);
+					o.vol -= take;
+					remaining -= take;
+					aggBids.set(t, Math.max(0, (aggBids.get(t) || 0) - take));
+					executions.push({ tick: t, price: tickToPrice(t), vol: take, side: 'sell' });
+					if (o.vol <= 0) {
+						arr.shift();
+						ordersById.delete(o.id);
+					}
+					if (aggBids.get(t) === 0) { bids.delete(t); aggBids.delete(t); break; }
+				}
+			}
+		}
+		return executions;
+	}
+
+	// Maker behavior (never crosses). They place limit orders around best quotes or lastTradeTick.
+	function makerPlaceOne(makerId) {
+		const spread = Math.max(1, Math.round(makerSpread));
+		// choose side with slight inventory bias (simple random here)
+		const side = Math.random() < 0.5 ? 'bid' : 'ask';
+		// reference tick = lastTradeTick if available, else best inside
+		let center = lastTradeTick;
+		const bestB = bestBidTick(); const bestA = bestAskTick();
+		if (bestB != null && bestA != null) center = Math.floor((bestB + bestA) / 2);
+		// pick offset ticks with a small gaussian
+		const offset = Math.max(0, Math.round(randNormal(0, spread * 1.5)));
+		let tick = center + (side === 'bid' ? -offset - spread : offset + spread);
+		// enforce never crossing: bids must be strictly below best ask; asks strictly above best bid
+		if (side === 'bid' && bestA != null) tick = Math.min(tick, bestA - 1);
+		if (side === 'ask' && bestB != null) tick = Math.max(tick, bestB + 1);
+		const vol = Math.max(1, Math.round(Math.abs(randNormal(3, 5))));
+		// Poisson lifetime mean (in seconds)
+		const lifetime = Math.max(1, Math.abs(randNormal(15, 10)));
+		// schedule with latency
+		placeLimit('maker', side, tick, vol, lifetime, latencyMs);
+	}
+
+	// Taker behavior: market orders with size drawn, consuming book
+	function takerPlaceOne() {
+		const side = Math.random() < 0.5 ? 'buy' : 'sell';
+		const size = Math.max(1, Math.round(Math.abs(randNormal(4,6))));
+		const execs = marketOrder(side, size);
+		if (execs.length > 0) {
+			// produce trades: update lastTradeTick/price, accumulate traded volumes and candle aggregation
+			for (const ex of execs) {
+				lastTradeTick = ex.tick;
+				lastTradePrice = ex.price;
+				// accumulate tradedVolumeMap
+				tradedVolumeMap.set(ex.tick, (tradedVolumeMap.get(ex.tick) || 0) + ex.vol);
+				pushTradeToCandles(now(), lastTradePrice, ex.vol);
+			}
+			return true;
+		} else {
+			// walking the book failed: nudge lastTradePrice slightly
+			lastTradePrice = lastTradePrice * 0.999 + deriveMidPrice() * 0.001;
+			return false;
+		}
+	}
+
+	// Candles: rolling OHLCV based on binWidth seconds
+	let currentCandle = null;
+	function pushTradeToCandles(ts, price, vol) {
+		const bin = Math.floor(ts / (binWidth * 1000));
+		if (!currentCandle || currentCandle.bin !== bin) {
+			// finalize previous
+			if (currentCandle) candles.push(currentCandle);
+			currentCandle = { bin, open: price, high: price, low: price, close: price, volume: vol, tsStart: bin * binWidth * 1000 };
+			// keep only recent N
+			if (candles.length > 200) candles.shift();
+		} else {
+			currentCandle.high = Math.max(currentCandle.high, price);
+			currentCandle.low = Math.min(currentCandle.low, price);
+			currentCandle.close = price;
+			currentCandle.volume += vol;
+		}
+		// maintain priceHistory for plotting
+		priceHistory.push({ time: ts, price });
+		if (priceHistory.length > maxHistory) priceHistory.shift();
+	}
+
+	// Utility random normal
+	function randNormal(mean = 0, std = 1) {
+		let u = 0, v = 0;
+		while (u === 0) u = Math.random();
+		while (v === 0) v = Math.random();
+		return mean + std * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+	}
+
+	// Cancels: randomly cancel some maker orders (based on cancelRate and current orders)
+	function maybeCancelOrders(dtMs) {
+		const p = 1 - Math.exp(-cancelRate * (dtMs / 1000)); // probability to cancel per order in dt
+		for (const [id, o] of Array.from(ordersById.entries())) {
+			if (o.owner === 'maker' && Math.random() < p) {
+				removeOrder(o);
+			}
+		}
+		// expire by lifetime
+		for (const [id, o] of Array.from(ordersById.entries())) {
+			if (o.expiresAt && o.expiresAt <= now()) removeOrder(o);
+		}
+	}
+
+	// Simulation step: processMaker/taker arrivals (Poisson) and book maintenance
+	function stepSimulation(dtMs) {
+		// update params from UI (allow live change)
+		tickSize = Number(tickSizeInput.value);
+		binWidth = Number(binWidthInput.value);
+		makerSpread = Math.max(1, Number(makerSpreadInput.value));
+		cancelRate = Math.max(0, Number(cancelRateInput.value));
+		latencyMs = Math.max(0, Number(latencyInput.value));
+
+		// Poisson arrivals: expected count = rate * dt
+		const makerRate = Math.max(0, Number(makerRateInput.value));
+		const takerRate = Math.max(0, Number(takerRateInput.value));
+		const expMakers = makerRate * (dtMs / 1000);
+		const expTakers = takerRate * (dtMs / 1000);
+		const makersToPlace = poissonSample(expMakers);
+		const takersToPlace = poissonSample(expTakers);
+
+		for (let i = 0; i < makersToPlace; i++) makerPlaceOne(i);
+		for (let i = 0; i < takersToPlace; i++) takerPlaceOne();
+
+		// cancels and expirations
+		maybeCancelOrders(dtMs);
+
+		// derive mid from inside
+		const mid = deriveMidPrice();
+
+		// if lastTradePrice undefined use mid
+		if (!lastTradePrice) lastTradePrice = mid;
+
+		// step time
+		step++;
+		simTimeMs += dtMs;
+	}
+
+	// Poisson sampler (Knuth) returning integer count
+	function poissonSample(lambda) {
+		// for small lambda approximate with Bernoulli if lambda < 0.1
+		if (lambda <= 0) return 0;
+		let L = Math.exp(-lambda);
+		let k = 0;
+		let p = 1;
+		do {
+			k++;
+			p *= Math.random();
+		} while (p > L);
+		return k - 1;
+	}
+
+	// Rendering functions
+	function draw() {
+		ctx.clearRect(0, 0, W, H);
+		// draw price labels on left (use visible tick window centered on lastTradeTick)
+		const visibleTicks = Math.floor(chartH / 8); // approximate number of ticks vertically
+		const centerTick = lastTradeTick || priceToTick(deriveMidPrice());
+		const topTick = centerTick + Math.floor(visibleTicks/2);
+		const bottomTick = centerTick - Math.floor(visibleTicks/2);
+
+		// Draw heatmap background (Volume-at-Price)
+		const maxHeat = Math.max(1, ...Array.from(tradedVolumeMap.values()));
+		for (let t = bottomTick; t <= topTick; t++) {
+			const vol = tradedVolumeMap.get(t) || 0;
+			const intensity = Math.min(1, vol / maxHeat);
+			if (intensity <= 0.005) continue;
+			const y = tickToY(t, topTick, bottomTick);
+			const h = Math.max(2, tickHeight(topTick, bottomTick));
+			const col = heatColor(intensity);
+			ctx.fillStyle = col;
+			ctx.fillRect(chartX0, y - h/2, chartW, h);
+		}
+
+		// Draw price grid and labels
+		ctx.fillStyle = 'rgba(255,255,255,0.6)';
+		ctx.font = '11px monospace';
+		const majorStep = Math.max(1, Math.floor((topTick - bottomTick) / 10));
+		for (let t = bottomTick; t <= topTick; t += majorStep) {
+			const y = tickToY(t, topTick, bottomTick);
+			const p = tickToPrice(t).toFixed(2);
+			ctx.fillText(p, priceLabelX, y + 4);
+			ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+			ctx.beginPath();
+			ctx.moveTo(chartX0, y + 0.5);
+			ctx.lineTo(chartX0 + chartW, y + 0.5);
+			ctx.stroke();
+		}
+
+		// Draw price history line (lastTrade points)
+		if (priceHistory.length > 0) {
+			ctx.beginPath();
+			for (let i = 0; i < priceHistory.length; i++) {
+				const ph = priceHistory[i];
+				// map time across chartW (simple scrolling by count)
+				const x = chartX0 + (i / Math.max(1, maxHistory - 1)) * chartW;
+				const t = priceToTick(ph.price);
+				const y = tickToY(t, topTick, bottomTick);
+				if (i === 0) ctx.moveTo(x, y);
+				else ctx.lineTo(x, y);
+			}
+			ctx.strokeStyle = '#00d1ff';
+			ctx.lineWidth = 2;
+			ctx.stroke();
+		}
+
+		// Draw current last trade horizontal line
+		const lastY = tickToY(lastTradeTick, topTick, bottomTick);
+		ctx.strokeStyle = 'rgba(255,200,40,0.9)';
+		ctx.beginPath();
+		ctx.moveTo(chartX0, lastY);
+		ctx.lineTo(chartX0 + chartW, lastY);
+		ctx.stroke();
+		ctx.fillStyle = '#ffd27a';
+		ctx.font = '12px monospace';
+		ctx.fillText('Last: ' + lastTradePrice.toFixed(4), chartX0 + 8, 20);
+
+		// Draw candles overlay in bottom band
+		const candleAreaX = chartX0;
+		const candleAreaY = chartH;
+		const candleAreaW = chartW;
+		const candleAreaH = volBand - 8;
+		drawCandles(candleAreaX, candleAreaY, candleAreaW, candleAreaH);
+
+		// Draw level-2 depth panel on the right
+		drawDepthPanel(topTick, bottomTick);
+
+		// small labels
+		ctx.fillStyle = '#aaa';
+		ctx.font = '11px monospace';
+		ctx.fillText('Volume-at-Price heatmap (background)  —  Level-2 right panel  —  OHLCV bottom', chartX0, H - 4);
+	}
+
+	function tickHeight(topTick, bottomTick) {
+		const visible = topTick - bottomTick + 1;
+		return chartH / visible;
+	}
+	function tickToY(tick, topTick, bottomTick) {
+		const visible = topTick - bottomTick + 1;
+		const pos = topTick - tick; // topTick maps to y=0
+		const y = (pos / visible) * chartH;
+		return Math.max(0, Math.min(chartH - 1, y));
+	}
+	function heatColor(intensity) {
+		// blue -> cyan -> green -> yellow -> red
+		const r = Math.min(255, Math.floor(255 * Math.pow(intensity, 0.6)));
+		const g = Math.min(255, Math.floor(120 + 135 * intensity));
+		const b = Math.max(60, Math.floor(255 * (1 - intensity)));
+		return `rgba(${r},${g},${b},${0.12 + 0.6 * intensity})`;
+	}
+
+	function drawCandles(x, y, w, h) {
+		// draw light background
+		ctx.fillStyle = 'rgba(255,255,255,0.02)';
+		ctx.fillRect(x, y, w, h);
+		// draw last N candles across width
+		const cset = candles.slice(-80);
+		if (currentCandle) cset.push(currentCandle);
+		const n = cset.length;
+		if (n === 0) return;
+		const cw = Math.max(2, w / n);
+		// compute price range of candles
+		let hi = -Infinity, lo = Infinity;
+		for (const c of cset) { hi = Math.max(hi, c.high); lo = Math.min(lo, c.low); }
+		if (!isFinite(hi)) return;
+		const prange = Math.max(1e-6, hi - lo);
+		for (let i = 0; i < n; i++) {
+			const c = cset[i];
+			const cx = x + i * cw;
+			const openY = y + (1 - (c.open - lo) / prange) * h;
+			const closeY = y + (1 - (c.close - lo) / prange) * h;
+			const highY = y + (1 - (c.high - lo) / prange) * h;
+			const lowY = y + (1 - (c.low - lo) / prange) * h;
+			// color
+			const bullish = c.close >= c.open;
+			ctx.strokeStyle = bullish ? 'rgba(40,220,120,0.9)' : 'rgba(220,40,40,0.9)';
+			ctx.fillStyle = bullish ? 'rgba(40,220,120,0.25)' : 'rgba(220,40,40,0.25)';
+			// wick
+			ctx.beginPath();
+			ctx.moveTo(cx + cw/2, highY);
+			ctx.lineTo(cx + cw/2, lowY);
+			ctx.stroke();
+			// body
+			const by = Math.min(openY, closeY);
+			const bh = Math.max(1, Math.abs(closeY - openY));
+			ctx.fillRect(cx + 1, by, cw - 2, bh);
+			ctx.strokeRect(cx + 1, by, cw - 2, bh);
+		}
+	}
+
+	function drawDepthPanel(topTick, bottomTick) {
+		const obX0 = W - orderbookWidth + 8;
+		const obInnerW = orderbookWidth - 24;
+		const halfW = obInnerW / 2;
+		// background
+		ctx.fillStyle = 'rgba(255,255,255,0.03)';
+		ctx.fillRect(W - orderbookWidth, 0, orderbookWidth, chartH);
+		// aggregate top N
+		const levels = 16;
+		const askLevels = Array.from(aggAsks.entries()).sort((a,b)=>a[0]-b[0]).slice(0, levels);
+		const bidLevels = Array.from(aggBids.entries()).sort((a,b)=>b[0]-a[0]).slice(0, levels);
+		const maxVol = Math.max(1, ...askLevels.map(x=>x[1]), ...bidLevels.map(x=>x[1]));
+		ctx.font = '11px monospace';
+		ctx.fillStyle = '#ddd';
+		ctx.fillText('Order Book (L2)', W - orderbookWidth + 12, 16);
+		ctx.fillStyle = '#f88'; ctx.fillText('Asks →', W - orderbookWidth + 30 + halfW, 32);
+		ctx.fillStyle = '#8f8'; ctx.fillText('← Bids', W - orderbookWidth + 12, 32);
+		// draw asks (top-down)
+		const rowH = Math.max(10, chartH / (levels + 2));
+		for (let i = 0; i < levels; i++) {
+			const ay = 44 + i * rowH;
+			if (i < askLevels.length) {
+				const [tick, vol] = askLevels[i];
+				const p = tickToPrice(tick).toFixed(2);
+				const wbar = (vol / maxVol) * halfW;
+				ctx.fillStyle = 'rgba(220,40,40,0.6)';
+				ctx.fillRect(W - orderbookWidth + 12 + halfW, ay, wbar, rowH - 4);
+				ctx.fillStyle = '#f88';
+				ctx.fillText(`${p} (${vol})`, W - orderbookWidth + 12 + halfW + 4, ay + rowH - 6);
+			}
+			// bids
+			const by = 44 + i * rowH;
+			if (i < bidLevels.length) {
+				const [tick, vol] = bidLevels[i];
+				const p = tickToPrice(tick).toFixed(2);
+				const wbar = (vol / maxVol) * halfW;
+				ctx.fillStyle = 'rgba(30,220,80,0.6)';
+				ctx.fillRect(W - orderbookWidth + 12 + (halfW - wbar), by, wbar, rowH - 4);
+				ctx.fillStyle = '#8f8';
+				ctx.fillText(`${p} (${vol})`, W - orderbookWidth + 12 + Math.max(2, halfW - wbar), by + rowH - 6);
+			}
+		}
+	}
+
+	// Reset / seed initial liquidity
+	function seedInitialBook() {
+		// clear existing
+		for (const o of Array.from(ordersById.values())) removeOrder(o);
+		tradedVolumeMap.clear();
+		candles = [];
+		priceHistory = [];
+		// create a centered book around lastTradeTick
+		const center = lastTradeTick;
+		// Gaussian depth distribution
+		const depthWidth = 80;
+		for (let offset = -depthWidth; offset <= depthWidth; offset++) {
+			const t = center + offset;
+			const base = Math.max(0, Math.round(40 * Math.exp(-((offset) ** 2) / (2 * 1000))));
+			if (base <= 0) continue;
+			// split into bids/asks
+			if (offset < 0) {
+				const vol = Math.round(base * (0.6 + Math.random() * 0.8));
+				placeLimit('seed', 'bid', t, vol, null, 0);
+			} else if (offset > 0) {
+				const vol = Math.round(base * (0.6 + Math.random() * 0.8));
+				placeLimit('seed', 'ask', t, vol, null, 0);
+			}
+		}
+		lastTradePrice = tickToPrice(lastTradeTick);
+		priceHistory.push({ time: now(), price: lastTradePrice });
+	}
+
+	// Reset
+	function reset() {
+		for (const o of Array.from(ordersById.values())) removeOrder(o);
+		tradedVolumeMap.clear();
+		candles = [];
+		priceHistory = [];
+		orderIdSeq = 1;
+		lastTradeTick = 10000;
+		lastTradePrice = tickToPrice(lastTradeTick);
+		seedInitialBook();
+		draw();
+	}
+
+	// Controls
+	startBtn.addEventListener('click', () => {
+		if (running) return;
+		running = true;
+		const speed = Math.max(1, Number(speedInput.value));
+		const stepMs = Math.max(10, Math.floor(simIntervalMs / speed));
+		if (timer) clearInterval(timer);
+		timer = setInterval(() => {
+			stepSimulation(stepMs);
+			draw();
+		}, stepMs);
+	});
+	pauseBtn.addEventListener('click', () => {
+		running = false;
+		if (timer) { clearInterval(timer); timer = null; }
+	});
+	resetBtn.addEventListener('click', () => {
+		pauseBtn.click();
+		reset();
+	});
+
+	// Initialize
+	seedInitialBook();
+	draw();
+	window.simReset = reset;
+
+	// Expose some internals for debugging in console (optional)
+	window._lob = { bids, asks, aggBids, aggAsks, ordersById, tradedVolumeMap, candles, priceHistory };
+
+})();
+</script>
+</body>
+</html>

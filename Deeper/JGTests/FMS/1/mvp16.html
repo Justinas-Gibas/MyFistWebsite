@@ -1,0 +1,655 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>LOB Microstructure Simulator — MVP</title>
+<style>
+  html,body { height:100%; margin:0; font-family: Arial, sans-serif; background:#111; color:#ddd; }
+  #app { display:flex; height:100%; gap:12px; padding:12px; box-sizing:border-box; }
+  #canvasWrap { position:relative; flex:1; background:#081017; border-radius:6px; overflow:hidden; }
+  canvas { position:absolute; left:0; top:0; width:100%; height:100%; display:block; }
+  #glCanvas { z-index:0; }
+  #overlay { z-index:10; pointer-events:none; }
+  #ui { width:360px; max-width:40%; background:#0b1220; padding:12px; border-radius:6px; overflow:auto; }
+  .row { margin-bottom:8px; }
+  label { display:block; font-size:13px; color:#9fb; margin-bottom:4px; }
+  input[type=range] { width:100%; }
+  input[type=number], select { width:100%; padding:6px; box-sizing:border-box; border-radius:4px; border:1px solid #223; background:#071018; color:#cfe; }
+  button { width:48%; padding:8px; margin-right:4%; background:#1b7; border:none; color:#032; font-weight:700; border-radius:4px; cursor:pointer;}
+  button.secondary { background:#44a; color:#dff; }
+  .small { font-size:12px; color:#9aa; }
+  footer { font-size:12px; color:#7aa; margin-top:8px; text-align:center; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvasWrap">
+    <canvas id="glCanvas"></canvas>
+    <canvas id="overlay"></canvas>
+  </div>
+  <div id="ui">
+    <h3>LOB Microstructure Simulator (MVP)</h3>
+    <div class="row">
+      <label>Simulation speed: <span id="speedLabel">1x</span></label>
+      <input id="speed" type="range" min="0.1" max="5" step="0.1" value="1">
+    </div>
+    <div class="row">
+      <label>Tick size</label>
+      <input id="tick" type="number" min="0.0001" step="0.0001" value="0.01">
+    </div>
+    <div class="row">
+      <label>Price bin width (for VAP) (k * tick)</label>
+      <input id="binK" type="number" min="1" step="1" value="5">
+    </div>
+    <div class="row">
+      <label>Makers</label>
+      <input id="makers" type="range" min="1" max="50" step="1" value="8">
+      <div class="small">Count: <span id="makersVal">8</span></div>
+    </div>
+    <div class="row">
+      <label>Takers arrival rate (orders/sec)</label>
+      <input id="takersRate" type="range" min="0.1" max="50" step="0.1" value="5">
+      <div class="small">Rate: <span id="takersRateVal">5</span></div>
+    </div>
+    <div class="row">
+      <label>Maker quote latency (ms)</label>
+      <input id="makerLatency" type="number" min="0" step="10" value="120">
+    </div>
+    <div class="row">
+      <label>Maker cancel rate (prob per sec)</label>
+      <input id="makerCancel" type="number" min="0" max="1" step="0.01" value="0.05">
+    </div>
+    <div class="row">
+      <label>Simulation tick (ms) for OHLCV aggregation</label>
+      <input id="aggMs" type="number" min="100" step="100" value="1000">
+    </div>
+    <div class="row">
+      <label>Price range visible (ticks each side)</label>
+      <input id="viewTicks" type="number" min="10" max="500" step="10" value="150">
+    </div>
+    <div class="row">
+      <button id="startBtn">Start</button>
+      <button id="resetBtn" class="secondary">Reset</button>
+    </div>
+    <div class="row">
+      <button id="exportLogs" class="secondary">Export Logs</button>
+    </div>
+    <div class="row small" id="kpis">
+      <!-- KPIs go here -->
+    </div>
+    <footer>GitHub Copilot — MVP microstructure simulator (WebGL heatmap + 2D overlays)</footer>
+  </div>
+</div>
+
+<script>
+/* Minimal LOB microstructure simulator with WebGL heatmap + overlay.
+   This is an MVP intended to be concise and extensible.
+*/
+
+// Utilities
+const nowMs = ()=>performance.now();
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+const rand = (a=0,b=1)=>a + Math.random()*(b-a);
+const randint = (a,b)=>Math.floor(rand(a,b+1));
+
+// Core data structures
+class LimitBook {
+  constructor(tick){
+    this.tick = tick;
+    this.book = new Map(); // key = ticks from zero (int), value = {bid: size, ask: size}
+    this.lastTraded = 0;
+  }
+  _key(price){
+    return Math.round(price / this.tick);
+  }
+  addLimit(price, side, size){
+    const k = this._key(price);
+    const rec = this.book.get(k) || {bid:0, ask:0};
+    if(side==='bid') rec.bid += size; else rec.ask += size;
+    this.book.set(k, rec);
+  }
+  cancelLimit(price, side, size){
+    const k = this._key(price);
+    const rec = this.book.get(k);
+    if(!rec) return;
+    if(side==='bid'){ rec.bid = Math.max(0, rec.bid - size); }
+    else { rec.ask = Math.max(0, rec.ask - size); }
+    if(rec.bid===0 && rec.ask===0) this.book.delete(k);
+    else this.book.set(k, rec);
+  }
+  // match a market order on side 'buy' (market buy consumes asks) or 'sell'
+  matchMarket(side, size){
+    let remaining = size;
+    const trades = [];
+    // sort prices ascending for asks, descending for bids
+    const keys = Array.from(this.book.keys()).sort((a,b)=> side==='buy' ? a-b : b-a);
+    for(const k of keys){
+      if(remaining<=0) break;
+      const price = k * this.tick;
+      const rec = this.book.get(k);
+      const avail = side==='buy' ? rec.ask : rec.bid;
+      if(avail<=0) continue;
+      const taken = Math.min(avail, remaining);
+      // reduce
+      if(side==='buy') rec.ask -= taken; else rec.bid -= taken;
+      if(rec.bid===0 && rec.ask===0) this.book.delete(k); else this.book.set(k, rec);
+      trades.push({price, size: taken, side: side});
+      remaining -= taken;
+      this.lastTraded = price;
+    }
+    return {trades, remaining};
+  }
+  snapshotAround(midPrice, ticksEachSide){
+    const midK = this._key(midPrice);
+    const res = [];
+    for(let dk=-ticksEachSide; dk<=ticksEachSide; dk++){
+      const k = midK + dk;
+      const price = k*this.tick;
+      const rec = this.book.get(k) || {bid:0, ask:0};
+      res.push({price, bid: rec.bid, ask: rec.ask});
+    }
+    return res;
+  }
+  bestBidAsk(){
+    const ks = Array.from(this.book.keys());
+    if(ks.length===0) return {bid:null, ask:null};
+    const bids = ks.filter(k=>this.book.get(k).bid>0);
+    const asks = ks.filter(k=>this.book.get(k).ask>0);
+    const bestBid = bids.length? Math.max(...bids)*this.tick : null;
+    const bestAsk = asks.length? Math.min(...asks)*this.tick : null;
+    return {bid:bestBid, ask:bestAsk};
+  }
+}
+
+// Agents
+class MakerAgent {
+  constructor(id, cfg, engine){
+    this.id=id; this.cfg=cfg; this.engine=engine;
+    this.inventory=0;
+    this.orders = []; // simple list of {price,side,size,placedAt}
+    this._lastAction=0;
+  }
+  step(dt){
+    // possibly post or cancel orders based on latency and cancel rate
+    if(Math.random() < dt/1000 * this.cfg.cancelRate && this.orders.length){
+      // cancel a random order
+      const idx = randint(0,this.orders.length-1);
+      const o = this.orders.splice(idx,1)[0];
+      this.engine.book.cancelLimit(o.price, o.side, o.size);
+    }
+    // occasionally add a new quote
+    if(Math.random() < dt/1000 / Math.max(0.1,this.cfg.latency/100) ){
+      const mid = this.engine.midPrice();
+      if(mid==null) return;
+      // target spread and inventory influence
+      const spread = Math.max(1, Math.round(this.cfg.targetSpread / this.engine.tick));
+      const side = Math.random()<0.5 ? 'bid':'ask';
+      // drift price away if inventory high
+      let price = mid + (side==='bid' ? -spread : spread)*this.engine.tick;
+      // add some jitter
+      price += (randint(-2,2))*this.engine.tick;
+      const size = Math.max(1, Math.round(rand(1,this.cfg.size)));
+      this.engine.book.addLimit(price, side==='bid'?'bid':'ask', size);
+      const order = {price, side: side==='bid'?'bid':'ask', size, placedAt: nowMs()};
+      this.orders.push(order);
+      // enforce inventory cap simplistic
+      if(this.inventory > this.cfg.inventoryCap) this.inventory *= 0.9;
+    }
+  }
+}
+
+class TakerAgent {
+  constructor(id, cfg, engine){
+    this.id=id; this.cfg=cfg; this.engine=engine;
+  }
+  attempt(dt){
+    // Poisson arrivals: probability = rate * dt
+    const p = this.cfg.rate * dt/1000;
+    if(Math.random() < p){
+      const side = Math.random()<0.5 ? 'buy' : 'sell';
+      const size = Math.max(1, Math.round(rand(this.cfg.minSize,this.cfg.maxSize)));
+      return {side, size};
+    }
+    return null;
+  }
+}
+
+// Simulation engine
+class Engine {
+  constructor(opts){
+    this.tick = opts.tick;
+    this.book = new LimitBook(this.tick);
+    this.makers = [];
+    this.takers = [];
+    this.time = 0;
+    this.trades = []; // trade prints {ts, price, size, side}
+    this.ohlcvBuckets = []; // list of buckets for drawing
+    this.vap = new Map(); // binKey -> volume
+    this.tickMs = opts.tickMs || 1000;
+    this.priceBinK = opts.priceBinK || 5;
+    this.mid = opts.initMid || 100.0;
+    // initialize with a pair of market making layers
+    this.initBook();
+  }
+  initBook(){
+    // seed book around mid
+    const levels = 60;
+    for(let i=1;i<=levels;i++){
+      const pBid = this.mid - i*this.tick;
+      const pAsk = this.mid + i*this.tick;
+      const size = Math.round(10 * Math.exp(-i/20));
+      this.book.addLimit(pBid, 'bid', size);
+      this.book.addLimit(pAsk, 'ask', size);
+    }
+  }
+  midPrice(){
+    const ba = this.book.bestBidAsk();
+    if(ba.bid && ba.ask) return (ba.bid + ba.ask)/2;
+    if(ba.bid) return ba.bid;
+    if(ba.ask) return ba.ask;
+    return this.mid;
+  }
+  addMaker(cfg){
+    const m = new MakerAgent(this.makers.length, cfg, this);
+    this.makers.push(m);
+  }
+  addTaker(cfg){
+    const t = new TakerAgent(this.takers.length, cfg, this);
+    this.takers.push(t);
+  }
+  step(dt){
+    this.time += dt;
+    // makers
+    for(const m of this.makers) m.step(dt);
+    // takers
+    for(const t of this.takers){
+      const order = t.attempt(dt);
+      if(order){
+        // execute market
+        const res = this.book.matchMarket(order.side, order.size);
+        for(const tr of res.trades){
+          const ts = Date.now();
+          this.trades.push({ts, price: tr.price, size: tr.size, side: tr.side});
+          // add to VAP
+          const binK = Math.round(tr.price / (this.tick * this.priceBinK));
+          const cur = this.vap.get(binK) || 0;
+          this.vap.set(binK, cur + tr.size);
+          // OHLC aggregation
+          this._pushTradeOhlc(ts, tr.price, tr.size);
+        }
+      }
+    }
+    // keep trades log bounded (for perf)
+    if(this.trades.length > 50000) this.trades.splice(0, this.trades.length - 50000);
+  }
+  _pushTradeOhlc(ts, price, size){
+    // bucket by tickMs
+    const bucketId = Math.floor(ts / this.tickMs);
+    let b = this.ohlcvBuckets.length && this.ohlcvBuckets[this.ohlcvBuckets.length-1];
+    if(!b || b.id !== bucketId){
+      b = {id: bucketId, ts: bucketId*this.tickMs, open:price, high:price, low:price, close:price, vol:size};
+      this.ohlcvBuckets.push(b);
+      // keep last N
+      if(this.ohlcvBuckets.length>500) this.ohlcvBuckets.shift();
+    } else {
+      b.high = Math.max(b.high, price);
+      b.low = Math.min(b.low, price);
+      b.close = price;
+      b.vol += size;
+    }
+  }
+  computeVapArray(visibleBins, centerPrice){
+    // returns array length visibleBins centered on centerPrice
+    const centerBin = Math.round(centerPrice / (this.tick * this.priceBinK));
+    const arr = new Float32Array(visibleBins);
+    const half = Math.floor(visibleBins/2);
+    for(let i=0;i<visibleBins;i++){
+      const k = centerBin - half + i;
+      arr[i] = this.vap.get(k) || 0;
+    }
+    return arr;
+  }
+  computeDepthArray(visibleBins, centerPrice){
+    const centerK = Math.round(centerPrice / this.tick);
+    const half = Math.floor(visibleBins/2);
+    const arr = [];
+    for(let i=0;i<visibleBins;i++){
+      const k = centerK - half + i;
+      const rec = this.book.book.get(k) || {bid:0, ask:0};
+      arr.push({price: k*this.tick, bid: rec.bid, ask: rec.ask});
+    }
+    return arr;
+  }
+  computePOC_VA(visibleBins, centerPrice, vaPct=0.7){
+    const vapArr = this.computeVapArray(visibleBins, centerPrice);
+    const total = vapArr.reduce((s,v)=>s+v,0);
+    if(total===0) return null;
+    // find index of max
+    let pocIdx = 0; for(let i=1;i<vapArr.length;i++) if(vapArr[i]>vapArr[pocIdx]) pocIdx=i;
+    // accumulate outward until reach vaPct*total
+    let acc = vapArr[pocIdx];
+    let left=pocIdx-1, right=pocIdx+1;
+    let minIdx=pocIdx, maxIdx=pocIdx;
+    while(acc/total < vaPct && (left>=0 || right<vapArr.length)){
+      const lVal = left>=0 ? vapArr[left] : -1;
+      const rVal = right<vapArr.length ? vapArr[right] : -1;
+      if(lVal >= rVal){
+        if(left>=0){ acc += lVal; minIdx = left; left--; } else { right++; }
+      } else {
+        if(right<vapArr.length){ acc += rVal; maxIdx = right; right++; } else { left--; }
+      }
+    }
+    return {pocIndex: pocIdx, minIndex: minIdx, maxIndex: maxIdx, vapArr, total};
+  }
+}
+
+// Renderer: WebGL heatmap for VAP + 2D overlay for candles and depth bars
+class Renderer {
+  constructor(glCanvas, overlayCanvas, engine, opts){
+    this.glCanvas = glCanvas; this.overlayCanvas = overlayCanvas;
+    this.engine = engine;
+    this.opts = opts || {};
+    this.timeSlices = opts.timeSlices || 200;
+    this.priceBins = opts.priceBins || 300;
+    this.visiblePriceBins = opts.visiblePriceBins || 300;
+    this.initGL();
+    this.resize();
+    window.addEventListener('resize', ()=>this.resize());
+    this.heatCols = new Uint8Array(this.timeSlices * this.priceBins * 4); // RGBA
+    // simple circular buffer for columns
+    this.nextCol = 0;
+    // hold a magnifier for normalization
+    this.maxVol = 1;
+  }
+  initGL(){
+    const gl = this.gl = this.glCanvas.getContext('webgl2', {antialias:false});
+    if(!gl) { console.warn('WebGL2 not available, fallback to 2D'); return; }
+    // basic textured quad shader
+    const vs = `#version 300 es
+    in vec2 aPos;
+    out vec2 vUv;
+    void main(){ vUv = aPos*0.5 + 0.5; gl_Position = vec4(aPos,0,1); }`;
+    const fs = `#version 300 es
+    precision highp float;
+    in vec2 vUv;
+    out vec4 outColor;
+    uniform sampler2D uTex;
+    vec3 cmap(float v){
+      // simple cool-to-warm colormap
+      return vec3(1.0 - exp(-v*4.0), 0.2 + v*0.6, 1.0 - v);
+    }
+    void main(){
+      vec4 s = texture(uTex, vec2(vUv.x, 1.0 - vUv.y));
+      float intensity = s.r;
+      vec3 c = cmap(intensity);
+      outColor = vec4(c, 0.95 * intensity + 0.02);
+    }`;
+    const prog = this._createProgram(gl, vs, fs);
+    this.prog = prog;
+    this.uTex = gl.getUniformLocation(prog, 'uTex');
+    const quadBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    this.quadBuf = quadBuf;
+    this.vao = gl.createVertexArray();
+    gl.bindVertexArray(this.vao);
+    const aPos = gl.getAttribLocation(prog, 'aPos');
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    // texture
+    this.tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    // initial empty
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.timeSlices, this.priceBins, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  }
+  _createProgram(gl, vsSrc, fsSrc){
+    const v = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(v, vsSrc); gl.compileShader(v);
+    const f = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(f, fsSrc); gl.compileShader(f);
+    const p = gl.createProgram(); gl.attachShader(p,v); gl.attachShader(p,f); gl.linkProgram(p);
+    return p;
+  }
+  resize(){
+    const rect = this.glCanvas.parentElement.getBoundingClientRect();
+    this.glCanvas.width = Math.floor(rect.width);
+    this.glCanvas.height = Math.floor(rect.height);
+    this.overlayCanvas.width = this.glCanvas.width;
+    this.overlayCanvas.height = this.glCanvas.height;
+    if(this.gl) this.gl.viewport(0,0,this.glCanvas.width,this.glCanvas.height);
+  }
+  pushVapColumn(vapCol){ // vapCol: Float32Array length = priceBins
+    // normalize and write into next column in heatCols as red channel
+    let max = 0;
+    for(let i=0;i<vapCol.length;i++)
+      if(vapCol[i]>max) max= vapCol[i];
+    // update global max
+    for(let i=0;i<vapCol.length;i++) this.maxVol = Math.max(this.maxVol, vapCol[i]);
+    const norm = this.maxVol || 1;
+    const col = this.nextCol;
+    for(let y=0;y<this.priceBins;y++){
+      const v = vapCol[y] || 0;
+      const idx = ((col * this.priceBins) + y) * 4;
+      const iv = Math.min(255, Math.round((v / norm) * 255));
+      this.heatCols[idx] = iv; // R
+      this.heatCols[idx+1] = iv; // G
+      this.heatCols[idx+2] = iv; // B
+      this.heatCols[idx+3] = 255; // A
+    }
+    // upload full texture for simplicity (could update sub-image)
+    if(this.gl){
+      const gl = this.gl;
+      gl.bindTexture(gl.TEXTURE_2D, this.tex);
+      // reorganize to 2D layout: currently columns stored column-major; need to transpose to (width=timeSlices, height=priceBins)
+      // our layout already matches (col major)
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.timeSlices, this.priceBins, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.heatCols);
+    }
+    this.nextCol = (this.nextCol + 1) % this.timeSlices;
+  }
+  draw(candles, depthArr, vapCenterPrice){
+    // draw GL heatmap
+    if(this.gl){
+      const gl = this.gl;
+      gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(this.prog);
+      gl.bindVertexArray(this.vao);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.tex);
+      gl.uniform1i(this.uTex, 0);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    } else {
+      const ctx = this.overlayCanvas.getContext('2d');
+      ctx.fillStyle = '#001219'; ctx.fillRect(0,0,this.overlayCanvas.width,this.overlayCanvas.height);
+    }
+    // overlay: draw candles and depth
+    const ctx = this.overlayCanvas.getContext('2d');
+    ctx.clearRect(0,0,this.overlayCanvas.width,this.overlayCanvas.height);
+    const w = this.overlayCanvas.width, h = this.overlayCanvas.height;
+    // compute price scale
+    const mid = vapCenterPrice;
+    const halfTicks = Math.floor(this.opts.viewTicks || 150);
+    const minPrice = mid - halfTicks * this.engine.tick;
+    const maxPrice = mid + halfTicks * this.engine.tick;
+    const priceToY = p => {
+      const t = (p - minPrice) / (maxPrice - minPrice);
+      return h*(1 - clamp(t,0,1));
+    };
+    // draw semi-transparent grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    const gridLines = 8;
+    for(let i=0;i<=gridLines;i++){
+      const x = i * w / gridLines;
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+    }
+    // Candles: we map time (buckets) to horizontal space (rightmost = latest)
+    const n = Math.min(candles.length, this.timeSlices);
+    const cw = Math.max(1, Math.floor(w / this.timeSlices));
+    for(let i=0;i<n;i++){
+      const b = candles[candles.length - n + i];
+      const x = w - (n - i) * cw;
+      const openY = priceToY(b.open), closeY=priceToY(b.close), highY=priceToY(b.high), lowY=priceToY(b.low);
+      const color = b.close >= b.open ? 'rgba(50,220,140,0.9)' : 'rgba(220,80,80,0.9)';
+      // wick
+      ctx.strokeStyle = color; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x + cw/2, highY); ctx.lineTo(x + cw/2, lowY); ctx.stroke();
+      // body
+      ctx.fillStyle = color;
+      const by = Math.min(openY, closeY), bh = Math.abs(closeY-openY);
+      ctx.fillRect(x+1, by, cw-2, Math.max(1,bh));
+    }
+    // Depth bars (horizontal) at every Nth visible tick
+    ctx.globalAlpha = 0.9;
+    const step = Math.max(1, Math.floor(this.opts.viewTicks/20));
+    for(let i=0;i<depthArr.length;i+=step){
+      const d = depthArr[i];
+      const y = priceToY(d.price);
+      const maxBar = w*0.25;
+      // compute scales
+      const maxDepth = 200; // normalization
+      const bidW = clamp(d.bid / maxDepth, 0,1) * maxBar;
+      const askW = clamp(d.ask / maxDepth, 0,1) * maxBar;
+      // draw bids to left
+      ctx.fillStyle = 'rgba(40,140,220,0.6)';
+      ctx.fillRect(10, y-4, bidW, 6);
+      // draw asks to right
+      ctx.fillStyle = 'rgba(220,140,20,0.6)';
+      ctx.fillRect(w-10-askW, y-4, askW, 6);
+    }
+    ctx.globalAlpha = 1;
+    // Draw POC & VAH/VAL
+    const vinfo = this.engine.computePOC_VA(this.visiblePriceBins, vapCenterPrice);
+    if(vinfo){
+      const binWidth = this.engine.tick * this.engine.priceBinK;
+      const centerBin = Math.round(vapCenterPrice / binWidth);
+      const half = Math.floor(this.visiblePriceBins/2);
+      const pocPrice = (centerBin - half + vinfo.pocIndex) * binWidth;
+      const valPrice = (centerBin - half + vinfo.minIndex) * binWidth;
+      const vahPrice = (centerBin - half + vinfo.maxIndex) * binWidth;
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(0, priceToY(pocPrice)); ctx.lineTo(w, priceToY(pocPrice)); ctx.stroke();
+      ctx.strokeStyle = 'rgba(200,200,40,0.8)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(0, priceToY(valPrice)); ctx.lineTo(w, priceToY(valPrice)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, priceToY(vahPrice)); ctx.lineTo(w, priceToY(vahPrice)); ctx.stroke();
+      // labels
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font='12px monospace';
+      ctx.fillText('POC ' + pocPrice.toFixed(2), 8, priceToY(pocPrice)-6);
+      ctx.fillText('VAL ' + valPrice.toFixed(2), 8, priceToY(valPrice)-6);
+      ctx.fillText('VAH ' + vahPrice.toFixed(2), 8, priceToY(vahPrice)-6);
+    }
+    // KPI overlay
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(6,6,220,82);
+    ctx.fillStyle = '#cfe'; ctx.font='12px monospace';
+    const ba = this.engine.book.bestBidAsk();
+    ctx.fillText('Best Bid: ' + (ba.bid?ba.bid.toFixed(2):'n/a'), 12, 24);
+    ctx.fillText('Best Ask: ' + (ba.ask?ba.ask.toFixed(2):'n/a'), 12, 40);
+    ctx.fillText('Trades: ' + this.engine.trades.length, 12, 56);
+    ctx.fillText('VAP bins: ' + this.engine.vap.size, 12, 72);
+  }
+}
+
+
+// Wiring UI and main loop
+(function main(){
+  const glCanvas = document.getElementById('glCanvas');
+  const overlay = document.getElementById('overlay');
+  const engine = new Engine({tick: parseFloat(document.getElementById('tick').value), tickMs: parseInt(document.getElementById('aggMs').value), priceBinK: parseInt(document.getElementById('binK').value), initMid: 100.0});
+  // initial agents
+  const makersCountEl = document.getElementById('makers');
+  const makerLatencyEl = document.getElementById('makerLatency');
+  const makerCancelEl = document.getElementById('makerCancel');
+  const takersRateEl = document.getElementById('takersRate');
+  const makersVal = document.getElementById('makersVal');
+  const takersRateVal = document.getElementById('takersRateVal');
+  const speedEl = document.getElementById('speed');
+  const speedLabel = document.getElementById('speedLabel');
+  const viewTicksEl = document.getElementById('viewTicks');
+  makersVal.textContent = makersCountEl.value;
+  takersRateVal.textContent = takersRateEl.value;
+  makersCountEl.addEventListener('input', ()=>makersVal.textContent=makersCountEl.value);
+  takersRateEl.addEventListener('input', ()=>takersRateVal.textContent=takersRateEl.value);
+  // create maker agents
+  function rebuildAgents(){
+    engine.makers = []; engine.takers = [];
+    for(let i=0;i<parseInt(makersCountEl.value);i++){
+      engine.addMaker({latency: parseInt(makerLatencyEl.value), cancelRate: parseFloat(makerCancelEl.value), targetSpread: 1.5, size: 5, inventoryCap: 100});
+    }
+    // one taker group: we'll simulate multiple takers with same params
+    const trate = parseFloat(takersRateEl.value);
+    for(let i=0;i<Math.min(120, Math.max(1, Math.round(trate/5))); i++){
+      engine.addTaker({rate: trate/10, minSize:1, maxSize:10});
+    }
+  }
+  rebuildAgents();
+  document.getElementById('startBtn').addEventListener('click', ()=>{
+    if(loop.running){ loop.stop(); document.getElementById('startBtn').textContent='Start'; }
+    else { loop.start(); document.getElementById('startBtn').textContent='Stop'; }
+  });
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    // reset engine
+    const t = engine;
+    engine.book = new LimitBook(engine.tick);
+    engine.trades = []; engine.ohlcvBuckets = []; engine.vap = new Map();
+    engine.initBook();
+  });
+  document.getElementById('exportLogs').addEventListener('click', ()=>{
+    const payload = {trades: engine.trades, ohlcv: engine.ohlcvBuckets, vap: Array.from(engine.vap.entries())};
+    const data = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(payload));
+    const a = document.createElement('a'); a.href = data; a.download = 'sim_export.json'; a.click();
+  });
+  // dynamic param updates
+  const updateConfig = ()=>{
+    engine.tick = parseFloat(document.getElementById('tick').value);
+    engine.priceBinK = parseInt(document.getElementById('binK').value);
+    engine.tickMs = parseInt(document.getElementById('aggMs').value);
+    // recreate makers with updated params
+    rebuildAgents();
+  };
+  ['tick','binK','aggMs','makerLatency','makerCancel'].forEach(id=>{
+    document.getElementById(id).addEventListener('change', updateConfig);
+  });
+  makersCountEl.addEventListener('change', rebuildAgents);
+  takersRateEl.addEventListener('change', rebuildAgents);
+  // renderer
+  const renderer = new Renderer(glCanvas, overlay, engine, {timeSlices: 300, priceBins: 400, visiblePriceBins: parseInt(viewTicksEl.value), viewTicks: parseInt(viewTicksEl.value)});
+  viewTicksEl.addEventListener('change', ()=> renderer.opts.viewTicks = parseInt(viewTicksEl.value));
+  // main loop
+  const loop = {
+    running: false,
+    last: nowMs(),
+    accum: 0,
+    start(){
+      this.running = true; this.last = nowMs(); this._frame();
+    },
+    stop(){ this.running = false; },
+    _frame(){
+      if(!this.running) return;
+      const t = nowMs(); const dt = (t - this.last) * parseFloat(speedEl.value); this.last = t;
+      // advance simulation in fixed steps for stability
+      const stepMs = 50;
+      this.accum += dt;
+      while(this.accum >= stepMs){
+        engine.step(stepMs);
+        this.accum -= stepMs;
+      }
+      // prepare VAP column (centered)
+      const vapCol = engine.computeVapArray(renderer.priceBins, engine.midPrice());
+      // push column to heatmap every frame (or throttled)
+      renderer.pushVapColumn(vapCol);
+      // draw with current OHLC buckets and depth
+      const depthArr = engine.computeDepthArray(renderer.opts.viewTicks || parseInt(viewTicksEl.value), engine.midPrice());
+      renderer.draw(engine.ohlcvBuckets, depthArr, engine.midPrice());
+      // loop
+      requestAnimationFrame(()=>this._frame());
+    }
+  };
+  // update speed label
+  speedEl.addEventListener('input', ()=> speedLabel.textContent = speedEl.value + 'x');
+  // initial draw
+  renderer.draw(engine.ohlcvBuckets, engine.computeDepthArray(renderer.opts.viewTicks, engine.midPrice()), engine.midPrice());
+  // expose to window for debugging
+  window.__engine = engine; window.__renderer = renderer; window.__loop = loop;
+})();
+</script>
+</body>
+</html>

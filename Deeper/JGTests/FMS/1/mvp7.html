@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free Market Simulation MVP7 - WebGPU Research</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            background: #0a0a0a;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: grid;
+            grid-template-columns: 280px 1fr 320px;
+            grid-template-rows: auto 1fr auto;
+            gap: 10px;
+            height: 100vh;
+            max-height: 100vh;
+        }
+        
+        .controls {
+            grid-column: 1 / -1;
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .control-group label {
+            font-size: 11px;
+            color: #aaa;
+            text-transform: uppercase;
+        }
+        
+        .control-group input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            outline: none;
+        }
+        
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #00ff88;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .value-display {
+            color: #00ff88;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .chart-container {
+            background: #111;
+            border-radius: 8px;
+            border: 1px solid #333;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .orderbook {
+            background: #111;
+            border-radius: 8px;
+            border: 1px solid #333;
+            padding: 15px;
+            overflow: hidden;
+        }
+        
+        .orderbook-header {
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            color: #00ff88;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+        
+        .orderbook-section {
+            margin-bottom: 10px;
+        }
+        
+        .section-header {
+            font-size: 10px;
+            color: #666;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .order-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .order-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            padding: 2px 0;
+            position: relative;
+        }
+        
+        .ask-row {
+            color: #ff4757;
+        }
+        
+        .bid-row {
+            color: #2ed573;
+        }
+        
+        .volume-bar {
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            opacity: 0.15;
+            z-index: 0;
+        }
+        
+        .ask-row .volume-bar {
+            background: #ff4757;
+        }
+        
+        .bid-row .volume-bar {
+            background: #2ed573;
+        }
+        
+        .spread-info {
+            text-align: center;
+            padding: 8px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #ffa502;
+        }
+        
+        .stats {
+            grid-column: 1 / -1;
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .stat-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+        
+        .stat-label {
+            color: #aaa;
+        }
+        
+        .stat-value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        
+        .transaction-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        button {
+            background: #2d3436;
+            color: #ddd;
+            border: 1px solid #636e72;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #636e72;
+            color: white;
+        }
+        
+        button.active {
+            background: #00b894;
+            color: white;
+            border-color: #00b894;
+        }
+        
+        .performance-warning {
+            color: #fdcb6e;
+            font-size: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- Visual components: market candles center, volume bottom, order book history right, liquidity lines (transaction event lines) -->
+    <!-- Core idea is that most transactions are random decisions by small amounts. Makers are rare and everyone is a taker -->
+    <!-- Lets explore how the simulation makers and takers settings affect sim -->
+    <!-- lets track every transaction price and lets visualize the order book depth -->
+    <!-- transaction event line from candle to order book (liquidity) -->
+    
+    <div class="container">
+        <!-- Controls -->
+        <div class="controls">
+            <div class="controls-grid">
+                <div class="control-group">
+                    <label>Makers Ratio (%)</label>
+                    <input type="range" id="makersRatio" min="1" max="30" value="5">
+                    <div class="value-display" id="makersValue">5%</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Takers Ratio (%)</label>
+                    <input type="range" id="takersRatio" min="70" max="99" value="95">
+                    <div class="value-display" id="takersValue">95%</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Simulation Speed</label>
+                    <input type="range" id="simSpeed" min="0.1" max="10" step="0.1" value="1">
+                    <div class="value-display" id="speedValue">1.0x</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Market Volatility</label>
+                    <input type="range" id="volatility" min="0.1" max="5" step="0.1" value="1">
+                    <div class="value-display" id="volatilityValue">1.0</div>
+                </div>
+                
+                <div class="control-group">
+                    <label>Order Frequency</label>
+                    <input type="range" id="orderFreq" min="1" max="100" value="20">
+                    <div class="value-display" id="freqValue">20/s</div>
+                </div>
+                
+                <div class="control-group">
+                    <button id="startStopBtn">Start Simulation</button>
+                    <button id="resetBtn">Reset Market</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Left Panel - Market Analysis -->
+        <div class="orderbook">
+            <div class="orderbook-header">Market Analysis</div>
+            <div class="stat-group">
+                <div class="stat-item">
+                    <span class="stat-label">WebGPU Status:</span>
+                    <span class="stat-value" id="webgpuStatus">Initializing...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Compute FPS:</span>
+                    <span class="stat-value" id="computeFPS">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Active Orders:</span>
+                    <span class="stat-value" id="activeOrders">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Market Depth:</span>
+                    <span class="stat-value" id="marketDepth">$0.00</span>
+                </div>
+            </div>
+            
+            <div class="spread-info">
+                <div>Bid-Ask Spread</div>
+                <div id="spreadValue">$0.00 (0.00%)</div>
+            </div>
+        </div>
+        
+        <!-- Center - Chart -->
+        <div class="chart-container">
+            <canvas id="priceChart"></canvas>
+            <canvas class="transaction-overlay" id="transactionLines"></canvas>
+        </div>
+        
+        <!-- Right Panel - Order Book -->
+        <div class="orderbook">
+            <div class="orderbook-header">Live Order Book</div>
+            
+            <div class="orderbook-section">
+                <div class="section-header">
+                    <span>Asks</span>
+                    <span>Size | Price</span>
+                </div>
+                <div class="order-list" id="asksList"></div>
+            </div>
+            
+            <div class="spread-info" id="currentPrice">
+                $100.00
+            </div>
+            
+            <div class="orderbook-section">
+                <div class="section-header">
+                    <span>Bids</span>
+                    <span>Price | Size</span>
+                </div>
+                <div class="order-list" id="bidsList"></div>
+            </div>
+        </div>
+        
+        <!-- Stats -->
+        <div class="stats">
+            <div class="stats-grid">
+                <div class="stat-group">
+                    <div class="stat-item">
+                        <span class="stat-label">Current Price:</span>
+                        <span class="stat-value" id="currentPriceValue">$100.00</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">24h Change:</span>
+                        <span class="stat-value" id="priceChange">+0.00%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">24h Volume:</span>
+                        <span class="stat-value" id="volume24h">0</span>
+                    </div>
+                </div>
+                
+                <div class="stat-group">
+                    <div class="stat-item">
+                        <span class="stat-label">Transactions/sec:</span>
+                        <span class="stat-value" id="transactionsPerSec">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Total Transactions:</span>
+                        <span class="stat-value" id="totalTransactions">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Avg Trade Size:</span>
+                        <span class="stat-value" id="avgTradeSize">$0.00</span>
+                    </div>
+                </div>
+                
+                <div class="stat-group">
+                    <div class="stat-item">
+                        <span class="stat-label">Market Makers:</span>
+                        <span class="stat-value" id="activeMakers">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Market Takers:</span>
+                        <span class="stat-value" id="activeTakers">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Maker/Taker Ratio:</span>
+                        <span class="stat-value" id="makerTakerRatio">0:0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="performance-warning" id="performanceWarning"></div>
+        </div>
+    </div>
+
+    <script>
+        class WebGPUMarketSimulation {
+            constructor() {
+                this.device = null;
+                this.isRunning = false;
+                this.isInitialized = false;
+                
+                // Market state
+                this.currentPrice = 100.00;
+                this.basePrice = 100.00;
+                this.orders = { bids: [], asks: [] };
+                this.transactions = [];
+                this.priceHistory = [];
+                this.volumeHistory = [];
+                
+                // Simulation parameters
+                this.makersRatio = 0.05;
+                this.takersRatio = 0.95;
+                this.volatility = 1.0;
+                this.simSpeed = 1.0;
+                this.orderFrequency = 20;
+                
+                // Statistics
+                this.stats = {
+                    totalTransactions: 0,
+                    volume24h: 0,
+                    transactionsPerSec: 0,
+                    activeMakers: 0,
+                    activeTakers: 0,
+                    computeFPS: 0,
+                    startTime: Date.now()
+                };
+                
+                // Canvas and rendering
+                this.canvas = null;
+                this.ctx = null;
+                this.transactionCanvas = null;
+                this.transactionCtx = null;
+                
+                this.lastFrameTime = 0;
+                this.frameCount = 0;
+                
+                this.initializeUI();
+                this.initializeWebGPU();
+            }
+            
+            async initializeWebGPU() {
+                try {
+                    if (!navigator.gpu) {
+                        throw new Error('WebGPU not supported');
+                    }
+                    
+                    const adapter = await navigator.gpu.requestAdapter();
+                    if (!adapter) {
+                        throw new Error('No WebGPU adapter found');
+                    }
+                    
+                    this.device = await adapter.requestDevice();
+                    document.getElementById('webgpuStatus').textContent = 'Ready';
+                    document.getElementById('webgpuStatus').style.color = '#2ed573';
+                    this.isInitialized = true;
+                    
+                    this.initializeComputeShaders();
+                } catch (error) {
+                    console.warn('WebGPU initialization failed, falling back to CPU:', error);
+                    document.getElementById('webgpuStatus').textContent = 'CPU Fallback';
+                    document.getElementById('webgpuStatus').style.color = '#ffa502';
+                    this.isInitialized = true;
+                }
+            }
+            
+            initializeComputeShaders() {
+                if (!this.device) return;
+                
+                // WebGPU compute shader for market simulation
+                const computeShaderCode = `
+                    @group(0) @binding(0) var<storage, read_write> orders: array<f32>;
+                    @group(0) @binding(1) var<storage, read_write> prices: array<f32>;
+                    @group(0) @binding(2) var<uniform> params: vec4<f32>;
+                    
+                    @compute @workgroup_size(64)
+                    fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+                        let index = global_id.x;
+                        if (index >= arrayLength(&orders)) { return; }
+                        
+                        let volatility = params.x;
+                        let time = params.y;
+                        let makerRatio = params.z;
+                        let takerRatio = params.w;
+                        
+                        // Simulate random market movements
+                        let random = fract(sin(f32(index) * 12.9898 + time * 78.233) * 43758.5453);
+                        let movement = (random - 0.5) * volatility * 0.01;
+                        
+                        orders[index] = orders[index] + movement;
+                        
+                        if (index < arrayLength(&prices)) {
+                            prices[index] = max(0.1, prices[index] + movement);
+                        }
+                    }
+                `;
+                
+                try {
+                    this.computeShaderModule = this.device.createShaderModule({
+                        code: computeShaderCode
+                    });
+                } catch (error) {
+                    console.warn('Compute shader creation failed:', error);
+                }
+            }
+            
+            initializeUI() {
+                // Canvas setup
+                this.canvas = document.getElementById('priceChart');
+                this.ctx = this.canvas.getContext('2d');
+                this.transactionCanvas = document.getElementById('transactionLines');
+                this.transactionCtx = this.transactionCanvas.getContext('2d');
+                
+                this.setupCanvasSize();
+                window.addEventListener('resize', () => this.setupCanvasSize());
+                
+                // Control event listeners
+                this.setupControls();
+                
+                // Initialize with some sample data
+                this.generateInitialOrderBook();
+                this.render();
+            }
+            
+            setupCanvasSize() {
+                const container = this.canvas.parentElement;
+                const rect = container.getBoundingClientRect();
+                
+                [this.canvas, this.transactionCanvas].forEach(canvas => {
+                    canvas.width = rect.width * window.devicePixelRatio;
+                    canvas.height = rect.height * window.devicePixelRatio;
+                    canvas.style.width = rect.width + 'px';
+                    canvas.style.height = rect.height + 'px';
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                });
+            }
+            
+            setupControls() {
+                // Makers ratio control
+                const makersSlider = document.getElementById('makersRatio');
+                const makersValue = document.getElementById('makersValue');
+                makersSlider.addEventListener('input', (e) => {
+                    this.makersRatio = parseInt(e.target.value) / 100;
+                    makersValue.textContent = `${e.target.value}%`;
+                    this.updateTakersRatio();
+                });
+                
+                // Takers ratio control
+                const takersSlider = document.getElementById('takersRatio');
+                const takersValue = document.getElementById('takersValue');
+                takersSlider.addEventListener('input', (e) => {
+                    this.takersRatio = parseInt(e.target.value) / 100;
+                    takersValue.textContent = `${e.target.value}%`;
+                });
+                
+                // Speed control
+                const speedSlider = document.getElementById('simSpeed');
+                const speedValue = document.getElementById('speedValue');
+                speedSlider.addEventListener('input', (e) => {
+                    this.simSpeed = parseFloat(e.target.value);
+                    speedValue.textContent = `${e.target.value}x`;
+                });
+                
+                // Volatility control
+                const volatilitySlider = document.getElementById('volatility');
+                const volatilityValue = document.getElementById('volatilityValue');
+                volatilitySlider.addEventListener('input', (e) => {
+                    this.volatility = parseFloat(e.target.value);
+                    volatilityValue.textContent = e.target.value;
+                });
+                
+                // Order frequency control
+                const freqSlider = document.getElementById('orderFreq');
+                const freqValue = document.getElementById('freqValue');
+                freqSlider.addEventListener('input', (e) => {
+                    this.orderFrequency = parseInt(e.target.value);
+                    freqValue.textContent = `${e.target.value}/s`;
+                });
+                
+                // Start/Stop button
+                document.getElementById('startStopBtn').addEventListener('click', () => {
+                    this.toggleSimulation();
+                });
+                
+                // Reset button
+                document.getElementById('resetBtn').addEventListener('click', () => {
+                    this.resetSimulation();
+                });
+            }
+            
+            updateTakersRatio() {
+                const takersSlider = document.getElementById('takersRatio');
+                const newTakersValue = Math.max(70, 100 - (this.makersRatio * 100));
+                takersSlider.value = newTakersValue;
+                document.getElementById('takersValue').textContent = `${newTakersValue}%`;
+                this.takersRatio = newTakersValue / 100;
+            }
+            
+            generateInitialOrderBook() {
+                this.orders.bids = [];
+                this.orders.asks = [];
+                
+                // Generate initial bid orders
+                for (let i = 0; i < 20; i++) {
+                    const price = this.currentPrice - (i + 1) * 0.01;
+                    const size = Math.random() * 100 + 10;
+                    this.orders.bids.push({ price, size, timestamp: Date.now() });
+                }
+                
+                // Generate initial ask orders
+                for (let i = 0; i < 20; i++) {
+                    const price = this.currentPrice + (i + 1) * 0.01;
+                    const size = Math.random() * 100 + 10;
+                    this.orders.asks.push({ price, size, timestamp: Date.now() });
+                }
+                
+                // Sort orders
+                this.orders.bids.sort((a, b) => b.price - a.price);
+                this.orders.asks.sort((a, b) => a.price - b.price);
+            }
+            
+            simulateMarketStep() {
+                if (!this.isRunning) return;
+                
+                const now = Date.now();
+                const ordersThisStep = Math.floor(this.orderFrequency * this.simSpeed / 60);
+                
+                for (let i = 0; i < ordersThisStep; i++) {
+                    this.processRandomOrder();
+                }
+                
+                this.cleanupOldOrders();
+                this.updateStatistics();
+            }
+            
+            processRandomOrder() {
+                const isMaker = Math.random() < this.makersRatio;
+                
+                if (isMaker) {
+                    this.processMakerOrder();
+                } else {
+                    this.processTakerOrder();
+                }
+            }
+            
+            processMakerOrder() {
+                const isBid = Math.random() < 0.5;
+                const basePrice = this.currentPrice;
+                const volatility = this.volatility * 0.01;
+                
+                if (isBid) {
+                    const price = basePrice - (Math.random() * 0.1 + 0.01) - (Math.random() - 0.5) * volatility;
+                    const size = Math.random() * 50 + 5;
+                    this.orders.bids.push({ price, size, timestamp: Date.now() });
+                    this.orders.bids.sort((a, b) => b.price - a.price);
+                } else {
+                    const price = basePrice + (Math.random() * 0.1 + 0.01) + (Math.random() - 0.5) * volatility;
+                    const size = Math.random() * 50 + 5;
+                    this.orders.asks.push({ price, size, timestamp: Date.now() });
+                    this.orders.asks.sort((a, b) => a.price - b.price);
+                }
+                
+                this.stats.activeMakers++;
+            }
+            
+            processTakerOrder() {
+                const isBuy = Math.random() < 0.5;
+                
+                if (isBuy && this.orders.asks.length > 0) {
+                    // Market buy - consume asks
+                    const bestAsk = this.orders.asks[0];
+                    const tradeSize = Math.min(bestAsk.size, Math.random() * 20 + 1);
+                    
+                    this.executeTransaction(bestAsk.price, tradeSize, 'buy');
+                    bestAsk.size -= tradeSize;
+                    
+                    if (bestAsk.size <= 0.01) {
+                        this.orders.asks.shift();
+                    }
+                } else if (!isBuy && this.orders.bids.length > 0) {
+                    // Market sell - consume bids
+                    const bestBid = this.orders.bids[0];
+                    const tradeSize = Math.min(bestBid.size, Math.random() * 20 + 1);
+                    
+                    this.executeTransaction(bestBid.price, tradeSize, 'sell');
+                    bestBid.size -= tradeSize;
+                    
+                    if (bestBid.size <= 0.01) {
+                        this.orders.bids.shift();
+                    }
+                }
+                
+                this.stats.activeTakers++;
+            }
+            
+            executeTransaction(price, size, side) {
+                this.currentPrice = price;
+                this.transactions.push({
+                    price,
+                    size,
+                    side,
+                    timestamp: Date.now()
+                });
+                
+                this.stats.totalTransactions++;
+                this.stats.volume24h += size;
+                
+                // Add to price history
+                this.priceHistory.push({ price, timestamp: Date.now() });
+                
+                // Keep only recent history
+                const cutoff = Date.now() - 60000; // 1 minute
+                this.priceHistory = this.priceHistory.filter(p => p.timestamp > cutoff);
+                this.transactions = this.transactions.filter(t => t.timestamp > cutoff);
+            }
+            
+            cleanupOldOrders() {
+                const cutoff = Date.now() - 30000; // 30 seconds
+                this.orders.bids = this.orders.bids.filter(order => order.timestamp > cutoff);
+                this.orders.asks = this.orders.asks.filter(order => order.timestamp > cutoff);
+            }
+            
+            updateStatistics() {
+                const now = Date.now();
+                const timeDiff = (now - this.stats.startTime) / 1000;
+                
+                this.stats.transactionsPerSec = this.stats.totalTransactions / Math.max(timeDiff, 1);
+                this.frameCount++;
+                
+                if (now - this.lastFrameTime >= 1000) {
+                    this.stats.computeFPS = this.frameCount;
+                    this.frameCount = 0;
+                    this.lastFrameTime = now;
+                }
+            }
+            
+            render() {
+                this.renderPriceChart();
+                this.renderOrderBook();
+                this.renderTransactionLines();
+                this.updateUI();
+            }
+            
+            renderPriceChart() {
+                const ctx = this.ctx;
+                const canvas = this.canvas;
+                const width = canvas.width / window.devicePixelRatio;
+                const height = canvas.height / window.devicePixelRatio;
+                
+                ctx.clearRect(0, 0, width, height);
+                
+                if (this.priceHistory.length < 2) return;
+                
+                // Calculate price range
+                const prices = this.priceHistory.map(p => p.price);
+                const minPrice = Math.min(...prices);
+                const maxPrice = Math.max(...prices);
+                const priceRange = maxPrice - minPrice || 1;
+                
+                // Draw price line
+                ctx.beginPath();
+                ctx.strokeStyle = '#00ff88';
+                ctx.lineWidth = 2;
+                
+                this.priceHistory.forEach((point, index) => {
+                    const x = (index / (this.priceHistory.length - 1)) * width;
+                    const y = height - ((point.price - minPrice) / priceRange) * height;
+                    
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+                
+                ctx.stroke();
+                
+                // Draw grid
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 1;
+                for (let i = 1; i < 5; i++) {
+                    const y = (height / 5) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(width, y);
+                    ctx.stroke();
+                }
+                
+                // Draw price labels
+                ctx.fillStyle = '#aaa';
+                ctx.font = '12px Courier New';
+                for (let i = 0; i < 5; i++) {
+                    const price = minPrice + (priceRange / 4) * i;
+                    const y = height - (height / 4) * i;
+                    ctx.fillText('$' + price.toFixed(2), 5, y - 5);
+                }
+            }
+            
+            renderOrderBook() {
+                // Render asks (sells)
+                const asksContainer = document.getElementById('asksList');
+                asksContainer.innerHTML = '';
+                
+                const topAsks = this.orders.asks.slice(0, 10).reverse();
+                const maxAskSize = Math.max(...this.orders.asks.map(o => o.size), 1);
+                
+                topAsks.forEach(order => {
+                    const row = document.createElement('div');
+                    row.className = 'order-row ask-row';
+                    
+                    const volumeBar = document.createElement('div');
+                    volumeBar.className = 'volume-bar';
+                    volumeBar.style.width = `${(order.size / maxAskSize) * 100}%`;
+                    
+                    row.innerHTML = `
+                        <span>${order.size.toFixed(2)}</span>
+                        <span>$${order.price.toFixed(2)}</span>
+                    `;
+                    row.appendChild(volumeBar);
+                    asksContainer.appendChild(row);
+                });
+                
+                // Render bids (buys)
+                const bidsContainer = document.getElementById('bidsList');
+                bidsContainer.innerHTML = '';
+                
+                const topBids = this.orders.bids.slice(0, 10);
+                const maxBidSize = Math.max(...this.orders.bids.map(o => o.size), 1);
+                
+                topBids.forEach(order => {
+                    const row = document.createElement('div');
+                    row.className = 'order-row bid-row';
+                    
+                    const volumeBar = document.createElement('div');
+                    volumeBar.className = 'volume-bar';
+                    volumeBar.style.width = `${(order.size / maxBidSize) * 100}%`;
+                    
+                    row.innerHTML = `
+                        <span>$${order.price.toFixed(2)}</span>
+                        <span>${order.size.toFixed(2)}</span>
+                    `;
+                    row.appendChild(volumeBar);
+                    bidsContainer.appendChild(row);
+                });
+                
+                // Update current price display
+                document.getElementById('currentPrice').textContent = `$${this.currentPrice.toFixed(2)}`;
+            }
+            
+            renderTransactionLines() {
+                const ctx = this.transactionCtx;
+                const canvas = this.transactionCanvas;
+                const width = canvas.width / window.devicePixelRatio;
+                const height = canvas.height / window.devicePixelRatio;
+                
+                ctx.clearRect(0, 0, width, height);
+                
+                // Draw recent transaction flow lines
+                const recentTransactions = this.transactions.slice(-5);
+                const now = Date.now();
+                
+                recentTransactions.forEach((tx, index) => {
+                    const age = now - tx.timestamp;
+                    const opacity = Math.max(0, 1 - age / 5000); // Fade over 5 seconds
+                    
+                    ctx.strokeStyle = tx.side === 'buy' ? `rgba(46, 213, 115, ${opacity})` : `rgba(255, 71, 87, ${opacity})`;
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    
+                    const startX = width * 0.8;
+                    const startY = height * 0.5;
+                    const endX = width;
+                    const endY = height * 0.3 + index * 20;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    ctx.lineTo(endX, endY);
+                    ctx.stroke();
+                });
+                
+                ctx.setLineDash([]);
+            }
+            
+            updateUI() {
+                // Update statistics
+                document.getElementById('currentPriceValue').textContent = `$${this.currentPrice.toFixed(2)}`;
+                document.getElementById('volume24h').textContent = Math.floor(this.stats.volume24h);
+                document.getElementById('transactionsPerSec').textContent = this.stats.transactionsPerSec.toFixed(1);
+                document.getElementById('totalTransactions').textContent = this.stats.totalTransactions;
+                document.getElementById('computeFPS').textContent = this.stats.computeFPS;
+                document.getElementById('activeOrders').textContent = this.orders.bids.length + this.orders.asks.length;
+                document.getElementById('activeMakers').textContent = this.stats.activeMakers;
+                document.getElementById('activeTakers').textContent = this.stats.activeTakers;
+                
+                // Calculate spread
+                if (this.orders.bids.length > 0 && this.orders.asks.length > 0) {
+                    const bestBid = this.orders.bids[0].price;
+                    const bestAsk = this.orders.asks[0].price;
+                    const spread = bestAsk - bestBid;
+                    const spreadPercent = (spread / this.currentPrice) * 100;
+                    
+                    document.getElementById('spreadValue').textContent = `$${spread.toFixed(4)} (${spreadPercent.toFixed(2)}%)`;
+                    document.getElementById('marketDepth').textContent = `$${spread.toFixed(4)}`;
+                }
+                
+                // Calculate price change
+                if (this.priceHistory.length > 0) {
+                    const startPrice = this.basePrice;
+                    const change = ((this.currentPrice - startPrice) / startPrice) * 100;
+                    const changeElement = document.getElementById('priceChange');
+                    changeElement.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+                    changeElement.style.color = change >= 0 ? '#2ed573' : '#ff4757';
+                }
+                
+                // Update maker/taker ratio
+                const ratio = this.stats.activeMakers > 0 ? (this.stats.activeTakers / this.stats.activeMakers).toFixed(1) : '∞';
+                document.getElementById('makerTakerRatio').textContent = `1:${ratio}`;
+                
+                // Reset counters for next frame
+                this.stats.activeMakers = 0;
+                this.stats.activeTakers = 0;
+            }
+            
+            toggleSimulation() {
+                if (!this.isInitialized) return;
+                
+                this.isRunning = !this.isRunning;
+                const btn = document.getElementById('startStopBtn');
+                
+                if (this.isRunning) {
+                    btn.textContent = 'Stop Simulation';
+                    btn.classList.add('active');
+                    this.startSimulationLoop();
+                } else {
+                    btn.textContent = 'Start Simulation';
+                    btn.classList.remove('active');
+                }
+            }
+            
+            startSimulationLoop() {
+                const loop = () => {
+                    if (!this.isRunning) return;
+                    
+                    this.simulateMarketStep();
+                    this.render();
+                    
+                    requestAnimationFrame(loop);
+                };
+                
+                requestAnimationFrame(loop);
+            }
+            
+            resetSimulation() {
+                this.isRunning = false;
+                this.currentPrice = 100.00;
+                this.basePrice = 100.00;
+                this.orders = { bids: [], asks: [] };
+                this.transactions = [];
+                this.priceHistory = [];
+                this.stats = {
+                    totalTransactions: 0,
+                    volume24h: 0,
+                    transactionsPerSec: 0,
+                    activeMakers: 0,
+                    activeTakers: 0,
+                    computeFPS: 0,
+                    startTime: Date.now()
+                };
+                
+                this.generateInitialOrderBook();
+                this.render();
+                
+                const btn = document.getElementById('startStopBtn');
+                btn.textContent = 'Start Simulation';
+                btn.classList.remove('active');
+            }
+        }
+        
+        // Initialize simulation when page loads
+        window.addEventListener('load', () => {
+            window.marketSimulation = new WebGPUMarketSimulation();
+        });
+    </script>
+</body>
+</html>

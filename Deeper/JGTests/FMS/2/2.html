@@ -1,0 +1,331 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>Market Agentic Simulation (MVP18)</title>
+	<style>
+		body { font-family: Arial, sans-serif; margin: 10px; background: #111; color: #ddd; }
+		.controls { display:flex; gap:12px; align-items:center; margin-bottom:8px; }
+		label { font-size:13px; }
+		input[type=number] { width:80px; }
+		canvas { background:#000; border:1px solid #444; display:block; }
+		.info { font-size:12px; color:#aaa; margin-top:6px; }
+	</style>
+</head>
+<body>
+	<div class="controls">
+		<label>Makers: <input id="makers" type="number" min="0" max="1000" value="700"></label>
+		<label>Takers: <input id="takers" type="number" min="0" max="1000" value="300"></label>
+		<button id="startBtn">Start</button>
+		<button id="pauseBtn">Pause</button>
+		<button id="resetBtn">Reset</button>
+		<label>Speed: <input id="speed" type="range" min="1" max="60" value="20"></label>
+	</div>
+
+	<canvas id="simCanvas" width="1200" height="600"></canvas>
+	<div class="info">Price range shown ±10 from mid. Heatmap background: green=bids, red=asks. Trade markers stay until taken out by price revisiting.</div>
+
+<script>
+(() => {
+	// Basic parameters
+	const canvas = document.getElementById('simCanvas');
+	const ctx = canvas.getContext('2d');
+	const W = canvas.width, H = canvas.height;
+	const priceSpan = 20; // total vertical price range displayed
+	const ticks = 80; // number of price levels
+	const tickSize = priceSpan / ticks;
+	const tickPx = H / ticks;
+	const midStart = 100;
+	const maxHistory = 600; // data points for chart
+	const makersInput = document.getElementById('makers');
+	const takersInput = document.getElementById('takers');
+	const startBtn = document.getElementById('startBtn');
+	const pauseBtn = document.getElementById('pauseBtn');
+	const resetBtn = document.getElementById('resetBtn');
+	const speedInput = document.getElementById('speed');
+
+	// Orderbook structure: arrays indexed by level 0..ticks-1 where 0 is top (highest price)
+	// We'll map levels to prices relative to mid price.
+	let midPrice = midStart;
+	let bidVolumes = new Array(ticks).fill(0);
+	let askVolumes = new Array(ticks).fill(0);
+	let priceHistory = []; // recent mid prices
+	let tradeMarkers = []; // {price, side:'buy'|'sell', vol, bornAtStep}
+	let step = 0;
+	let running = false;
+	let timer = null;
+
+	// Helpers
+	function priceForLevel(level) {
+		// level 0 => highest price: mid + priceSpan/2
+		return (midPrice + priceSpan/2) - (level * tickSize);
+	}
+	function levelForPrice(p) {
+		const offset = (midPrice + priceSpan/2) - p;
+		return Math.round(offset / tickSize);
+	}
+	function clampLevel(l) { return Math.max(0, Math.min(ticks-1, l)); }
+	function randNormal(mean=0, std=1) {
+		// Box-Muller
+		let u=0,v=0;
+		while(u===0) u=Math.random();
+		while(v===0) v=Math.random();
+		return mean + std * Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+	}
+
+	// Reset to initial state
+	function reset() {
+		midPrice = midStart;
+		bidVolumes.fill(0);
+		askVolumes.fill(0);
+		priceHistory = [];
+		tradeMarkers = [];
+		step = 0;
+		draw();
+	}
+
+	// Maker places a limit order near mid
+	function makerAction() {
+		// place on bid or ask
+		const side = Math.random() < 0.5 ? 'bid' : 'ask';
+		// price offset normal(0, 1.8) ticks
+		let offsetTicks = Math.round(randNormal(0, 6));
+		const centerLevel = Math.floor(ticks/2);
+		let level = clampLevel(centerLevel + offsetTicks);
+		const vol = Math.max(1, Math.round(Math.abs(randNormal(2, 4))));
+		if (side === 'bid') bidVolumes[level] += vol;
+		else askVolumes[level] += vol;
+	}
+
+	// taker consumes book: if taker buys -> consumes asks from best ask upward
+	function takerAction() {
+		// side determined by imbalance + randomness; allow more buys when takers > makers? Keep simple:
+		const buyProbability = 0.5;
+		const isBuy = Math.random() < buyProbability;
+		let remaining = Math.max(1, Math.round(Math.abs(randNormal(3,5))));
+		let executed = [];
+		if (isBuy) {
+			// consume from best ask levels (low level indices correspond to high prices; best ask is lowest price above mid)
+			// find best ask: scanning from center towards top
+			for (let i = 0; i < ticks && remaining > 0; i++) {
+				const lvl = i; // top is best ask in our mapping
+				const avail = askVolumes[lvl];
+				if (avail > 0) {
+					const take = Math.min(avail, remaining);
+					askVolumes[lvl] -= take;
+					remaining -= take;
+					const p = priceForLevel(lvl);
+					executed.push({price:p, vol:take, side:'buy'});
+				}
+			}
+		} else {
+			// sell taker consumes bids
+			for (let i = ticks-1; i >=0 && remaining > 0; i--) {
+				const lvl = i;
+				const avail = bidVolumes[lvl];
+				if (avail > 0) {
+					const take = Math.min(avail, remaining);
+					bidVolumes[lvl] -= take;
+					remaining -= take;
+					const p = priceForLevel(lvl);
+					executed.push({price:p, vol:take, side:'sell'});
+				}
+			}
+		}
+		// register trades and update mid price toward best available midpoint
+		for (const e of executed) {
+			// Calculate chart X position for when this trade occurred
+			const chartX0 = 80;
+			const chartW = W - chartX0 - 10;
+			const chartX = chartX0 + (priceHistory.length / Math.max(1, maxHistory-1)) * chartW;
+			
+			tradeMarkers.push({
+				price: e.price, 
+				side: e.side, 
+				vol: e.vol, 
+				born: step,
+				chartX: chartX // Store the X position on the chart when trade occurred
+			});
+			// small mid price move toward trade price
+			midPrice = midPrice * 0.9 + e.price * 0.1;
+		}
+		// if no liquidity on the side, simulate price jump by moving mid a bit
+		if (executed.length === 0) {
+			midPrice += (isBuy? 0.2 : -0.2) * (1 + Math.random());
+		}
+	}
+
+	// Determine probability of maker vs taker per step using inputs 0..1000
+	function stepSimulation() {
+		const makers = Math.max(0, Number(makersInput.value) || 0);
+		const takers = Math.max(0, Number(takersInput.value) || 0);
+		const total = makers + takers;
+		// If both zero, do nothing
+		if (total === 0) {
+			// small passive decay
+			midPrice += randNormal(0, 0.01);
+			return;
+		}
+		const probMaker = makers / total;
+		// We will trigger multiple micro-actions per step proportional to speed
+		const actions = Math.max(1, Math.round(speedInput.value / 10));
+		for (let a=0;a<actions;a++) {
+			if (Math.random() < probMaker) makerAction();
+			else takerAction();
+			step++;
+		}
+		// keep priceHistory
+		priceHistory.push(midPrice);
+		if (priceHistory.length > maxHistory) priceHistory.shift();
+		// clear trade markers when mid price crosses back and "takes out" the level
+		tradeMarkers = tradeMarkers.filter(tm => {
+			if (tm.side === 'buy') {
+				// was buy (aggressive buy consumed asks at price). clear when mid drops to or below that price
+				return !(midPrice <= tm.price);
+			} else {
+				// was sell: clear when mid rises to or above that price
+				return !(midPrice >= tm.price);
+			}
+		});
+	}
+
+	// Rendering: heatmap background + price line + trade markers
+	function draw() {
+		ctx.clearRect(0,0,W,H);
+		// Draw heatmap rows: for each level compute ask and bid intensity
+		const center = Math.floor(ticks/2);
+		// Precompute maxima for scaling
+		const maxAsk = Math.max(...askVolumes, 1);
+		const maxBid = Math.max(...bidVolumes, 1);
+		//for (let i=0;i<ticks;i++) {
+		//	const y = i * tickPx;
+		//	const bid = bidVolumes[i];
+		//	const ask = askVolumes[i];
+		//	// Compute color: mix red/green based on normalized volumes
+		//	const g = Math.min(1, bid / (maxBid*0.8));
+		//	const r = Math.min(1, ask / (maxAsk*0.8));
+		//	if (r>0 || g>0) {
+		//		ctx.fillStyle = `rgba(${Math.round(220*r)},${Math.round(200*g)},30,${Math.max(r,g)*0.45})`;
+		//		ctx.fillRect(0, y, W, tickPx);
+		//	}
+		//	// subtle grid line
+		//	ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+		//	ctx.beginPath();
+		//	ctx.moveTo(0, y);
+		//	ctx.lineTo(W, y);
+		//	ctx.stroke();
+		//}
+
+		// Draw price axis labels on left
+		ctx.fillStyle = 'rgba(255,255,255,0.6)';
+		ctx.font = '12px monospace';
+		for (let i=0;i<ticks;i+=8) {
+			const y = i * tickPx + 12;
+			const p = priceForLevel(i).toFixed(2);
+			ctx.fillText(p, 6, y);
+		}
+
+		// Draw price history as line chart to the right area
+		const chartX0 = 80;
+		const chartW = W - chartX0 - 10;
+		const chartH = H;
+		// Map priceHistory (mid prices) to vertical positions consistent with priceForLevel
+		ctx.beginPath();
+		const len = priceHistory.length;
+		for (let i=0;i<len;i++) {
+			const px = chartX0 + (i / Math.max(1, maxHistory-1)) * chartW;
+			// convert price to y using linear mapping based on current midPrice and priceSpan
+			const p = priceHistory[i];
+			const y = ((midPrice + priceSpan/2) - p) / priceSpan * chartH;
+			if (i===0) ctx.moveTo(px, y);
+			else ctx.lineTo(px, y);
+		}
+		ctx.strokeStyle = '#00d1ff';
+		ctx.lineWidth = 2;
+		ctx.stroke();
+
+		// Draw trade markers (persistent until taken out)
+		for (const tm of tradeMarkers) {
+			// map price to y
+			const y = ((midPrice + priceSpan/2) - tm.price) / priceSpan * chartH;
+			const age = step - tm.born;
+			const alpha = Math.max(0.8, 1 - age);
+			
+			// Calculate line thickness based on volume (min 1px, max 8px)
+			const thickness = Math.max(1, Math.min(8, tm.vol * 0.5));
+			
+			ctx.strokeStyle = tm.side === 'buy' ? `rgba(30,220,80,${alpha})` : `rgba(220,40,40,${alpha})`;
+			ctx.lineWidth = thickness;
+			ctx.globalAlpha = 0.7 * alpha;
+			
+			// Draw line from chart position where trade occurred to right edge
+			ctx.beginPath();
+			ctx.moveTo(tm.chartX, y);
+			ctx.lineTo(W-10, y);
+			ctx.stroke();
+			
+			ctx.globalAlpha = 1;
+			ctx.lineWidth = 1; // Reset line width
+		}
+
+		// Draw current mid price label
+		ctx.fillStyle = '#fff';
+		ctx.font = '14px monospace';
+		ctx.fillText('Mid: ' + midPrice.toFixed(4), 90, 18);
+		// Draw best bid/ask estimates
+		const bestAsk = findBestAsk();
+		const bestBid = findBestBid();
+		ctx.fillStyle = '#8f8';
+		if (bestBid) ctx.fillText('BestBid: ' + bestBid.toFixed(4), 250, 18);
+		ctx.fillStyle = '#f88';
+		if (bestAsk) ctx.fillText('BestAsk: ' + bestAsk.toFixed(4), 430, 18);
+	}
+
+	function findBestAsk() {
+		for (let i=0;i<ticks;i++) if (askVolumes[i] > 0) return priceForLevel(i);
+		// fallback
+		return midPrice + 0.05;
+	}
+	function findBestBid() {
+		for (let i=ticks-1;i>=0;i--) if (bidVolumes[i] > 0) return priceForLevel(i);
+		return midPrice - 0.05;
+	}
+
+	// Main loop
+	function tick() {
+		stepSimulation();
+		draw();
+	}
+
+	// Controls
+	startBtn.addEventListener('click', () => {
+		if (running) return;
+		running = true;
+		timer = setInterval(tick, Math.max(10, 120 - Number(speedInput.value)));
+	});
+	pauseBtn.addEventListener('click', () => {
+		running = false;
+		if (timer) { clearInterval(timer); timer = null; }
+	});
+	resetBtn.addEventListener('click', () => {
+		pauseBtn.click();
+		reset();
+	});
+
+	// initialize a bit of seed liquidity for a plausible market
+	function seedLiquidity() {
+		for (let i=0;i<ticks;i++) {
+			const base = Math.max(0, Math.round(10 * Math.exp(-((i - ticks/2)**2)/(2*40))));
+			bidVolumes[i] = Math.round(base * (0.5 + Math.random()*1.0));
+			askVolumes[i] = Math.round(base * (0.5 + Math.random()*1.0));
+		}
+	}
+	seedLiquidity();
+	draw();
+
+	// expose reset for quick start
+	window.simReset = reset;
+})();
+</script>
+</body>
+</html>

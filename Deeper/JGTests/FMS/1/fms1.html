@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL2 Free Market Simulation - Makers vs Takers Research</title>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; background: #1a1a1a; color: white; }
+        .container { display: flex; height: 100vh; }
+        .controls { width: 250px; padding: 20px; background: #2a2a2a; }
+        .sim-area { flex: 1; position: relative; }
+        canvas { width: 100%; height: 100%; display: block; }
+        .control-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input, select { width: 100%; padding: 5px; }
+        button { width: 100%; padding: 10px; margin: 5px 0; }
+        .stats { font-size: 12px; margin-top: 10px; }
+        .orderbook { position: absolute; top: 10px; right: 10px; width: 200px; background: rgba(0,0,0,0.8); padding: 10px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <h3>Market Research Controls</h3>
+            
+            <div class="control-group">
+                <label>Makers Count:</label>
+                <input type="range" id="makersCount" min="1" max="100" value="10">
+                <span id="makersValue">10</span>
+            </div>
+            
+            <div class="control-group">
+                <label>Takers Count:</label>
+                <input type="range" id="takersCount" min="10" max="1000" value="100">
+                <span id="takersValue">100</span>
+            </div>
+            
+            <div class="control-group">
+                <label>Simulation Speed:</label>
+                <input type="range" id="simSpeed" min="1" max="100" value="10">
+                <span id="speedValue">10</span>
+            </div>
+            
+            <div class="control-group">
+                <label>Market Volatility:</label>
+                <input type="range" id="volatility" min="1" max="50" value="5">
+                <span id="volatilityValue">5</span>
+            </div>
+            
+            <div class="control-group">
+                <label>Line Duration (ms):</label>
+                <input type="range" id="lineDuration" min="500" max="10000" step="100" value="3000">
+                <span id="lineDurationValue">3000</span>
+            </div>
+            
+            <button onclick="startSim()">Start Simulation</button>
+            <button onclick="pauseSim()">Pause</button>
+            <button onclick="resetSim()">Reset</button>
+            
+            <div class="stats">
+                <div>Price: $<span id="currentPrice">100.00</span></div>
+                <div>Volume: <span id="volume">0</span></div>
+                <div>Transactions: <span id="txCount">0</span></div>
+                <div>Spread: $<span id="spread">0.00</span></div>
+            </div>
+        </div>
+        
+        <div class="sim-area">
+            <canvas id="marketCanvas"></canvas>
+            <div class="orderbook">
+                <h4>Order Book</h4>
+                <div id="asks">ASKS:<br></div>
+                <div id="bids">BIDS:<br></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ...existing constants and simple sim state...
+    let gl, canvas;
+    let isRunning = false;
+    let animationId;
+    let currentPrice = 100.0;
+    let priceHistory = []; // will be circular
+    let orderBook = { bids: [], asks: [] };
+    let transactions = [];
+    let makers = [];
+    let takers = [];
+    let txCount = 0;
+
+    // WEBGL2 rendering specifics
+    const POINT_COUNT = 1024; // fixed size buffer for price history
+    const MAX_TX = 64; // max transactions sent to shader
+    let priceDataArray = new Float32Array(POINT_COUNT * 4); // RGBA per texel (R = price, G = volume)
+    let dataTex = null;
+    let progLine = null;
+    let progTx = null;
+    let minPrice = 0, maxPrice = 1;
+
+    // new globals for instancing
+    let txVAO = null;
+    let cornerBuf = null;
+    let instBuf = null;
+
+    function createShader(gl, type, src) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, src);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+            console.error(gl.getShaderInfoLog(s));
+            gl.deleteShader(s);
+            return null;
+        }
+        return s;
+    }
+    function createProgram(gl, vsSrc, fsSrc) {
+        const vs = createShader(gl, gl.VERTEX_SHADER, vsSrc);
+        const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSrc);
+        const p = gl.createProgram();
+        gl.attachShader(p, vs);
+        gl.attachShader(p, fs);
+        gl.linkProgram(p);
+        if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+            console.error(gl.getProgramInfoLog(p));
+            return null;
+        }
+        return p;
+    }
+
+    // Vertex shader for price line: uses gl_VertexID to index into the data texture
+    const vsLine = `#version 300 es
+    precision highp float;
+    uniform sampler2D uDataTex;
+    uniform float uPointCount;
+    uniform float uMinPrice;
+    uniform float uPriceRange;
+    out vec2 vUV;
+    void main() {
+        int id = int(gl_VertexID);
+        float idx = float(id);
+        float x = idx / (uPointCount - 1.0);
+        // texelFetch using integer coords; texture width equals pointCount
+        vec4 d = texelFetch(uDataTex, ivec2(id, 0), 0);
+        float price = d.r;
+        float yn = (price - uMinPrice) / max(uPriceRange, 1e-6);
+        // map to clip space
+        float px = x * 2.0 - 1.0;
+        float py = (yn * 0.8 - 0.1) * 2.0;
+        gl_Position = vec4(px, py, 0.0, 1.0);
+        vUV = vec2(x, yn);
+    }`;
+
+    const fsLine = `#version 300 es
+    precision highp float;
+    out vec4 outColor;
+    void main() {
+        outColor = vec4(0.0, 1.0, 0.0, 1.0);
+    }`;
+
+    // Vertex shader for transaction lines: instanced draw where each instance is a line (two verts)
+    // Uses per-instance attribute aInstance (float index) instead of gl_InstanceID.
+    const vsTx = `#version 300 es
+    precision highp float;
+    in vec2 aCorner; // 0.0 -> start, 1.0 -> end
+    in float aInstance; // instance index provided via buffer (divisor = 1)
+    uniform float uPointCount;
+    uniform float uMinPrice;
+    uniform float uPriceRange;
+    uniform float uTxHistoryIndex[${MAX_TX}];
+    uniform float uTxPrice[${MAX_TX}];
+    uniform float uTxProgress[${MAX_TX}];
+    uniform int uTxCount;
+    flat out float vType; // pass type to fragment
+    void main() {
+        int id = int(aInstance + 0.5);
+        if (id >= uTxCount) {
+            // place off-screen if no instance
+            gl_Position = vec4(-2.0, -2.0, 0.0, 1.0);
+            vType = 0.0;
+            return;
+        }
+        float startX = uTxHistoryIndex[id] / (uPointCount - 1.0);
+        float progress = clamp(uTxProgress[id], 0.0, 1.0);
+        float endX = startX + progress * (1.0 - startX);
+        float x = mix(startX, endX, aCorner.x);
+        float yN = (uTxPrice[id] - uMinPrice) / max(uPriceRange, 1e-6);
+        float px = x * 2.0 - 1.0;
+        float py = (yN * 0.8 - 0.1) * 2.0;
+        gl_Position = vec4(px, py, 0.0, 1.0);
+        // derive type from price sign (we'll set actual type uniform array in JS and pass via vertex based on id)
+        vType = float(0); // placeholder, will be set in JS by reading uTxType into varying via vertex shader logic below if needed
+    }`;
+
+    // Fragment shader expects the type as flat varying from vertex shader
+    const fsTx = `#version 300 es
+    precision highp float;
+    flat in float vType;
+    out vec4 outColor;
+    void main() {
+        if (vType > 0.5) {
+            outColor = vec4(0.0, 1.0, 0.0, 1.0);
+        } else {
+            outColor = vec4(1.0, 0.0, 0.0, 1.0);
+        }
+    }`;
+
+    async function initGL() {
+        canvas = document.getElementById('marketCanvas');
+        gl = canvas.getContext('webgl2', { antialias: true });
+        if (!gl) {
+            alert('WebGL2 is required but not supported in this browser.');
+            return false;
+        }
+        // resize helpers
+        function resize() {
+            const w = canvas.clientWidth | 0;
+            const h = canvas.clientHeight | 0;
+            if (canvas.width !== w || canvas.height !== h) {
+                canvas.width = w; canvas.height = h;
+                gl.viewport(0, 0, w, h);
+            }
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Programs
+        progLine = createProgram(gl, vsLine, fsLine);
+        progTx = createProgram(gl, vsTx, fsTx);
+
+        // Create data texture (width = POINT_COUNT, height = 1)
+        dataTex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, dataTex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        // allocate with zeros
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, POINT_COUNT, 1, 0, gl.RGBA, gl.FLOAT, null);
+
+        // VAO for tx instancing (two vertices: start/end) - create once and reuse
+        txVAO = gl.createVertexArray();
+        gl.bindVertexArray(txVAO);
+
+        // corner buffer (two vertices: [0,0], [1,0])
+        cornerBuf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, cornerBuf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0, 1,0]), gl.STATIC_DRAW);
+        const locCorner = gl.getAttribLocation(progTx, 'aCorner');
+        if (locCorner >= 0) {
+            gl.enableVertexAttribArray(locCorner);
+            gl.vertexAttribPointer(locCorner, 2, gl.FLOAT, false, 0, 0);
+            // per-vertex (no divisor)
+            gl.vertexAttribDivisor(locCorner, 0);
+        }
+
+        // instance index buffer (0..MAX_TX-1) - used with divisor = 1
+        instBuf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, instBuf);
+        const instArray = new Float32Array(MAX_TX);
+        for (let i = 0; i < MAX_TX; i++) instArray[i] = i;
+        gl.bufferData(gl.ARRAY_BUFFER, instArray, gl.STATIC_DRAW);
+        const locInst = gl.getAttribLocation(progTx, 'aInstance');
+        if (locInst >= 0) {
+            gl.enableVertexAttribArray(locInst);
+            gl.vertexAttribPointer(locInst, 1, gl.FLOAT, false, 0, 0);
+            gl.vertexAttribDivisor(locInst, 1); // advances per-instance
+        }
+        gl.bindVertexArray(null);
+
+        // Simple state
+        gl.clearColor(0.1, 0.1, 0.1, 1.0);
+        gl.lineWidth(2.0);
+
+        return true;
+    }
+
+    function uploadPriceTexture() {
+        // compute min/max for normalization in shader
+        if (priceHistory.length === 0) return;
+        minPrice = Math.min(...priceHistory.map(p => p.price));
+        maxPrice = Math.max(...priceHistory.map(p => p.price));
+        const priceRange = Math.max(1e-6, maxPrice - minPrice);
+
+        // Fill priceDataArray: each texel = [price, volume, 0, 0]
+        // priceHistory is a circular buffer; we always map its newest at the end
+        const start = Math.max(0, priceHistory.length - POINT_COUNT);
+        const base = POINT_COUNT - Math.min(POINT_COUNT, priceHistory.length);
+        // zero out
+        priceDataArray.fill(0);
+        for (let i = 0; i < Math.min(POINT_COUNT, priceHistory.length); i++) {
+            const ph = priceHistory[ start + i ];
+            const idx = (base + i) % POINT_COUNT;
+            priceDataArray[idx * 4 + 0] = ph.price;
+            priceDataArray[idx * 4 + 1] = ph.volume || 0;
+        }
+        gl.bindTexture(gl.TEXTURE_2D, dataTex);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, POINT_COUNT, 1, gl.RGBA, gl.FLOAT, priceDataArray);
+        return { minPrice, priceRange };
+    }
+
+    function renderGL() {
+        if (!gl) return;
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        const uploaded = uploadPriceTexture();
+        if (!uploaded) return;
+        const priceRange = uploaded.priceRange;
+
+        // Draw price line
+        gl.useProgram(progLine);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, dataTex);
+        const locTex = gl.getUniformLocation(progLine, 'uDataTex');
+        gl.uniform1i(locTex, 0);
+        gl.uniform1f(gl.getUniformLocation(progLine, 'uPointCount'), POINT_COUNT);
+        gl.uniform1f(gl.getUniformLocation(progLine, 'uMinPrice'), uploaded.minPrice);
+        gl.uniform1f(gl.getUniformLocation(progLine, 'uPriceRange'), priceRange);
+        // draw a line strip with POINT_COUNT vertices, vertex shader uses gl_VertexID
+        // ensure VAO bound (not strictly required here since we use gl_VertexID)
+        gl.bindVertexArray(null);
+        gl.drawArrays(gl.LINE_STRIP, 0, POINT_COUNT);
+
+        // Prepare transaction uniforms (bounded)
+        const txCountToSend = Math.min(transactions.length, MAX_TX);
+        const txHistoryIndex = new Float32Array(MAX_TX);
+        const txPrice = new Float32Array(MAX_TX);
+        const txType = new Float32Array(MAX_TX);
+        const txProgress = new Float32Array(MAX_TX);
+        const now = Date.now();
+        const duration = parseInt(document.getElementById('lineDuration').value) || 3000;
+
+        for (let i = 0; i < txCountToSend; i++) {
+            const tx = transactions[i];
+            txHistoryIndex[i] = tx.historyIndex || 0;
+            txPrice[i] = tx.price;
+            txType[i] = tx.type === 'buy' ? 1.0 : 0.0;
+            const age = now - tx.time;
+            txProgress[i] = Math.max(0, Math.min(1, age / duration));
+        }
+
+        // Draw transactions as instanced lines (two vertices per instance) using the pre-created txVAO
+        gl.useProgram(progTx);
+        gl.uniform1f(gl.getUniformLocation(progTx, 'uPointCount'), POINT_COUNT);
+        gl.uniform1f(gl.getUniformLocation(progTx, 'uMinPrice'), uploaded.minPrice);
+        gl.uniform1f(gl.getUniformLocation(progTx, 'uPriceRange'), priceRange);
+        gl.uniform1i(gl.getUniformLocation(progTx, 'uTxCount'), txCountToSend);
+        // uniform arrays: historyIndex, price, progress - fragment color uses vType passed via vertex shader (we'll set vType via uTxType array)
+        const locH = gl.getUniformLocation(progTx, 'uTxHistoryIndex');
+        const locP = gl.getUniformLocation(progTx, 'uTxPrice');
+        const locT = gl.getUniformLocation(progTx, 'uTxProgress');
+        if (locH) gl.uniform1fv(locH, txHistoryIndex);
+        if (locP) gl.uniform1fv(locP, txPrice);
+        if (locT) gl.uniform1fv(locT, txProgress);
+
+        // Bind prepared VAO and draw instanced
+        gl.bindVertexArray(txVAO);
+        gl.drawArraysInstanced(gl.LINES, 0, 2, txCountToSend);
+        gl.bindVertexArray(null);
+    }
+
+    function renderMarket() {
+        // replaced by WebGL renderer
+        renderGL();
+        // clean old transactions in JS (use duration)
+        const now = Date.now();
+        const duration = parseInt(document.getElementById('lineDuration').value) || 3000;
+        transactions = transactions.filter(tx => now - tx.time < duration);
+    }
+
+    function createMarketAgents() {
+        const makersCount = parseInt(document.getElementById('makersCount').value);
+        const takersCount = parseInt(document.getElementById('takersCount').value);
+        makers = [];
+        takers = [];
+        for (let i = 0; i < makersCount; i++) {
+            makers.push({
+                id: i,
+                bidPrice: currentPrice - Math.random() * 2,
+                askPrice: currentPrice + Math.random() * 2,
+                volume: 10 + Math.random() * 90
+            });
+        }
+        for (let i = 0; i < takersCount; i++) {
+            takers.push({
+                id: i,
+                aggressive: Math.random() > 0.7,
+                volume: 1 + Math.random() * 20
+            });
+        }
+    }
+
+    function updateOrderBook() {
+        orderBook.bids = [];
+        orderBook.asks = [];
+        makers.forEach(maker => {
+            orderBook.bids.push({ price: maker.bidPrice, volume: maker.volume });
+            orderBook.asks.push({ price: maker.askPrice, volume: maker.volume });
+        });
+        orderBook.bids.sort((a, b) => b.price - a.price);
+        orderBook.asks.sort((a, b) => a.price - b.price);
+        const asksDiv = document.getElementById('asks');
+        const bidsDiv = document.getElementById('bids');
+        asksDiv.innerHTML = 'ASKS:<br>' + 
+            orderBook.asks.slice(0, 5).map(o => `${o.price.toFixed(2)} (${o.volume.toFixed(0)})`).join('<br>');
+        bidsDiv.innerHTML = 'BIDS:<br>' + 
+            orderBook.bids.slice(0, 5).map(o => `${o.price.toFixed(2)} (${o.volume.toFixed(0)})`).join('<br>');
+    }
+
+    function simulateMarketStep() {
+        const volatility = parseInt(document.getElementById('volatility').value);
+        const randomChange = (Math.random() - 0.5) * volatility * 0.1;
+        takers.forEach(taker => {
+            if (Math.random() < 0.1) {
+                const isBuy = Math.random() > 0.5;
+                const volume = taker.volume * (0.5 + Math.random() * 0.5);
+                if (isBuy && orderBook.asks.length > 0) {
+                    const bestAsk = orderBook.asks[0];
+                    currentPrice = bestAsk.price + randomChange;
+                    transactions.unshift({ price: currentPrice, volume, type: 'buy', time: Date.now(), historyIndex: priceHistory.length });
+                    txCount++;
+                } else if (!isBuy && orderBook.bids.length > 0) {
+                    const bestBid = orderBook.bids[0];
+                    currentPrice = bestBid.price + randomChange;
+                    transactions.unshift({ price: currentPrice, volume, type: 'sell', time: Date.now(), historyIndex: priceHistory.length });
+                    txCount++;
+                }
+            }
+        });
+        makers.forEach(maker => {
+            maker.bidPrice = currentPrice - (0.5 + Math.random() * 1.5);
+            maker.askPrice = currentPrice + (0.5 + Math.random() * 1.5);
+        });
+
+        // push into priceHistory circular (we keep appended order in array for simplicity)
+        priceHistory.push({
+            price: currentPrice,
+            time: Date.now(),
+            volume: transactions.reduce((sum, tx) => sum + tx.volume, 0)
+        });
+        if (priceHistory.length > POINT_COUNT) {
+            priceHistory.shift();
+        }
+        updateOrderBook();
+        updateStats();
+    }
+
+    function updateStats() {
+        document.getElementById('currentPrice').textContent = currentPrice.toFixed(2);
+        document.getElementById('txCount').textContent = txCount;
+        document.getElementById('volume').textContent = transactions.reduce((sum, tx) => sum + tx.volume, 0).toFixed(0);
+        const spread = orderBook.asks.length && orderBook.bids.length ? 
+            (orderBook.asks[0].price - orderBook.bids[0].price).toFixed(2) : '0.00';
+        document.getElementById('spread').textContent = spread;
+    }
+
+    function animate() {
+        if (!isRunning) return;
+        const speed = parseInt(document.getElementById('simSpeed').value);
+        for (let i = 0; i < Math.min(speed, 20); i++) {
+            simulateMarketStep();
+        }
+        renderMarket();
+        animationId = requestAnimationFrame(animate);
+    }
+
+    function startSim() {
+        if (!gl) {
+            alert('Renderer not initialized');
+            return;
+        }
+        isRunning = true;
+        createMarketAgents();
+        animate();
+    }
+
+    function pauseSim() {
+        isRunning = false;
+        if (animationId) cancelAnimationFrame(animationId);
+    }
+
+    function resetSim() {
+        pauseSim();
+        currentPrice = 100.0;
+        priceHistory = [];
+        transactions = [];
+        txCount = 0;
+        orderBook = { bids: [], asks: [] };
+        document.getElementById('asks').innerHTML = 'ASKS:<br>';
+        document.getElementById('bids').innerHTML = 'BIDS:<br>';
+        updateStats();
+    }
+
+    // control listeners
+    document.getElementById('makersCount').addEventListener('input', e => {
+        document.getElementById('makersValue').textContent = e.target.value;
+    });
+    document.getElementById('takersCount').addEventListener('input', e => {
+        document.getElementById('takersValue').textContent = e.target.value;
+    });
+    document.getElementById('simSpeed').addEventListener('input', e => {
+        document.getElementById('speedValue').textContent = e.target.value;
+    });
+    document.getElementById('volatility').addEventListener('input', e => {
+        document.getElementById('volatilityValue').textContent = e.target.value;
+    });
+    document.getElementById('lineDuration').addEventListener('input', e => {
+        document.getElementById('lineDurationValue').textContent = e.target.value;
+    });
+
+    window.addEventListener('load', async () => {
+        const ok = await initGL();
+        if (!ok) return;
+        createMarketAgents();
+        updateOrderBook();
+        updateStats();
+        // initial warm prices into priceHistory
+        for (let i = 0; i < 64; i++) {
+            priceHistory.push({ price: currentPrice + (Math.random() - 0.5) * 0.5, time: Date.now(), volume: 0 });
+        }
+        uploadPriceTexture();
+        renderGL();
+    });
+    </script>
+</body>
+</html>

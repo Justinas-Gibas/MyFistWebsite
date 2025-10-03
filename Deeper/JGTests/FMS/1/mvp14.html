@@ -1,0 +1,450 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>WebGPU Market Simulator (makers/takers + LOB + Candles)</title>
+<style>
+	body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 12px; background:#111; color:#ddd; }
+	#controls { display:flex; gap:12px; align-items:center; margin-bottom:8px; flex-wrap:wrap;}
+	label { font-size:13px; }
+	canvas { background:#0b0b0b; display:block; border:1px solid #222; }
+	.control { display:flex; flex-direction:column; gap:4px; }
+	.small { font-size:12px; color:#aaa; }
+	button { padding:6px 10px; }
+</style>
+</head>
+<body>
+	<h3>WebGPU Market Simulator — Candles + Liquidity Bands</h3>
+	<div id="controls">
+		<div class="control">
+			<label> Makers: <span id="makersVal">200</span></label>
+			<input id="makers" type="range" min="0" max="2000" value="200">
+		</div>
+		<div class="control">
+			<label> Takers: <span id="takersVal">50</span></label>
+			<input id="takers" type="range" min="0" max="2000" value="50">
+		</div>
+		<div class="control">
+			<label> Speed ×: <span id="speedVal">4</span></label>
+			<input id="speed" type="range" min="1" max="50" value="4">
+		</div>
+		<div class="control">
+			<label> Candle (ms): <span id="candleVal">1000</span></label>
+			<input id="candle" type="range" min="200" max="5000" step="100" value="1000">
+		</div>
+		<div style="display:flex;gap:8px;align-items:center;">
+			<button id="start">Start</button>
+			<button id="pause">Pause</button>
+		</div>
+	</div>
+
+	<canvas id="canvas" width="1200" height="480"></canvas>
+	<div class="small">Green bands = bids (support), Red bands = asks (resistance). Thicker/stronger = more resting volume.</div>
+	<div id="status" class="small"></div>
+
+<script>
+// filepath: d:\Game of life\GitHub\MyFistWebsite\Deeper\JGTests\FMS\mvp14.html
+
+(async ()=>{
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const status = document.getElementById('status');
+const makersInput = document.getElementById('makers');
+const takersInput = document.getElementById('takers');
+const speedInput = document.getElementById('speed');
+const candleInput = document.getElementById('candle');
+const makersVal = document.getElementById('makersVal');
+const takersVal = document.getElementById('takersVal');
+const speedVal = document.getElementById('speedVal');
+const candleVal = document.getElementById('candleVal');
+const startBtn = document.getElementById('start');
+const pauseBtn = document.getElementById('pause');
+
+makersInput.oninput = ()=> makersVal.textContent = makersInput.value;
+takersInput.oninput = ()=> takersVal.textContent = takersInput.value;
+speedInput.oninput = ()=> speedVal.textContent = speedInput.value;
+candleInput.oninput = ()=> candleVal.textContent = candleInput.value;
+
+let running = false;
+startBtn.onclick = ()=> running = true;
+pauseBtn.onclick = ()=> running = false;
+
+if (!navigator.gpu) {
+	status.textContent = 'WebGPU not supported in this browser. This demo requires a WebGPU-enabled browser.';
+	// Minimal CPU fallback message; keep page informative.
+	return;
+}
+
+const adapter = await navigator.gpu.requestAdapter();
+if (!adapter) { status.textContent = 'No suitable GPU adapter found.'; return; }
+const device = await adapter.requestDevice();
+
+// Simulation constants
+const LEVELS = 256;                         // orderbook depth levels each side
+const MID_IDX = Math.floor(LEVELS/2);      // center index = base price
+const AGENT_MAX = 4096;                    // max agents (makers + takers)
+const WORKGROUP = 64;
+
+// Buffers layout constants (bytes)
+const INT32_SIZE = 4;
+const AGENT_STRUCT_BYTES = 4*4; // vec4<i32> per agent: type, side, offset, vol
+
+// WGSL compute shader
+const wgsl = `
+struct Params { agentsCount: i32, levels: i32, mid: i32 };
+@group(0) @binding(0) var<storage, read> agents : array<vec4<i32>>;
+@group(0) @binding(1) var<storage, read_write> bids : array<atomic<i32>>;
+@group(0) @binding(2) var<storage, read_write> asks : array<atomic<i32>>;
+@group(0) @binding(3) var<uniform> params : Params;
+@group(0) @binding(4) var<storage, read_write> lastIdx : atomic<i32>;
+@group(0) @binding(5) var<storage, read_write> lastVol : atomic<i32>;
+
+fn clamp_i(v: i32, lo: i32, hi: i32) -> i32 {
+  return max(lo, min(hi, v));
+}
+
+@compute @workgroup_size(${WORKGROUP})
+fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
+  let i = i32(gid.x);
+  if (i >= params.agentsCount) { return; }
+  let a = agents[i]; // x: type(0=maker,1=taker) y: side(0=buy/1=sell) z: offset idx relative to mid w: vol
+  let atype = a.x;
+  let side = a.y;
+  let offset = a.z;
+  var vol = a.w;
+
+  if (atype == 0) {
+    // maker: add resting volume
+    let idx = clamp_i(params.mid + offset, 0, params.levels - 1);
+    if (side == 0) {
+      // bid
+      atomicAdd(&bids[idx], vol);
+    } else {
+      atomicAdd(&asks[idx], vol);
+    }
+  } else {
+    // taker: consume opposite side - simple walk from best outward
+    if (side == 0) {
+      // taker is buyer => consume asks from low idx (best ask = mid+1 ..)
+      var p = params.mid;
+      var remaining = vol;
+      // iterate upward from mid to levels-1
+      loop {
+        if (p >= params.levels || remaining <= 0) { break; }
+        let avail = atomicLoad(&asks[p]);
+        if (avail > 0) {
+          let take = min(avail, remaining);
+          atomicAdd(&asks[p], -take);
+          atomicStore(&lastIdx, p);
+          atomicAdd(&lastVol, take);
+          remaining = remaining - take;
+        }
+        p = p + 1;
+      }
+    } else {
+      // taker is seller => consume bids from high to low
+      var p = params.mid;
+      var remaining = vol;
+      loop {
+        if (p < 0 || remaining <= 0) { break; }
+        let avail = atomicLoad(&bids[p]);
+        if (avail > 0) {
+          let take = min(avail, remaining);
+          atomicAdd(&bids[p], -take);
+          atomicStore(&lastIdx, p);
+          atomicAdd(&lastVol, take);
+          remaining = remaining - take;
+        }
+        p = p - 1;
+      }
+    }
+  }
+}
+`;
+
+// GPU resource creation
+const agentsBuffer = device.createBuffer({size: AGENT_STRUCT_BYTES*AGENT_MAX, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST});
+const bidsBuffer = device.createBuffer({size: INT32_SIZE*LEVELS, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST});
+const asksBuffer = device.createBuffer({size: INT32_SIZE*LEVELS, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST});
+// lastIdx, lastVol each single i32 in storage buffer (we'll pack as two separate buffers of 4 bytes each)
+const lastIdxBuffer = device.createBuffer({size: INT32_SIZE, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST});
+const lastVolBuffer = device.createBuffer({size: INT32_SIZE, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST});
+
+// uniform params
+const paramsBuffer = device.createBuffer({size: 3*INT32_SIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST});
+
+// compute pipeline
+const module = device.createShaderModule({code: wgsl});
+const pipeline = device.createComputePipeline({
+  layout: 'auto',
+  compute: { module, entryPoint: 'main' }
+});
+
+// bind group
+const bindGroup = device.createBindGroup({
+  layout: pipeline.getBindGroupLayout(0),
+  entries: [
+    { binding:0, resource: { buffer: agentsBuffer } },
+    { binding:1, resource: { buffer: bidsBuffer } },
+    { binding:2, resource: { buffer: asksBuffer } },
+    { binding:3, resource: { buffer: paramsBuffer } },
+    { binding:4, resource: { buffer: lastIdxBuffer } },
+    { binding:5, resource: { buffer: lastVolBuffer } },
+  ]
+});
+
+// readback staging buffers (CPU-readable)
+const readBidsBuffer = device.createBuffer({size: INT32_SIZE*LEVELS, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST});
+const readAsksBuffer = device.createBuffer({size: INT32_SIZE*LEVELS, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST});
+const readLastIdx = device.createBuffer({size: INT32_SIZE, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST});
+const readLastVol = device.createBuffer({size: INT32_SIZE, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST});
+
+// Helpers to zero buffers
+async function zeroOrderbook() {
+  const zeros = new Int32Array(LEVELS);
+  device.queue.writeBuffer(bidsBuffer, 0, zeros.buffer);
+  device.queue.writeBuffer(asksBuffer, 0, zeros.buffer);
+  const z = new Int32Array([0]);
+  device.queue.writeBuffer(lastIdxBuffer, 0, z.buffer);
+  device.queue.writeBuffer(lastVolBuffer, 0, z.buffer);
+}
+
+// Agent generation: maker = type 0, taker = type 1
+function generateAgents(makers, takers) {
+  const total = Math.min(AGENT_MAX, makers + takers);
+  const arr = new Int32Array( (AGENT_STRUCT_BYTES/4) * total );
+  let off = 0;
+  // makers: half buy, half sell, offset distribution near mid
+  for (let i=0;i<makers && off < arr.length; ++i) {
+    arr[off++] = 0; // maker
+    arr[off++] = (i%2===0)?0:1; // side
+    // offset: random small spread bias
+    const ofs = Math.floor((Math.random()*20 - 10) + (Math.random()*Math.random()*30*(Math.random()<0.5? -1:1)));
+    arr[off++] = ofs;
+    arr[off++] = 1 + Math.floor(Math.random()*6); // resting volume small
+  }
+  // takers: random side, volume moderate
+  for (let i=0;i<takers && off < arr.length; ++i) {
+    arr[off++] = 1; // taker
+    arr[off++] = (Math.random() < 0.5) ? 0 : 1;
+    arr[off++] = 0; // offset unused
+    arr[off++] = 1 + Math.floor(Math.random()*12);
+  }
+  // upload
+  device.queue.writeBuffer(agentsBuffer, 0, arr.buffer, 0, arr.byteLength);
+  return Math.floor(off / 4);
+}
+
+// copy GPU storage -> readback buffers then map
+async function readOrderbookAndTrade() {
+  const cmd = device.createCommandEncoder();
+  cmd.copyBufferToBuffer(bidsBuffer, 0, readBidsBuffer, 0, INT32_SIZE*LEVELS);
+  cmd.copyBufferToBuffer(asksBuffer, 0, readAsksBuffer, 0, INT32_SIZE*LEVELS);
+  cmd.copyBufferToBuffer(lastIdxBuffer, 0, readLastIdx, 0, INT32_SIZE);
+  cmd.copyBufferToBuffer(lastVolBuffer, 0, readLastVol, 0, INT32_SIZE);
+  device.queue.submit([cmd.finish()]);
+
+  await readBidsBuffer.mapAsync(GPUMapMode.READ);
+  await readAsksBuffer.mapAsync(GPUMapMode.READ);
+  await readLastIdx.mapAsync(GPUMapMode.READ);
+  await readLastVol.mapAsync(GPUMapMode.READ);
+
+  const bidsView = new Int32Array(readBidsBuffer.getMappedRange().slice(0));
+  const asksView = new Int32Array(readAsksBuffer.getMappedRange().slice(0));
+  const lastIdxView = new Int32Array(readLastIdx.getMappedRange().slice(0));
+  const lastVolView = new Int32Array(readLastVol.getMappedRange().slice(0));
+
+  // copy out
+  const bids = new Int32Array(bidsView);
+  const asks = new Int32Array(asksView);
+  const lastIdx = lastIdxView[0];
+  const lastVol = lastVolView[0];
+
+  readBidsBuffer.unmap(); readAsksBuffer.unmap(); readLastIdx.unmap(); readLastVol.unmap();
+
+  return { bids, asks, lastIdx, lastVol };
+}
+
+// Candle aggregator / rendering state
+let candles = []; // array of {open,high,low,close,vol,ts}
+let currentCandle = null;
+let lastCandleTs = performance.now();
+function pushTradeToCandle(priceIdx, vol, now) {
+  if (priceIdx < 0 || priceIdx >= LEVELS) return;
+  // convert idx -> price number (relative)
+  const price = priceIdx - MID_IDX;
+  if (!currentCandle) {
+    currentCandle = {open:price, high:price, low:price, close:price, vol:vol, ts: now};
+    lastCandleTs = now;
+  } else {
+    currentCandle.high = Math.max(currentCandle.high, price);
+    currentCandle.low = Math.min(currentCandle.low, price);
+    currentCandle.close = price;
+    currentCandle.vol += vol;
+  }
+}
+
+// rendering
+function render(bids, asks, lastIdx) {
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+
+  // price range to display (centered on MID_IDX, show +/- displayRange levels)
+  const displayRange = 50;
+  const topIdx = MID_IDX + displayRange;
+  const bottomIdx = MID_IDX - displayRange;
+
+  // draw liquidity bands: map level -> y position
+  const levelsToShow = [];
+  for (let i = bottomIdx; i <= topIdx; ++i) {
+    if (i < 0 || i >= LEVELS) continue;
+    const bidVol = bids[i];
+    const askVol = asks[i];
+    if (bidVol > 0) levelsToShow.push({i, side:'bid', vol:bidVol});
+    if (askVol > 0) levelsToShow.push({i, side:'ask', vol:askVol});
+  }
+  // normalize volumes to alpha/width
+  let maxVol = 1;
+  for (const s of levelsToShow) if (s.vol > maxVol) maxVol = s.vol;
+  // draw horizontal bands (thicker lines)
+  for (const s of levelsToShow) {
+    const y = h * (1 - (s.i - bottomIdx) / (topIdx - bottomIdx + 1));
+    const intensity = Math.min(1, s.vol / maxVol);
+    ctx.beginPath();
+    ctx.strokeStyle = (s.side === 'bid') ? `rgba(40,220,100,${0.08 + 0.6*intensity})` : `rgba(220,60,80,${0.08 + 0.6*intensity})`;
+    ctx.lineWidth = 1 + 6*intensity;
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+
+  // draw candlesticks to left area
+  const candleAreaW = Math.floor(w * 0.7);
+  const candleAreaH = h;
+  const candleCount = Math.min(200, candles.length + (currentCandle?1:0));
+  const rightPad = 10;
+  const left = 10;
+  const usableW = candleAreaW - left - rightPad;
+  const barW = Math.max(1, Math.floor(usableW / Math.max(1, candleCount)));
+  const baseX = left + usableW;
+
+  // prepare candles list (copy + current)
+  const drawCandles = candles.slice(-200);
+  if (currentCandle) drawCandles.push(currentCandle);
+
+  // price mapping for candle values -> y
+  let minP = Infinity, maxP = -Infinity;
+  for (const c of drawCandles) { minP = Math.min(minP, c.low); maxP = Math.max(maxP, c.high); }
+  if (!isFinite(minP)) { minP = -20; maxP = 20; }
+  if (minP === maxP) { minP -= 1; maxP += 1; }
+  function priceToY(p) {
+    const t = (p - minP) / (maxP - minP);
+    return 10 + (candleAreaH - 20) * (1 - t);
+  }
+
+  for (let i = 0; i < drawCandles.length; ++i) {
+    const c = drawCandles[drawCandles.length - 1 - i]; // rightmost = latest
+    const x = baseX - (i+1) * (barW+1);
+    const openY = priceToY(c.open), closeY = priceToY(c.close), highY = priceToY(c.high), lowY = priceToY(c.low);
+    const isUp = c.close >= c.open;
+    ctx.strokeStyle = isUp ? 'lime' : 'red';
+    ctx.fillStyle = isUp ? 'rgba(40,220,100,0.9)' : 'rgba(220,60,80,0.9)';
+    // wick
+    ctx.beginPath();
+    ctx.moveTo(x + barW/2, highY);
+    ctx.lineTo(x + barW/2, lowY);
+    ctx.stroke();
+    // body
+    ctx.fillRect(x, Math.min(openY, closeY), barW, Math.max(1, Math.abs(closeY - openY)));
+  }
+
+  // current price line from lastIdx
+  if (lastIdx >= 0) {
+    // map lastIdx to price relative and then to canvas X inside candle area at rightmost
+    // show small label
+    const lastPrice = lastIdx - MID_IDX;
+    // draw small label top-left
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px monospace';
+    ctx.fillText('Last price: ' + lastPrice.toFixed(0), candleAreaW + 8, 18);
+  }
+
+  // draw axis / legend
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  ctx.fillRect(candleAreaW, 0, w-candleAreaW, h);
+  // tiny status
+  ctx.fillStyle = '#aaa';
+  ctx.font = '12px sans-serif';
+  ctx.fillText(`Levels shown: ${bottomIdx}..${topIdx}`, candleAreaW + 8, 36);
+}
+
+// initialize
+await zeroOrderbook();
+
+let currentAgentsCount = 0;
+function updateAgents() {
+  const makers = parseInt(makersInput.value);
+  const takers = parseInt(takersInput.value);
+  currentAgentsCount = generateAgents(makers, takers);
+  const params = new Int32Array([currentAgentsCount, LEVELS, MID_IDX]);
+  device.queue.writeBuffer(paramsBuffer, 0, params.buffer);
+}
+
+// initial agents
+updateAgents();
+makersInput.onchange = takersInput.onchange = () => { updateAgents(); };
+
+// simulation loop
+let prev = performance.now();
+const simDt = 1; // logical ms per simulation step (use speed to scale how many steps per frame)
+async function frame(now) {
+  const sp = parseInt(speedInput.value);
+  if (running) {
+    // run multiple steps per frame according to speed value
+    const steps = sp;
+    for (let s=0; s<steps; ++s) {
+      // zero last trade volume/index before step
+      device.queue.writeBuffer(lastIdxBuffer, 0, new Int32Array([ -1 ]));
+      device.queue.writeBuffer(lastVolBuffer, 0, new Int32Array([ 0 ]));
+      // dispatch compute
+      const encoder = device.createCommandEncoder();
+      const pass = encoder.beginComputePass();
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(0, bindGroup);
+      const groups = Math.ceil(currentAgentsCount / WORKGROUP);
+      pass.dispatchWorkgroups(groups);
+      pass.end();
+      device.queue.submit([encoder.finish()]);
+    }
+    // readback occasionally (each frame)
+    const {bids, asks, lastIdx, lastVol} = await readOrderbookAndTrade();
+    if (lastIdx >= 0 && lastVol > 0) {
+      pushTradeToCandle(lastIdx, lastVol, now);
+    }
+    // candle timing
+    const candMs = parseInt(candleInput.value);
+    if (currentCandle && (now - lastCandleTs >= candMs)) {
+      // close and push
+      currentCandle.ts = lastCandleTs;
+      candles.push(currentCandle);
+      currentCandle = null;
+      lastCandleTs = now;
+    }
+    render(bids, asks, lastIdx);
+    status.textContent = `Agents: ${currentAgentsCount}  Makers:${makersInput.value} Takers:${takersInput.value}  Speed×:${speedInput.value}  Candles:${candles.length}`;
+  } else {
+    // still render UI
+    // optionally read orderbook at low rate for visualization
+    // skip to reduce GPU traffic
+  }
+  requestAnimationFrame(frame);
+}
+
+running = true;
+requestAnimationFrame(frame);
+
+})(); // end async
+</script>
+</body>
+</html>

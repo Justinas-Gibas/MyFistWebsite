@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU Free Market Simulation</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #111; color: #fff; margin: 0; padding: 20px; }
+        canvas { border: 1px solid #333; background: #000; }
+        .controls { margin-bottom: 20px; }
+        .control { margin-right: 20px; }
+        .metrics { display: flex; gap: 20px; margin-bottom: 20px; }
+        .metric { font-size: 14px; }
+        button { background: #333; color: #fff; border: none; padding: 5px 10px; cursor: pointer; }
+        button:hover { background: #555; }
+    </style>
+</head>
+<body>
+    <h1>Free Market Simulation (WebGPU)</h1>
+    <div class="controls">
+        <label class="control">Makers: <input type="range" id="makers" min="1" max="100" value="50"></label>
+        <label class="control">Takers: <input type="range" id="takers" min="1" max="100" value="50"></label>
+        <label class="control">Speed: <input type="range" id="speed" min="1" max="10" value="5"></label>
+        <button id="reset">Reset</button>
+        <button id="export">Export Data</button>
+    </div>
+    <div class="metrics">
+        <div class="metric" id="price">Price: --</div>
+        <div class="metric" id="priceChange">Δ: --</div>
+        <div class="metric" id="spread">Spread: --</div>
+        <div class="metric" id="midPrice">Mid: --</div>
+        <div class="metric" id="imbalance">Imbalance: --</div>
+        <div class="metric" id="depthRatio">Depth: --</div>
+        <div class="metric" id="volume">Volume: --</div>
+        <div class="metric" id="tps">Trades/s: --</div>
+    </div>
+    <canvas id="candlesCanvas" width="800" height="400"></canvas>
+    <canvas id="depthCanvas" width="800" height="200"></canvas>
+    <script type="module">
+        const ORDER_LEVELS = 32;
+        const MAX_TRADES = 256;
+        const STATE_BYTES = 48;
+        const DEPTH_BYTES = ORDER_LEVELS * 2 * 4;
+        const TRADE_BYTES = MAX_TRADES * 4 * 4;
+        const PARAM_BYTES = 32;
+
+        let device, computePipeline, bindGroup;
+        let stateBuffer, depthBuffer, tradesBuffer, paramBuffer;
+        let paramArrayBuffer, paramIntsA, paramIntsB, paramFloatsA, paramFloatsB;
+
+        let latestState = { lastPrice: 100, bestBid: 99.6, bestAsk: 100.4, spread: 0.8, imbalance: 0, cumVolume: 0, mid: 100, depthRatio: 1 };
+        let latestDepth = new Float32Array(ORDER_LEVELS * 2);
+        let candles = [];
+        let tradesLog = [];
+        let tradeStats = { accumCount: 0, accumTime: 0, tps: 0 };
+        let lastReferenceClose = 100;
+        let currentCandle = null;
+        let visibleCount = 100;
+        let animationActive = false;
+        let paused = false;
+        let pendingSteps = 0;
+        let resetPending = false;
+        let lastFrameTime = 0;
+
+        const controlValues = { makers: 50, takers: 50, speed: 5, seed: Math.floor(Math.random() * 1000000), tickSize: 0.01, makerDepth: 10, takerAggro: 0.1, volatility: 0.05, depthFalloff: 0.1, tradeBase: 0.1, depthDecay: 0.1 };
+
+        const candlesCanvas = document.getElementById('candlesCanvas');
+        const depthCanvas = document.getElementById('depthCanvas');
+        const ctx = candlesCanvas.getContext('2d');
+        const depthCtx = depthCanvas.getContext('2d');
+
+        const priceEl = document.getElementById('price');
+        const priceChangeEl = document.getElementById('priceChange');
+        const spreadEl = document.getElementById('spread');
+        const midPriceEl = document.getElementById('midPrice');
+        const imbalanceEl = document.getElementById('imbalance');
+        const depthRatioEl = document.getElementById('depthRatio');
+        const volumeEl = document.getElementById('volume');
+        const tpsEl = document.getElementById('tps');
+
+        document.getElementById('makers').addEventListener('input', (e) => controlValues.makers = +e.target.value);
+        document.getElementById('takers').addEventListener('input', (e) => controlValues.takers = +e.target.value);
+        document.getElementById('speed').addEventListener('input', (e) => controlValues.speed = +e.target.value);
+        document.getElementById('reset').addEventListener('click', () => resetPending = true);
+        document.getElementById('export').addEventListener('click', handleExport);
+
+        function yForPrice(price) {
+            const minPrice = Math.min(...candles.slice(-visibleCount).map(c => c.low));
+            const maxPrice = Math.max(...candles.slice(-visibleCount).map(c => c.high));
+            const range = maxPrice - minPrice || 1;
+            return candlesCanvas.height - ((price - minPrice) / range) * candlesCanvas.height;
+        }
+
+        function recordTrade(trade) {
+            tradesLog.push(trade);
+            if (tradesLog.length > 10000) tradesLog.shift();
+            // Update candle
+            const now = Date.now();
+            if (!currentCandle || now - currentCandle.start > 60000) { // 1 min candle
+                if (currentCandle) candles.push(currentCandle);
+                currentCandle = { start: now, open: trade.price, high: trade.price, low: trade.price, close: trade.price, volume: trade.volume, trades: 1 };
+            } else {
+                currentCandle.high = Math.max(currentCandle.high, trade.price);
+                currentCandle.low = Math.min(currentCandle.low, trade.price);
+                currentCandle.close = trade.price;
+                currentCandle.volume += trade.volume;
+                currentCandle.trades += 1;
+            }
+            if (candles.length > visibleCount) candles.shift();
+        }
+
+        function drawCandles() {
+            ctx.clearRect(0, 0, candlesCanvas.width, candlesCanvas.height);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, candlesCanvas.width, candlesCanvas.height);
+            const candleWidth = candlesCanvas.width / visibleCount;
+            for (let i = 0; i < Math.min(candles.length, visibleCount); i++) {
+                const candle = candles[candles.length - visibleCount + i];
+                const x = i * candleWidth;
+                const openY = yForPrice(candle.open);
+                const closeY = yForPrice(candle.close);
+                const highY = yForPrice(candle.high);
+                const lowY = yForPrice(candle.low);
+                const color = candle.close > candle.open ? '#65d3ae' : '#f28f8f';
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x + candleWidth / 2, highY);
+                ctx.lineTo(x + candleWidth / 2, lowY);
+                ctx.stroke();
+                ctx.fillStyle = color;
+                ctx.fillRect(x, Math.min(openY, closeY), candleWidth, Math.abs(openY - closeY));
+            }
+            // Horizontal support/resistance: mid and last price
+            const midY = yForPrice(latestState.mid);
+            ctx.strokeStyle = "rgba(92, 124, 255, 0.45)";
+            ctx.setLineDash([6, 6]);
+            ctx.beginPath();
+            ctx.moveTo(0, midY);
+            ctx.lineTo(candlesCanvas.width, midY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            const lastY = yForPrice(latestState.lastPrice);
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+            ctx.beginPath();
+            ctx.moveTo(0, lastY);
+            ctx.lineTo(candlesCanvas.width, lastY);
+            ctx.stroke();
+            // Trade lines for support/resistance
+            tradesLog.slice(-100).forEach(trade => {
+                const y = yForPrice(trade.price);
+                ctx.strokeStyle = trade.side === 0 ? 'rgba(78, 201, 161, 0.5)' : 'rgba(241, 109, 142, 0.5)'; // Green for buy/support, red for sell/resistance
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(candlesCanvas.width, y);
+                ctx.stroke();
+            });
+        }
+
+        function drawDepth() {
+            const width = depthCanvas.width;
+            const height = depthCanvas.height;
+            depthCtx.setTransform(1, 0, 0, 1, 0, 0);
+            depthCtx.clearRect(0, 0, width, height);
+            depthCtx.fillStyle = "#05070c";
+            depthCtx.fillRect(0, 0, width, height);
+            const bids = latestDepth.subarray(0, ORDER_LEVELS);
+            const asks = latestDepth.subarray(ORDER_LEVELS);
+            let maxDepth = 0;
+            for (let i = 0; i < ORDER_LEVELS; i++) {
+                maxDepth = Math.max(maxDepth, bids[i], asks[i]);
+            }
+            if (maxDepth <= 0) maxDepth = 1;
+            depthCtx.fillStyle = "rgba(78, 201, 161, 0.35)";
+            depthCtx.beginPath();
+            depthCtx.moveTo(width * 0.5, height);
+            let cumulative = 0;
+            for (let i = 0; i < ORDER_LEVELS; i++) {
+                cumulative += bids[i];
+                const x = width * 0.5 - ((i + 1) / ORDER_LEVELS) * (width * 0.5);
+                const y = height - (cumulative / maxDepth) * height;
+                depthCtx.lineTo(x, y);
+            }
+            depthCtx.lineTo(0, height);
+            depthCtx.closePath();
+            depthCtx.fill();
+            depthCtx.fillStyle = "rgba(241, 109, 142, 0.35)";
+            depthCtx.beginPath();
+            depthCtx.moveTo(width * 0.5, height);
+            cumulative = 0;
+            for (let i = 0; i < ORDER_LEVELS; i++) {
+                cumulative += asks[i];
+                const x = width * 0.5 + ((i + 1) / ORDER_LEVELS) * (width * 0.5);
+                const y = height - (cumulative / maxDepth) * height;
+                depthCtx.lineTo(x, y);
+            }
+            depthCtx.lineTo(width, height);
+            depthCtx.closePath();
+            depthCtx.fill();
+            depthCtx.strokeStyle = "rgba(100, 120, 160, 0.45)";
+            depthCtx.lineWidth = 1;
+            depthCtx.beginPath();
+            depthCtx.moveTo(width * 0.5, 0);
+            depthCtx.lineTo(width * 0.5, height);
+            depthCtx.stroke();
+        }
+
+        function updateMetrics() {
+            priceEl.textContent = `Price: ${latestState.lastPrice.toFixed(2)}`;
+            const prevCandle = candles.length > 1 ? candles[candles.length - 2] : candles.length ? candles[candles.length - 1] : null;
+            const basePrice = prevCandle ? prevCandle.close : lastReferenceClose;
+            const change = latestState.lastPrice - basePrice;
+            const changeColor = change >= 0 ? "#65d3ae" : "#f28f8f";
+            priceChangeEl.textContent = `Δ: ${change >= 0 ? "+" : ""}${change.toFixed(3)}`;
+            priceChangeEl.style.color = changeColor;
+            spreadEl.textContent = `Spread: ${latestState.spread.toFixed(3)}`;
+            midPriceEl.textContent = `Mid: ${latestState.mid.toFixed(2)}`;
+            imbalanceEl.textContent = `Imbalance: ${(latestState.imbalance * 100).toFixed(1)}%`;
+            depthRatioEl.textContent = `Depth: ${latestState.depthRatio.toFixed(2)}`;
+            volumeEl.textContent = `Volume: ${currentCandle ? currentCandle.volume.toFixed(2) : latestState.cumVolume.toFixed(2)}`;
+            tpsEl.textContent = `Trades/s: ${tradeStats.tps.toFixed(1)}`;
+        }
+
+        function drawFrame() {
+            drawCandles();
+            drawDepth();
+            updateMetrics();
+        }
+
+        function writeParams(deltaMs) {
+            paramIntsA[0] = controlValues.makers;
+            paramIntsA[1] = controlValues.takers;
+            paramIntsA[2] = controlValues.speed;
+            paramIntsA[3] = resetPending ? 1 : 0;
+            paramIntsB[0] = controlValues.seed >>> 0;
+            paramIntsB[1] = 0;
+            paramIntsB[2] = 0;
+            paramIntsB[3] = 0;
+            paramFloatsA[0] = controlValues.tickSize;
+            paramFloatsA[1] = controlValues.makerDepth;
+            paramFloatsA[2] = controlValues.takerAggro;
+            paramFloatsA[3] = controlValues.volatility;
+            paramFloatsB[0] = controlValues.depthFalloff;
+            paramFloatsB[1] = controlValues.tradeBase;
+            paramFloatsB[2] = controlValues.depthDecay;
+            paramFloatsB[3] = deltaMs / 1000;
+            device.queue.writeBuffer(paramBuffer, 0, paramArrayBuffer);
+        }
+
+        async function runSimulation(deltaMs) {
+            writeParams(deltaMs);
+            const encoder = device.createCommandEncoder();
+            const pass = encoder.beginComputePass();
+            pass.setPipeline(computePipeline);
+            pass.setBindGroup(0, bindGroup);
+            pass.dispatchWorkgroups(1);
+            pass.end();
+            device.queue.submit([encoder.finish()]);
+            await device.queue.onSubmittedWorkDone();
+            const stateData = await device.queue.readBuffer(stateBuffer, 0, STATE_BYTES);
+            const depthData = await device.queue.readBuffer(depthBuffer, 0, DEPTH_BYTES);
+            const tradesData = await device.queue.readBuffer(tradesBuffer, 0, TRADE_BYTES);
+            const stateFloats = new Float32Array(stateData, 0, 8);
+            const stateInts = new Uint32Array(stateData, 32, 4);
+            const tradesFloats = new Float32Array(tradesData);
+            latestState = {
+                lastPrice: stateFloats[0],
+                bestBid: stateFloats[1],
+                bestAsk: stateFloats[2],
+                spread: stateFloats[3],
+                imbalance: stateFloats[4],
+                cumVolume: stateFloats[5],
+                mid: stateFloats[6],
+                depthRatio: stateFloats[7]
+            };
+            latestDepth.set(new Float32Array(depthData));
+            const tradeCount = Math.min(stateInts[2], MAX_TRADES);
+            const now = performance.now();
+            for (let i = 0; i < tradeCount; i++) {
+                const base = i * 4;
+                const price = tradesFloats[base];
+                const volume = tradesFloats[base + 1];
+                const side = tradesFloats[base + 2];
+                if (!Number.isFinite(price) || !Number.isFinite(volume)) continue;
+                recordTrade({ price, volume, side, timestamp: now });
+            }
+            tradeStats.accumCount += tradeCount;
+            tradeStats.accumTime += deltaMs / 1000;
+            if (tradeStats.accumTime >= 1) {
+                tradeStats.tps = tradeStats.accumCount / tradeStats.accumTime;
+                tradeStats.accumCount = 0;
+                tradeStats.accumTime = 0;
+            }
+            resetPending = false;
+        }
+
+        function animationLoop(timestamp) {
+            if (!animationActive) return;
+            const delta = Math.min(180, timestamp - lastFrameTime);
+            lastFrameTime = timestamp;
+            const shouldAdvance = !paused || pendingSteps > 0;
+            const proceed = shouldAdvance ? runSimulation(delta) : Promise.resolve();
+            proceed.then(() => {
+                if (paused && pendingSteps > 0) pendingSteps -= 1;
+                drawFrame();
+                requestAnimationFrame(animationLoop);
+            }).catch((err) => {
+                console.error(err);
+                animationActive = false;
+            });
+        }
+
+        function generateExportPayload() {
+            return {
+                timestamp: new Date().toISOString(),
+                config: controlValues,
+                state: latestState,
+                candles: candles.map(c => ({ start: c.start, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume, trades: c.trades })),
+                trades: [...tradesLog],
+                depthSnapshot: Array.from(latestDepth)
+            };
+        }
+
+        function handleExport() {
+            const exportData = generateExportPayload();
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `webgpu-market-sim-${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        async function init() {
+            if (!navigator.gpu) {
+                alert('WebGPU not supported');
+                return;
+            }
+            const adapter = await navigator.gpu.requestAdapter();
+            device = await adapter.requestDevice();
+            const shaderModule = device.createShaderModule({
+                code: `
+                    const ORDER_LEVELS : u32 = 32u;
+                    const MAX_TRADES : u32 = 256u;
+                    struct SimState { primary : vec4<f32>, secondary : vec4<f32>, counters : vec4<u32> };
+                    struct Trade { price : f32, volume : f32, side : f32, life : f32 };
+                    struct SimParams { intsA : vec4<u32>, intsB : vec4<u32>, floatsA : vec4<f32>, floatsB : vec4<f32> };
+                    @group(0) @binding(0) var<storage, read_write> sim : SimState;
+                    @group(0) @binding(1) var<storage, read_write> depth : array<f32, ORDER_LEVELS * 2u>;
+                    @group(0) @binding(2) var<storage, read_write> trades : array<Trade, MAX_TRADES>;
+                    @group(0) @binding(3) var<uniform> params : SimParams;
+                    fn lcg(state: ptr<function, u32>) -> f32 { var value = (*state) * 1664525u + 1013904223u; *state = value; return f32(value & 0x00FFFFFFu) / f32(0x01000000u); }
+                    fn lerp(a: f32, b: f32, t: f32) -> f32 { return a + (b - a) * t; }
+                    @compute @workgroup_size(1) fn simulate() {
+                        let makerCount = params.intsA.x; let takerCount = params.intsA.y; let steps = max(1u, params.intsA.z); let shouldReset = params.intsA.w; let seed = max(1u, params.intsB.x);
+                        let tickSize = max(0.0001, params.floatsA.x); let makerDepth = max(0.001, params.floatsA.y); let takerAggro = max(0.05, params.floatsA.z); let volatility = max(0.01, params.floatsA.w);
+                        let depthFalloff = max(0.01, params.floatsB.x); let tradeBase = max(0.001, params.floatsB.y); let depthDecay = clamp(params.floatsB.z, 0.0, 0.9);
+                        var rng = sim.counters.x; if (rng == 0u) { rng = seed; } if (shouldReset == 1u || sim.counters.y == 0u) {
+                            rng = seed; sim.primary = vec4<f32>(100.0, 99.6, 100.4, max(tickSize, params.floatsA.w)); sim.secondary = vec4<f32>(0.0, 0.0, 100.0, 1.0); sim.counters.y = 0u; sim.counters.z = 0u; sim.counters.w = seed;
+                            for (var l = 0u; l < ORDER_LEVELS * 2u; l = l + 1u) { depth[l] = makerDepth; }
+                        }
+                        var lastPrice = sim.primary.x; var bestBid = sim.primary.y; var bestAsk = sim.primary.z; var spread = max(tickSize, sim.primary.w); var imbalance = sim.secondary.x; var cumulativeVolume = sim.secondary.y; var mid = sim.secondary.z; var depthRatio = max(0.1, sim.secondary.w);
+                        var tradeCount = 0u;
+                        for (var step = 0u; step < steps; step = step + 1u) {
+                            var totalBid = 0.0; var totalAsk = 0.0; let makerInfluence = f32(makerCount) * makerDepth; let takerInfluence = f32(takerCount) * takerAggro;
+                            for (var level = 0u; level < ORDER_LEVELS; level = level + 1u) {
+                                let bidDepth = depth[level] * (1.0 - depthDecay) + makerInfluence * pow(depthFalloff, f32(level)) * lcg(&rng);
+                                let askDepth = depth[level + ORDER_LEVELS] * (1.0 - depthDecay) + makerInfluence * pow(depthFalloff, f32(level)) * lcg(&rng);
+                                depth[level] = bidDepth; depth[level + ORDER_LEVELS] = askDepth;
+                                totalBid += bidDepth; totalAsk += askDepth;
+                            }
+                            imbalance = (totalBid - totalAsk) / (totalBid + totalAsk + 0.001);
+                            mid = (bestBid + bestAsk) / 2.0;
+                            depthRatio = totalBid / (totalAsk + 0.001);
+                            let priceChange = (lcg(&rng) - 0.5) * volatility * 2.0 + imbalance * takerAggro;
+                            lastPrice += priceChange;
+                            bestBid = lastPrice - spread / 2.0; bestAsk = lastPrice + spread / 2.0;
+                            let tradeProb = tradeBase + abs(priceChange) * 0.1;
+                            if (lcg(&rng) < tradeProb) {
+                                let side = select(1.0, 0.0, lcg(&rng) < 0.5);
+                                let volume = tradeBase * (1.0 + lcg(&rng) * 2.0);
+                                trades[tradeCount] = Trade(lastPrice, volume, side, 1.0);
+                                tradeCount += 1u;
+                                cumulativeVolume += volume;
+                            }
+                            sim.counters.y += 1u;
+                        }
+                        sim.primary = vec4<f32>(lastPrice, bestBid, bestAsk, spread);
+                        sim.secondary = vec4<f32>(imbalance, cumulativeVolume, mid, depthRatio);
+                        sim.counters.x = rng;
+                        sim.counters.z = tradeCount;
+                    }
+                `
+            });
+            computePipeline = device.createComputePipeline({ layout: 'auto', compute: { module: shaderModule, entryPoint: 'simulate' } });
+            stateBuffer = device.createBuffer({ size: STATE_BYTES, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+            depthBuffer = device.createBuffer({ size: DEPTH_BYTES, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+            tradesBuffer = device.createBuffer({ size: TRADE_BYTES, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+            paramBuffer = device.createBuffer({ size: PARAM_BYTES, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+            paramArrayBuffer = new ArrayBuffer(PARAM_BYTES);
+            paramIntsA = new Uint32Array(paramArrayBuffer, 0, 4);
+            paramIntsB = new Uint32Array(paramArrayBuffer, 16, 4);
+            paramFloatsA = new Float32Array(paramArrayBuffer, 0, 4);
+            paramFloatsB = new Float32Array(paramArrayBuffer, 16, 4);
+            bindGroup = device.createBindGroup({
+                layout: computePipeline.getBindGroupLayout(0),
+                entries: [
+                    { binding: 0, resource: { buffer: stateBuffer } },
+                    { binding: 1, resource: { buffer: depthBuffer } },
+                    { binding: 2, resource: { buffer: tradesBuffer } },
+                    { binding: 3, resource: { buffer: paramBuffer } }
+                ]
+            });
+            animationActive = true;
+            requestAnimationFrame(animationLoop);
+        }
+        init();
+    </script>
+</body>
+</html>

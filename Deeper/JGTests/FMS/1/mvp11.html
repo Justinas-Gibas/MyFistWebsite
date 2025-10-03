@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Free Market Simulation mvp1</title>
+    <style>
+        body { font-family: system-ui,Arial; margin: 8px; background:#0b0b0f; color:#ddd; }
+        .row { display:flex; gap:12px; align-items:center; margin-bottom:8px; }
+        .controls { width:320px; padding:12px; background:#0f1115; border-radius:8px; }
+        label { display:block; font-size:12px; color:#9aa; }
+        input[type=range] { width:100%; }
+        canvas { background:#06060a; border-radius:6px; box-shadow: 0 6px 18px rgba(0,0,0,0.6); }
+        #mainWrap { display:flex; gap:12px; }
+        #leftCol { flex:1; display:flex; flex-direction:column; gap:12px; }
+        #rightCol { width:360px; }
+        .stat { font-size:13px; color:#9bd; }
+    </style>
+</head>
+<body>
+    <h2>Free Market Simulation — WebGPU accelerated (with Canvas fallback)</h2>
+
+    <div class="row">
+        <div class="controls">
+            <label>Maker probability (per tick): <span id="makerVal">0.05</span></label>
+            <input id="maker" type="range" min="0" max="0.5" step="0.005" value="0.05">
+            <label>Taker probability (per tick): <span id="takerVal">0.15</span></label>
+            <input id="taker" type="range" min="0" max="0.7" step="0.005" value="0.15">
+            <label>Sim speed multiplier: <span id="speedVal">1</span>x</label>
+            <input id="speed" type="range" min="0.1" max="8" step="0.1" value="1">
+            <div style="margin-top:8px;">
+                <button id="pauseBtn">Pause</button>
+                <button id="resetBtn">Reset</button>
+            </div>
+            <div style="margin-top:8px;">
+                <div class="stat">Ticks/sec: <span id="tps">0</span></div>
+                <div class="stat">Latest price: <span id="price">0</span></div>
+            </div>
+        </div>
+        <div style="flex:1"></div>
+    </div>
+
+    <div id="mainWrap">
+        <div id="leftCol">
+            <canvas id="gpuCanvas" width="960" height="420"></canvas>
+            <canvas id="overlay" width="960" height="420" style="position:relative; margin-top:-420px; pointer-events:none;"></canvas>
+        </div>
+        <div id="rightCol">
+            <div class="controls">
+                <h4>Order book (sample)</h4>
+                <div style="height:260px; overflow:auto;" id="orderbookList"></div>
+                <h4 style="margin-top:8px">Recent transactions</h4>
+                <div style="height:120px; overflow:auto;" id="txList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // Simple free-market simulation parameters & state
+    const TICKS = 256; // number of price ticks visualized
+    const CENTER = Math.floor(TICKS / 2);
+    let makerProb = parseFloat(document.getElementById('maker').value);
+    let takerProb = parseFloat(document.getElementById('taker').value);
+    let speedMul = parseFloat(document.getElementById('speed').value);
+
+    const makerUI = document.getElementById('maker');
+    const takerUI = document.getElementById('taker');
+    const speedUI = document.getElementById('speed');
+    const makerVal = document.getElementById('makerVal');
+    const takerVal = document.getElementById('takerVal');
+    const speedVal = document.getElementById('speedVal');
+    const tpsEl = document.getElementById('tps');
+    const priceEl = document.getElementById('price');
+    const orderbookList = document.getElementById('orderbookList');
+    const txList = document.getElementById('txList');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    makerUI.oninput = () => { makerProb = parseFloat(makerUI.value); makerVal.textContent = makerProb; };
+    takerUI.oninput = () => { takerProb = parseFloat(takerUI.value); takerVal.textContent = takerProb; };
+    speedUI.oninput = () => { speedMul = parseFloat(speedUI.value); speedVal.textContent = speedMul; };
+
+    pauseBtn.onclick = () => { running = !running; pauseBtn.textContent = running ? 'Pause' : 'Resume'; };
+    resetBtn.onclick = () => { resetSim(); };
+
+    // Order book: arrays of liquidity at tick indices (bid side lower indices, ask side higher indices)
+    let bids = new Float32Array(TICKS).fill(0);
+    let asks = new Float32Array(TICKS).fill(0);
+    let recentTx = []; // {priceIdx, volume, t}
+    let midpoint = CENTER;
+    let running = true;
+
+    function resetSim() {
+        bids.fill(0);
+        asks.fill(0);
+        recentTx = [];
+        midpoint = CENTER;
+    }
+
+    // Random helpers
+    function randChoice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    function rndNorm() { // simple Gaussian via Box-Muller
+        let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
+        return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+    }
+
+    // Sim tick: makers add liquidity, takers consume and create transactions
+    function simTick() {
+        // Makers: with probability makerProb, add some limit orders at offsets
+        if (Math.random() < makerProb) {
+            const side = Math.random() < 0.5 ? 'bid' : 'ask';
+            // choose offset (exponential-ish) towards center
+            const offset = Math.max(0, Math.round(Math.abs(Math.floor(rndNorm()*5))));
+            const priceIdx = side === 'bid' ? Math.max(0, midpoint - offset - 1) : Math.min(TICKS-1, midpoint + offset + 1);
+            const size = 1 + Math.random()*10;
+            if (side === 'bid') bids[priceIdx] += size; else asks[priceIdx] += size;
+        }
+
+        // Takers: with probability takerProb, perform taker trade hitting top of book
+        if (Math.random() < takerProb) {
+            // choose buyer or seller taker
+            const takerBuys = Math.random() < 0.5;
+            if (takerBuys) {
+                // taker buys -> hit best ask = lowest ask index > midpoint with liquidity
+                let idx = -1;
+                for (let i = midpoint; i < TICKS; i++) { if (asks[i] > 0) { idx = i; break; } }
+                if (idx === -1) {
+                    // no ask liquidity, small mid move
+                    midpoint += (Math.random()<0.5?1:-1);
+                } else {
+                    const vol = Math.min(asks[idx], 1 + Math.random()*5);
+                    asks[idx] -= vol;
+                    recentTx.push({ priceIdx: idx, volume: vol, t: performance.now() });
+                    midpoint = Math.round((midpoint*0.9 + idx*0.1));
+                }
+            } else {
+                // taker sells -> hit best bid = highest bid index < midpoint with liquidity
+                let idx = -1;
+                for (let i = midpoint; i >= 0; i--) { if (bids[i] > 0) { idx = i; break; } }
+                if (idx === -1) {
+                    midpoint += (Math.random()<0.5?1:-1);
+                } else {
+                    const vol = Math.min(bids[idx], 1 + Math.random()*5);
+                    bids[idx] -= vol;
+                    recentTx.push({ priceIdx: idx, volume: vol, t: performance.now() });
+                    midpoint = Math.round((midpoint*0.9 + idx*0.1));
+                }
+            }
+        }
+
+        // small decay to keep book bounded
+        for (let i=0;i<TICKS;i++) { bids[i] *= 0.999; asks[i] *= 0.999; }
+        // prune old tx
+        const now = performance.now();
+        while (recentTx.length && now - recentTx[0].t > 20000) recentTx.shift();
+    }
+
+    // Rendering: try WebGPU first, otherwise fallback to 2D
+    const canvas = document.getElementById('gpuCanvas');
+    const overlay = document.getElementById('overlay');
+    const overlayCtx = overlay.getContext('2d');
+
+    let gpuAvailable = !!navigator.gpu;
+    let device = null, queue = null;
+    let pipeline = null, bindGroup = null, liquidityBuffer = null, uniformBuffer = null, vertexBuffer = null;
+
+    const maxLiquidity = 200.0;
+
+    async function initWebGPU() {
+        if (!gpuAvailable) return false;
+        try {
+            const adapter = await navigator.gpu.requestAdapter();
+            device = await adapter.requestDevice();
+            queue = device.queue;
+
+            const context = canvas.getContext('webgpu');
+            const format = navigator.gpu.getPreferredCanvasFormat();
+            context.configure({ device, format, alphaMode: 'opaque' });
+
+            // vertex buffer: two triangles that form a unit rectangle centered at (0,0)
+            const quad = new Float32Array([
+                -0.5, 0.0,
+                 0.5, 0.0,
+                -0.5, 1.0,
+                -0.5, 1.0,
+                 0.5, 0.0,
+                 0.5, 1.0
+            ]);
+            vertexBuffer = device.createBuffer({
+                size: quad.byteLength,
+                usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+            });
+            device.queue.writeBuffer(vertexBuffer, 0, quad.buffer, quad.byteOffset, quad.byteLength);
+
+            // storage buffer for liquidity (bids+asks combined as positive/negative or separate)
+            // We'll upload an array of length TICKS where positive = asks, negative = bids (for visualization simplicity)
+            liquidityBuffer = device.createBuffer({
+                size: Float32Array.BYTES_PER_ELEMENT * TICKS,
+                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+            });
+
+            // uniform buffer: ticks and maxLiquidity and canvas dims
+            const uniformData = new Float32Array([TICKS, maxLiquidity, canvas.width, canvas.height]);
+            uniformBuffer = device.createBuffer({
+                size: uniformData.byteLength,
+                usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+            });
+            device.queue.writeBuffer(uniformBuffer, 0, uniformData.buffer, uniformData.byteOffset, uniformData.byteLength);
+
+            // WGSL shaders
+            const wgsl = `
+struct Uniforms { ticks: f32, maxL: f32, width: f32, height: f32 };
+@group(0) @binding(0) var<storage, read> liquidity: array<f32>;
+@group(0) @binding(1) var<uniform> u: Uniforms;
+struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) v: f32 };
+@vertex
+fn vs(@builtin(vertex_index) vIndex: u32, @builtin(instance_index) inst: u32) -> VSOut {
+    var positions = array<vec2<f32>, 6>(
+        vec2(-0.5, 0.0),
+        vec2( 0.5, 0.0),
+        vec2(-0.5, 1.0),
+        vec2(-0.5, 1.0),
+        vec2( 0.5, 0.0),
+        vec2( 0.5, 1.0)
+    );
+    let p = positions[vIndex];
+    let i = f32(inst);
+    let ticks = u.ticks;
+    let xCenter = -1.0 + (i + 0.5) * (2.0 / ticks);
+    let barW = (2.0 / ticks) * 0.9;
+    let liq = liquidity[inst];
+    // normalize height (use absolute liquidity)
+    let h = clamp(abs(liq) / u.maxL, 0.0, 1.0);
+    // vertical position: bids (negative) grow upwards from center-bottom; asks (positive) grow downwards from top
+    let isAsk = select(0.0, 1.0, liq > 0.0);
+    // transform p.y (0..1) into vertical range towards center
+    let verticalSpan = h * 1.0;
+    var y = 0.0;
+    if (liq < 0.0) {
+        // bids grow upward from bottom (-1) towards center
+        y = -1.0 + p.y * verticalSpan;
+    } else {
+        // asks grow downward from top (1) towards center
+        y = 1.0 - p.y * verticalSpan;
+    }
+    let px = xCenter + p.x * barW;
+    // use select() instead of ternary
+    let askMask = select(0.0, 1.0, liq > 0.0);
+    return VSOut(vec4<f32>(px, y, 0.0, 1.0), h * askMask);
+}
+@fragment
+fn fs(in: VSOut) -> @location(0) vec4<f32> {
+    let askColor = vec3<f32>(0.9, 0.35, 0.35);
+    let bidColor = vec3<f32>(0.3, 0.9, 0.6);
+    let intensity = in.v;
+    return vec4<f32>(mix(bidColor, askColor, in.v) * (0.3 + 0.7*in.v), 1.0);
+}
+`;
+            const shaderModule = device.createShaderModule({ code: wgsl });
+
+            // --- Fix: explicitly create bind group layout and pipeline layout ---
+            const bindGroupLayout = device.createBindGroupLayout({
+                entries: [
+                    {
+                        binding: 0,
+                        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+                        buffer: { type: 'read-only-storage' }
+                    },
+                    {
+                        binding: 1,
+                        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+                        buffer: { type: 'uniform' }
+                    }
+                ]
+            });
+
+            const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
+
+            const pipelineDesc = {
+                layout: pipelineLayout,
+                vertex: {
+                    module: shaderModule,
+                    entryPoint: 'vs',
+                    buffers: [
+                        {
+                            arrayStride: 8,
+                            attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x2' }]
+                        }
+                    ]
+                },
+                fragment: {
+                    module: shaderModule,
+                    entryPoint: 'fs',
+                    targets: [{ format }]
+                },
+                primitive: { topology: 'triangle-list' }
+            };
+
+            pipeline = device.createRenderPipeline(pipelineDesc);
+
+            // create bind group using the bindGroupLayout we created
+            bindGroup = device.createBindGroup({
+                layout: bindGroupLayout,
+                entries: [
+                    { binding: 0, resource: { buffer: liquidityBuffer } },
+                    { binding: 1, resource: { buffer: uniformBuffer } }
+                ]
+            });
+
+            return true;
+        } catch (e) {
+            console.warn('WebGPU init failed:', e);
+            gpuAvailable = false;
+            return false;
+        }
+    }
+
+    // Compose a single array where positive = ask liquidity, negative = bid liquidity
+    function composeLiquidityArray() {
+        const arr = new Float32Array(TICKS);
+        for (let i=0;i<TICKS;i++) {
+            arr[i] = asks[i] - bids[i]; // positive => asks dominate, negative => bids
+        }
+        return arr;
+    }
+
+    // CPU fallback renderer to draw bars and transactions
+    function render2D() {
+        // try to get 2D context from the main canvas; if not available (it's configured for WebGPU),
+        // draw to the overlay canvas instead
+        let ctx = canvas.getContext('2d');
+        if (!ctx) {
+            ctx = overlayCtx;
+            // fill background to cover underlying (webgpu) canvas area when GPU not used
+            ctx.fillStyle = '#06060a';
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        }
+        // use the drawing canvas size
+        const w = ctx.canvas.width, h = ctx.canvas.height;
+        ctx.clearRect(0,0,w,h);
+
+        // draw bars
+        const barW = w / TICKS;
+        for (let i=0;i<TICKS;i++) {
+            const val = asks[i] - bids[i];
+            if (val > 0.001) {
+                const norm = Math.min(1, val / maxLiquidity);
+                ctx.fillStyle = `rgba(220,90,90,${0.25+0.65*norm})`; // ask
+                const barH = norm * h * 0.5;
+                ctx.fillRect(i*barW, 0, barW*0.9, barH);
+            } else if (val < -0.001) {
+                const norm = Math.min(1, -val / maxLiquidity);
+                ctx.fillStyle = `rgba(90,220,160,${0.25+0.65*norm})`; // bid
+                const barH = norm * h * 0.5;
+                ctx.fillRect(i*barW, h - barH, barW*0.9, barH);
+            }
+        }
+    }
+
+    // overlay: draw recent transactions as horizontal lines & lists
+    function renderOverlay() {
+        overlayCtx.clearRect(0,0,overlay.width,overlay.height);
+        const w = overlay.width, h = overlay.height;
+        // draw mid price marker
+        overlayCtx.strokeStyle = 'rgba(200,200,255,0.06)';
+        overlayCtx.beginPath();
+        overlayCtx.moveTo((midpoint+0.5)/TICKS*w, 0);
+        overlayCtx.lineTo((midpoint+0.5)/TICKS*w, h);
+        overlayCtx.stroke();
+
+        // draw transaction lines
+        const now = performance.now();
+        for (let i=recentTx.length-1;i>=0;i--) {
+            const tx = recentTx[i];
+            const age = (now - tx.t);
+            const alpha = Math.max(0, 1 - age/5000);
+            if (alpha <= 0) continue;
+            const x = (tx.priceIdx + 0.5)/TICKS * w;
+            overlayCtx.strokeStyle = `rgba(255,255,255,${alpha*0.9})`;
+            overlayCtx.beginPath();
+            overlayCtx.moveTo(x, 0);
+            overlayCtx.lineTo(x, h);
+            overlayCtx.stroke();
+        }
+
+        // update side lists and stats
+        orderbookList.innerHTML = '';
+        // show top 10 bids and asks near midpoint
+        const radius = 12;
+        const rows = [];
+        for (let offset=radius; offset>=1; offset--) {
+            const bidIndex = midpoint - offset;
+            const askIndex = midpoint + offset;
+            if (bidIndex>=0) rows.push({ side:'B', idx: bidIndex, val: Math.round(bids[bidIndex]*10)/10 });
+            if (askIndex<TICKS) rows.push({ side:'A', idx: askIndex, val: Math.round(asks[askIndex]*10)/10 });
+        }
+        for (let r of rows) {
+            const div = document.createElement('div');
+            div.style.fontFamily='monospace';
+            div.style.fontSize='12px';
+            div.textContent = `${r.side} ${r.idx} : ${r.val}`;
+            orderbookList.appendChild(div);
+        }
+
+        txList.innerHTML = '';
+        for (let i=Math.max(0,recentTx.length-30); i<recentTx.length; i++) {
+            const tx = recentTx[i];
+            const d = document.createElement('div');
+            d.style.fontFamily='monospace';
+            d.style.fontSize='12px';
+            d.textContent = `P:${tx.priceIdx} V:${Math.round(tx.volume*10)/10}`;
+            txList.appendChild(d);
+        }
+
+        priceEl.textContent = midpoint;
+    }
+
+    // High-level loop
+    let lastFrame = performance.now();
+    let ticksThisSec = 0, lastSec = performance.now();
+    async function frame() {
+        const now = performance.now();
+        const dt = (now - lastFrame) / 1000;
+        lastFrame = now;
+        if (running) {
+            // run multiple simulation steps depending on speedMul and dt
+            const steps = Math.max(1, Math.floor(60 * dt * speedMul));
+            for (let s=0;s<steps;s++) simTick();
+        }
+
+        // Update GPU or CPU render
+        if (device && pipeline) {
+            // update liquidity buffer
+            const liq = composeLiquidityArray();
+            device.queue.writeBuffer(liquidityBuffer, 0, liq.buffer, liq.byteOffset, liq.byteLength);
+            // update uniform dims (in case of resize)
+            const udata = new Float32Array([TICKS, maxLiquidity, canvas.width, canvas.height]);
+            device.queue.writeBuffer(uniformBuffer, 0, udata.buffer, udata.byteOffset, udata.byteLength);
+
+            // render pass
+            const context = canvas.getContext('webgpu');
+            const commandEncoder = device.createCommandEncoder();
+            const textureView = context.getCurrentTexture().createView();
+            const renderPass = commandEncoder.beginRenderPass({
+                colorAttachments: [{
+                    view: textureView,
+                    clearValue: { r: 0.03, g: 0.03, b: 0.04, a: 1.0 },
+                    loadOp: 'clear',
+                    storeOp: 'store'
+                }]
+            });
+            renderPass.setPipeline(pipeline);
+            renderPass.setVertexBuffer(0, vertexBuffer);
+            renderPass.setBindGroup(0, bindGroup);
+            // draw TICKS instances (each instance = one bar)
+            renderPass.draw(6, TICKS, 0, 0);
+            renderPass.end();
+            device.queue.submit([commandEncoder.finish()]);
+        } else {
+            render2D();
+        }
+
+        renderOverlay();
+
+        // stats
+        ticksThisSec += 1;
+        if (now - lastSec > 1000) {
+            tpsEl.textContent = ticksThisSec;
+            ticksThisSec = 0;
+            lastSec = now;
+        }
+
+        requestAnimationFrame(frame);
+    }
+
+    (async () => {
+        await initWebGPU();
+        // initial book seeding
+        for (let i=0;i<100;i++) {
+            // deposit some random makers to have initial liquidity
+            const side = Math.random()<0.5 ? 'bid' : 'ask';
+            const offset = Math.floor(Math.abs(rndNorm()*6));
+            const idx = side==='bid' ? Math.max(0, CENTER - offset - 1) : Math.min(TICKS-1, CENTER + offset + 1);
+            if (side==='bid') bids[idx] += 5 + Math.random()*20; else asks[idx] += 5 + Math.random()*20;
+        }
+        requestAnimationFrame(frame);
+    })();
+
+    </script>
+</body>
+</html>

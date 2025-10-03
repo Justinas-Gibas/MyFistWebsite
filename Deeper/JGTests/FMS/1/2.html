@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<title>WebGPU Free Market Simulator</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<style>
+		:root {
+			color-scheme: dark;
+			font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+			background: #040507;
+			color: #e7ecf5;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			min-height: 100vh;
+			display: flex;
+			flex-direction: column;
+			background: radial-gradient(circle at top left, rgba(29, 40, 83, 0.35), transparent 65%),
+				radial-gradient(circle at bottom right, rgba(14, 97, 80, 0.25), transparent 60%),
+				#040507;
+		}
+
+		header {
+			padding: 20px 32px 12px;
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+		}
+
+		header h1 {
+			margin: 0;
+			font-size: clamp(1.8rem, 3vw, 2.4rem);
+			letter-spacing: 0.02em;
+		}
+
+		header p {
+			margin: 0;
+			color: #9ca9c7;
+			max-width: 720px;
+			line-height: 1.4;
+		}
+
+		main {
+			width: 100%;
+			max-width: 1220px;
+			margin: 0 auto;
+			padding: 0 24px 48px;
+			display: grid;
+			gap: 20px;
+		}
+
+		.panel {
+			background: linear-gradient(160deg, rgba(18, 25, 40, 0.88), rgba(7, 13, 24, 0.92));
+			border: 1px solid rgba(67, 94, 158, 0.24);
+			border-radius: 16px;
+			box-shadow: 0 18px 40px rgba(5, 10, 24, 0.55);
+			padding: 20px 24px;
+			backdrop-filter: blur(12px);
+		}
+
+		.panel h2 {
+			margin: 0 0 16px;
+			font-size: 1.15rem;
+			font-weight: 600;
+			letter-spacing: 0.01em;
+			color: #cdd8f5;
+		}
+
+		.controls-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+			gap: 16px 24px;
+			align-items: end;
+		}
+
+		.control {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+		}
+
+		label {
+			font-size: 0.9rem;
+			color: #9ca9c7;
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+			gap: 16px;
+		}
+
+		label output {
+			font-variant-numeric: tabular-nums;
+			color: #e7ecf5;
+			font-weight: 600;
+		}
+
+		input[type="range"] {
+			accent-color: #4ec9a1;
+			cursor: pointer;
+		}
+
+		input[type="number"] {
+			background: rgba(12, 17, 28, 0.75);
+			border: 1px solid rgba(72, 94, 138, 0.6);
+			border-radius: 10px;
+			padding: 10px 12px;
+			color: inherit;
+			font-size: 1rem;
+			transition: border 0.2s ease, box-shadow 0.2s ease;
+		}
+
+		input[type="number"]:focus {
+			outline: none;
+			border-color: #4ec9a1;
+			box-shadow: 0 0 0 2px rgba(78, 201, 161, 0.25);
+		}
+
+		.actions {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 12px;
+		}
+
+		button {
+			appearance: none;
+			border: none;
+			border-radius: 12px;
+			padding: 10px 18px;
+			font-size: 0.95rem;
+			font-weight: 600;
+			cursor: pointer;
+			transition: transform 0.1s ease, box-shadow 0.15s ease;
+			background: linear-gradient(120deg, #2f3f6b, #1f2954);
+			color: #f3f6ff;
+			box-shadow: 0 10px 20px rgba(6, 12, 28, 0.4);
+		}
+
+		button:hover {
+			transform: translateY(-1px);
+			box-shadow: 0 12px 24px rgba(6, 12, 28, 0.55);
+		}
+
+		button.secondary {
+			background: rgba(26, 36, 56, 0.9);
+			color: #cdd8f5;
+			border: 1px solid rgba(67, 94, 158, 0.35);
+			box-shadow: none;
+		}
+
+		button.secondary:hover {
+			border-color: rgba(85, 118, 181, 0.65);
+			box-shadow: 0 10px 20px rgba(5, 12, 28, 0.35);
+		}
+
+		.metrics-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+			gap: 16px;
+		}
+
+		.metric {
+			padding: 12px 16px;
+			border-radius: 12px;
+			background: rgba(11, 17, 28, 0.7);
+			border: 1px solid rgba(67, 94, 158, 0.2);
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			min-height: 88px;
+		}
+
+		.metric span.label {
+			font-size: 0.8rem;
+			color: #7f8bb2;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+		}
+
+		.metric strong {
+			font-size: 1.4rem;
+			font-weight: 600;
+			font-variant-numeric: tabular-nums;
+		}
+
+		canvas {
+			width: 100%;
+			height: clamp(280px, 48vw, 360px);
+			display: block;
+			background: radial-gradient(circle at top, rgba(20, 35, 61, 0.38), rgba(9, 14, 24, 0.92));
+			border-radius: 16px;
+			border: 1px solid rgba(67, 94, 158, 0.28);
+		}
+
+		footer {
+			margin: 0 auto;
+			padding: 0 24px 40px;
+			width: 100%;
+			max-width: 1220px;
+			color: #6f7aa3;
+			font-size: 0.82rem;
+			display: flex;
+			justify-content: space-between;
+			align-items: flex-start;
+			gap: 16px;
+			flex-wrap: wrap;
+		}
+
+		.status-pill {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			padding: 4px 10px;
+			border-radius: 999px;
+			background: rgba(16, 115, 90, 0.18);
+			color: #65d3ae;
+			font-weight: 600;
+			font-size: 0.8rem;
+		}
+
+		.status-pill.paused {
+			background: rgba(115, 80, 16, 0.18);
+			color: #f1cb76;
+		}
+
+		.status-pill.error {
+			background: rgba(140, 41, 41, 0.25);
+			color: #f28f8f;
+		}
+
+		.legend {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 10px 16px;
+			margin-top: 12px;
+			font-size: 0.78rem;
+			color: #8ca4cc;
+		}
+
+		.legend span {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+		}
+
+		.swatch {
+			width: 12px;
+			height: 12px;
+			border-radius: 50%;
+			display: inline-block;
+			box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+		}
+
+		.swatch.bull {
+			background: #4ec9a1;
+		}
+
+		.swatch.bear {
+			background: #f16d8e;
+		}
+
+		.swatch.pivot {
+			background: #5c7cff;
+		}
+
+		.swatch.volume {
+			background: #f7c86f;
+		}
+
+		@media (max-width: 720px) {
+			header {
+				padding: 18px 20px 10px;
+			}
+
+			main {
+				padding: 0 18px 36px;
+			}
+
+			footer {
+				padding: 0 18px 32px;
+			}
+
+			canvas {
+				height: clamp(260px, 55vw, 340px);
+			}
+		}
+	</style>
+</head>
+<body>
+	<header>
+		<div class="status-pill" id="status-pill">Running · deterministic seed</div>
+		<h1>WebGPU Free Market Simulator</h1>
+		<p>
+			Stress-test a simplified limit-order-book driven market with deterministic maker and taker agents,
+			rendered fully on the GPU. Adjust depth providers, taker aggression, simulation speed and seed — then export the
+			entire run as JSON for deeper research.
+		</p>
+	</header>
+
+	<main>
+		<section class="panel">
+			<h2>Simulation Controls</h2>
+			<div class="controls-grid">
+				<div class="control">
+					<label for="makers">
+						Makers
+						<output id="makers-value">12</output>
+					</label>
+					<input type="range" id="makers" min="1" max="64" step="1" value="12" />
+				</div>
+				<div class="control">
+					<label for="takers">
+						Takers
+						<output id="takers-value">6</output>
+					</label>
+					<input type="range" id="takers" min="1" max="48" step="1" value="6" />
+				</div>
+				<div class="control">
+					<label for="speed">
+						Simulation speed (ticks / frame)
+						<output id="speed-value">8</output>
+					</label>
+					<input type="range" id="speed" min="1" max="120" step="1" value="8" />
+				</div>
+				<div class="control">
+					<label for="seed">
+						RNG seed
+						<output id="seed-value">1337</output>
+					</label>
+					<input type="number" id="seed" min="1" max="4294967294" step="1" value="1337" />
+				</div>
+			</div>
+			<div class="actions" style="margin-top: 20px;">
+				<button id="toggle">Pause</button>
+				<button class="secondary" id="step">Step ×10</button>
+				<button class="secondary" id="reset">Reset</button>
+				<button id="export">Export JSON</button>
+			</div>
+		</section>
+
+		<section class="panel">
+			<h2>Market Snapshot</h2>
+			<div class="metrics-grid">
+				<div class="metric">
+					<span class="label">Last Trade</span>
+					<strong id="last-price">—</strong>
+					<small id="price-change" style="color:#7f8bb2;">Δ —</small>
+				</div>
+				<div class="metric">
+					<span class="label">Spread</span>
+					<strong id="spread">—</strong>
+					<small id="mid-price" style="color:#7f8bb2;">Mid —</small>
+				</div>
+				<div class="metric">
+					<span class="label">Imbalance</span>
+					<strong id="imbalance">—</strong>
+					<small id="depth-ratio" style="color:#7f8bb2;">Depth —</small>
+				</div>
+				<div class="metric">
+					<span class="label">Vol / Candle</span>
+					<strong id="volume">—</strong>
+					<small id="tps" style="color:#7f8bb2;">Trades / s —</small>
+				</div>
+			</div>
+			<div class="legend">
+				<span><span class="swatch bull"></span> Bull candle</span>
+				<span><span class="swatch bear"></span> Bear candle</span>
+				<span><span class="swatch pivot"></span> Pivot / S/R</span>
+				<span><span class="swatch volume"></span> Volume node</span>
+			</div>
+		</section>
+
+		<section class="panel">
+			<h2>Candlesticks · Support / Resistance</h2>
+			<canvas id="candles-canvas"></canvas>
+		</section>
+
+		<section class="panel">
+			<h2>Order Book Depth</h2>
+			<canvas id="depth-canvas"></canvas>
+		</section>
+	</main>
+
+	<footer>
+		<div>
+			<strong>Export format:</strong> candles, trades, depth snapshot, configuration & deterministic seed for reproducing runs.
+		</div>
+		<div>
+			<strong>Note:</strong> WebGPU is available on current Chrome, Edge, and recent Chromium-based browsers with the
+			<em>"Unsafe WebGPU"</em> flag enabled where required.
+		</div>
+	</footer>
+
+	<script type="module">
+		const statusPill = document.getElementById("status-pill");
+		const makersSlider = document.getElementById("makers");
+		const takersSlider = document.getElementById("takers");
+		const speedSlider = document.getElementById("speed");
+		const seedInput = document.getElementById("seed");
+		const makersValue = document.getElementById("makers-value");
+		const takersValue = document.getElementById("takers-value");
+		const speedValue = document.getElementById("speed-value");
+		const seedValue = document.getElementById("seed-value");
+		const toggleBtn = document.getElementById("toggle");
+		const stepBtn = document.getElementById("step");
+		const resetBtn = document.getElementById("reset");
+		const exportBtn = document.getElementById("export");
+
+		const priceEl = document.getElementById("last-price");
+		const priceChangeEl = document.getElementById("price-change");
+		const spreadEl = document.getElementById("spread");
+		const midPriceEl = document.getElementById("mid-price");
+		const imbalanceEl = document.getElementById("imbalance");
+		const depthRatioEl = document.getElementById("depth-ratio");
+		const volumeEl = document.getElementById("volume");
+		const tpsEl = document.getElementById("tps");
+
+		const COLORS = {
+			bull: [0.27, 0.83, 0.58],
+			bear: [0.94, 0.38, 0.58],
+			wick: [0.78, 0.84, 0.93],
+			backgroundTop: { r: 0.045, g: 0.055, b: 0.085, a: 1 },
+			backgroundDepth: { r: 0.035, g: 0.05, b: 0.07, a: 1 },
+			pivot: [0.34, 0.55, 0.98],
+			support: [0.18, 0.9, 0.66],
+			resistance: [0.94, 0.49, 0.36],
+			volume: [0.97, 0.78, 0.44],
+			midLine: [0.38, 0.44, 0.62],
+			bidDepth: [0.24, 0.6, 0.48],
+			askDepth: [0.82, 0.36, 0.46]
+		};
+
+		class RNG {
+			constructor(seed = 1) {
+				this.setSeed(seed);
+			}
+
+			setSeed(seed) {
+				const normalized = (seed >>> 0) || 1;
+				this.state = normalized;
+				this.seed = normalized;
+			}
+
+			next() {
+				let x = this.state += 0x6d2b79f5;
+				x = Math.imul(x ^ (x >>> 15), 1 | x);
+				x ^= x + Math.imul(x ^ (x >>> 7), 61 | x);
+				this.state = x;
+				return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+			}
+
+			nextBetween(min, max) {
+				return min + this.next() * (max - min);
+			}
+
+			nextInt(min, max) {
+				return Math.floor(this.nextBetween(min, max + 1));
+			}
+		}
+
+		class OrderBook {
+			constructor({ tickSize = 0.25, maxLevels = 64 } = {}) {
+				this.tickSize = tickSize;
+				this.maxLevels = maxLevels;
+				this.reset();
+			}
+
+			reset() {
+				this.bids = new Map();
+				this.asks = new Map();
+				this.bidPrices = [];
+				this.askPrices = [];
+				this.nextOrderId = 1;
+			}
+
+			_levelKey(price) {
+				return price.toFixed(4);
+			}
+
+			_normalizePrice(price) {
+				const normalized = Math.max(this.tickSize, Math.round(price / this.tickSize) * this.tickSize);
+				return Number(normalized.toFixed(4));
+			}
+
+			_structures(side) {
+				if (side === "buy") {
+					return { book: this.bids, prices: this.bidPrices, descending: true };
+				}
+				return { book: this.asks, prices: this.askPrices, descending: false };
+			}
+
+			_insertPriceLevel(prices, price, descending) {
+				const index = prices.findIndex((p) => (descending ? p < price : p > price));
+				if (index === -1) {
+					prices.push(price);
+				} else {
+					prices.splice(index, 0, price);
+				}
+			}
+
+			_removePriceLevel(structures, price) {
+				const { prices, book } = structures;
+				const idx = prices.indexOf(price);
+				if (idx !== -1) {
+					prices.splice(idx, 1);
+				}
+				book.delete(this._levelKey(price));
+			}
+
+			_enforceDepth(structures) {
+				const { prices, book } = structures;
+				while (prices.length > this.maxLevels) {
+					const removedPrice = prices.pop();
+					if (removedPrice !== undefined) {
+						book.delete(this._levelKey(removedPrice));
+					}
+				}
+			}
+
+			processOrder(order) {
+				if (!order || !Number.isFinite(order.size) || order.size <= 0) return [];
+				const workingOrder = { ...order };
+				workingOrder.id = workingOrder.id || this.nextOrderId++;
+				if (workingOrder.type === "limit") {
+					workingOrder.price = this._normalizePrice(workingOrder.price);
+				}
+				const trades = [];
+				const side = workingOrder.side;
+				const opposite = side === "buy" ? "sell" : "buy";
+				const restingStruct = this._structures(side);
+				const takingStruct = this._structures(opposite);
+
+				const shouldMatch = (limitPrice, restingPrice) => {
+					if (workingOrder.type === "market") return true;
+					return side === "buy" ? limitPrice >= restingPrice : limitPrice <= restingPrice;
+				};
+
+				while (workingOrder.size > 1e-6 && takingStruct.prices.length) {
+					const bestRestingPrice = takingStruct.prices[0];
+					if (!shouldMatch(workingOrder.price ?? 0, bestRestingPrice)) break;
+					const restingLevel = takingStruct.book.get(this._levelKey(bestRestingPrice));
+					if (!restingLevel) {
+						takingStruct.prices.shift();
+						continue;
+					}
+
+					while (restingLevel.orders.length && workingOrder.size > 0) {
+						const restingOrder = restingLevel.orders[0];
+						const tradedSize = Math.min(restingOrder.size, workingOrder.size);
+						restingOrder.size -= tradedSize;
+						restingLevel.totalSize -= tradedSize;
+						workingOrder.size -= tradedSize;
+						trades.push({
+							price: bestRestingPrice,
+							size: tradedSize,
+							timestamp: workingOrder.timestamp,
+							takerSide: side,
+							makerId: restingOrder.id,
+							makerAgent: restingOrder.agentType ?? "maker",
+							takerAgent: workingOrder.agentType ?? "taker"
+						});
+						if (restingOrder.size <= 1e-6) {
+							restingLevel.orders.shift();
+						}
+					}
+
+					if (!restingLevel.orders.length || restingLevel.totalSize <= 1e-6) {
+						takingStruct.prices.shift();
+						takingStruct.book.delete(this._levelKey(bestRestingPrice));
+					}
+				}
+
+				if (workingOrder.type === "limit" && workingOrder.size > 1e-6) {
+					const levelPrice = workingOrder.price;
+					const levelKey = this._levelKey(levelPrice);
+					let level = restingStruct.book.get(levelKey);
+					if (!level) {
+						level = { price: levelPrice, orders: [], totalSize: 0 };
+						restingStruct.book.set(levelKey, level);
+						this._insertPriceLevel(restingStruct.prices, levelPrice, restingStruct.descending);
+						this._enforceDepth(restingStruct);
+					}
+					level.orders.push({
+						id: workingOrder.id,
+						size: workingOrder.size,
+						timestamp: workingOrder.timestamp,
+						agentType: workingOrder.agentType
+					});
+					level.totalSize += workingOrder.size;
+				}
+
+				return trades;
+			}
+
+			getBestBid() {
+				return this.bidPrices.length ? this.bidPrices[0] : null;
+			}
+
+			getBestAsk() {
+				return this.askPrices.length ? this.askPrices[0] : null;
+			}
+
+			getMidPrice() {
+				const bid = this.getBestBid();
+				const ask = this.getBestAsk();
+				if (bid && ask) return (bid + ask) / 2;
+				return bid ?? ask ?? null;
+			}
+
+			getSpread() {
+				const bid = this.getBestBid();
+				const ask = this.getBestAsk();
+				if (!bid || !ask) return 0;
+				return Math.max(ask - bid, 0);
+			}
+
+			getDepthSnapshot(levels = 24) {
+				const bids = this.bidPrices.slice(0, levels).map((price) => {
+					const level = this.bids.get(this._levelKey(price));
+					return {
+						price,
+						size: level ? level.totalSize : 0
+					};
+				});
+				const asks = this.askPrices.slice(0, levels).map((price) => {
+					const level = this.asks.get(this._levelKey(price));
+					return {
+						price,
+						size: level ? level.totalSize : 0
+					};
+				});
+				return { bids, asks };
+			}
+		}
+
+		class CandleSeries {
+			constructor({ timeframe = 1000, maxCandles = 512 } = {}) {
+				this.timeframe = timeframe;
+				this.maxCandles = maxCandles;
+				this.reset();
+			}
+
+			reset() {
+				this.candles = [];
+				this.current = null;
+			}
+
+			_candleStart(timestamp) {
+				return Math.floor(timestamp / this.timeframe) * this.timeframe;
+			}
+
+			_createCandle(start, price) {
+				const value = price ?? (this.current ? this.current.close : 100);
+				return {
+					start,
+					open: value,
+					high: value,
+					low: value,
+					close: value,
+					volume: 0,
+					trades: 0
+				};
+			}
+
+			advance(timestamp, lastPrice) {
+				if (!this.current) {
+					this.current = this._createCandle(this._candleStart(timestamp), lastPrice ?? 100);
+					return;
+				}
+
+				while (timestamp >= this.current.start + this.timeframe) {
+					const finished = { ...this.current };
+					this.candles.push(finished);
+					if (this.candles.length > this.maxCandles) {
+						this.candles.shift();
+					}
+					const nextStart = this.current.start + this.timeframe;
+					const carry = lastPrice ?? this.current.close;
+					this.current = this._createCandle(nextStart, carry);
+				}
+
+				if (Number.isFinite(lastPrice)) {
+					this.current.close = lastPrice;
+					this.current.high = Math.max(this.current.high, lastPrice);
+					this.current.low = Math.min(this.current.low, lastPrice);
+				}
+			}
+
+			addTrade(price, volume, timestamp) {
+				if (!Number.isFinite(price)) return;
+				this.advance(timestamp, price);
+				if (!this.current) return;
+				if (this.current.volume === 0) {
+					this.current.open = price;
+					this.current.low = Math.min(this.current.low, price);
+					this.current.high = Math.max(this.current.high, price);
+				}
+				this.current.close = price;
+				this.current.high = Math.max(this.current.high, price);
+				this.current.low = Math.min(this.current.low, price);
+				this.current.volume += volume;
+				this.current.trades += 1;
+			}
+
+			getRecent(limit = 160) {
+				const slice = this.candles.slice(-limit);
+				if (this.current) slice.push({ ...this.current });
+				return slice;
+			}
+
+			getAll() {
+				const data = [...this.candles.map((c) => ({ ...c }))];
+				if (this.current) data.push({ ...this.current });
+				return data;
+			}
+
+			lastVolume() {
+				if (this.current) return this.current.volume;
+				return this.candles.length ? this.candles[this.candles.length - 1].volume : 0;
+			}
+		}
+
+		class VolumeProfile {
+			constructor({ binSize = 0.5 } = {}) {
+				this.binSize = binSize;
+				this.reset();
+			}
+
+			reset() {
+				this.bins = new Map();
+			}
+
+			_binKey(price) {
+				const key = Math.round(price / this.binSize) * this.binSize;
+				return Number(key.toFixed(4));
+			}
+
+			record(price, volume) {
+				if (!Number.isFinite(price) || volume <= 0) return;
+				const key = this._binKey(price);
+				const current = this.bins.get(key) ?? 0;
+				this.bins.set(key, current + volume);
+			}
+
+			topNodes(count = 3) {
+				if (!this.bins.size) return [];
+				const entries = Array.from(this.bins.entries()).map(([price, vol]) => ({ price, volume: vol }));
+				entries.sort((a, b) => b.volume - a.volume);
+				const top = entries.slice(0, count);
+				const max = top[0]?.volume ?? 1;
+				return top.map((node) => ({
+					price: node.price,
+					volume: node.volume,
+					strength: max ? node.volume / max : 0
+				}));
+			}
+		}
+
+		class OverlayCalculator {
+			constructor(volumeProfile) {
+				this.volumeProfile = volumeProfile;
+			}
+
+			compute(candles) {
+				const overlays = [];
+				if (!candles.length) return overlays;
+				const last = candles[candles.length - 1];
+				const pivot = (last.high + last.low + last.close) / 3;
+				const r1 = 2 * pivot - last.low;
+				const s1 = 2 * pivot - last.high;
+				overlays.push({ price: pivot, type: "pivot", strength: 1 });
+				overlays.push({ price: r1, type: "resistance", strength: 0.75 });
+				overlays.push({ price: s1, type: "support", strength: 0.75 });
+				if (candles.length > 1) {
+					const prev = candles[candles.length - 2];
+					const prevPivot = (prev.high + prev.low + prev.close) / 3;
+					overlays.push({ price: prevPivot, type: "pivot_secondary", strength: 0.4 });
+				}
+				for (const node of this.volumeProfile.topNodes(3)) {
+					overlays.push({ price: node.price, type: "volume", strength: node.strength });
+				}
+				return overlays;
+			}
+		}
+
+		class MarketSimulation {
+			constructor({ seed = 1337, tickSize = 0.25, stepDuration = 100 } = {}) {
+				this.tickSize = tickSize;
+				this.stepDuration = stepDuration;
+				this.tradeLogLimit = 8000;
+				this.setSeed(seed);
+				this.orderBook = new OrderBook({ tickSize });
+				this.candles = new CandleSeries({ timeframe: 1000 });
+				this.volumeProfile = new VolumeProfile({ binSize: tickSize });
+				this.overlayCalculator = new OverlayCalculator(this.volumeProfile);
+				this.recentTrades = [];
+				this.reset(seed);
+			}
+
+			setSeed(seed) {
+				this.baseSeed = (seed >>> 0) || 1;
+			}
+
+			reset(seed = this.baseSeed) {
+				this.setSeed(seed);
+				this.rng = new RNG(this.baseSeed);
+				this.orderBook.reset();
+				this.candles.reset();
+				this.volumeProfile.reset();
+				this.recentTrades = [];
+				this.tradeLog = [];
+				this.simulatedTime = 0;
+				this.lastPrice = 100;
+				this.prevPrice = 100;
+				this.makers = parseInt(makersSlider.value, 10) || 12;
+				this.takers = parseInt(takersSlider.value, 10) || 6;
+				this.simSpeed = parseInt(speedSlider.value, 10) || 8;
+				this.running = true;
+				this.makerIntensity = 0.58;
+				this.takerIntensity = 0.36;
+				this._seedInitialBook();
+			}
+
+			_seedInitialBook() {
+				const baseTime = this.simulatedTime;
+				for (let i = 1; i <= 36; i += 1) {
+					const offset = i * this.tickSize;
+					const size = 1.5 + this.rng.nextBetween(0, 3.5);
+					const lowerPrice = Math.max(this.tickSize, this.lastPrice - offset);
+					const upperPrice = this.lastPrice + offset;
+					this.orderBook.processOrder({
+						type: "limit",
+						side: "buy",
+						price: lowerPrice,
+						size,
+						timestamp: baseTime,
+						agentType: "seed"
+					});
+					this.orderBook.processOrder({
+						type: "limit",
+						side: "sell",
+						price: upperPrice,
+						size,
+						timestamp: baseTime,
+						agentType: "seed"
+					});
+				}
+			}
+
+			setConfig({ makers, takers, speed }) {
+				if (Number.isFinite(makers)) this.makers = Math.max(1, Math.floor(makers));
+				if (Number.isFinite(takers)) this.takers = Math.max(1, Math.floor(takers));
+				if (Number.isFinite(speed)) this.simSpeed = Math.max(1, Math.floor(speed));
+			}
+
+			_applyTrade(trade) {
+				this.prevPrice = this.lastPrice;
+				this.lastPrice = trade.price;
+				this.candles.addTrade(trade.price, trade.size, trade.timestamp);
+				this.volumeProfile.record(trade.price, trade.size);
+				this.tradeLog.push(trade);
+				if (this.tradeLog.length > this.tradeLogLimit) {
+					this.tradeLog.splice(0, this.tradeLog.length - this.tradeLogLimit);
+				}
+				this.recentTrades.push(trade);
+			}
+
+			_sweepRecentTrades(windowMs = 1200) {
+				const cutoff = this.simulatedTime - windowMs;
+				while (this.recentTrades.length && this.recentTrades[0].timestamp < cutoff) {
+					this.recentTrades.shift();
+				}
+			}
+
+			step() {
+				this.simulatedTime += this.stepDuration;
+				const timestamp = this.simulatedTime;
+				const basePrice = this.orderBook.getMidPrice() ?? this.lastPrice;
+				const volatility = 6 * this.tickSize;
+
+				for (let i = 0; i < this.makers; i += 1) {
+					if (this.rng.next() > this.makerIntensity) continue;
+					const side = this.rng.next() < 0.5 ? "buy" : "sell";
+					const direction = side === "buy" ? -1 : 1;
+					const distance = (1 + this.rng.nextInt(0, 6)) * this.tickSize;
+					let price = basePrice + direction * distance + (this.rng.nextBetween(-0.3, 0.3) * volatility);
+					price = Math.max(this.tickSize, price);
+					const size = 0.8 + this.rng.nextBetween(0, 3.6);
+					const trades = this.orderBook.processOrder({
+						type: "limit",
+						side,
+						price,
+						size,
+						timestamp,
+						agentType: "maker"
+					});
+					for (const trade of trades) {
+						this._applyTrade(trade);
+					}
+				}
+
+				for (let i = 0; i < this.takers; i += 1) {
+					if (this.rng.next() > this.takerIntensity) continue;
+					const side = this.rng.next() < 0.5 ? "buy" : "sell";
+					const size = 0.6 + this.rng.nextBetween(0, 4.2);
+					const trades = this.orderBook.processOrder({
+						type: "market",
+						side,
+						size,
+						timestamp,
+						agentType: "taker"
+					});
+					if (!trades.length) {
+						const direction = side === "buy" ? 1 : -1;
+						const sweepPrice = basePrice + direction * this.tickSize * (3 + this.rng.nextBetween(0, 2));
+						const fallbackTrades = this.orderBook.processOrder({
+							type: "limit",
+							side,
+							price: sweepPrice,
+							size,
+							timestamp,
+							agentType: "taker"
+						});
+						for (const trade of fallbackTrades) {
+							this._applyTrade(trade);
+						}
+					} else {
+						for (const trade of trades) {
+							this._applyTrade(trade);
+						}
+					}
+				}
+
+				this.candles.advance(this.simulatedTime, this.lastPrice);
+				this._sweepRecentTrades();
+			}
+
+			getState() {
+				const candles = this.candles.getRecent(180);
+				const overlays = this.overlayCalculator.compute(candles);
+				const depth = this.orderBook.getDepthSnapshot(28);
+				const bestBid = this.orderBook.getBestBid();
+				const bestAsk = this.orderBook.getBestAsk();
+				const spread = this.orderBook.getSpread();
+				const mid = this.orderBook.getMidPrice();
+				const totalBid = depth.bids.reduce((sum, lvl) => sum + lvl.size, 0);
+				const totalAsk = depth.asks.reduce((sum, lvl) => sum + lvl.size, 0);
+				const imbalance = totalBid + totalAsk > 0 ? (totalBid - totalAsk) / (totalBid + totalAsk) : 0;
+				return {
+					candles,
+					overlays,
+					depth,
+					bestBid,
+					bestAsk,
+					spread,
+					mid,
+					lastPrice: this.lastPrice,
+					prevPrice: this.prevPrice,
+					volume: this.candles.lastVolume(),
+					tradesPerSecond: this.recentTrades.length / 1.2,
+					totalBid,
+					totalAsk,
+					imbalance,
+					time: this.simulatedTime
+				};
+			}
+
+			exportState() {
+				return {
+					generatedAt: new Date().toISOString(),
+					simulatedTimeMs: this.simulatedTime,
+					config: {
+						makers: this.makers,
+						takers: this.takers,
+						simSpeed: this.simSpeed,
+						tickSize: this.tickSize,
+						seed: this.baseSeed
+					},
+					candles: this.candles.getAll(),
+					depth: this.orderBook.getDepthSnapshot(64),
+					trades: [...this.tradeLog]
+				};
+			}
+		}
+
+		class ShapeBatch {
+			constructor(device, capacityVertices = 2048) {
+				this.device = device;
+				this.capacity = capacityVertices;
+				this.floatsPerVertex = 5;
+				this.array = new Float32Array(this.capacity * this.floatsPerVertex);
+				this.reset();
+				this.buffer = device.createBuffer({
+					size: this.array.byteLength,
+					usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+				});
+			}
+
+			reset() {
+				this.vertexCount = 0;
+				this.floatIndex = 0;
+				this.overflowed = false;
+			}
+
+			pushVertex(x, y, color) {
+				if (this.vertexCount >= this.capacity) {
+					this.overflowed = true;
+					return;
+				}
+				this.array[this.floatIndex++] = x;
+				this.array[this.floatIndex++] = y;
+				this.array[this.floatIndex++] = color[0];
+				this.array[this.floatIndex++] = color[1];
+				this.array[this.floatIndex++] = color[2];
+				this.vertexCount += 1;
+			}
+
+			pushRect(x0, y0, x1, y1, color) {
+				this.pushVertex(x0, y0, color);
+				this.pushVertex(x1, y0, color);
+				this.pushVertex(x1, y1, color);
+				this.pushVertex(x0, y0, color);
+				this.pushVertex(x1, y1, color);
+				this.pushVertex(x0, y1, color);
+			}
+
+			pushLine(x0, y0, x1, y1, color) {
+				this.pushVertex(x0, y0, color);
+				this.pushVertex(x1, y1, color);
+			}
+
+			commit(queue) {
+				if (!this.vertexCount) return;
+				queue.writeBuffer(this.buffer, 0, this.array.subarray(0, this.floatIndex));
+			}
+		}
+
+		class MarketRenderer {
+			constructor(device, format, candleContext, depthContext) {
+				this.device = device;
+				this.format = format;
+				this.candleContext = candleContext;
+				this.depthContext = depthContext;
+
+				this.shaderModule = device.createShaderModule({
+					code: /* wgsl */`
+						struct VSOut {
+							@builtin(position) position : vec4f,
+							@location(0) color : vec3f,
+						};
+
+						@vertex
+						fn vs_main(@location(0) position : vec2f, @location(1) color : vec3f) -> VSOut {
+							var output : VSOut;
+							output.position = vec4f(position, 0.0, 1.0);
+							output.color = color;
+							return output;
+						}
+
+						@fragment
+						fn fs_main(@location(0) color : vec3f) -> @location(0) vec4f {
+							return vec4f(color, 1.0);
+						}
+					`
+				});
+
+				const vertexBuffers = [{
+					arrayStride: 20,
+					attributes: [
+						{ shaderLocation: 0, offset: 0, format: "float32x2" },
+						{ shaderLocation: 1, offset: 8, format: "float32x3" }
+					]
+				}];
+
+				this.pipelineTriangles = device.createRenderPipeline({
+					layout: "auto",
+					vertex: { module: this.shaderModule, entryPoint: "vs_main", buffers: vertexBuffers },
+					fragment: { module: this.shaderModule, entryPoint: "fs_main", targets: [{ format }] },
+					primitive: { topology: "triangle-list" }
+				});
+
+				this.pipelineLines = device.createRenderPipeline({
+					layout: "auto",
+					vertex: { module: this.shaderModule, entryPoint: "vs_main", buffers: vertexBuffers },
+					fragment: { module: this.shaderModule, entryPoint: "fs_main", targets: [{ format }] },
+					primitive: { topology: "line-list" }
+				});
+
+				this.candleTriangles = new ShapeBatch(device, 4096);
+				this.candleLines = new ShapeBatch(device, 4096);
+				this.depthTriangles = new ShapeBatch(device, 4096);
+				this.depthLines = new ShapeBatch(device, 1024);
+			}
+
+			_priceRange(state) {
+				const candidates = [];
+				for (const candle of state.candles) {
+					candidates.push(candle.low, candle.high);
+				}
+				for (const overlay of state.overlays) {
+					candidates.push(overlay.price);
+				}
+				for (const bid of state.depth.bids) {
+					candidates.push(bid.price);
+				}
+				for (const ask of state.depth.asks) {
+					candidates.push(ask.price);
+				}
+				if (!candidates.length || !Number.isFinite(Math.min(...candidates))) {
+					const value = state.lastPrice || 100;
+					return { min: value - 10, max: value + 10 };
+				}
+				const min = Math.min(...candidates);
+				const max = Math.max(...candidates);
+				if (min === max) {
+					return { min: min - 5, max: max + 5 };
+				}
+				return { min, max };
+			}
+
+			_priceToY(price, range) {
+				const clamped = Math.min(Math.max(price, range.min), range.max);
+				const normalized = (clamped - range.min) / (range.max - range.min);
+				return normalized * 2 - 1;
+			}
+
+			render(state) {
+				if (!state || !state.candles.length) return;
+				const range = this._priceRange(state);
+				this._renderCandles(state, range);
+				this._renderDepth(state, range);
+			}
+
+			_renderCandles(state, range) {
+				const triangles = this.candleTriangles;
+				const lines = this.candleLines;
+				triangles.reset();
+				lines.reset();
+				const candles = state.candles;
+				const overlays = state.overlays;
+				const count = candles.length;
+				const width = 2 / Math.max(count, 1);
+				const bodyWidth = width * 0.6;
+
+				candles.forEach((candle, idx) => {
+					const xCenter = -1 + width * (idx + 0.5);
+					const openY = this._priceToY(candle.open, range);
+					const closeY = this._priceToY(candle.close, range);
+					const highY = this._priceToY(candle.high, range);
+					const lowY = this._priceToY(candle.low, range);
+					const color = candle.close >= candle.open ? COLORS.bull : COLORS.bear;
+					const left = xCenter - bodyWidth * 0.5;
+					const right = xCenter + bodyWidth * 0.5;
+					const top = Math.max(openY, closeY);
+					const bottom = Math.min(openY, closeY);
+					if (Number.isFinite(left) && Number.isFinite(right) && Number.isFinite(top) && Number.isFinite(bottom)) {
+						triangles.pushRect(left, bottom, right, top, color);
+					}
+					lines.pushLine(xCenter, lowY, xCenter, highY, COLORS.wick);
+				});
+
+				overlays.forEach((overlay) => {
+					const y = this._priceToY(overlay.price, range);
+					const thickness = 0.004 + overlay.strength * 0.003;
+					let color;
+					switch (overlay.type) {
+						case "pivot":
+							color = COLORS.pivot;
+							break;
+						case "support":
+							color = COLORS.support;
+							break;
+						case "resistance":
+							color = COLORS.resistance;
+							break;
+						case "volume":
+							color = COLORS.volume;
+							break;
+						default:
+							color = COLORS.midLine;
+					}
+					triangles.pushRect(-1, y - thickness, 1, y + thickness, color);
+				});
+
+				triangles.commit(this.device.queue);
+				lines.commit(this.device.queue);
+
+				const encoder = this.device.createCommandEncoder();
+				const view = this.candleContext.getCurrentTexture().createView();
+				const pass = encoder.beginRenderPass({
+					colorAttachments: [
+						{
+							view,
+							loadOp: "clear",
+							storeOp: "store",
+							clearValue: COLORS.backgroundTop
+						}
+					]
+				});
+				if (triangles.vertexCount) {
+					pass.setPipeline(this.pipelineTriangles);
+					pass.setVertexBuffer(0, triangles.buffer);
+					pass.draw(triangles.vertexCount);
+				}
+				if (lines.vertexCount) {
+					pass.setPipeline(this.pipelineLines);
+					pass.setVertexBuffer(0, lines.buffer);
+					pass.draw(lines.vertexCount);
+				}
+				pass.end();
+				this.device.queue.submit([encoder.finish()]);
+			}
+
+			_renderDepth(state, range) {
+				const triangles = this.depthTriangles;
+				const lines = this.depthLines;
+				triangles.reset();
+				lines.reset();
+				const depth = state.depth;
+				const combined = depth.bids.concat(depth.asks);
+				const maxVolume = combined.reduce((max, lvl) => Math.max(max, lvl.size), 0) || 1;
+				const barThickness = 0.012;
+
+				depth.bids.forEach((level) => {
+					const width = (level.size / maxVolume) * 0.95;
+					const y = this._priceToY(level.price, range);
+					triangles.pushRect(-width, y - barThickness, 0, y + barThickness, COLORS.bidDepth);
+				});
+
+				depth.asks.forEach((level) => {
+					const width = (level.size / maxVolume) * 0.95;
+					const y = this._priceToY(level.price, range);
+					triangles.pushRect(0, y - barThickness, width, y + barThickness, COLORS.askDepth);
+				});
+
+				lines.pushLine(0, -1, 0, 1, COLORS.midLine);
+				const midY = this._priceToY(state.mid ?? state.lastPrice, range);
+				lines.pushLine(-1, midY, 1, midY, COLORS.midLine);
+
+				triangles.commit(this.device.queue);
+				lines.commit(this.device.queue);
+
+				const encoder = this.device.createCommandEncoder();
+				const view = this.depthContext.getCurrentTexture().createView();
+				const pass = encoder.beginRenderPass({
+					colorAttachments: [
+						{
+							view,
+							loadOp: "clear",
+							storeOp: "store",
+							clearValue: COLORS.backgroundDepth
+						}
+					]
+				});
+				if (triangles.vertexCount) {
+					pass.setPipeline(this.pipelineTriangles);
+					pass.setVertexBuffer(0, triangles.buffer);
+					pass.draw(triangles.vertexCount);
+				}
+				if (lines.vertexCount) {
+					pass.setPipeline(this.pipelineLines);
+					pass.setVertexBuffer(0, lines.buffer);
+					pass.draw(lines.vertexCount);
+				}
+				pass.end();
+				this.device.queue.submit([encoder.finish()]);
+			}
+		}
+
+		function updateControlOutputs() {
+			makersValue.textContent = makersSlider.value;
+			takersValue.textContent = takersSlider.value;
+			speedValue.textContent = speedSlider.value;
+			seedValue.textContent = seedInput.value;
+		}
+
+		function formatNumber(value, { fractionDigits = 2, fallback = "—" } = {}) {
+			if (!Number.isFinite(value)) return fallback;
+			return value.toLocaleString(undefined, {
+				minimumFractionDigits: fractionDigits,
+				maximumFractionDigits: fractionDigits
+			});
+		}
+
+		function updateMetrics(state) {
+			if (!state) return;
+			priceEl.textContent = formatNumber(state.lastPrice, { fractionDigits: 2 });
+			const delta = state.lastPrice - (state.prevPrice ?? state.lastPrice);
+			const deltaPrefix = delta >= 0 ? "+" : "";
+			priceChangeEl.textContent = `Δ ${deltaPrefix}${formatNumber(delta, { fractionDigits: 2, fallback: "0.00" })}`;
+			priceChangeEl.style.color = delta >= 0 ? "#4ec9a1" : "#f16d8e";
+			spreadEl.textContent = formatNumber(state.spread, { fractionDigits: 3 });
+			midPriceEl.textContent = `Mid ${formatNumber(state.mid, { fractionDigits: 2 })}`;
+			imbalanceEl.textContent = `${formatNumber(state.imbalance * 100, { fractionDigits: 1 })}%`;
+			depthRatioEl.textContent = `Depth B:${formatNumber(state.totalBid, { fractionDigits: 1 })} · A:${formatNumber(state.totalAsk, { fractionDigits: 1 })}`;
+			volumeEl.textContent = formatNumber(state.volume, { fractionDigits: 1 });
+			tpsEl.textContent = `Trades / s ${formatNumber(state.tradesPerSecond, { fractionDigits: 2 })}`;
+		}
+
+		function downloadJSON(data, filename) {
+			const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement("a");
+			link.href = url;
+			link.download = filename;
+			link.click();
+			URL.revokeObjectURL(url);
+		}
+
+		function configureCanvas(device, canvas, format) {
+			const context = canvas.getContext("webgpu");
+			const configure = () => {
+				const dpr = window.devicePixelRatio || 1;
+				const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+				const height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+				if (canvas.width !== width || canvas.height !== height) {
+					canvas.width = width;
+					canvas.height = height;
+				}
+				context.configure({
+					device,
+					format,
+					alphaMode: "premultiplied"
+				});
+			};
+			configure();
+			const observer = new ResizeObserver(configure);
+			observer.observe(canvas);
+			window.addEventListener("resize", configure);
+			return { context, observer };
+		}
+
+		async function init() {
+			if (!("gpu" in navigator)) {
+				statusPill.textContent = "WebGPU not supported";
+				statusPill.classList.add("error");
+				return;
+			}
+
+			const adapter = await navigator.gpu.requestAdapter();
+			if (!adapter) {
+				statusPill.textContent = "No compatible GPU adapter";
+				statusPill.classList.add("error");
+				return;
+			}
+
+			const device = await adapter.requestDevice();
+			const format = navigator.gpu.getPreferredCanvasFormat();
+			const candleCanvas = document.getElementById("candles-canvas");
+			const depthCanvas = document.getElementById("depth-canvas");
+			const { context: candleContext } = configureCanvas(device, candleCanvas, format);
+			const { context: depthContext } = configureCanvas(device, depthCanvas, format);
+
+			const renderer = new MarketRenderer(device, format, candleContext, depthContext);
+			const simulation = new MarketSimulation({ seed: Number(seedInput.value) || 1337 });
+
+			updateControlOutputs();
+			updateMetrics(simulation.getState());
+
+			makersSlider.addEventListener("input", () => {
+				makersValue.textContent = makersSlider.value;
+				simulation.setConfig({ makers: Number(makersSlider.value) });
+			});
+
+			takersSlider.addEventListener("input", () => {
+				takersValue.textContent = takersSlider.value;
+				simulation.setConfig({ takers: Number(takersSlider.value) });
+			});
+
+			speedSlider.addEventListener("input", () => {
+				speedValue.textContent = speedSlider.value;
+				simulation.setConfig({ speed: Number(speedSlider.value) });
+			});
+
+			seedInput.addEventListener("change", () => {
+				const normalized = Number(seedInput.value) >>> 0;
+				seedInput.value = normalized;
+				seedValue.textContent = normalized;
+				simulation.setSeed(normalized);
+			});
+
+			toggleBtn.addEventListener("click", () => {
+				simulation.running = !simulation.running;
+				toggleBtn.textContent = simulation.running ? "Pause" : "Resume";
+				statusPill.textContent = simulation.running ? "Running · deterministic seed" : "Paused";
+				statusPill.classList.toggle("paused", !simulation.running);
+			});
+
+			stepBtn.addEventListener("click", () => {
+				simulation.running = false;
+				toggleBtn.textContent = "Resume";
+				statusPill.textContent = "Paused (stepped)";
+				statusPill.classList.add("paused");
+				for (let i = 0; i < 10; i += 1) {
+					simulation.step();
+				}
+				const state = simulation.getState();
+				renderer.render(state);
+				updateMetrics(state);
+			});
+
+			resetBtn.addEventListener("click", () => {
+				simulation.reset(Number(seedInput.value) || simulation.baseSeed);
+				toggleBtn.textContent = "Pause";
+				statusPill.textContent = "Running · deterministic seed";
+				statusPill.classList.remove("paused");
+			});
+
+			exportBtn.addEventListener("click", () => {
+				const data = simulation.exportState();
+				const filename = `webgpu-market-${Date.now()}.json`;
+				downloadJSON(data, filename);
+			});
+
+			const frame = () => {
+				if (simulation.running) {
+					for (let i = 0; i < simulation.simSpeed; i += 1) {
+						simulation.step();
+					}
+				}
+				const state = simulation.getState();
+				renderer.render(state);
+				updateMetrics(state);
+				requestAnimationFrame(frame);
+			};
+			requestAnimationFrame(frame);
+		}
+
+		init().catch((error) => {
+			console.error(error);
+			statusPill.textContent = "Initialization failed";
+			statusPill.classList.add("error");
+		});
+	</script>
+</body>
+</html>

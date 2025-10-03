@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<title>WebGPU Free Market Lab</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<style>
+		:root {
+			color-scheme: dark;
+			font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+			background: #030409;
+			color: #e5ecff;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			min-height: 100vh;
+			display: flex;
+			flex-direction: column;
+			background: radial-gradient(circle at top left, rgba(47, 59, 118, 0.35), transparent 65%),
+				radial-gradient(circle at bottom right, rgba(24, 110, 101, 0.25), transparent 60%),
+				#030409;
+		}
+
+		header {
+			padding: 20px 32px 12px;
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+		}
+
+		header h1 {
+			margin: 0;
+			font-size: clamp(1.8rem, 3vw, 2.4rem);
+			letter-spacing: 0.02em;
+		}
+
+		header p {
+			margin: 0;
+			color: #9aa6c9;
+			max-width: 720px;
+			line-height: 1.5;
+		}
+
+		main {
+			width: 100%;
+			max-width: 1200px;
+			margin: 0 auto;
+			padding: 0 24px 48px;
+			display: grid;
+			gap: 20px;
+		}
+
+		.panel {
+			background: linear-gradient(155deg, rgba(18, 23, 40, 0.92), rgba(7, 11, 22, 0.94));
+			border: 1px solid rgba(75, 106, 180, 0.22);
+			border-radius: 16px;
+			box-shadow: 0 20px 45px rgba(5, 10, 24, 0.52);
+			padding: 20px 24px;
+			backdrop-filter: blur(12px);
+		}
+
+		.panel h2 {
+			margin: 0 0 16px;
+			font-size: 1.15rem;
+			font-weight: 600;
+			letter-spacing: 0.01em;
+			color: #d3dcff;
+		}
+
+		.controls-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+			gap: 16px 24px;
+			align-items: end;
+		}
+
+		.control {
+			display: flex;
+			flex-direction: column;
+			gap: 8px;
+		}
+
+		label {
+			font-size: 0.9rem;
+			color: #9aa6c9;
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+			gap: 16px;
+		}
+
+		label output {
+			font-variant-numeric: tabular-nums;
+			color: #e5ecff;
+			font-weight: 600;
+		}
+
+		input[type="range"] {
+			accent-color: #5ddab5;
+			cursor: pointer;
+		}
+
+		input[type="number"] {
+			background: rgba(15, 19, 32, 0.76);
+			border: 1px solid rgba(80, 114, 176, 0.55);
+			border-radius: 10px;
+			padding: 10px 12px;
+			color: inherit;
+			font-size: 1rem;
+			transition: border 0.2s ease, box-shadow 0.2s ease;
+		}
+
+		input[type="number"]:focus {
+			outline: none;
+			border-color: #5ddab5;
+			box-shadow: 0 0 0 2px rgba(93, 218, 181, 0.25);
+		}
+
+		.actions {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 12px;
+		}
+
+		button {
+			appearance: none;
+			border: none;
+			border-radius: 12px;
+			padding: 10px 18px;
+			font-size: 0.95rem;
+			font-weight: 600;
+			cursor: pointer;
+			transition: transform 0.1s ease, box-shadow 0.15s ease;
+			background: linear-gradient(120deg, #2f3f6b, #1f2850);
+			color: #f3f6ff;
+			box-shadow: 0 12px 24px rgba(6, 12, 28, 0.45);
+		}
+
+		button:hover {
+			transform: translateY(-1px);
+			box-shadow: 0 14px 28px rgba(6, 12, 28, 0.5);
+		}
+
+		button.secondary {
+			background: rgba(24, 32, 52, 0.92);
+			color: #cbd6ff;
+			border: 1px solid rgba(70, 96, 162, 0.35);
+			box-shadow: none;
+		}
+
+		button.secondary:hover {
+			border-color: rgba(86, 119, 184, 0.6);
+		}
+
+		.metrics-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+			gap: 16px;
+		}
+
+		.metric {
+			padding: 12px 16px;
+			border-radius: 12px;
+			background: rgba(11, 15, 28, 0.78);
+			border: 1px solid rgba(70, 98, 168, 0.28);
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			min-height: 86px;
+		}
+
+		.metric span.label {
+			font-size: 0.78rem;
+			color: #8593bc;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+		}
+
+		.metric strong {
+			font-size: 1.38rem;
+			font-weight: 600;
+			font-variant-numeric: tabular-nums;
+		}
+
+		canvas {
+			width: 100%;
+			height: clamp(280px, 48vw, 360px);
+			display: block;
+			background: radial-gradient(circle at top, rgba(21, 34, 64, 0.42), rgba(9, 13, 22, 0.95));
+			border-radius: 16px;
+			border: 1px solid rgba(75, 108, 184, 0.26);
+		}
+
+		footer {
+			margin: 0 auto;
+			padding: 0 24px 36px;
+			width: 100%;
+			max-width: 1200px;
+			color: #7f8bb2;
+			font-size: 0.82rem;
+			display: flex;
+			justify-content: space-between;
+			align-items: flex-start;
+			gap: 16px;
+			flex-wrap: wrap;
+		}
+
+		.status-pill {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			padding: 4px 10px;
+			border-radius: 999px;
+			background: rgba(27, 138, 103, 0.2);
+			color: #6ee3be;
+			font-weight: 600;
+			font-size: 0.8rem;
+		}
+
+		.status-pill.paused {
+			background: rgba(138, 103, 27, 0.2);
+			color: #f5ca79;
+		}
+
+		.status-pill.error {
+			background: rgba(162, 48, 48, 0.28);
+			color: #f19292;
+		}
+
+		.legend {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 10px 16px;
+			margin-top: 12px;
+			font-size: 0.78rem;
+			color: #8ea5cf;
+		}
+
+		.legend span {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+		}
+
+		.swatch {
+			width: 12px;
+			height: 12px;
+			border-radius: 50%;
+			display: inline-block;
+			box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.32);
+		}
+
+		.swatch.bull {
+			background: #4ec9a1;
+		}
+
+		.swatch.bear {
+			background: #f16d8e;
+		}
+
+		.swatch.support {
+			background: #58d9ad;
+		}
+
+		.swatch.resist {
+			background: #f28f8f;
+		}
+
+		@media (max-width: 720px) {
+			header {
+				padding: 18px 20px 10px;
+			}
+
+			main {
+				padding: 0 18px 34px;
+			}
+
+			canvas {
+				height: clamp(260px, 58vw, 340px);
+			}
+		}
+	</style>
+</head>
+<body>
+	<header>
+		<div class="status-pill" id="status-pill">Initializing WebGPU…</div>
+		<h1>WebGPU Free Market Simulator</h1>
+		<p>
+			Experiment with a GPU-accelerated order book to probe how deterministic makers and stochastic takers generate
+			price action. Adjust participants, simulation speed, and seed; visualize candles, depth, and projected support /
+			resistance built from every trade.
+		</p>
+	</header>
+
+	<main>
+		<section class="panel">
+			<h2>Simulation Controls</h2>
+			<div class="controls-grid">
+				<div class="control">
+					<label for="makers">
+						Makers
+						<output id="makers-value">12</output>
+					</label>
+					<input type="range" id="makers" min="1" max="64" step="1" value="12" />
+				</div>
+				<div class="control">
+					<label for="takers">
+						Takers
+						<output id="takers-value">6</output>
+					</label>
+					<input type="range" id="takers" min="1" max="48" step="1" value="6" />
+				</div>
+				<div class="control">
+					<label for="speed">
+						Simulation speed (ticks / frame)
+						<output id="speed-value">8</output>
+					</label>
+					<input type="range" id="speed" min="1" max="160" step="1" value="8" />
+				</div>
+				<div class="control">
+					<label for="seed">
+						RNG seed
+						<output id="seed-value">1337</output>
+					</label>
+					<input type="number" id="seed" min="1" max="4294967294" step="1" value="1337" />
+				</div>
+			</div>
+			<div class="actions" style="margin-top: 20px;">
+				<button id="toggle">Pause</button>
+				<button class="secondary" id="step">Step ×10</button>
+				<button class="secondary" id="reset">Reset</button>
+				<button id="export">Export JSON</button>
+			</div>
+		</section>
+
+		<section class="panel">
+			<h2>Market Snapshot</h2>
+			<div class="metrics-grid">
+				<div class="metric">
+					<span class="label">Last Trade</span>
+					<strong id="last-price">—</strong>
+					<small id="price-change" style="color:#7f8bb2;">Δ —</small>
+				</div>
+				<div class="metric">
+					<span class="label">Spread</span>
+					<strong id="spread">—</strong>
+					<small id="mid-price" style="color:#7f8bb2;">Mid —</small>
+				</div>
+				<div class="metric">
+					<span class="label">Order Imbalance</span>
+					<strong id="imbalance">—</strong>
+					<small id="depth-ratio" style="color:#7f8bb2;">Depth —</small>
+				</div>
+				<div class="metric">
+					<span class="label">Volume</span>
+					<strong id="volume">—</strong>
+					<small id="tps" style="color:#7f8bb2;">Trades / s —</small>
+				</div>
+			</div>
+			<div class="legend">
+				<span><span class="swatch bull"></span> Bull candle</span>
+				<span><span class="swatch bear"></span> Bear candle</span>
+				<span><span class="swatch support"></span> Buy lines</span>
+				<span><span class="swatch resist"></span> Sell lines</span>
+			</div>
+		</section>
+
+		<section class="panel">
+			<h2>Candlesticks · Support / Resistance</h2>
+			<canvas id="candles-canvas"></canvas>
+		</section>
+
+		<section class="panel">
+			<h2>Order Book Depth</h2>
+			<canvas id="depth-canvas"></canvas>
+		</section>
+	</main>
+
+	<footer>
+		<div>
+			<strong>Export format:</strong> configuration, deterministic seed, candles, trades, and the latest depth snapshot in
+			JSON for downstream analysis.
+		</div>
+		<div>
+			<strong>Note:</strong> WebGPU currently requires up-to-date Chromium-based browsers (Chrome, Edge) with WebGPU enabled.
+		</div>
+	</footer>
+
+	<script type="module">
+		const ORDER_LEVELS = 32;
+		const MAX_TRADES = 256;
+		const MAX_CANDLES = 140;
+		const CANDLE_DURATION_MS = 1500;
+		const LINE_LIFETIME_MS = 12000;
+		const PARAM_BYTES = 64;
+		const STATE_BYTES = 48;
+		const DEPTH_BYTES = ORDER_LEVELS * 2 * 4;
+		const TRADE_BYTES = MAX_TRADES * 16;
+
+		const statusPill = document.getElementById("status-pill");
+		const makersSlider = document.getElementById("makers");
+		const takersSlider = document.getElementById("takers");
+		const speedSlider = document.getElementById("speed");
+		const seedInput = document.getElementById("seed");
+		const makersValue = document.getElementById("makers-value");
+		const takersValue = document.getElementById("takers-value");
+		const speedValue = document.getElementById("speed-value");
+		const seedValue = document.getElementById("seed-value");
+		const toggleBtn = document.getElementById("toggle");
+		const stepBtn = document.getElementById("step");
+		const resetBtn = document.getElementById("reset");
+		const exportBtn = document.getElementById("export");
+
+		const priceEl = document.getElementById("last-price");
+		const priceChangeEl = document.getElementById("price-change");
+		const spreadEl = document.getElementById("spread");
+		const midPriceEl = document.getElementById("mid-price");
+		const imbalanceEl = document.getElementById("imbalance");
+		const depthRatioEl = document.getElementById("depth-ratio");
+		const volumeEl = document.getElementById("volume");
+		const tpsEl = document.getElementById("tps");
+
+		const candlesCanvas = document.getElementById("candles-canvas");
+		const depthCanvas = document.getElementById("depth-canvas");
+		const candlesCtx = candlesCanvas.getContext("2d");
+		const depthCtx = depthCanvas.getContext("2d");
+
+		const controlValues = {
+			makers: parseInt(makersSlider.value, 10),
+			takers: parseInt(takersSlider.value, 10),
+			speed: parseInt(speedSlider.value, 10),
+			seed: parseInt(seedInput.value || "1337", 10) >>> 0,
+			tickSize: 0.25,
+			baseSpread: 0.8,
+			depthFalloff: 0.18,
+			depthDecay: 0.35,
+			makerDepth: 6,
+			takerAggro: 1.0,
+			volatility: 1.2,
+			tradeBase: 1.0
+		};
+
+		let adapter;
+		let device;
+		let computePipeline;
+		let paramBuffer;
+		let stateBuffer;
+		let depthBuffer;
+		let tradesBuffer;
+		let bindGroup;
+
+		const paramArrayBuffer = new ArrayBuffer(PARAM_BYTES);
+		const paramIntsA = new Uint32Array(paramArrayBuffer, 0, 4);
+		const paramIntsB = new Uint32Array(paramArrayBuffer, 16, 4);
+		const paramFloatsA = new Float32Array(paramArrayBuffer, 32, 4);
+		const paramFloatsB = new Float32Array(paramArrayBuffer, 48, 4);
+
+		const latestDepth = new Float32Array(ORDER_LEVELS * 2);
+		let latestState = {
+			lastPrice: 100,
+			bestBid: 99.5,
+			bestAsk: 100.5,
+			spread: 1,
+			imbalance: 0,
+			cumVolume: 0,
+			mid: 100,
+			depthRatio: 1
+		};
+
+		const candles = [];
+		let currentCandle = null;
+		const tradeLines = [];
+		const tradesLog = [];
+
+		const tradeStats = { accumCount: 0, accumTime: 0, tps: 0 };
+		let lastFrameTime = performance.now();
+		let paused = false;
+		let pendingSteps = 0;
+		let resetPending = true;
+		let animationActive = false;
+		let lastReferenceClose = latestState.lastPrice;
+
+		function syncControlOutputs() {
+			makersValue.textContent = controlValues.makers;
+			takersValue.textContent = controlValues.takers;
+			speedValue.textContent = controlValues.speed;
+			seedValue.textContent = controlValues.seed;
+		}
+
+		function refreshDerivedParameters() {
+			controlValues.makerDepth = 3.5 + controlValues.makers * 0.45;
+			controlValues.takerAggro = 0.35 + controlValues.takers * 0.08;
+			controlValues.tradeBase = 0.8 + controlValues.takers * 0.15;
+			controlValues.volatility = 0.65 + controlValues.speed * 0.018;
+			controlValues.depthDecay = 0.25 + controlValues.makers * 0.003;
+			controlValues.depthFalloff = 0.14 + controlValues.makers * 0.0015;
+		}
+
+		function resizeCanvases() {
+			const dpr = window.devicePixelRatio || 1;
+			const resize = (canvas) => {
+				const width = canvas.clientWidth * dpr;
+				const height = canvas.clientHeight * dpr;
+				if (canvas.width !== width || canvas.height !== height) {
+					canvas.width = width;
+					canvas.height = height;
+				}
+			};
+			resize(candlesCanvas);
+			resize(depthCanvas);
+		}
+
+		function updateStatusPill(mode) {
+			statusPill.classList.remove("paused", "error");
+			if (mode === "error") {
+				statusPill.classList.add("error");
+				statusPill.textContent = "WebGPU unavailable";
+			} else if (paused) {
+				statusPill.classList.add("paused");
+				statusPill.textContent = "Paused · deterministic seed " + controlValues.seed;
+			} else {
+				statusPill.textContent = "Running · deterministic seed " + controlValues.seed;
+			}
+		}
+
+		function clearLocalState() {
+			candles.length = 0;
+			currentCandle = null;
+			tradeLines.length = 0;
+			tradesLog.length = 0;
+			latestState = {
+				lastPrice: 100,
+				bestBid: 99.5,
+				bestAsk: 100.5,
+				spread: 1,
+				imbalance: 0,
+				cumVolume: 0,
+				mid: 100,
+				depthRatio: 1
+			};
+			latestDepth.fill(0);
+			tradeStats.accumCount = 0;
+			tradeStats.accumTime = 0;
+			tradeStats.tps = 0;
+			lastReferenceClose = latestState.lastPrice;
+		}
+
+		function applyReset() {
+			resetPending = true;
+			clearLocalState();
+		}
+
+		function addTradeLine(trade) {
+			const tolerance = controlValues.tickSize * 1.5;
+			let matched = null;
+			for (const line of tradeLines) {
+				if (Math.sign(line.side) === Math.sign(trade.side) && Math.abs(line.price - trade.price) <= tolerance) {
+					matched = line;
+					break;
+				}
+			}
+			if (matched) {
+				matched.price = matched.price * 0.6 + trade.price * 0.4;
+				matched.volume = Math.min(matched.volume + trade.volume, 400);
+				matched.life = 1;
+				matched.age = 0;
+			} else {
+				tradeLines.push({
+					price: trade.price,
+					side: trade.side,
+					volume: trade.volume,
+					age: 0,
+					life: 1
+				});
+			}
+		}
+
+		function updateTradeLines(deltaMs) {
+			const decay = deltaMs / LINE_LIFETIME_MS;
+			for (let i = tradeLines.length - 1; i >= 0; i--) {
+				const line = tradeLines[i];
+				line.age += deltaMs;
+				line.life -= decay;
+				line.life -= 0.002;
+				if (line.life <= 0) {
+					tradeLines.splice(i, 1);
+				}
+			}
+		}
+
+		function ensureCandle(timestamp, price) {
+			if (!currentCandle || timestamp - currentCandle.start >= CANDLE_DURATION_MS) {
+				const openPrice = currentCandle ? currentCandle.close : price;
+				currentCandle = {
+					start: timestamp,
+					open: openPrice,
+					high: price,
+					low: price,
+					close: price,
+					volume: 0,
+					trades: 0
+				};
+				candles.push(currentCandle);
+				if (candles.length > MAX_CANDLES) {
+					candles.shift();
+				}
+			}
+		}
+
+		function recordTrade(trade) {
+			tradesLog.push({
+				time: new Date(trade.timestamp).toISOString(),
+				price: trade.price,
+				volume: trade.volume,
+				side: trade.side
+			});
+			if (tradesLog.length > 4096) {
+				tradesLog.shift();
+			}
+			addTradeLine(trade);
+			ensureCandle(trade.timestamp, trade.price);
+			currentCandle.high = Math.max(currentCandle.high, trade.price);
+			currentCandle.low = Math.min(currentCandle.low, trade.price);
+			currentCandle.close = trade.price;
+			currentCandle.volume += trade.volume;
+			currentCandle.trades += 1;
+			lastReferenceClose = currentCandle.close;
+		}
+
+		function drawCandles() {
+			const ctx = candlesCtx;
+			const width = candlesCanvas.width;
+			const height = candlesCanvas.height;
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.clearRect(0, 0, width, height);
+			ctx.fillStyle = "#05070c";
+			ctx.fillRect(0, 0, width, height);
+
+			const series = candles.length ? candles : currentCandle ? [currentCandle] : [];
+			let minPrice = Infinity;
+			let maxPrice = -Infinity;
+			for (const candle of series) {
+				minPrice = Math.min(minPrice, candle.low);
+				maxPrice = Math.max(maxPrice, candle.high);
+			}
+			for (const line of tradeLines) {
+				minPrice = Math.min(minPrice, line.price);
+				maxPrice = Math.max(maxPrice, line.price);
+			}
+			if (!isFinite(minPrice) || !isFinite(maxPrice) || maxPrice <= minPrice) {
+				minPrice = latestState.lastPrice - 1;
+				maxPrice = latestState.lastPrice + 1;
+			}
+			const padding = (maxPrice - minPrice) * 0.1 + 0.0001;
+			minPrice -= padding;
+			maxPrice += padding;
+			const priceRange = maxPrice - minPrice;
+			const pxPerValue = height / priceRange;
+
+			const yForPrice = (price) => Math.round(height - (price - minPrice) * pxPerValue);
+
+			ctx.strokeStyle = "rgba(115, 138, 181, 0.12)";
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			const gridLines = 5;
+			for (let i = 0; i <= gridLines; i++) {
+				const y = Math.round((height / gridLines) * i) + 0.5;
+				ctx.moveTo(0, y);
+				ctx.lineTo(width, y);
+			}
+			ctx.stroke();
+
+			for (const line of tradeLines) {
+				const y = yForPrice(line.price);
+				const alpha = Math.max(0, Math.min(0.65, line.life * (0.25 + Math.min(line.volume * 0.02, 0.6))));
+				ctx.strokeStyle = line.side > 0 ? `rgba(101, 211, 174, ${alpha})` : `rgba(241, 109, 142, ${alpha})`;
+				ctx.lineWidth = 1 + Math.min(3, line.volume * 0.015);
+				ctx.beginPath();
+				ctx.moveTo(0, y);
+				ctx.lineTo(width, y);
+				ctx.stroke();
+			}
+
+			const visibleCount = Math.min(series.length, MAX_CANDLES);
+			const stride = width / MAX_CANDLES;
+			const bodyWidth = Math.max(3, stride * 0.68);
+			for (let i = 0; i < visibleCount; i++) {
+				const candle = series[series.length - visibleCount + i];
+				const centerX = Math.round((i + 0.5) * stride);
+				const openY = yForPrice(candle.open);
+				const closeY = yForPrice(candle.close);
+				const highY = yForPrice(candle.high);
+				const lowY = yForPrice(candle.low);
+				const isBull = candle.close >= candle.open;
+
+				ctx.strokeStyle = "rgba(225, 231, 248, 0.85)";
+				ctx.lineWidth = 1;
+				ctx.beginPath();
+				ctx.moveTo(centerX, highY);
+				ctx.lineTo(centerX, lowY);
+				ctx.stroke();
+
+				ctx.fillStyle = isBull ? "#4ec9a1" : "#f16d8e";
+				const bodyTop = Math.min(openY, closeY);
+				const bodyHeight = Math.max(2, Math.abs(closeY - openY));
+				ctx.fillRect(centerX - bodyWidth * 0.5, bodyTop, bodyWidth, bodyHeight);
+			}
+
+			const midY = yForPrice(latestState.mid);
+			ctx.strokeStyle = "rgba(92, 124, 255, 0.45)";
+			ctx.setLineDash([6, 6]);
+			ctx.beginPath();
+			ctx.moveTo(0, midY);
+			ctx.lineTo(width, midY);
+			ctx.stroke();
+			ctx.setLineDash([]);
+
+			const lastY = yForPrice(latestState.lastPrice);
+			ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+			ctx.beginPath();
+			ctx.moveTo(0, lastY);
+			ctx.lineTo(width, lastY);
+			ctx.stroke();
+		}
+
+		function drawDepth() {
+			const ctx = depthCtx;
+			const width = depthCanvas.width;
+			const height = depthCanvas.height;
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.clearRect(0, 0, width, height);
+			ctx.fillStyle = "#05070c";
+			ctx.fillRect(0, 0, width, height);
+
+			const bids = latestDepth.subarray(0, ORDER_LEVELS);
+			const asks = latestDepth.subarray(ORDER_LEVELS);
+			let maxDepth = 0;
+			for (let i = 0; i < ORDER_LEVELS; i++) {
+				maxDepth = Math.max(maxDepth, bids[i], asks[i]);
+			}
+			if (maxDepth <= 0) {
+				maxDepth = 1;
+			}
+
+			ctx.fillStyle = "rgba(78, 201, 161, 0.35)";
+			ctx.beginPath();
+			ctx.moveTo(width * 0.5, height);
+			let cumulative = 0;
+			for (let i = 0; i < ORDER_LEVELS; i++) {
+				cumulative += bids[i];
+				const x = width * 0.5 - ((i + 1) / ORDER_LEVELS) * (width * 0.5);
+				const y = height - (cumulative / maxDepth) * height;
+				ctx.lineTo(x, y);
+			}
+			ctx.lineTo(0, height);
+			ctx.closePath();
+			ctx.fill();
+
+			ctx.fillStyle = "rgba(241, 109, 142, 0.35)";
+			ctx.beginPath();
+			ctx.moveTo(width * 0.5, height);
+			cumulative = 0;
+			for (let i = 0; i < ORDER_LEVELS; i++) {
+				cumulative += asks[i];
+				const x = width * 0.5 + ((i + 1) / ORDER_LEVELS) * (width * 0.5);
+				const y = height - (cumulative / maxDepth) * height;
+				ctx.lineTo(x, y);
+			}
+			ctx.lineTo(width, height);
+			ctx.closePath();
+			ctx.fill();
+
+			ctx.strokeStyle = "rgba(100, 120, 160, 0.45)";
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			ctx.moveTo(width * 0.5, 0);
+			ctx.lineTo(width * 0.5, height);
+			ctx.stroke();
+		}
+
+		function updateMetrics() {
+			priceEl.textContent = latestState.lastPrice.toFixed(2);
+			const prevCandle = candles.length > 1 ? candles[candles.length - 2] : candles.length ? candles[candles.length - 1] : null;
+			const basePrice = prevCandle ? prevCandle.close : lastReferenceClose;
+			const change = latestState.lastPrice - basePrice;
+			const changeColor = change >= 0 ? "#65d3ae" : "#f28f8f";
+			priceChangeEl.textContent = `Δ ${change >= 0 ? "+" : ""}${change.toFixed(3)}`;
+			priceChangeEl.style.color = changeColor;
+
+			spreadEl.textContent = latestState.spread.toFixed(3);
+			midPriceEl.textContent = `Mid ${latestState.mid.toFixed(2)}`;
+			imbalanceEl.textContent = `${(latestState.imbalance * 100).toFixed(1)} %`;
+			depthRatioEl.textContent = `Depth ${latestState.depthRatio.toFixed(2)}`;
+			volumeEl.textContent = currentCandle ? currentCandle.volume.toFixed(2) : latestState.cumVolume.toFixed(2);
+			tpsEl.textContent = `Trades / s ${tradeStats.tps.toFixed(1)}`;
+		}
+
+		function drawFrame() {
+			drawCandles();
+			drawDepth();
+			updateMetrics();
+		}
+
+		function writeParams(deltaMs) {
+			refreshDerivedParameters();
+			paramIntsA[0] = controlValues.makers;
+			paramIntsA[1] = controlValues.takers;
+			paramIntsA[2] = controlValues.speed;
+			paramIntsA[3] = resetPending ? 1 : 0;
+
+			paramIntsB[0] = controlValues.seed >>> 0;
+			paramIntsB[1] = 0;
+			paramIntsB[2] = 0;
+			paramIntsB[3] = 0;
+
+			paramFloatsA[0] = controlValues.tickSize;
+			paramFloatsA[1] = controlValues.makerDepth;
+			paramFloatsA[2] = controlValues.takerAggro;
+			paramFloatsA[3] = controlValues.volatility;
+
+			paramFloatsB[0] = controlValues.depthFalloff;
+			paramFloatsB[1] = controlValues.tradeBase;
+			paramFloatsB[2] = controlValues.depthDecay;
+			paramFloatsB[3] = deltaMs / 1000;
+
+			device.queue.writeBuffer(paramBuffer, 0, paramArrayBuffer);
+		}
+
+		async function runSimulation(deltaMs) {
+			writeParams(deltaMs);
+			const encoder = device.createCommandEncoder();
+			const pass = encoder.beginComputePass();
+			pass.setPipeline(computePipeline);
+			pass.setBindGroup(0, bindGroup);
+			pass.dispatchWorkgroups(1);
+			pass.end();
+			device.queue.submit([encoder.finish()]);
+			await device.queue.onSubmittedWorkDone();
+
+			const stateData = await device.queue.readBuffer(stateBuffer, 0, STATE_BYTES);
+			const depthData = await device.queue.readBuffer(depthBuffer, 0, DEPTH_BYTES);
+			const tradesData = await device.queue.readBuffer(tradesBuffer, 0, TRADE_BYTES);
+
+			const stateFloats = new Float32Array(stateData, 0, 8);
+			const stateInts = new Uint32Array(stateData, 32, 4);
+			const tradesFloats = new Float32Array(tradesData);
+
+			latestState = {
+				lastPrice: stateFloats[0],
+				bestBid: stateFloats[1],
+				bestAsk: stateFloats[2],
+				spread: stateFloats[3],
+				imbalance: stateFloats[4],
+				cumVolume: stateFloats[5],
+				mid: stateFloats[6],
+				depthRatio: stateFloats[7]
+			};
+
+			latestDepth.set(new Float32Array(depthData));
+
+			const tradeCount = Math.min(stateInts[2], MAX_TRADES);
+			const now = performance.now();
+			for (let i = 0; i < tradeCount; i++) {
+				const base = i * 4;
+				const price = tradesFloats[base];
+				const volume = tradesFloats[base + 1];
+				const side = tradesFloats[base + 2];
+				if (!Number.isFinite(price) || !Number.isFinite(volume)) continue;
+				recordTrade({ price, volume, side, timestamp: now });
+			}
+			tradeStats.accumCount += tradeCount;
+			tradeStats.accumTime += deltaMs / 1000;
+			if (tradeStats.accumTime >= 1) {
+				tradeStats.tps = tradeStats.accumCount / tradeStats.accumTime;
+				tradeStats.accumCount = 0;
+				tradeStats.accumTime = 0;
+			}
+			resetPending = false;
+		}
+
+		function animationLoop(timestamp) {
+			if (!animationActive) return;
+			const delta = Math.min(180, timestamp - lastFrameTime);
+			lastFrameTime = timestamp;
+			const shouldAdvance = !paused || pendingSteps > 0;
+			const proceed = shouldAdvance ? runSimulation(delta) : Promise.resolve();
+			proceed.then(() => {
+				if (paused && pendingSteps > 0) {
+					pendingSteps -= 1;
+				}
+				updateTradeLines(delta);
+				drawFrame();
+				updateStatusPill();
+				requestAnimationFrame(animationLoop);
+			}).catch((err) => {
+				console.error(err);
+				updateStatusPill("error");
+				animationActive = false;
+			});
+		}
+
+		function generateExportPayload() {
+			return {
+				timestamp: new Date().toISOString(),
+				config: {
+					makers: controlValues.makers,
+					takers: controlValues.takers,
+					speed: controlValues.speed,
+					seed: controlValues.seed,
+					tickSize: controlValues.tickSize
+				},
+				state: {
+					lastPrice: latestState.lastPrice,
+					bestBid: latestState.bestBid,
+					bestAsk: latestState.bestAsk,
+					spread: latestState.spread,
+					imbalance: latestState.imbalance,
+					mid: latestState.mid,
+					depthRatio: latestState.depthRatio
+				},
+				candles: candles.map((candle) => ({
+					start: candle.start,
+					open: candle.open,
+					high: candle.high,
+					low: candle.low,
+					close: candle.close,
+					volume: candle.volume,
+					trades: candle.trades
+				})),
+				trades: [...tradesLog],
+				depthSnapshot: Array.from(latestDepth)
+			};
+		}
+
+		function handleExport() {
+			const exportData = generateExportPayload();
+			const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = `webgpu-market-sim-${Date.now()}.json`;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			URL.revokeObjectURL(url);
+		}
+
+		const shaderSource = /* wgsl */`
+const ORDER_LEVELS : u32 = 32u;
+const MAX_TRADES : u32 = 256u;
+
+struct SimState {
+	primary : vec4<f32>,
+	secondary : vec4<f32>,
+	counters : vec4<u32>
+};
+
+struct Trade {
+	price : f32,
+	volume : f32,
+	side : f32,
+	life : f32
+};
+
+struct SimParams {
+	intsA : vec4<u32>,
+	intsB : vec4<u32>,
+	floatsA : vec4<f32>,
+	floatsB : vec4<f32>
+};
+
+@group(0) @binding(0) var<storage, read_write> sim : SimState;
+@group(0) @binding(1) var<storage, read_write> depth : array<f32, ORDER_LEVELS * 2u>;
+@group(0) @binding(2) var<storage, read_write> trades : array<Trade, MAX_TRADES>;
+@group(0) @binding(3) var<uniform> params : SimParams;
+
+fn lcg(state: ptr<function, u32>) -> f32 {
+	var value = (*state) * 1664525u + 1013904223u;
+	*state = value;
+	return f32(value & 0x00FFFFFFu) / f32(0x01000000u);
+}
+
+fn lerp(a: f32, b: f32, t: f32) -> f32 {
+	return a + (b - a) * t;
+}
+
+@compute @workgroup_size(1)
+fn simulate() {
+	let makerCount = params.intsA.x;
+	let takerCount = params.intsA.y;
+	let steps = max(1u, params.intsA.z);
+	let shouldReset = params.intsA.w;
+	let seed = max(1u, params.intsB.x);
+
+	let tickSize = max(0.0001, params.floatsA.x);
+	let makerDepth = max(0.001, params.floatsA.y);
+	let takerAggro = max(0.05, params.floatsA.z);
+	let volatility = max(0.01, params.floatsA.w);
+	let depthFalloff = max(0.01, params.floatsB.x);
+	let tradeBase = max(0.001, params.floatsB.y);
+	let depthDecay = clamp(params.floatsB.z, 0.0, 0.9);
+
+	var rng = sim.counters.x;
+	if (rng == 0u) {
+		rng = seed;
+	}
+	if (shouldReset == 1u || sim.counters.y == 0u) {
+		rng = seed;
+		sim.primary = vec4<f32>(100.0, 99.6, 100.4, max(tickSize, params.floatsA.w));
+		sim.secondary = vec4<f32>(0.0, 0.0, 100.0, 1.0);
+		sim.counters.y = 0u;
+		sim.counters.z = 0u;
+		sim.counters.w = seed;
+		for (var l = 0u; l < ORDER_LEVELS * 2u; l = l + 1u) {
+			depth[l] = makerDepth;
+		}
+	}
+
+	var lastPrice = sim.primary.x;
+	var bestBid = sim.primary.y;
+	var bestAsk = sim.primary.z;
+	var spread = max(tickSize, sim.primary.w);
+	var imbalance = sim.secondary.x;
+	var cumulativeVolume = sim.secondary.y;
+	var mid = sim.secondary.z;
+	var depthRatio = max(0.1, sim.secondary.w);
+
+	var tradeCount = 0u;
+
+	for (var step = 0u; step < steps; step = step + 1u) {
+		var totalBid = 0.0;
+		var totalAsk = 0.0;
+
+		let makerInfluence = f32(makerCount) * makerDepth;
+		let takerInfluence = f32(takerCount) * takerAggro;
+
+		for (var level = 0u; level < ORDER_LEVELS; level = level + 1u) {
+			let falloff = 1.0 / (1.0 + f32(level) * depthFalloff);
+			var bidSize = depth[level];
+			var askSize = depth[level + ORDER_LEVELS];
+
+			let bidNoise = (lcg(&rng) - 0.5) * makerDepth;
+			let askNoise = (lcg(&rng) - 0.5) * makerDepth;
+
+			bidSize = max(0.0, lerp(bidSize, makerDepth * falloff + bidNoise + makerInfluence * 0.01, 1.0 - depthDecay));
+			askSize = max(0.0, lerp(askSize, makerDepth * falloff + askNoise + makerInfluence * 0.01, 1.0 - depthDecay));
+
+			depth[level] = bidSize;
+			depth[level + ORDER_LEVELS] = askSize;
+
+			totalBid = totalBid + bidSize;
+			totalAsk = totalAsk + askSize;
+		}
+
+		imbalance = (totalBid - totalAsk) / max(1.0, totalBid + totalAsk);
+		let noise = (lcg(&rng) - 0.5) * volatility;
+		let drift = imbalance * 0.5 + noise;
+		var direction = 1.0;
+		if (drift < 0.0) {
+			direction = -1.0;
+		}
+
+		let magnitude = abs(drift) + takerAggro * 0.25;
+		let priceDelta = direction * tickSize * (0.5 + magnitude);
+
+		lastPrice = lastPrice + priceDelta;
+		mid = lerp(mid, lastPrice, 0.6);
+		spread = lerp(spread, max(tickSize, params.floatsA.w + abs(imbalance) * tickSize * 2.0 + takerAggro * 0.1), 0.35);
+		bestBid = mid - 0.5 * spread;
+		bestAsk = mid + 0.5 * spread;
+		if (totalAsk > 0.0) {
+			depthRatio = totalBid / totalAsk;
+		} else {
+			depthRatio = 1.0;
+		}
+
+		var tradePrice = bestAsk;
+		if (direction < 0.0) {
+			tradePrice = bestBid;
+		}
+		let tradeVol = tradeBase + (lcg(&rng) * (takerInfluence * 0.04 + makerInfluence * 0.01));
+		cumulativeVolume = cumulativeVolume + tradeVol;
+
+		if (tradeCount < MAX_TRADES) {
+			trades[tradeCount] = Trade(tradePrice, tradeVol, direction, 1.0);
+			tradeCount = tradeCount + 1u;
+		}
+		sim.counters.y = sim.counters.y + 1u;
+	}
+
+	sim.primary = vec4<f32>(lastPrice, bestBid, bestAsk, spread);
+	sim.secondary = vec4<f32>(imbalance, cumulativeVolume, mid, depthRatio);
+	sim.counters.x = rng;
+	sim.counters.z = tradeCount;
+	sim.counters.w = seed;
+}
+`;
+
+		async function setupWebGPU() {
+			if (!("gpu" in navigator)) {
+				updateStatusPill("error");
+				throw new Error("WebGPU not supported");
+			}
+			adapter = await navigator.gpu.requestAdapter();
+			if (!adapter) {
+				updateStatusPill("error");
+				throw new Error("No suitable GPU adapter");
+			}
+			device = await adapter.requestDevice();
+			const module = device.createShaderModule({ code: shaderSource });
+			computePipeline = device.createComputePipeline({
+				layout: "auto",
+				compute: { module, entryPoint: "simulate" }
+			});
+			paramBuffer = device.createBuffer({
+				size: PARAM_BYTES,
+				usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+			});
+			stateBuffer = device.createBuffer({
+				size: STATE_BYTES,
+				usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
+			});
+			depthBuffer = device.createBuffer({
+				size: DEPTH_BYTES,
+				usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
+			});
+			tradesBuffer = device.createBuffer({
+				size: TRADE_BYTES,
+				usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
+			});
+			bindGroup = device.createBindGroup({
+				layout: computePipeline.getBindGroupLayout(0),
+				entries: [
+					{ binding: 0, resource: { buffer: stateBuffer } },
+					{ binding: 1, resource: { buffer: depthBuffer } },
+					{ binding: 2, resource: { buffer: tradesBuffer } },
+					{ binding: 3, resource: { buffer: paramBuffer } }
+				]
+			});
+		}
+
+		function attachEvents() {
+			makersSlider.addEventListener("input", (e) => {
+				controlValues.makers = parseInt(e.target.value, 10);
+				syncControlOutputs();
+			});
+			takersSlider.addEventListener("input", (e) => {
+				controlValues.takers = parseInt(e.target.value, 10);
+				syncControlOutputs();
+			});
+			speedSlider.addEventListener("input", (e) => {
+				controlValues.speed = parseInt(e.target.value, 10);
+				syncControlOutputs();
+			});
+			seedInput.addEventListener("change", (e) => {
+				const value = parseInt(e.target.value || "1", 10);
+				controlValues.seed = Number.isFinite(value) ? Math.max(1, Math.min(value >>> 0, 0xffffffff)) : controlValues.seed;
+				syncControlOutputs();
+				applyReset();
+			});
+			toggleBtn.addEventListener("click", () => {
+				paused = !paused;
+				toggleBtn.textContent = paused ? "Resume" : "Pause";
+				updateStatusPill();
+			});
+			stepBtn.addEventListener("click", () => {
+				pendingSteps += 10;
+			});
+			resetBtn.addEventListener("click", () => {
+				applyReset();
+			});
+			exportBtn.addEventListener("click", handleExport);
+			window.addEventListener("resize", () => {
+				resizeCanvases();
+				drawFrame();
+			});
+		}
+
+		async function init() {
+			try {
+				syncControlOutputs();
+				attachEvents();
+				resizeCanvases();
+				clearLocalState();
+				await setupWebGPU();
+				updateStatusPill();
+				animationActive = true;
+				lastFrameTime = performance.now();
+				requestAnimationFrame(animationLoop);
+			} catch (err) {
+				console.error(err);
+				updateStatusPill("error");
+				toggleBtn.disabled = true;
+				stepBtn.disabled = true;
+				resetBtn.disabled = true;
+			}
+		}
+
+		init();
+	</script>
+</body>
+</html>

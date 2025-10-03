@@ -1,0 +1,498 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>WebGL Market Simulator — MVP13</title>
+	<style>
+		body { margin:0; font-family: sans-serif; display:flex; height:100vh; }
+		#ui { width:320px; padding:12px; box-sizing:border-box; background:#111; color:#ddd; }
+		#canvas-wrap { flex:1; display:flex; align-items:stretch; background:#222; position:relative; } /* changed: make container relative */
+		/* make canvases fill and stack */
+		#glcanvas, #overlay {
+			position:absolute;
+			left:0; top:0; width:100%; height:100%;
+			display:block;
+		}
+		#glcanvas { z-index:0; }
+		#overlay { z-index:1; pointer-events:none; } /* overlay receives no pointer events */
+		label { display:block; margin:8px 0 4px; font-size:13px; color:#ccc; }
+		.slider { width:100%; }
+		.row { display:flex; gap:8px; align-items:center; }
+		.small { font-size:12px; color:#999; }
+		button { margin-top:8px; padding:8px 10px; }
+	</style>
+</head>
+<body>
+	<div id="ui">
+		<h3>Market Simulator (WebGL)</h3>
+		<div class="row"><label>Maker agents: <span id="makersCount">20</span></label></div>
+		<input id="makers" class="slider" type="range" min="0" max="200" value="20" />
+		<div class="row"><label>Taker agents: <span id="takersCount">4</span></label></div>
+		<input id="takers" class="slider" type="range" min="0" max="50" value="4" />
+		<div class="row"><label>Speed (sim steps/sec): <span id="speedVal">1</span>x</label></div>
+		<input id="speed" class="slider" type="range" min="0.1" max="8" step="0.1" value="1" />
+		<label class="small">Candle interval: <span id="cInt">1s</span></label>
+		<button id="pauseBtn">Pause</button>
+		<div style="margin-top:10px;font-size:12px;color:#aaa">Last trade: <span id="lastTrade">-</span></div>
+		<div style="margin-top:10px;font-size:12px;color:#aaa">Mid price: <span id="midP">-</span></div>
+		<div style="margin-top:10px;font-size:12px;color:#aaa">Tip: Increase takers to see big moves, makers create liquidity.</div>
+	</div>
+
+	<div id="canvas-wrap">
+		<canvas id="glcanvas"></canvas>
+		<canvas id="overlay"></canvas> <!-- added overlay canvas -->
+	</div>
+
+<script>
+// Single-file app: simulation + WebGL renderer
+(() => {
+const canvas = document.getElementById('glcanvas');
+const overlay = document.getElementById('overlay'); // added
+const overlayCtx = overlay.getContext('2d'); // added
+const gl = canvas.getContext('webgl', {antialias:false});
+if (!gl) {
+	alert('WebGL not supported');
+	return;
+}
+
+let resolution = [600,400];
+
+function resize() {
+	const dpr = window.devicePixelRatio || 1;
+	// set pixel size for both canvases
+	canvas.width = Math.max(300, Math.floor(canvas.clientWidth * dpr));
+	canvas.height = Math.max(200, Math.floor(canvas.clientHeight * dpr));
+	overlay.width = canvas.width;   // added
+	overlay.height = canvas.height; // added
+	resolution = [canvas.width, canvas.height];
+	gl.viewport(0,0,canvas.width,canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Simple shader helpers
+function compileShader(type, src) {
+	const s = gl.createShader(type);
+	gl.shaderSource(s, src);
+	gl.compileShader(s);
+	if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+		console.error(gl.getShaderInfoLog(s));
+		throw new Error('Shader compile error');
+	}
+	return s;
+}
+const vs = compileShader(gl.VERTEX_SHADER, `
+attribute vec2 a_pos;
+attribute vec4 a_color;
+uniform vec2 u_resolution;
+varying vec4 v_color;
+void main() {
+	vec2 zeroToOne = a_pos / u_resolution;
+	vec2 clip = zeroToOne * 2.0 - 1.0;
+	gl_Position = vec4(clip * vec2(1, -1), 0.0, 1.0);
+	v_color = a_color;
+}
+`);
+const fs = compileShader(gl.FRAGMENT_SHADER, `
+precision mediump float;
+varying vec4 v_color;
+void main(){
+	gl_FragColor = v_color;
+}
+`);
+const prog = gl.createProgram();
+gl.attachShader(prog, vs);
+gl.attachShader(prog, fs);
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+	console.error(gl.getProgramInfoLog(prog));
+}
+gl.useProgram(prog);
+const a_pos = gl.getAttribLocation(prog, 'a_pos');
+const a_color = gl.getAttribLocation(prog, 'a_color');
+const u_resolution = gl.getUniformLocation(prog, 'u_resolution');
+
+const vbo = gl.createBuffer();
+const cbo = gl.createBuffer();
+
+function clear() {
+	gl.clearColor(0.08,0.08,0.08,1);
+	gl.clear(gl.COLOR_BUFFER_BIT);
+}
+
+// Simulation parameters
+let tickSize = 1; // integer price ticks
+let pricePrecision = 2;
+let midPrice = 1000;
+let lastTrade = midPrice;
+let makersN = 20, takersN = 4;
+let speed = 1; // sim steps per real second factor
+let running = true;
+
+const candlesCount = 200;
+let candleIntervalMs = 1000; // base 1s candle
+const candleWindow = new Array(candlesCount).fill(null).map(_ => makeEmptyCandle());
+function makeEmptyCandle() { return {o:0,h:-Infinity,l:Infinity,c:0,v:0,ts:0}; }
+let candleStartTs = Date.now();
+let currentCandle = makeEmptyCandle();
+
+// LOB
+const book = {
+	bids: new Map(), // price -> volume
+	asks: new Map()
+};
+
+function addLiquidity(side, price, volume) {
+	const map = side === 'bid' ? book.bids : book.asks;
+	const p = Math.round(price);
+	map.set(p, (map.get(p)|0) + volume);
+}
+
+function removeLiquidity(side, price, volume) {
+	const map = side === 'bid' ? book.bids : book.asks;
+	const p = Math.round(price);
+	const prev = map.get(p)|0;
+	const rem = Math.min(prev, volume);
+	if (rem <= 0) return 0;
+	if (prev === rem) map.delete(p);
+	else map.set(p, prev - rem);
+	return rem;
+}
+
+function bestBid() {
+	if (book.bids.size === 0) return null;
+	return Math.max(...book.bids.keys());
+}
+function bestAsk() {
+	if (book.asks.size === 0) return null;
+	return Math.min(...book.asks.keys());
+}
+
+// Initialize book with symmetric liquidity
+function seedBook(spread=4, depth=50) {
+	book.bids.clear(); book.asks.clear();
+	for (let i=1;i<=depth;i++){
+		const pBid = Math.round(midPrice - i);
+		const pAsk = Math.round(midPrice + i);
+		addLiquidity('bid', pBid, Math.round(10 + Math.random()*40));
+		addLiquidity('ask', pAsk, Math.round(10 + Math.random()*40));
+	}
+}
+seedBook();
+
+// Agents
+function makerTick() {
+	// each maker posts or refreshes liquidity at a random nearby tick
+	for (let i=0;i<makersN;i++){
+		const side = Math.random() < 0.5 ? 'bid' : 'ask';
+		const offset = Math.round((Math.random()*60) * (Math.random()<0.7?1:-1));
+		const price = Math.round(midPrice + offset);
+		const vol = Math.round(1 + Math.random()*50);
+		addLiquidity(side, price, vol);
+	}
+}
+function takerTick() {
+	// each taker issues a market order consuming liquidity on the opposite side
+	for (let i=0;i<takersN;i++){
+		const buy = Math.random() < 0.5;
+		let size = Math.round(1 + Math.random()*30);
+		if (buy) {
+			// consume asks
+			let asks = Array.from(book.asks.keys()).sort((a,b)=>a-b);
+			for (let p of asks) {
+				if (size<=0) break;
+				const taken = removeLiquidity('ask', p, size);
+				if (taken>0) {
+					makeTrade(p, taken);
+					size -= taken;
+				}
+			}
+		} else {
+			let bids = Array.from(book.bids.keys()).sort((a,b)=>b-a);
+			for (let p of bids) {
+				if (size<=0) break;
+				const taken = removeLiquidity('bid', p, size);
+				if (taken>0) {
+					makeTrade(p, taken);
+					size -= taken;
+				}
+			}
+		}
+	}
+}
+
+function makeTrade(price, volume){
+	lastTrade = price;
+	midPrice = Math.round((bestBid() || price) + (bestAsk() || price)) / 2;
+	// update candle
+	if (!currentCandle.o) currentCandle.o = price;
+	currentCandle.h = Math.max(currentCandle.h, price);
+	currentCandle.l = Math.min(currentCandle.l, price);
+	currentCandle.c = price;
+	currentCandle.v += volume;
+	updateStatsUI();
+}
+
+// candle rotation
+function rotateCandle(now) {
+	if (!currentCandle.o) {
+		// start new candle
+		currentCandle.o = lastTrade;
+		currentCandle.h = lastTrade;
+		currentCandle.l = lastTrade;
+		currentCandle.c = lastTrade;
+		currentCandle.v = 0;
+	}
+	currentCandle.ts = candleStartTs;
+	// push and reset
+	candleWindow.push(currentCandle);
+	if (candleWindow.length > candlesCount) candleWindow.shift();
+	currentCandle = makeEmptyCandle();
+	candleStartTs = now;
+}
+
+// Sim loop
+let lastSim = performance.now();
+let accumMs = 0;
+function stepSim(dtMs) {
+	// dtMs is the real ms since last frame; scale by speed
+	const simMs = dtMs * speed;
+	accumMs += simMs;
+	// maker/taker actions every 200ms of sim-time
+	const makerPeriod = 200;
+	const takerPeriod = 150;
+	while (accumMs >= 50) {
+		// periodic makers/takers
+		if ((accumMs % makerPeriod) < 50) makerTick();
+		if ((accumMs % takerPeriod) < 50) takerTick();
+		accumMs -= 50;
+	}
+	const now = Date.now();
+	if (now - candleStartTs >= candleIntervalMs) {
+		rotateCandle(now);
+	}
+}
+
+// Renderer mapping
+const padding = {left:60, right:20, top:20, bottom:30};
+function priceToY(price) {
+	// map price range to vertical canvas pixels
+	const prices = getVisiblePriceRange();
+	const minP = prices.min, maxP = prices.max;
+	const innerH = canvas.height - padding.top - padding.bottom;
+	const t = (price - minP) / Math.max(1, (maxP - minP));
+	return padding.top + (1 - t) * innerH;
+}
+function timeToX(idx) {
+	const innerW = canvas.width - padding.left - padding.right;
+	const step = innerW / candlesCount;
+	return padding.left + idx * step + step * 0.5;
+}
+function getVisiblePriceRange() {
+	// choose min/max based on recent candles and LOB
+	const prices = candleWindow.concat([currentCandle]).filter(c=>c && c.o);
+	let minP = Infinity, maxP = -Infinity;
+	for (let c of prices) {
+		minP = Math.min(minP, c.l);
+		maxP = Math.max(maxP, c.h);
+	}
+	// include book extremes
+	const bids = Array.from(book.bids.keys());
+	const asks = Array.from(book.asks.keys());
+	if (bids.length) minP = Math.min(minP, Math.min(...bids));
+	if (asks.length) maxP = Math.max(maxP, Math.max(...asks));
+	if (!isFinite(minP) || !isFinite(maxP)) { minP = midPrice - 30; maxP = midPrice + 30; }
+	// pad
+	const pad = Math.max(5, Math.round((maxP - minP) * 0.15));
+	minP -= pad; maxP += pad;
+	return {min: Math.floor(minP), max: Math.ceil(maxP)};
+}
+
+// Build vertex data for candles and depth lines each frame
+function buildRenderBuffers() {
+	const verts = []; // x,y, r,g,b,a
+	// candles
+	const allCandles = candleWindow.slice(-candlesCount);
+	if (allCandles.length < candlesCount) {
+		// pad
+		const padArr = new Array(candlesCount - allCandles.length).fill(null).map(_=>makeEmptyCandle());
+		allCandles.unshift(...padArr);
+	}
+	for (let i=0;i<candlesCount;i++){
+		const c = allCandles[i];
+		const x = timeToX(i);
+		const candleWidth = Math.max(2, (canvas.width - padding.left - padding.right) / candlesCount * 0.6);
+		if (!c || !c.o) {
+			// empty small line
+			const y = priceToY(midPrice);
+			pushRect(verts, x - 0.5, y - 0.5, 1, 1, [0.4,0.4,0.4,0.6]);
+			continue;
+		}
+		const open = c.o, close = c.c || c.o, high = c.h, low = c.l;
+		const yOpen = priceToY(open);
+		const yClose = priceToY(close);
+		const yHigh = priceToY(high);
+		const yLow = priceToY(low);
+		const colorUp = [0.0,0.82,0.3,1];
+		const colorDown = [0.95,0.25,0.25,1];
+		const col = close >= open ? colorUp : colorDown;
+		// wick (thin line)
+		pushRect(verts, x - 1, yHigh, 2, Math.max(1, yLow - yHigh), [col[0],col[1],col[2],0.9]);
+		// body
+		const by = Math.min(yOpen, yClose), bh = Math.max(1, Math.abs(yClose - yOpen));
+		pushRect(verts, x - candleWidth/2, by, candleWidth, bh, col);
+	}
+	// depth lines: for each tick with liquidity draw a thin horizontal bar across chart inner width,
+	// width proportional to liquidity relative to max
+	const depthVerts = [];
+	const depthPairs = [];
+	for (let [p,v] of book.bids) depthPairs.push({p,v,side:'bid'});
+	for (let [p,v] of book.asks) depthPairs.push({p,v,side:'ask'});
+	if (depthPairs.length > 0) {
+		const maxV = Math.max(...depthPairs.map(d=>d.v));
+		const prices = getVisiblePriceRange();
+		for (let d of depthPairs) {
+			if (d.p < prices.min || d.p > prices.max) continue;
+			const y = priceToY(d.p);
+			const alpha = Math.min(0.8, 0.1 + (d.v / maxV) * 0.9);
+			const width = (canvas.width - padding.left - padding.right) * Math.min(0.95, d.v / maxV);
+			const col = d.side==='bid' ? [0.0,0.5,1.0,0.12*alpha*10] : [1.0,0.4,0.0,0.12*alpha*10];
+			pushRect(verts, padding.left, y-1.5, width, 3, col);
+		}
+	}
+	// overlay support/resistance: find top N depth peaks
+	const peaks = depthPairs.sort((a,b)=>b.v-a.v).slice(0,6);
+	for (let p of peaks) {
+		if (p.p < getVisiblePriceRange().min || p.p > getVisiblePriceRange().max) continue;
+		const y = priceToY(p.p);
+		pushRect(verts, padding.left, y-2, canvas.width - padding.left - padding.right, 4, [1.0,1.0,0.2,0.25]);
+	}
+
+	// axis and midline
+	// midline
+	pushRect(verts, padding.left, priceToY(lastTrade)-0.5, canvas.width - padding.left - padding.right, 1, [1,1,1,0.6]);
+
+	return new Float32Array(verts);
+}
+function pushRect(arr, x,y,w,h,color) {
+	// two triangles (6 vertices). Each vertex: x,y,r,g,b,a
+	const x0 = x, x1 = x + w;
+	const y0 = y, y1 = y + h;
+	const c = color;
+	// tri1
+	pushV(arr, x0,y0,c); pushV(arr, x1,y0,c); pushV(arr, x1,y1,c);
+	// tri2
+	pushV(arr, x0,y0,c); pushV(arr, x1,y1,c); pushV(arr, x0,y1,c);
+}
+function pushV(arr, x,y,c) { arr.push(x, y, c[0], c[1], c[2], c[3]); }
+
+// rendering loop
+function render() {
+	clear();
+	const verts = buildRenderBuffers();
+	gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+	gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
+	gl.enableVertexAttribArray(a_pos);
+	gl.vertexAttribPointer(a_pos, 2, gl.FLOAT, false, 24, 0);
+	gl.enableVertexAttribArray(a_color);
+	gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+	gl.vertexAttribPointer(a_color, 4, gl.FLOAT, false, 24, 8);
+
+	gl.uniform2f(u_resolution, canvas.width, canvas.height);
+	gl.drawArrays(gl.TRIANGLES, 0, verts.length / 6);
+
+	// axes: draw simple price tick labels using 2d context (overlay)
+	drawOverlay();
+}
+
+function drawOverlay() {
+	// use overlay 2d context (avoid calling getContext on the WebGL canvas)
+	if (!overlayCtx) return;
+	overlayCtx.clearRect(0,0,overlay.width,overlay.height);
+	// draw price labels on left
+	overlayCtx.font = (12 * (window.devicePixelRatio || 1)) + 'px monospace';
+	overlayCtx.fillStyle = '#ddd';
+	overlayCtx.textAlign = 'right';
+	overlayCtx.textBaseline = 'middle';
+	const prices = getVisiblePriceRange();
+	const step = Math.max(1, Math.round((prices.max - prices.min) / 8));
+	for (let p=prices.min; p<=prices.max; p+=step) {
+		const y = priceToY(p);
+		overlayCtx.fillText(p.toFixed(0), padding.left - 8, y);
+		// small tick
+		overlayCtx.strokeStyle = 'rgba(255,255,255,0.04)';
+		overlayCtx.beginPath(); overlayCtx.moveTo(padding.left, y); overlayCtx.lineTo(padding.left+4, y); overlayCtx.stroke();
+	}
+	// time labels
+	overlayCtx.textAlign = 'center';
+	const innerW = canvas.width - padding.left - padding.right;
+	for (let i=0;i<6;i++){
+		const idx = Math.floor(i * (candlesCount-1) / 5);
+		const x = padding.left + idx * innerW / candlesCount + innerW / candlesCount * 0.5;
+		const label = `${Math.max(0, candlesCount-idx)}`;
+		overlayCtx.fillText(label, x, canvas.height - 12);
+	}
+	// last trade and mid
+	overlayCtx.fillStyle = '#fff';
+	overlayCtx.textAlign = 'left';
+	overlayCtx.fillText('Last: ' + lastTrade.toFixed(0), padding.left + 4, 14);
+	overlayCtx.fillText('Mid: ' + (midPrice|0), padding.left + 110, 14);
+}
+
+// UI bindings
+const makersSlider = document.getElementById('makers');
+const takersSlider = document.getElementById('takers');
+const speedSlider = document.getElementById('speed');
+const makersLabel = document.getElementById('makersCount');
+const takersLabel = document.getElementById('takersCount');
+const speedLabel = document.getElementById('speedVal');
+const pauseBtn = document.getElementById('pauseBtn');
+const lastTradeEl = document.getElementById('lastTrade');
+const midEl = document.getElementById('midP');
+const cIntEl = document.getElementById('cInt');
+
+makersSlider.addEventListener('input', (e)=>{ makersN = +e.target.value; makersLabel.textContent = makersN; });
+takersSlider.addEventListener('input', (e)=>{ takersN = +e.target.value; takersLabel.textContent = takersN; });
+speedSlider.addEventListener('input', (e)=>{ speed = +e.target.value; speedLabel.textContent = speed.toFixed(1); });
+
+pauseBtn.addEventListener('click', ()=>{
+	running = !running;
+	pauseBtn.textContent = running ? 'Pause' : 'Resume';
+});
+
+// stats UI updater
+function updateStatsUI() {
+	lastTradeEl.textContent = lastTrade.toFixed(0);
+	midEl.textContent = (midPrice|0);
+	cIntEl.textContent = (candleIntervalMs/1000) + 's';
+}
+
+// main loop
+let raf;
+function animate(now) {
+	const dt = now - lastSim;
+	lastSim = now;
+	if (running) stepSim(dt);
+	render();
+	raf = requestAnimationFrame(animate);
+}
+lastSim = performance.now();
+raf = requestAnimationFrame(animate);
+
+// simple keyboard shortcuts
+window.addEventListener('keydown', (e)=>{
+	if (e.key === ' ') { running = !running; pauseBtn.textContent = running ? 'Pause' : 'Resume'; }
+	if (e.key === 'ArrowUp') { candleIntervalMs = Math.max(100, candleIntervalMs - 100); }
+	if (e.key === 'ArrowDown') { candleIntervalMs = candleIntervalMs + 100; }
+});
+
+// expose simple functions for debugging in console
+window._sim = {book, addLiquidity, removeLiquidity, makeTrade, seedBook};
+
+// initial UI update
+updateStatsUI();
+resize();
+})();
+</script>
+</body>
+</html>

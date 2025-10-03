@@ -1,0 +1,556 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>LOB Microstructure Simulator — MVP17</title>
+<style>
+  html,body{height:100%;margin:0;font-family:Segoe UI, Arial;background:#071018;color:#dfe;}
+  #app{display:flex;height:100%;gap:12px;padding:12px;box-sizing:border-box;}
+  #canvasWrap{position:relative;flex:1;background:#00101a;border-radius:6px;overflow:hidden;}
+  canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block;}
+  #glCanvas{z-index:0}
+  #overlay{z-index:10;pointer-events:none}
+  #ui{width:360px;max-width:40%;background:#071821;padding:12px;border-radius:6px;overflow:auto;}
+  label{display:block;font-size:13px;color:#9fb;margin-bottom:4px}
+  .row{margin-bottom:10px}
+  input[type=range]{width:100%}
+  input[type=number], select{width:100%;padding:6px;box-sizing:border-box;border-radius:4px;border:1px solid #123;background:#071018;color:#cfe}
+  button{width:48%;padding:8px;margin-right:4%;background:#1b7;border:none;color:#032;font-weight:700;border-radius:4px;cursor:pointer}
+  button.secondary{background:#44a;color:#dff}
+  .small{font-size:12px;color:#89a}
+  .stats{font-size:12px;color:#9aa;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="canvasWrap">
+    <canvas id="glCanvas"></canvas>
+    <canvas id="overlay"></canvas>
+  </div>
+  <div id="ui">
+    <h3>LOB Microstructure Simulator (MVP17)</h3>
+    <div class="row">
+      <label>Makers: <span id="makersLabel">20</span></label>
+      <input id="makers" type="range" min="0" max="200" value="20">
+    </div>
+    <div class="row">
+      <label>Takers: <span id="takersLabel">6</span></label>
+      <input id="takers" type="range" min="0" max="200" value="6">
+    </div>
+    <div class="row">
+      <label>Sim speed: <span id="speedLabel">1.0x</span></label>
+      <input id="speed" type="range" min="0.1" max="8" step="0.1" value="1">
+    </div>
+    <div class="row">
+      <label>Tick size: <span id="tickLabel">1</span></label>
+      <input id="tick" type="number" min="0.01" step="0.01" value="1">
+    </div>
+    <div class="row">
+      <label>Price bin width (VAP): <span id="binLabel">1</span></label>
+      <input id="binWidth" type="number" min="0.1" step="0.1" value="1">
+    </div>
+    <div class="row">
+      <label>Maker latency ms / cancel %:</label>
+      <div style="display:flex;gap:8px">
+        <input id="latency" type="number" min="0" step="10" value="200">
+        <input id="cancel" type="number" min="0" max="100" step="1" value="10">
+      </div>
+    </div>
+    <div class="row">
+      <label>Maker inventory limit:</label>
+      <input id="invLimit" type="number" min="1" max="1000" step="1" value="20">
+    </div>
+    <div class="row">
+      <button id="start">Start</button>
+      <button id="pause" class="secondary">Pause</button>
+    </div>
+    <div class="small">Deterministic seed: 123456</div>
+    <div class="stats" id="stats"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // Basic deterministic RNG
+  function RNG(seed=123456){ let s=seed|0; return ()=>{ s = (s * 1664525 + 1013904223) | 0; return ((s >>> 0) / 4294967296); }; }
+  const rng = RNG(123456);
+
+  // Canvas / GL setup
+  const glCanvas = document.getElementById('glCanvas');
+  const overlay = document.getElementById('overlay');
+  const gl = glCanvas.getContext('webgl2', {antialias:false});
+  const ctx = overlay.getContext('2d');
+
+  function resize(){ const rect = glCanvas.parentElement.getBoundingClientRect(); glCanvas.width = overlay.width = Math.floor(rect.width); glCanvas.height = overlay.height = Math.floor(rect.height); if(gl) gl.viewport(0,0,glCanvas.width,glCanvas.height); }
+  window.addEventListener('resize', resize);
+
+  // Simulation parameters (bound to UI)
+  const ui = {
+    makers: document.getElementById('makers'),
+    takers: document.getElementById('takers'),
+    speed: document.getElementById('speed'),
+    tick: document.getElementById('tick'),
+    binWidth: document.getElementById('binWidth'),
+    latency: document.getElementById('latency'),
+    cancel: document.getElementById('cancel'),
+    invLimit: document.getElementById('invLimit'),
+    startBtn: document.getElementById('start'),
+    pauseBtn: document.getElementById('pause'),
+    makersLabel: document.getElementById('makersLabel'),
+    takersLabel: document.getElementById('takersLabel'),
+    speedLabel: document.getElementById('speedLabel'),
+    tickLabel: document.getElementById('tickLabel'),
+    binLabel: document.getElementById('binLabel'),
+    stats: document.getElementById('stats')
+  };
+
+  // Engine state
+  const state = {
+    mid: 1000,
+    time: 0,
+    tick: parseFloat(ui.tick.value),
+    binWidth: parseFloat(ui.binWidth.value),
+    timeframe: 1.0, // seconds per candle (for simplicity)
+    candles: [], // recent candles
+    currentCandle: null,
+    trades: [], // executed trades {price,qty,time}
+    depthMap: new Map(), // priceTick => {bidSize,askSize}
+    vapBins: new Map(), // binIndex => volume
+    heatTimeSlices: 256,
+    heatPriceBins: 400,
+    heatCols: null,
+    running: false
+  };
+
+  // helpers
+  function priceToTick(p){ const t = Math.round(p / state.tick) * state.tick; return Number(t.toFixed(8)); }
+  function binIndexForPrice(p){ return Math.floor(p / state.binWidth); }
+
+  // Limit Order Book (simple per-tick aggregated resting depth)
+  function ensureDepthTick(tick){
+    if(!state.depthMap.has(tick)) state.depthMap.set(tick, {bidSize:0, askSize:0});
+    return state.depthMap.get(tick);
+  }
+
+  // Place resting limit quote by maker: add to depth
+  function placeQuote(side, price, size){
+    const tick = priceToTick(price);
+    const d = ensureDepthTick(tick);
+    if(side === 'bid') d.bidSize += size;
+    else d.askSize += size;
+  }
+  function cancelQuote(side, price, size){
+    const tick = priceToTick(price);
+    const d = ensureDepthTick(tick);
+    if(side === 'bid') d.bidSize = Math.max(0, d.bidSize - size);
+    else d.askSize = Math.max(0, d.askSize - size);
+  }
+
+  // Process market order: consumes opposite side, emits trades
+  function marketOrder(side, size){
+    // iterate book from top
+    const ticks = Array.from(state.depthMap.keys()).sort((a,b)=>a-b);
+    if(side==='buy') ticks.reverse(); // consume asks from lowest price upward
+    let remaining = size;
+    const consumed = [];
+    for(const t of ticks){
+      if(remaining <= 0) break;
+      const d = state.depthMap.get(t);
+      const avail = side==='buy' ? d.askSize : d.bidSize;
+      if(avail<=0) continue;
+      const q = Math.min(avail, remaining);
+      remaining -= q;
+      if(side==='buy') d.askSize -= q; else d.bidSize -= q;
+      const tradePrice = t;
+      const tr = {price: tradePrice, qty:q, time: state.time};
+      state.trades.push(tr);
+      // add to VAP
+      const b = binIndexForPrice(tr.price);
+      state.vapBins.set(b, (state.vapBins.get(b)||0) + q);
+      consumed.push(tr);
+    }
+    return consumed;
+  }
+
+  // Candle logic simple O/H/L/C per timeframe
+  function startNewCandle(){
+    if(state.currentCandle) state.candles.push(state.currentCandle);
+    const mid = state.mid;
+    state.currentCandle = {t: state.time, o: mid, h: mid, l: mid, c: mid, v:0};
+    if(state.candles.length > 300) state.candles.shift();
+  }
+  function recordTradeToCandle(tr){
+    const c = state.currentCandle;
+    if(!c) { startNewCandle(); }
+    c.h = Math.max(c.h, tr.price);
+    c.l = Math.min(c.l, tr.price);
+    c.c = tr.price;
+    c.v += tr.qty;
+  }
+
+  // Heatmap buffer init
+  function initHeat(){
+    state.heatPriceBins = Math.max(32, Math.min(2000, Math.floor((state.heatPriceBins || 400))));
+    state.heatCols = new Uint8Array(state.heatTimeSlices * state.heatPriceBins * 4);
+    // WebGL texture init
+    if(gl){
+      if(!gl._tex) gl._tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, gl._tex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, state.heatTimeSlices, state.heatPriceBins, 0, gl.RGBA, gl.UNSIGNED_BYTE, state.heatCols);
+    }
+  }
+
+  // Compute POC and Value Area (70% by default)
+  function computePocVa(){
+    const entries = Array.from(state.vapBins.entries());
+    if(entries.length===0) return null;
+    entries.sort((a,b)=>a[0]-b[0]);
+    const total = entries.reduce((s,kv)=>s+kv[1],0);
+    const sortedByVol = entries.slice().sort((a,b)=>b[1]-a[1]);
+    const pocBin = sortedByVol[0][0];
+    // Value area: smallest contiguous set containing 70% of volume centered at POC
+    const pct = 0.7;
+    let leftIdx = entries.findIndex(e=>e[0]===pocBin);
+    let rightIdx = leftIdx;
+    let acc = entries[leftIdx][1];
+    while(acc / total < pct){
+      const leftVol = leftIdx>0 ? entries[leftIdx-1][1] : -1;
+      const rightVol = rightIdx < entries.length-1 ? entries[rightIdx+1][1] : -1;
+      if(leftVol > rightVol){
+        leftIdx = Math.max(0, leftIdx-1);
+        acc += entries[leftIdx][1];
+      } else {
+        rightIdx = Math.min(entries.length-1, rightIdx+1);
+        acc += entries[rightIdx][1];
+      }
+      if(leftIdx===0 && rightIdx===entries.length-1) break;
+    }
+    const val = entries[leftIdx][0] * state.binWidth;
+    const vah = (entries[rightIdx][0]+1) * state.binWidth;
+    const pocPrice = (pocBin + 0.5) * state.binWidth;
+    return {pocBin, pocPrice, val, vah, total};
+  }
+
+  // Liquidity nodes: local maxima in VAP
+  function computeLiquidityNodes(){
+    const arr = Array.from(state.vapBins.entries()).sort((a,b)=>a[0]-b[0]);
+    const nodes = [];
+    for(let i=1;i<arr.length-1;i++){
+      const prev = arr[i-1][1], cur = arr[i][1], next = arr[i+1][1];
+      if(cur > prev * 1.1 && cur > next * 1.1 && cur > 1) nodes.push({bin:arr[i][0], vol:cur});
+    }
+    return nodes;
+  }
+
+  // Simple maker agent behavior
+  function spawnMakers(count){
+    const latency = parseFloat(ui.latency.value) || 200;
+    const cancelPct = parseFloat(ui.cancel.value) || 10;
+    const invLimit = parseFloat(ui.invLimit.value) || 20;
+    // For simplicity make aggregated quotes without per-agent bookkeeping
+    for(let i=0;i<count;i++){
+      // choose side via small inventory tilt
+      const side = (rng() < 0.5) ? 'bid' : 'ask';
+      const spreadTicks = Math.max(1, Math.floor((rng()*10)));
+      const price = priceToTick(state.mid + (side==='bid' ? -spreadTicks : spreadTicks) * state.tick);
+      const size = Math.max(1, Math.round(1 + rng()*5));
+      placeQuote(side, price, size);
+      // probabilistic cancel: remove some fraction
+      if(rng() < (cancelPct/100)){
+        const rem = Math.min(size, Math.max(0, Math.round(rng()*size)));
+        cancelQuote(side, price, rem);
+      }
+    }
+  }
+
+  // Simple taker behavior
+  function spawnTakers(count){
+    for(let i=0;i<count;i++){
+      const side = (rng() < 0.5) ? 'buy' : 'sell';
+      const size = Math.max(1, Math.round(1 + rng()*10));
+      marketOrder(side, size);
+    }
+  }
+
+  // Update mid price using top-of-book
+  function bestBidAsk(){
+    const ticks = Array.from(state.depthMap.keys()).sort((a,b)=>a-b);
+    let bestBid = null, bestAsk = null;
+    for(let i=ticks.length-1;i>=0;i--){ const d=state.depthMap.get(ticks[i]); if(d.bidSize>0){bestBid=ticks[i];break;} }
+    for(let i=0;i<ticks.length;i++){ const d=state.depthMap.get(ticks[i]); if(d.askSize>0){bestAsk=ticks[i];break;} }
+    return {bestBid, bestAsk};
+  }
+
+  // Heatmap push: create a column from current vap histogram and upload
+  state.nextHeatCol = 0;
+  function pushHeatColumn(){
+    const width = state.heatTimeSlices, height = state.heatPriceBins;
+    const col = new Uint8Array(height*4);
+    // produce column from VAP centered at mid: map price->row index
+    const centerRow = Math.floor(height/2);
+    // gather a scaled array of bins around mid
+    // produce rows: for each row y compute price = mid + (y-centerRow) * tick * (binWidth/tick)
+    const binsPerTick = Math.max(1, Math.round(state.tick / state.binWidth));
+    // clear col
+    for(let y=0;y<height;y++){ col[y*4]=col[y*4+1]=col[y*4+2]=0; col[y*4+3]=255; }
+    // find max volume for normalization
+    let maxv=1;
+    for(const v of state.vapBins.values()) if(v>maxv) maxv=v;
+    // fill
+    for(let y=0;y<height;y++){
+      const price = state.mid + (y - centerRow) * state.binWidth;
+      const b = binIndexForPrice(price);
+      const v = state.vapBins.get(b) || 0;
+      const iv = Math.min(255, Math.round((v / maxv) * 255));
+      col[y*4] = iv; col[y*4+1] = iv; col[y*4+2] = iv; // greyscale intensity
+    }
+    // copy into heatCols at column
+    const base = state.nextHeatCol * height * 4;
+    state.heatCols.set(col, base);
+    // upload to GL
+    if(gl){
+      gl.bindTexture(gl.TEXTURE_2D, gl._tex);
+      // upload full texture for simplicity
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, state.heatCols);
+    }
+    state.nextHeatCol = (state.nextHeatCol + 1) % width;
+  }
+
+  // Minimal GL shader for heatmap (cool->warm)
+  let prog = null;
+  function initGLProgram(){
+    if(!gl) return;
+    const vs = `#version 300 es
+    in vec2 aPos; out vec2 vUv;
+    void main(){ vUv = aPos*0.5+0.5; gl_Position = vec4(aPos,0,1); }`;
+    const fs = `#version 300 es
+    precision highp float;
+    in vec2 vUv; out vec4 outColor; uniform sampler2D uTex;
+    vec3 cmap(float v){
+      return mix(vec3(0.02,0.06,0.2), vec3(1.0,0.6,0.05), pow(v,0.8));
+    }
+    void main(){
+      vec4 s = texture(uTex, vec2(vUv.x, 1.0 - vUv.y));
+      float intensity = s.r;
+      vec3 c = cmap(intensity);
+      outColor = vec4(c, intensity*0.95 + 0.02);
+    }`;
+    function compile(type, src){ const sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh); return sh; }
+    const v = compile(gl.VERTEX_SHADER, vs);
+    const f = compile(gl.FRAGMENT_SHADER, fs);
+    prog = gl.createProgram();
+    gl.attachShader(prog, v); gl.attachShader(prog, f); gl.linkProgram(prog);
+    // quad
+    const quad = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+    const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+    const aPos = gl.getAttribLocation(prog, 'aPos'); gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,0,0);
+    prog._vao = vao;
+    prog.uTex = gl.getUniformLocation(prog, 'uTex');
+  }
+
+  // Drawing overlay: candles, depthbars, poc/va, liquidity nodes
+  function drawOverlay(){
+    const w = overlay.width, h = overlay.height;
+    ctx.clearRect(0,0,w,h);
+    // background slight tint
+    ctx.fillStyle = 'rgba(0,6,12,0.3)'; ctx.fillRect(0,0,w,h);
+    // draw heatmap via GL first
+    if(gl && prog){
+      gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(prog);
+      gl.bindVertexArray(prog._vao);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, gl._tex);
+      gl.uniform1i(prog.uTex, 0);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+    // draw candles
+    const candles = state.candles.slice(-120);
+    const pad = 10; const ch = h*0.5; const cw = w - 2*pad;
+    const candleWidth = Math.max(1, Math.floor(cw / Math.max(20, candles.length)));
+    const priceToY = p => {
+      const rangeTicks = 80 * state.tick; // display ±80 ticks
+      const top = state.mid + rangeTicks/2;
+      const bottom = state.mid - rangeTicks/2;
+      const t = (top - p) / (top - bottom);
+      return pad + t * ch;
+    };
+    // axes grid
+    ctx.strokeStyle = 'rgba(100,140,150,0.07)'; ctx.beginPath();
+    for(let i=0;i<6;i++){ const y=pad + i*(ch/5); ctx.moveTo(pad,y); ctx.lineTo(w-pad,y); }
+    ctx.stroke();
+    // candles
+    let x = pad + 0;
+    for(const c of candles){
+      const o = priceToY(c.o), hY = priceToY(c.h), lY = priceToY(c.l), cY = priceToY(c.c);
+      ctx.strokeStyle = (c.c >= c.o) ? '#54f37a' : '#ff6b6b';
+      ctx.fillStyle = ctx.strokeStyle;
+      // wick
+      ctx.beginPath(); ctx.moveTo(x + candleWidth/2, hY); ctx.lineTo(x + candleWidth/2, lY); ctx.stroke();
+      // body
+      const top = Math.min(o, cY), bottom = Math.max(o, cY);
+      ctx.fillRect(x, top, candleWidth, Math.max(1, bottom - top));
+      x += candleWidth + 1;
+    }
+
+    // draw depth bars at right side (horizontal per tick)
+    const depthX = w - 180;
+    ctx.font = '11px monospace';
+    const ticksToDraw = 40;
+    const tickStep = state.tick * state.binWidth / state.binWidth; // 1 tick unit
+    const half = ticksToDraw;
+    const rowH = Math.floor(h / (half*2));
+    const centerY = Math.floor(h/2);
+    const nodes = computeLiquidityNodes();
+    const pv = computePocVa();
+    for(let i=-half;i<half;i++){
+      const price = state.mid + i*state.tick;
+      const tick = priceToTick(price);
+      const d = state.depthMap.get(tick) || {bidSize:0, askSize:0};
+      const y = centerY + i*rowH;
+      // bids to left
+      const bW = Math.min(140, Math.round((d.bidSize / 100) * 140));
+      ctx.fillStyle = 'rgba(30,140,200,0.6)';
+      ctx.fillRect(depthX - bW, y, bW, Math.max(2,rowH-1));
+      // asks to right
+      const aW = Math.min(140, Math.round((d.askSize / 100) * 140));
+      ctx.fillStyle = 'rgba(240,90,90,0.6)';
+      ctx.fillRect(depthX + 40, y, aW, Math.max(2,rowH-1));
+      // price label
+      ctx.fillStyle = '#9fb';
+      ctx.fillText(tick.toFixed(2), depthX - 60, y + (rowH/2));
+    }
+
+    // draw POC and VA
+    if(pv){
+      ctx.strokeStyle = 'rgba(255,215,0,0.9)'; ctx.fillStyle = 'rgba(255,215,0,0.06)';
+      const yPoc = priceToY(pv.pocPrice);
+      ctx.beginPath(); ctx.moveTo(pad, yPoc); ctx.lineTo(w - pad, yPoc); ctx.stroke();
+      // shade VA
+      const yVal = priceToY(pv.val); const yVah = priceToY(pv.vah);
+      ctx.fillRect(pad, Math.min(yVal,yVah), w - pad*2, Math.abs(yVah - yVal));
+      ctx.fillStyle = '#ffd'; ctx.fillText(`POC ${pv.pocPrice.toFixed(2)}`, pad+4, yPoc-6);
+    }
+
+    // draw liquidity nodes as horizontal markers (support/resistance)
+    ctx.fillStyle = 'rgba(180,230,140,0.95)';
+    for(const n of nodes){
+      const price = (n.bin + 0.5) * state.binWidth;
+      const y = priceToY(price);
+      ctx.fillRect(w-28, y-2, 6, 4);
+    }
+
+    // mini stats
+    ctx.fillStyle = '#9aa'; ctx.font = '12px monospace';
+    ctx.fillText(`Mid: ${state.mid.toFixed(2)}  Trades: ${state.trades.length}`, pad+4, h-8);
+  }
+
+  // GL draw wrapper (texture already updated in pushHeatColumn)
+  function glDraw(){
+    // keep GL canvas visible by copying to overlay's background if needed (we draw overlay separately)
+    // nothing needed here since GL draws into glCanvas directly
+  }
+
+  // Simulation loop
+  let lastFrame = performance.now();
+  function stepSim(dt){
+    // spawn agents scaled by dt and UI counts
+    const makerCount = Math.round(parseFloat(ui.makers.value) * dt * parseFloat(ui.speed.value));
+    const takerCount = Math.round(parseFloat(ui.takers.value) * dt * parseFloat(ui.speed.value));
+    spawnMakers(makerCount);
+    spawnTakers(takerCount);
+    // update mid from top-of-book plus random walk
+    const bo = bestBidAsk();
+    if(bo.bestBid !== null && bo.bestAsk !== null){
+      state.mid = Math.round(((bo.bestBid + bo.bestAsk)/2) / state.tick) * state.tick;
+    } else {
+      state.mid += (rng()-0.5) * 2 * state.tick;
+      state.mid = priceToTick(state.mid);
+    }
+    // record trades into candle
+    while(state.trades.length){
+      const tr = state.trades.shift();
+      recordTradeToCandle(tr);
+    }
+    // candle advancement by timeframe
+    state.time += dt;
+    if(!state.currentCandle) startNewCandle();
+    if(state.time - state.currentCandle.t >= state.timeframe){
+      startNewCandle();
+    }
+    // push heat column occasionally
+    pushHeatColumn();
+  }
+
+  // Main loop
+  function loop(now){
+    const dtReal = Math.min(0.5, (now - lastFrame)/1000);
+    lastFrame = now;
+    const speed = parseFloat(ui.speed.value) || 1;
+    if(state.running){
+      stepSim(dtReal * speed);
+    }
+    // GL render
+    if(gl && prog){
+      // draw heatmap quad (already drawn in drawOverlay via gl.drawArrays but also safe to do here)
+      gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(prog); gl.bindVertexArray(prog._vao);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, gl._tex); gl.uniform1i(prog.uTex, 0);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+    drawOverlay();
+    // update UI labels
+    ui.makersLabel.textContent = ui.makers.value;
+    ui.takersLabel.textContent = ui.takers.value;
+    ui.speedLabel.textContent = parseFloat(ui.speed.value).toFixed(1) + 'x';
+    ui.tickLabel.textContent = parseFloat(ui.tick.value).toFixed(2);
+    ui.binLabel.textContent = parseFloat(ui.binWidth.value).toFixed(2);
+    // stats text
+    const pv = computePocVa();
+    ui.stats.innerText = `VAP bins: ${state.vapBins.size}  POC: ${pv ? pv.pocPrice.toFixed(2): 'n/a'}  TotalVol: ${pv?pv.total:0}`;
+    requestAnimationFrame(loop);
+  }
+
+  // Wire UI
+  ui.startBtn.addEventListener('click', ()=>{ state.running=true; });
+  ui.pauseBtn.addEventListener('click', ()=>{ state.running=false; });
+  // parameter updates
+  ui.tick.addEventListener('change', ()=>{ state.tick = parseFloat(ui.tick.value); });
+  ui.binWidth.addEventListener('change', ()=>{ state.binWidth = parseFloat(ui.binWidth.value); initHeat(); });
+  ui.latency.addEventListener('change', ()=>{}); ui.cancel.addEventListener('change', ()=>{});
+  ui.makers.addEventListener('input', ()=>{}); ui.takers.addEventListener('input', ()=>{});
+
+  // init and start
+  resize();
+  initHeat();
+  initGLProgram();
+  state.running = false;
+  lastFrame = performance.now();
+  requestAnimationFrame(loop);
+
+  // small deterministic seeding of some initial depth and history
+  (function seedMarket(){
+    // build a symmetric book around mid
+    for(let i=-100;i<=100;i++){
+      const p = priceToTick(state.mid + i*state.tick);
+      const depth = Math.round(10 * Math.exp(-Math.abs(i)/20) + rng()*5);
+      if(i<0) ensureDepthTick(p).bidSize = depth; else ensureDepthTick(p).askSize = depth;
+    }
+    // seed some initial VAP volume
+    for(let i=0;i<200;i++){
+      const price = priceToTick(state.mid + (Math.floor(rng()*60)-30)*state.tick);
+      const q = Math.round(1 + rng()*10);
+      const b = binIndexForPrice(price);
+      state.vapBins.set(b, (state.vapBins.get(b)||0) + q);
+    }
+  })();
+
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free Market Simulation - Agentic Trading</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        label {
+            font-size: 12px;
+            color: #888;
+        }
+        
+        input, button {
+            padding: 5px;
+            background: #333;
+            border: 1px solid #555;
+            color: #00ff00;
+            font-family: inherit;
+        }
+        
+        button {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #444;
+        }
+        
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            border: 1px solid #333;
+            overflow: hidden;
+        }
+        
+        #heatmapCanvas, #chartCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            padding: 15px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Free Market Simulation - Natural Market Phenomena</h1>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label>Makers (0-1000)</label>
+                <input type="number" id="makers" min="0" max="1000" value="100">
+            </div>
+            <div class="control-group">
+                <label>Takers (0-1000)</label>
+                <input type="number" id="takers" min="0" max="1000" value="50">
+            </div>
+            <div class="control-group">
+                <label>Speed</label>
+                <input type="range" id="speed" min="1" max="10" value="5">
+            </div>
+            <div class="control-group">
+                <label>Volatility</label>
+                <input type="range" id="volatility" min="1" max="10" value="3">
+            </div>
+            <button id="startBtn">Start Simulation</button>
+            <button id="pauseBtn">Pause</button>
+            <button id="resetBtn">Reset</button>
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="heatmapCanvas" width="1400" height="600"></canvas>
+            <canvas id="chartCanvas" width="1400" height="600"></canvas>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value" id="price">$100.00</div>
+                <div>Current Price</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="volume">0</div>
+                <div>Volume</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="spread">$0.00</div>
+                <div>Bid/Ask Spread</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="agents">0</div>
+                <div>Active Agents</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class MarketSimulation {
+            constructor() {
+                this.heatmapCanvas = document.getElementById('heatmapCanvas');
+                this.chartCanvas = document.getElementById('chartCanvas');
+                this.heatmapCtx = this.heatmapCanvas.getContext('2d');
+                this.chartCtx = this.chartCanvas.getContext('2d');
+                
+                this.width = 1400;
+                this.height = 600;
+                this.priceRange = { min: 90, max: 110 };
+                this.currentPrice = 100;
+                this.timeStep = 0;
+                this.isRunning = false;
+                
+                this.orderBook = {
+                    bids: new Map(),
+                    asks: new Map()
+                };
+                
+                this.tradedVolumes = new Map(); // Track volume at each price level
+                this.priceHistory = [];
+                this.agents = [];
+                this.lastTrades = [];
+                
+                this.initializeControls();
+                this.setupCanvas();
+            }
+            
+            initializeControls() {
+                document.getElementById('startBtn').onclick = () => this.start();
+                document.getElementById('pauseBtn').onclick = () => this.pause();
+                document.getElementById('resetBtn').onclick = () => this.reset();
+            }
+            
+            setupCanvas() {
+                this.heatmapCtx.fillStyle = '#0a0a0a';
+                this.heatmapCtx.fillRect(0, 0, this.width, this.height);
+                this.chartCtx.globalCompositeOperation = 'source-over';
+            }
+            
+            createAgents() {
+                const makers = parseInt(document.getElementById('makers').value);
+                const takers = parseInt(document.getElementById('takers').value);
+                
+                this.agents = [];
+                
+                // Create maker agents (provide liquidity)
+                for (let i = 0; i < makers; i++) {
+                    this.agents.push({
+                        type: 'maker',
+                        bias: Math.random() - 0.5, // -0.5 to 0.5
+                        patience: Math.random() * 100 + 50,
+                        size: Math.random() * 10 + 1,
+                        lastAction: 0
+                    });
+                }
+                
+                // Create taker agents (consume liquidity)
+                for (let i = 0; i < takers; i++) {
+                    this.agents.push({
+                        type: 'taker',
+                        aggression: Math.random(),
+                        size: Math.random() * 5 + 0.5,
+                        frequency: Math.random() * 20 + 5,
+                        lastAction: 0
+                    });
+                }
+                
+                document.getElementById('agents').textContent = this.agents.length;
+            }
+            
+            priceToY(price) {
+                return this.height - ((price - this.priceRange.min) / (this.priceRange.max - this.priceRange.min)) * this.height;
+            }
+            
+            yToPrice(y) {
+                return this.priceRange.min + ((this.height - y) / this.height) * (this.priceRange.max - this.priceRange.min);
+            }
+            
+            updateOrderBook() {
+                const volatility = parseInt(document.getElementById('volatility').value) / 10;
+                
+                this.agents.forEach(agent => {
+                    const timeSinceLastAction = this.timeStep - agent.lastAction;
+                    
+                    if (agent.type === 'maker') {
+                        if (timeSinceLastAction > agent.patience) {
+                            const offset = (Math.random() - 0.5 + agent.bias) * volatility;
+                            const price = Math.round((this.currentPrice + offset) * 100) / 100;
+                            
+                            if (Math.random() > 0.5) {
+                                // Add bid
+                                if (!this.orderBook.bids.has(price)) {
+                                    this.orderBook.bids.set(price, 0);
+                                }
+                                this.orderBook.bids.set(price, this.orderBook.bids.get(price) + agent.size);
+                            } else {
+                                // Add ask
+                                if (!this.orderBook.asks.has(price)) {
+                                    this.orderBook.asks.set(price, 0);
+                                }
+                                this.orderBook.asks.set(price, this.orderBook.asks.get(price) + agent.size);
+                            }
+                            
+                            agent.lastAction = this.timeStep;
+                        }
+                    } else if (agent.type === 'taker') {
+                        if (timeSinceLastAction > agent.frequency) {
+                            this.executeTrade(agent);
+                            agent.lastAction = this.timeStep;
+                        }
+                    }
+                });
+            }
+            
+            executeTrade(agent) {
+                const isBuy = Math.random() > 0.5;
+                let bestPrice = null;
+                let volume = agent.size;
+                
+                if (isBuy) {
+                    // Find best ask
+                    const sortedAsks = Array.from(this.orderBook.asks.entries()).sort((a, b) => a[0] - b[0]);
+                    for (let [price, availableVolume] of sortedAsks) {
+                        if (availableVolume > 0) {
+                            bestPrice = price;
+                            const tradeVolume = Math.min(volume, availableVolume);
+                            
+                            // Execute trade
+                            this.orderBook.asks.set(price, availableVolume - tradeVolume);
+                            if (this.orderBook.asks.get(price) <= 0) {
+                                this.orderBook.asks.delete(price);
+                            }
+                            
+                            // Track traded volume
+                            if (!this.tradedVolumes.has(price)) {
+                                this.tradedVolumes.set(price, { buy: 0, sell: 0 });
+                            }
+                            this.tradedVolumes.get(price).buy += tradeVolume;
+                            
+                            this.currentPrice = price;
+                            this.lastTrades.push({ price, volume: tradeVolume, side: 'buy', time: this.timeStep });
+                            break;
+                        }
+                    }
+                } else {
+                    // Find best bid
+                    const sortedBids = Array.from(this.orderBook.bids.entries()).sort((a, b) => b[0] - a[0]);
+                    for (let [price, availableVolume] of sortedBids) {
+                        if (availableVolume > 0) {
+                            bestPrice = price;
+                            const tradeVolume = Math.min(volume, availableVolume);
+                            
+                            // Execute trade
+                            this.orderBook.bids.set(price, availableVolume - tradeVolume);
+                            if (this.orderBook.bids.get(price) <= 0) {
+                                this.orderBook.bids.delete(price);
+                            }
+                            
+                            // Track traded volume
+                            if (!this.tradedVolumes.has(price)) {
+                                this.tradedVolumes.set(price, { buy: 0, sell: 0 });
+                            }
+                            this.tradedVolumes.get(price).sell += tradeVolume;
+                            
+                            this.currentPrice = price;
+                            this.lastTrades.push({ price, volume: tradeVolume, side: 'sell', time: this.timeStep });
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            drawHeatmap() {
+                // Clear heatmap
+                this.heatmapCtx.fillStyle = '#0a0a0a';
+                this.heatmapCtx.fillRect(0, 0, this.width, this.height);
+                
+                // Draw bid/ask volume heatmap
+                const maxVolume = Math.max(
+                    ...Array.from(this.orderBook.bids.values()),
+                    ...Array.from(this.orderBook.asks.values()),
+                    1
+                );
+                
+                // Draw bids (green)
+                this.orderBook.bids.forEach((volume, price) => {
+                    const y = this.priceToY(price);
+                    const alpha = Math.min(volume / maxVolume, 1);
+                    this.heatmapCtx.fillStyle = `rgba(0, 255, 0, ${alpha * 0.3})`;
+                    this.heatmapCtx.fillRect(0, y - 1, this.width, 2);
+                });
+                
+                // Draw asks (red)
+                this.orderBook.asks.forEach((volume, price) => {
+                    const y = this.priceToY(price);
+                    const alpha = Math.min(volume / maxVolume, 1);
+                    this.heatmapCtx.fillStyle = `rgba(255, 0, 0, ${alpha * 0.3})`;
+                    this.heatmapCtx.fillRect(0, y - 1, this.width, 2);
+                });
+                
+                // Draw traded volumes
+                this.tradedVolumes.forEach((volumes, price) => {
+                    const y = this.priceToY(price);
+                    const maxTradeVolume = Math.max(volumes.buy + volumes.sell, 1);
+                    
+                    if (volumes.buy > 0) {
+                        const alpha = Math.min(volumes.buy / maxTradeVolume, 1);
+                        this.heatmapCtx.fillStyle = `rgba(0, 255, 0, ${alpha * 0.6})`;
+                        this.heatmapCtx.fillRect(0, y - 2, this.width / 2, 4);
+                    }
+                    
+                    if (volumes.sell > 0) {
+                        const alpha = Math.min(volumes.sell / maxTradeVolume, 1);
+                        this.heatmapCtx.fillStyle = `rgba(255, 0, 0, ${alpha * 0.6})`;
+                        this.heatmapCtx.fillRect(this.width / 2, y - 2, this.width / 2, 4);
+                    }
+                });
+            }
+            
+            drawChart() {
+                // Clear chart
+                this.chartCtx.clearRect(0, 0, this.width, this.height);
+                
+                // Draw price history
+                if (this.priceHistory.length > 1) {
+                    this.chartCtx.strokeStyle = '#00ffff';
+                    this.chartCtx.lineWidth = 2;
+                    this.chartCtx.beginPath();
+                    
+                    const startX = Math.max(0, this.width - this.priceHistory.length * 2);
+                    
+                    for (let i = 0; i < this.priceHistory.length; i++) {
+                        const x = startX + i * 2;
+                        const y = this.priceToY(this.priceHistory[i]);
+                        
+                        if (i === 0) {
+                            this.chartCtx.moveTo(x, y);
+                        } else {
+                            this.chartCtx.lineTo(x, y);
+                        }
+                    }
+                    this.chartCtx.stroke();
+                }
+                
+                // Draw current price line
+                const currentY = this.priceToY(this.currentPrice);
+                this.chartCtx.strokeStyle = '#ffffff';
+                this.chartCtx.lineWidth = 1;
+                this.chartCtx.setLineDash([5, 5]);
+                this.chartCtx.beginPath();
+                this.chartCtx.moveTo(0, currentY);
+                this.chartCtx.lineTo(this.width, currentY);
+                this.chartCtx.stroke();
+                this.chartCtx.setLineDash([]);
+                
+                // Draw recent trades
+                this.lastTrades.slice(-100).forEach(trade => {
+                    const x = this.width - (this.timeStep - trade.time) * 2;
+                    const y = this.priceToY(trade.price);
+                    
+                    this.chartCtx.fillStyle = trade.side === 'buy' ? '#00ff00' : '#ff0000';
+                    this.chartCtx.fillRect(x - 2, y - 2, 4, 4);
+                });
+            }
+            
+            updateStats() {
+                document.getElementById('price').textContent = `$${this.currentPrice.toFixed(2)}`;
+                
+                const totalVolume = Array.from(this.tradedVolumes.values())
+                    .reduce((sum, vol) => sum + vol.buy + vol.sell, 0);
+                document.getElementById('volume').textContent = Math.round(totalVolume);
+                
+                const bestBid = Math.max(...Array.from(this.orderBook.bids.keys()), 0);
+                const bestAsk = Math.min(...Array.from(this.orderBook.asks.keys()), Infinity);
+                const spread = bestAsk === Infinity ? 0 : bestAsk - bestBid;
+                document.getElementById('spread').textContent = `$${spread.toFixed(2)}`;
+            }
+            
+            simulate() {
+                if (!this.isRunning) return;
+                
+                this.updateOrderBook();
+                this.priceHistory.push(this.currentPrice);
+                
+                // Keep price history manageable
+                if (this.priceHistory.length > 700) {
+                    this.priceHistory.shift();
+                }
+                
+                // Clear old traded volumes when price returns to level
+                this.tradedVolumes.forEach((volumes, price) => {
+                    if (Math.abs(price - this.currentPrice) < 0.01) {
+                        this.tradedVolumes.delete(price);
+                    }
+                });
+                
+                this.drawHeatmap();
+                this.drawChart();
+                this.updateStats();
+                
+                this.timeStep++;
+                
+                const speed = parseInt(document.getElementById('speed').value);
+                setTimeout(() => this.simulate(), 200 - (speed - 1) * 20);
+            }
+            
+            start() {
+                this.createAgents();
+                this.isRunning = true;
+                this.simulate();
+            }
+            
+            pause() {
+                this.isRunning = false;
+            }
+            
+            reset() {
+                this.isRunning = false;
+                this.timeStep = 0;
+                this.currentPrice = 100;
+                this.orderBook = { bids: new Map(), asks: new Map() };
+                this.tradedVolumes = new Map();
+                this.priceHistory = [];
+                this.lastTrades = [];
+                this.agents = [];
+                this.setupCanvas();
+                this.updateStats();
+            }
+        }
+        
+        // Initialize simulation
+        const simulation = new MarketSimulation();
+    </script>
+</body>
+</html>

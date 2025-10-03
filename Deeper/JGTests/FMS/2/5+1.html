@@ -1,0 +1,473 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>Market Agentic Simulation (MVP18) — WebGL Heatmap + Candles</title>
+	<style>
+		body { font-family: Arial, sans-serif; margin: 10px; background: #111; color: #ddd; }
+		.controls { display:flex; gap:12px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+		label { font-size:13px; }
+		input[type=number] { width:80px; }
+		#canvasWrap { position:relative; width:1200px; height:600px; }
+		canvas { display:block; position:absolute; left:0; top:0; background:#000; border:1px solid #444; }
+		.info { font-size:12px; color:#aaa; margin-top:6px; max-width:1200px; }
+	</style>
+</head>
+<body>
+	<div class="controls">
+		<label>Makers: <input id="makers" type="number" min="0" max="5000" value="700"></label>
+		<label>Takers: <input id="takers" type="number" min="0" max="5000" value="300"></label>
+		<label>Tick size: <input id="tickSize" type="number" step="0.01" value="0.25"></label>
+		<label>Bin width (ticks): <input id="binWidth" type="number" min="1" max="20" value="1"></label>
+		<button id="startBtn">Start</button>
+		<button id="pauseBtn">Pause</button>
+		<button id="resetBtn">Reset</button>
+		<label>Speed: <input id="speed" type="range" min="1" max="60" value="20"></label>
+	</div>
+
+	<div id="canvasWrap">
+		<!-- WebGL background (heatmap) -->
+		<canvas id="glCanvas" width="1200" height="600"></canvas>
+		<!-- 2D overlay (candles, depth bars, labels) -->
+		<canvas id="overlay" width="1200" height="600"></canvas>
+	</div>
+
+	<div class="info">Heatmap = volume profile (traded + resting) rendered by WebGL shader. Candlesticks drawn from executed trades (OHLCV). Depth bars show resting liquidity per price tick (left=bid, right=ask). Adjust tick size and bin width to change aggregation.</div>
+
+<script>
+(() => {
+	// Basic parameters and DOM
+	const glCanvas = document.getElementById('glCanvas');
+	const overlay = document.getElementById('overlay');
+	const gl = glCanvas.getContext('webgl2', {antialias:false});
+	const ctx = overlay.getContext('2d');
+	const W = glCanvas.width, H = glCanvas.height;
+
+	const makersInput = document.getElementById('makers');
+	const takersInput = document.getElementById('takers');
+	const startBtn = document.getElementById('startBtn');
+	const pauseBtn = document.getElementById('pauseBtn');
+	const resetBtn = document.getElementById('resetBtn');
+	const speedInput = document.getElementById('speed');
+	const tickSizeInput = document.getElementById('tickSize');
+	const binWidthInput = document.getElementById('binWidth');
+
+	// orderbook and sim params
+	let tickSize = Number(tickSizeInput.value);
+	let ticks = 80; // price levels shown vertically
+	let priceSpan = tickSize * ticks;
+	let midPrice = 100.0;
+	let midStart = midPrice;
+	let bidVolumes = new Array(ticks).fill(0);
+	let askVolumes = new Array(ticks).fill(0);
+	let tradedVolume = new Array(ticks).fill(0); // executed traded volume per tick
+	let step = 0;
+	let running = false;
+	let timer = null;
+	const maxHistory = 600;
+
+	// history: per-step mid prices and candles
+	let priceHistory = [];
+	let candles = []; // each candle: {open,high,low,close,vol}
+
+	// helper gaussian random
+	function randNormal(mean=0, std=1) {
+		let u=0,v=0;
+		while(u===0) u=Math.random();
+		while(v===0) v=Math.random();
+		return mean + std * Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+	}
+	function clampLevel(l) { return Math.max(0, Math.min(ticks-1, l)); }
+	function priceForLevel(level) { return midPrice + ( ( (ticks-1)/2 - level) * tickSize ); }
+	function levelForPrice(p) {
+		const offset = (midPrice + (ticks/2)*tickSize) - p;
+		return clampLevel(Math.round(offset / tickSize));
+	}
+
+	// WebGL: simple quad shader that samples a 1D texture representing volume per tick
+	if (!gl) {
+		alert('WebGL2 not available in this browser — overlay will still draw.');
+	}
+	// compile helpers
+	function compileShader(src, type) {
+		const s = gl.createShader(type);
+		gl.shaderSource(s, src);
+		gl.compileShader(s);
+		if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s);
+		return s;
+	}
+	// vertex shader (full-screen quad)
+	const vsrc = `#version 300 es
+	in vec2 aPos;
+	out vec2 vUV;
+	void main(){ vUV = (aPos+1.0)*0.5; gl_Position = vec4(aPos,0.0,1.0); }`;
+	// fragment shader: map vUV.y to tick index, sample 1D volume texture
+	const fsrc = `#version 300 es
+	precision mediump float;
+	in vec2 vUV;
+	out vec4 outColor;
+	uniform sampler2D uVolumeTex; // stored as RG: volume normalized [0,1]
+	uniform float uTicks;
+	vec3 heat(float x){
+		// green (bid) to red (ask) gradient - here we center on zero; x is strength
+		return mix(vec3(0.05,0.05,0.08), vec3(0.03,0.12,0.03), x);
+	}
+	void main(){
+		float t = clamp(vUV.y, 0.0, 1.0);
+		// sample tex horizontally at 0.5 (we pack 1D into 2D with height=1)
+		float idx = t * (uTicks - 1.0);
+		// texture lookup: map idx into s coord
+		float s = (idx + 0.5) / uTicks;
+		vec4 v = texture(uVolumeTex, vec2(s, 0.5));
+		// v.r contains normalized volume magnitude [0..1], v.g reserved (unused)
+		float mag = v.r;
+		// color ramp: low -> translucent dark, high -> colored glow
+		vec3 base = mix(vec3(0.02), vec3(0.95,0.2,0.2), smoothstep(0.0,1.0,mag));
+		// subtle brightness with mag
+		vec3 col = mix(vec3(0.01,0.02,0.015), base, mag);
+		outColor = vec4(col, 0.8 * mag + 0.05);
+	}`;
+
+	// create program
+	let prog = null;
+	let volTex = null;
+	if (gl) {
+		const vs = compileShader(vsrc, gl.VERTEX_SHADER);
+		const fs = compileShader(fsrc, gl.FRAGMENT_SHADER);
+		prog = gl.createProgram();
+		gl.attachShader(prog, vs);
+		gl.attachShader(prog, fs);
+		gl.linkProgram(prog);
+		if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw gl.getProgramInfoLog(prog);
+
+		// quad buffer
+		const quad = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+			-1,-1,  1,-1,  -1,1,
+			-1,1,   1,-1,   1,1
+		]), gl.STATIC_DRAW);
+
+		// setup tex
+		volTex = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, volTex);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+		// bind attributes
+		gl.useProgram(prog);
+		const aPos = gl.getAttribLocation(prog, 'aPos');
+		gl.enableVertexAttribArray(aPos);
+		gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+		gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+	}
+
+	// draw heatmap using current tradedVolume array (normalized)
+	function drawHeatmap() {
+		if (!gl) return;
+		// create Uint8 RG texture of length = ticks (packed horizontally, height 1)
+		const L = ticks;
+		const data = new Uint8Array(L * 4);
+		// combine tradedVolume and resting depth into a single magnitude
+		let maxv = 1;
+		for (let i=0;i<L;i++) {
+			const v = tradedVolume[i] + bidVolumes[i] * 0.3 + askVolumes[i] * 0.3;
+			if (v > maxv) maxv = v;
+		}
+		for (let i=0;i<L;i++) {
+			const v = tradedVolume[i] + bidVolumes[i] * 0.3 + askVolumes[i] * 0.3;
+			const n = Math.min(1, v / maxv);
+			const q = Math.round(n * 255);
+			data[i*4+0] = q;
+			data[i*4+1] = 0;
+			data[i*4+2] = 0;
+			data[i*4+3] = 255;
+		}
+		gl.bindTexture(gl.TEXTURE_2D, volTex);
+		// upload as RGBA, width = L, height = 1
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, L, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+
+		// draw
+		gl.viewport(0,0,W,H);
+		gl.clearColor(0,0,0,0);
+		gl.clear(gl.COLOR_BUFFER_BIT);
+		gl.useProgram(prog);
+		gl.uniform1i(gl.getUniformLocation(prog, 'uVolumeTex'), 0);
+		gl.uniform1f(gl.getUniformLocation(prog, 'uTicks'), L);
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, volTex);
+		gl.drawArrays(gl.TRIANGLES, 0, 6);
+	}
+
+	// overlay drawing: candles and depth bars
+	function drawOverlay() {
+		ctx.clearRect(0,0,W,H);
+		// price axis labels
+		ctx.fillStyle = 'rgba(255,255,255,0.8)';
+		ctx.font = '12px monospace';
+		const pxPerTick = H / ticks;
+		for (let i=0;i<ticks;i+=8) {
+			const y = i * pxPerTick + 6;
+			const p = priceForLevel(i).toFixed(2);
+			ctx.fillText(p, 6, y);
+		}
+
+		// draw horizontal depth bars for each tick: left for bids, right for asks
+		const depthBarMaxWidth = 160;
+		// find max depth to scale
+		let maxDepth = 1;
+		for (let i=0;i<ticks;i++) {
+			maxDepth = Math.max(maxDepth, bidVolumes[i], askVolumes[i]);
+		}
+		for (let i=0;i<ticks;i++) {
+			const y = i * pxPerTick;
+			const bw = Math.round((bidVolumes[i] / maxDepth) * depthBarMaxWidth);
+			const aw = Math.round((askVolumes[i] / maxDepth) * depthBarMaxWidth);
+			// bid (left)
+			ctx.fillStyle = 'rgba(30,220,80,0.18)';
+			ctx.fillRect(80 - bw, y, bw, pxPerTick - 1);
+			// ask (right)
+			ctx.fillStyle = 'rgba(220,40,40,0.18)';
+			ctx.fillRect(600, y, aw, pxPerTick - 1);
+		}
+
+		// draw candlesticks on the right half of the overlay
+		const chartX0 = 120;
+		const chartW = W - chartX0 - 160;
+		const chartH = H;
+		// map history index -> x
+		function timeToX(idx) {
+			const denom = Math.max(1, maxHistory - 1);
+			return chartX0 + (idx / denom) * chartW;
+		}
+		function priceToY(p) {
+			// vertical center align by midPrice
+			const topP = midPrice + (ticks/2) * tickSize;
+			const rel = (topP - p) / (ticks * tickSize);
+			return rel * chartH;
+		}
+		// draw OHLCV line/candles
+		const len = candles.length;
+		if (len > 0) {
+			const candleWidth = Math.max(1, chartW / Math.min(maxHistory, len) * 0.8);
+			for (let i=0;i<len;i++) {
+				const c = candles[i];
+				const x = timeToX(priceHistory.length - len + i);
+				if (!c) continue;
+				const openY = priceToY(c.open);
+				const closeY = priceToY(c.close);
+				const highY = priceToY(c.high);
+				const lowY = priceToY(c.low);
+				const color = c.close >= c.open ? 'rgba(30,200,100,0.95)' : 'rgba(220,60,60,0.95)';
+				// wick
+				ctx.strokeStyle = color;
+				ctx.lineWidth = 1;
+				ctx.beginPath();
+				ctx.moveTo(x + candleWidth/2, highY);
+				ctx.lineTo(x + candleWidth/2, lowY);
+				ctx.stroke();
+				// body
+				ctx.fillStyle = color;
+				const top = Math.min(openY, closeY);
+				const h = Math.max(1, Math.abs(closeY - openY));
+				ctx.fillRect(x, top, Math.max(1,candleWidth), h);
+				// volume bar under chart
+				if (c.vol > 0) {
+					const vmax = 50;
+					const vh = Math.min(40, (c.vol / vmax) * 40);
+					ctx.fillStyle = 'rgba(180,180,180,0.4)';
+					ctx.fillRect(x, chartH - vh - 6, candleWidth, vh);
+				}
+			}
+		}
+
+		// draw mid & best bid/ask
+		ctx.fillStyle = '#fff';
+		ctx.font = '14px monospace';
+		ctx.fillText('Mid: ' + midPrice.toFixed(4), 90, 18);
+		const bestAsk = findBestAsk();
+		const bestBid = findBestBid();
+		ctx.fillStyle = '#8f8';
+		if (bestBid) ctx.fillText('BestBid: ' + bestBid.toFixed(4), 250, 18);
+		ctx.fillStyle = '#f88';
+		if (bestAsk) ctx.fillText('BestAsk: ' + bestAsk.toFixed(4), 430, 18);
+	}
+
+	// maker and taker actions (similar to existing code)
+	function makerAction() {
+		const side = Math.random() < 0.5 ? 'bid' : 'ask';
+		let offsetTicks = Math.round(randNormal(0, 6));
+		const centerLevel = Math.floor(ticks/2);
+		let level = clampLevel(centerLevel + offsetTicks);
+		const vol = Math.max(1, Math.round(Math.abs(randNormal(2, 4))));
+		if (side === 'bid') bidVolumes[level] += vol;
+		else askVolumes[level] += vol;
+	}
+
+	function takerAction() {
+		const buyProbability = 0.5;
+		const isBuy = Math.random() < buyProbability;
+		let remaining = Math.max(1, Math.round(Math.abs(randNormal(3,5))));
+		let executed = [];
+		if (isBuy) {
+			for (let i = 0; i < ticks && remaining > 0; i++) {
+				const avail = askVolumes[i];
+				if (avail > 0) {
+					const take = Math.min(avail, remaining);
+					askVolumes[i] -= take;
+					remaining -= take;
+					const p = priceForLevel(i);
+					executed.push({price:p, vol:take, side:'buy'});
+				}
+			}
+		} else {
+			for (let i = ticks-1; i >=0 && remaining > 0; i--) {
+				const avail = bidVolumes[i];
+				if (avail > 0) {
+					const take = Math.min(avail, remaining);
+					bidVolumes[i] -= take;
+					remaining -= take;
+					const p = priceForLevel(i);
+					executed.push({price:p, vol:take, side:'sell'});
+				}
+			}
+		}
+		// register trades: update tradedVolume (binned), create/augment candle
+		let candleVol = 0;
+		let candleOpen = null, candleHigh = null, candleLow = null, candleClose = null;
+		for (const e of executed) {
+			const lvl = levelForPrice(e.price);
+			tradedVolume[lvl] += e.vol;
+			candleVol += e.vol;
+			const p = e.price;
+			if (candleOpen === null) candleOpen = p;
+			candleHigh = candleHigh === null ? p : Math.max(candleHigh, p);
+			candleLow = candleLow === null ? p : Math.min(candleLow, p);
+			candleClose = p;
+			// nudge mid toward trade price
+			midPrice = midPrice * 0.9 + p * 0.1;
+		}
+		if (executed.length === 0) {
+			// no trade: small drift
+			midPrice += (Math.random() - 0.5) * 0.2;
+		}
+		// create candle for this step (OHLCV from trades in this step)
+		const candle = {
+			open: candleOpen === null ? midPrice : candleOpen,
+			high: candleHigh === null ? midPrice : candleHigh,
+			low: candleLow === null ? midPrice : candleLow,
+			close: candleClose === null ? midPrice : candleClose,
+			vol: candleVol
+		};
+		candles.push(candle);
+		// enforce size
+		if (candles.length > maxHistory) candles.shift();
+	}
+
+	function stepSimulation() {
+		const makers = Math.max(0, Number(makersInput.value) || 0);
+		const takers = Math.max(0, Number(takersInput.value) || 0);
+		const total = makers + takers;
+		if (total === 0) {
+			midPrice += randNormal(0, 0.01);
+			priceHistory.push(midPrice);
+			if (priceHistory.length > maxHistory) priceHistory.shift();
+			return;
+		}
+		const probMaker = makers / total;
+		const actions = Math.max(1, Math.round(speedInput.value / 10));
+		for (let a=0;a<actions;a++) {
+			if (Math.random() < probMaker) makerAction();
+			else takerAction();
+			step++;
+		}
+		priceHistory.push(midPrice);
+		if (priceHistory.length > maxHistory) priceHistory.shift();
+
+		// clear trade markers (not used) and optionally decay tradedVolume slowly
+		for (let i=0;i<tradedVolume.length;i++) tradedVolume[i] *= 0.999;
+
+		// optional: trim depth extremes to avoid runaway
+		for (let i=0;i<ticks;i++) {
+			if (bidVolumes[i] > 1000) bidVolumes[i] = Math.round(bidVolumes[i] * 0.9);
+			if (askVolumes[i] > 1000) askVolumes[i] = Math.round(askVolumes[i] * 0.9);
+		}
+	}
+
+	function findBestAsk() {
+		for (let i=0;i<ticks;i++) if (askVolumes[i] > 0) return priceForLevel(i);
+		return midPrice + tickSize;
+	}
+	function findBestBid() {
+		for (let i=ticks-1;i>=0;i--) if (bidVolumes[i] > 0) return priceForLevel(i);
+		return midPrice - tickSize;
+	}
+
+	// controls
+	startBtn.addEventListener('click', () => {
+		if (running) return;
+		running = true;
+		timer = setInterval(() => { tick(); }, Math.max(10, 120 - Number(speedInput.value)));
+	});
+	pauseBtn.addEventListener('click', () => {
+		running = false;
+		if (timer) { clearInterval(timer); timer = null; }
+	});
+	resetBtn.addEventListener('click', () => {
+		pauseBtn.click();
+		reset();
+	});
+	tickSizeInput.addEventListener('change', () => {
+		tickSize = Number(tickSizeInput.value);
+		priceSpan = tickSize * ticks;
+	});
+	binWidthInput.addEventListener('change', () => {
+		// not fully used in this simplified version, kept for UI
+	});
+
+	// main tick: simulate + draw
+	function tick() {
+		stepSimulation();
+		drawHeatmap();
+		drawOverlay();
+	}
+
+	// reset & seed
+	function reset() {
+		midPrice = midStart;
+		bidVolumes.fill(0);
+		askVolumes.fill(0);
+		tradedVolume.fill(0);
+		priceHistory = [midPrice];
+		candles = [];
+		step = 0;
+		seedLiquidity();
+		drawHeatmap();
+		drawOverlay();
+	}
+	function seedLiquidity() {
+		for (let i=0;i<ticks;i++) {
+			const base = Math.max(0, Math.round(10 * Math.exp(-((i - ticks/2)**2)/(2*40))));
+			bidVolumes[i] = Math.round(base * (0.5 + Math.random()*1.0));
+			askVolumes[i] = Math.round(base * (0.5 + Math.random()*1.0));
+		}
+	}
+
+	// init
+	seedLiquidity();
+	priceHistory = [midPrice];
+	// initial candle
+	candles.push({open:midPrice,high:midPrice,low:midPrice,close:midPrice,vol:0});
+	drawHeatmap();
+	drawOverlay();
+
+	// expose reset
+	window.simReset = reset;
+
+	// ...existing code...
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WebGPU Free Market Sandbox</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root { color-scheme: dark; font-family: system-ui, sans-serif; }
+body { margin: 0; background: #06080c; color: #d9e1f2; display: flex; flex-direction: column; min-height: 100vh; }
+header { padding: 1rem 1.5rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; background: #0d1117; position: sticky; top: 0; z-index: 1; }
+.controls { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; }
+.control { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.9rem; }
+.control input[type="range"] { width: 200px; }
+main { flex: 1; display: grid; grid-template-rows: 1fr auto; gap: 1rem; padding: 1rem 1.5rem 2rem; }
+canvas { background: #05070d; border: 1px solid #1a2333; border-radius: 6px; width: 100%; display: block; }
+#chart { height: 320px; }
+#orderBook { height: 220px; }
+#status { font-size: 0.85rem; opacity: 0.8; }
+button { background: #1f6feb; color: white; border: none; padding: 0.6rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 600; }
+button:hover { background: #388bfd; }
+</style>
+</head>
+<body>
+<header>
+  <div class="controls">
+    <div class="control">
+      <label for="makers">Makers <span id="makersValue">50</span></label>
+      <input id="makers" type="range" min="0" max="100" value="50">
+    </div>
+    <div class="control">
+      <label for="takers">Takers <span id="takersValue">50</span></label>
+      <input id="takers" type="range" min="0" max="100" value="50">
+    </div>
+    <div class="control">
+      <label for="speed">Sim speed <span id="speedValue">50</span></label>
+      <input id="speed" type="range" min="10" max="100" value="50">
+    </div>
+  </div>
+  <button id="toggle">Pause</button>
+  <div id="status">Initializing…</div>
+</header>
+<main>
+  <canvas id="chart"></canvas>
+  <canvas id="orderBook"></canvas>
+</main>
+<script>
+(() => {
+  const LEVELS = 64;
+  const STRIDE = 4;
+  const stateData = new Float32Array((LEVELS + 1) * STRIDE);
+  const candles = [];
+  const trades = [];
+  const maxCandles = 160;
+  const maxTrades = 160;
+  let device, queue, pipeline, paramsBuffer, stateBuffer, readbackBuffer, bindGroup;
+  let running = true;
+  let initialized = false;
+
+  const makersInput = document.getElementById('makers');
+  const takersInput = document.getElementById('takers');
+  const speedInput = document.getElementById('speed');
+  const makersValue = document.getElementById('makersValue');
+  const takersValue = document.getElementById('takersValue');
+  const speedValue = document.getElementById('speedValue');
+  const toggleButton = document.getElementById('toggle');
+  const status = document.getElementById('status');
+  const chartCanvas = document.getElementById('chart');
+  const orderCanvas = document.getElementById('orderBook');
+  const chartCtx = chartCanvas.getContext('2d');
+  const bookCtx = orderCanvas.getContext('2d');
+
+  const updateLabel = (input, label) => (label.textContent = input.value);
+  updateLabel(makersInput, makersValue);
+  updateLabel(takersInput, takersValue);
+  updateLabel(speedInput, speedValue);
+  makersInput.addEventListener('input', () => updateLabel(makersInput, makersValue));
+  takersInput.addEventListener('input', () => updateLabel(takersInput, takersValue));
+  speedInput.addEventListener('input', () => updateLabel(speedInput, speedValue));
+
+  toggleButton.addEventListener('click', () => {
+    running = !running;
+    toggleButton.textContent = running ? 'Pause' : 'Resume';
+    if (running && initialized) requestAnimationFrame(frame);
+  });
+
+  const resize = () => {
+    const ratio = window.devicePixelRatio || 1;
+    [chartCanvas, orderCanvas].forEach(canvas => {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width * ratio);
+      canvas.height = Math.floor(rect.height * ratio);
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    });
+  };
+  window.addEventListener('resize', resize);
+
+  const initState = () => {
+    stateData[0] = 1.0;
+    stateData[1] = 0.0;
+    stateData[2] = 0.0;
+    stateData[3] = 0.0;
+    for (let i = 1; i <= LEVELS; i++) {
+      const idx = i * STRIDE;
+      stateData[idx + 0] = Math.random() * 5 + 0.5;
+      stateData[idx + 1] = Math.random() * 5 + 0.5;
+      stateData[idx + 2] = stateData[idx + 0];
+      stateData[idx + 3] = stateData[idx + 1];
+    }
+  };
+
+  const shaderSource = () => `
+struct Params {
+  maker: f32,
+  taker: f32,
+  speed: f32,
+  seed: f32,
+};
+
+@group(0) @binding(0) var<uniform> params: Params;
+@group(0) @binding(1) var<storage, read_write> state: array<vec4<f32>>;
+
+const LEVELS: u32 = ${LEVELS}u;
+
+fn hash(value: f32) -> f32 {
+  return fract(sin(value * 12.9898) * 43758.5453);
+}
+
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  if (gid.x == 0u) {
+    var price = state[0u].x;
+    var velocity = state[0u].y;
+    let imbalance = params.taker - params.maker;
+    let noise = hash(params.seed + price) - 0.5;
+    velocity = (velocity + (imbalance * 0.002 + noise * 0.01) * params.speed) * 0.96;
+    price = max(0.01, price + velocity);
+    state[0u] = vec4<f32>(price, velocity, imbalance, noise);
+  }
+
+  let idx = gid.x + 1u;
+  if (idx > LEVELS) {
+    return;
+  }
+  let base = state[idx];
+  let level = f32(idx);
+  let blend = min(params.speed * 0.08 + 0.02, 0.6);
+  let bidTarget = max(0.0, params.maker * 0.2 + hash(params.seed + level * 3.17) * 6.0);
+  let askTarget = max(0.0, params.taker * 0.2 + hash(params.seed + level * 5.03) * 6.0);
+  let bid = base.x + (bidTarget - base.x) * blend;
+  let ask = base.y + (askTarget - base.y) * blend;
+  let resistance = base.z + (bid - base.z) * 0.1;
+  let support = base.w + (ask - base.w) * 0.1;
+  state[idx] = vec4<f32>(bid, ask, resistance, support);
+}
+`;
+
+  const drawCandles = (price) => {
+    const width = chartCanvas.getBoundingClientRect().width;
+    const height = chartCanvas.getBoundingClientRect().height;
+    chartCtx.clearRect(0, 0, width, height);
+    chartCtx.fillStyle = '#05070d';
+    chartCtx.fillRect(0, 0, width, height);
+
+    const series = currentCandle ? candles.concat(currentCandle) : candles.slice();
+    if (!series.length) {
+      chartCtx.fillStyle = '#8aa';
+      chartCtx.font = '14px system-ui';
+      chartCtx.textBaseline = 'top';
+      chartCtx.fillText('Waiting for data…', 16, 16);
+      return;
+    }
+    let minPrice = Infinity;
+    let maxPrice = -Infinity;
+    for (const candle of series) {
+      minPrice = Math.min(minPrice, candle.low);
+      maxPrice = Math.max(maxPrice, candle.high);
+    }
+    if (minPrice === maxPrice) maxPrice += 0.0001;
+    const range = maxPrice - minPrice;
+    const candleWidth = Math.max(4, width / series.length);
+
+    chartCtx.lineWidth = 1;
+    for (let i = 0; i < series.length; i++) {
+      const c = series[i];
+      const x = i * candleWidth + candleWidth * 0.5;
+      const toY = v => height - ((v - minPrice) / range) * height;
+      const yHigh = toY(c.high);
+      const yLow = toY(c.low);
+      const yOpen = toY(c.open);
+      const yClose = toY(c.close);
+
+      chartCtx.strokeStyle = '#cfd8ff';
+      chartCtx.beginPath();
+      chartCtx.moveTo(x, yHigh);
+      chartCtx.lineTo(x, yLow);
+      chartCtx.stroke();
+
+      const bodyTop = Math.min(yOpen, yClose);
+      const bodyHeight = Math.max(Math.abs(yClose - yOpen), 1);
+      chartCtx.fillStyle = c.close >= c.open ? '#4ade80' : '#f87171';
+      chartCtx.fillRect(x - candleWidth * 0.3, bodyTop, candleWidth * 0.6, bodyHeight);
+    }
+
+    chartCtx.save();
+    chartCtx.globalAlpha = 0.35;
+    for (const trade of trades) {
+      const y = height - ((trade.price - minPrice) / range) * height;
+      chartCtx.strokeStyle = trade.dir > 0 ? '#22d3ee' : '#facc15';
+      chartCtx.lineWidth = trade.dir > 0 ? 1.8 : 1.2;
+      chartCtx.beginPath();
+      chartCtx.moveTo(0, y);
+      chartCtx.lineTo(width, y);
+      chartCtx.stroke();
+    }
+    chartCtx.restore();
+
+    chartCtx.fillStyle = '#9fb7ff';
+    chartCtx.font = '14px system-ui';
+    chartCtx.textBaseline = 'top';
+    chartCtx.fillText(`Price: ${price.toFixed(4)}`, 16, 16);
+  };
+
+  const drawOrderBook = () => {
+    const width = orderCanvas.getBoundingClientRect().width;
+    const height = orderCanvas.getBoundingClientRect().height;
+    bookCtx.clearRect(0, 0, width, height);
+    bookCtx.fillStyle = '#05070d';
+    bookCtx.fillRect(0, 0, width, height);
+    const half = width / 2;
+    const levelHeight = height / LEVELS;
+    let maxVolume = 0;
+    for (let i = 1; i <= LEVELS; i++) {
+      const idx = i * STRIDE;
+      maxVolume = Math.max(maxVolume, stateData[idx], stateData[idx + 1]);
+    }
+    maxVolume = Math.max(maxVolume, 1);
+    bookCtx.strokeStyle = '#13202f';
+    bookCtx.beginPath();
+    bookCtx.moveTo(half, 0);
+    bookCtx.lineTo(half, height);
+    bookCtx.stroke();
+
+    for (let i = 0; i < LEVELS; i++) {
+      const idx = (i + 1) * STRIDE;
+      const bid = stateData[idx];
+      const ask = stateData[idx + 1];
+      const y = height - (i + 1) * levelHeight;
+      const bidWidth = (bid / maxVolume) * half;
+      bookCtx.fillStyle = '#204b32';
+      bookCtx.fillRect(half - bidWidth, y, bidWidth, levelHeight - 1);
+      const askWidth = (ask / maxVolume) * half;
+      bookCtx.fillStyle = '#4b1f32';
+      bookCtx.fillRect(half, y, askWidth, levelHeight - 1);
+    }
+  };
+
+  let currentCandle = null;
+  let lastCandleTime = 0;
+  let candleDuration = 600;
+  let lastPrice = 1.0;
+
+  const updateCandle = (timestamp, price) => {
+    const speedFactor = Math.max(0.2, speedInput.valueAsNumber / 50);
+    candleDuration = 800 / speedFactor;
+    if (!currentCandle) {
+      currentCandle = { open: price, high: price, low: price, close: price, time: timestamp };
+      lastCandleTime = timestamp;
+      return;
+    }
+    currentCandle.high = Math.max(currentCandle.high, price);
+    currentCandle.low = Math.min(currentCandle.low, price);
+    currentCandle.close = price;
+    if (timestamp - lastCandleTime >= candleDuration) {
+      candles.push(currentCandle);
+      if (candles.length > maxCandles) candles.shift();
+      currentCandle = { open: price, high: price, low: price, close: price, time: timestamp };
+      lastCandleTime = timestamp;
+    }
+  };
+
+  const recordTrade = (price) => {
+    if (price === lastPrice) return;
+    const dir = price > lastPrice ? 1 : -1;
+    trades.push({ price, dir });
+    if (trades.length > maxTrades) trades.shift();
+    lastPrice = price;
+  };
+
+  const frame = async (timestamp) => {
+    if (!running) return;
+    const maker = makersInput.valueAsNumber / 50;
+    const taker = takersInput.valueAsNumber / 50;
+    const speed = Math.max(0.25, speedInput.valueAsNumber / 50);
+    const params = new Float32Array([maker, taker, speed, timestamp * 0.001]);
+    queue.writeBuffer(paramsBuffer, 0, params.buffer);
+
+    const commandEncoder = device.createCommandEncoder();
+    const pass = commandEncoder.beginComputePass();
+    pass.setPipeline(pipeline);
+    pass.setBindGroup(0, bindGroup);
+    pass.dispatchWorkgroups(Math.ceil((LEVELS + 1) / 64));
+    pass.end();
+    commandEncoder.copyBufferToBuffer(stateBuffer, 0, readbackBuffer, 0, stateData.byteLength);
+    queue.submit([commandEncoder.finish()]);
+
+    await readbackBuffer.mapAsync(GPUMapMode.READ);
+    stateData.set(new Float32Array(readbackBuffer.getMappedRange()));
+    readbackBuffer.unmap();
+
+    const price = stateData[0];
+    recordTrade(price);
+    updateCandle(timestamp, price);
+    status.textContent = `Price ${price.toFixed(4)} | Δ ${stateData[1].toFixed(4)} | Imbalance ${stateData[2].toFixed(3)}`;
+    drawCandles(price);
+    drawOrderBook();
+    requestAnimationFrame(frame);
+  };
+
+  const init = async () => {
+    if (!('gpu' in navigator)) {
+      status.textContent = 'WebGPU not supported in this browser.';
+      return;
+    }
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      status.textContent = 'No WebGPU adapter found.';
+      return;
+    }
+    device = await adapter.requestDevice();
+    queue = device.queue;
+    initState();
+
+    stateBuffer = device.createBuffer({
+      size: stateData.byteLength,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: true
+    });
+    new Float32Array(stateBuffer.getMappedRange()).set(stateData);
+    stateBuffer.unmap();
+
+    paramsBuffer = device.createBuffer({
+      size: 4 * Float32Array.BYTES_PER_ELEMENT,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+
+    readbackBuffer = device.createBuffer({
+      size: stateData.byteLength,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+    });
+
+    const shaderModule = device.createShaderModule({ code: shaderSource() });
+    pipeline = device.createComputePipeline({
+      layout: 'auto',
+      compute: { module: shaderModule, entryPoint: 'main' }
+    });
+
+    bindGroup = device.createBindGroup({
+      layout: pipeline.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: { buffer: paramsBuffer } },
+        { binding: 1, resource: { buffer: stateBuffer } }
+      ]
+    });
+
+    resize();
+    initialized = true;
+    status.textContent = 'Running WebGPU market simulation.';
+    requestAnimationFrame(frame);
+  };
+
+  init().catch(err => {
+    console.error(err);
+    status.textContent = 'Initialization failed.';
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,392 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Orderbook MVP (WebGL-accelerated)</title>
+<style>
+/* ...existing code... */
+body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:12px;background:#111;color:#ddd}
+.canvas-wrap{display:flex;gap:12px;align-items:flex-start}
+#glcanvas{width:960px;height:420px;border:1px solid #333;background:#000}
+.controls{max-width:320px}
+.control{margin-bottom:8px}
+label{display:block;font-size:13px;margin-bottom:4px}
+.info{font-size:12px;color:#9aa}
+button, input[type=range], input[type=number]{width:100%}
+.small{font-size:12px;color:#9aa}
+</style>
+</head>
+<body>
+<h3>Orderbook MVP — WebGL-accelerated depth renderer</h3>
+<div class="canvas-wrap">
+	<canvas id="glcanvas" width="960" height="420"></canvas>
+	<div class="controls">
+		<div class="control">
+			<label>Makers (agents adding liquidity): <span id="makersLbl">50</span></label>
+			<input id="makers" type="range" min="0" max="500" value="50">
+		</div>
+		<div class="control">
+			<label>Takers (rate, removals per sec): <span id="takersLbl">40</span></label>
+			<input id="takers" type="range" min="0" max="500" value="40">
+		</div>
+		<div class="control">
+			<label>Speed multiplier: <span id="speedLbl">1.0</span>x</label>
+			<input id="speed" type="range" min="0.1" max="8" step="0.1" value="1">
+		</div>
+		<div class="control">
+			<button id="start">Pause</button>
+			<button id="reset">Reset</button>
+		</div>
+		<div class="control info">
+			<div>Price: <span id="price">0</span></div>
+			<div>Best bid/ask sizes: <span id="best">- / -</span></div>
+			<div>Support / Resistance (recent): <span id="sr">—</span></div>
+		</div>
+	</div>
+</div>
+
+<script>
+// ...existing code...
+// Simple WebGL2 orderbook visualization + CPU simulation
+(() => {
+	const canvas = document.getElementById('glcanvas');
+	const gl = canvas.getContext('webgl2', {antialias:true});
+	if(!gl){ alert('WebGL2 required'); return; }
+
+	// Parameters
+	const DEPTH_LEVELS = 512;          // depth per side
+	const TICK_PIXELS = 2;            // pixels per depth bin visually
+	const MID_X = 0.5;                // normalized center price
+	const TEX_W = DEPTH_LEVELS;
+	// Simulation state
+	let price = 0;                    // integer tick index (center)
+	let depthBid = new Float32Array(DEPTH_LEVELS);
+	let depthAsk = new Float32Array(DEPTH_LEVELS);
+	let makers = 50, takers = 40, speed = 1.0;
+	let running = true;
+	let lastT = performance.now();
+	let historyDepthSum = [];         // for support/resistance compute
+	const HISTORY_LEN = 128;
+
+	// UI wiring
+	const makersEl = document.getElementById('makers');
+	const takersEl = document.getElementById('takers');
+	const speedEl = document.getElementById('speed');
+	const startBtn = document.getElementById('start');
+	const resetBtn = document.getElementById('reset');
+	const priceEl = document.getElementById('price');
+	const bestEl = document.getElementById('best');
+	const srEl = document.getElementById('sr');
+	const makersLbl = document.getElementById('makersLbl');
+	const takersLbl = document.getElementById('takersLbl');
+	const speedLbl = document.getElementById('speedLbl');
+
+	makersEl.oninput = e => { makers = +e.target.value; makersLbl.textContent = makers; };
+	takersEl.oninput = e => { takers = +e.target.value; takersLbl.textContent = takers; };
+	speedEl.oninput = e => { speed = +e.target.value; speedLbl.textContent = speed.toFixed(1); };
+	startBtn.onclick = () => { running = !running; startBtn.textContent = running ? 'Pause' : 'Resume'; lastT = performance.now(); };
+	resetBtn.onclick = () => { initState(); };
+
+	// Initialize depths with a simple profile
+	function initState(){
+		price = 0;
+		for(let i=0;i<DEPTH_LEVELS;i++){
+			let dist = i / DEPTH_LEVELS;
+			// exponential decay + noise
+			depthBid[i] = Math.max(0, 60 * Math.exp(-6*dist) * (0.7 + Math.random()*0.6));
+			depthAsk[i] = Math.max(0, 60 * Math.exp(-6*dist) * (0.7 + Math.random()*0.6));
+		}
+		historyDepthSum = [];
+		updateInfo();
+	}
+	initState();
+
+	// WebGL setup: simple fullscreen quad, 1D texture for depth values
+	const vs = `#version 300 es
+	in vec2 aPos;
+	out vec2 vUv;
+	void main(){ vUv = 0.5*(aPos+1.0); gl_Position = vec4(aPos,0,1); }`;
+	const fs = `#version 300 es
+	precision highp float;
+	in vec2 vUv;
+	out vec4 outColor;
+	uniform sampler2D uDepthTex; // width = DEPTH_LEVELS, height = 1. Two channels: R = bid, G = ask (0-255)
+	uniform float uMaxDepth;
+	uniform float uSplitX; // normalized price center
+	uniform vec2 uRes;
+	uniform float uSR1; uniform float uSR2; // sr positions in normalized coordinates (y)
+	void main(){
+		vec2 uv = vUv;
+		// map x to depth index
+		float idxf = floor(uv.x * float(${TEX_W}) );
+		float tx = (idxf + 0.5) / float(${TEX_W});
+		vec3 depths = texture(uDepthTex, vec2(tx, 0.5)).rgb;
+		float bid = depths.r;
+		float ask = depths.g;
+		// compute vertical coverage normalized
+		// y coordinate: 0 bottom, 1 top. We'll draw bids from bottom up, asks from top down
+		float y = uv.y;
+		// bid bar height (from bottom)
+		float bidH = clamp(bid / uMaxDepth, 0.0, 1.0);
+		float askH = clamp(ask / uMaxDepth, 0.0, 1.0);
+		vec3 col = vec3(0.0);
+		if(uv.x < uSplitX){ // left = bid side (visual choice), right = ask side
+			if(y <= bidH){
+				col = mix(vec3(0.01,0.12,0.5), vec3(0.0,0.9,0.7), sqrt(bidH)); // blue->teal
+			}
+		} else {
+			if(y >= 1.0 - askH){
+				col = mix(vec3(0.05,0.02,0.02), vec3(0.9,0.2,0.2), sqrt(askH)); // dark->red
+			}
+		}
+		// overlays: support/resistance lines
+		float srBlend = 0.0;
+		float p1 = uSR1;
+		float p2 = uSR2;
+		float lineWidth = 0.004;
+		if(abs(y - p1) < lineWidth) srBlend = max(srBlend, 1.0);
+		if(abs(y - p2) < lineWidth) srBlend = max(srBlend, 1.0);
+		vec3 srCol = vec3(1.0,0.85,0.2);
+		// mark center price vertical line
+		float vline = smoothstep(0.0, 1.0/float(${TEX_W}), 0.002 - abs(uv.x - uSplitX));
+		vec3 vcol = mix(col, vec3(0.9,0.9,0.9), vline*0.9);
+		outColor = vec4(mix(vcol, srCol, srBlend*0.9),1.0);
+	}`;
+
+	// compile
+	function compileShader(src, type){
+		const s = gl.createShader(type);
+		gl.shaderSource(s, src);
+		gl.compileShader(s);
+		if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+		return s;
+	}
+	const prog = gl.createProgram();
+	gl.attachShader(prog, compileShader(vs, gl.VERTEX_SHADER));
+	gl.attachShader(prog, compileShader(fs, gl.FRAGMENT_SHADER));
+	gl.linkProgram(prog);
+	if(!gl.getProgramParameter(prog, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(prog));
+	gl.useProgram(prog);
+
+	// fullscreen quad
+	const quad = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+	const verts = new Float32Array([-1,-1, 1,-1, -1,1,  -1,1, 1,-1,1,1]);
+	gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+	const aPos = gl.getAttribLocation(prog,'aPos');
+	gl.enableVertexAttribArray(aPos);
+	gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,0,0);
+
+	// depth texture (RGB): R=bid, G=ask, B unused
+	const depthTex = gl.createTexture();
+	gl.bindTexture(gl.TEXTURE_2D, depthTex);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+	// placeholder image
+	gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB, TEX_W,1,0,gl.RGB,gl.UNSIGNED_BYTE, null);
+
+	const uDepthTex = gl.getUniformLocation(prog,'uDepthTex');
+	const uMaxDepth = gl.getUniformLocation(prog,'uMaxDepth');
+	const uSplitX = gl.getUniformLocation(prog,'uSplitX');
+	const uRes = gl.getUniformLocation(prog,'uRes');
+	const uSR1 = gl.getUniformLocation(prog,'uSR1');
+	const uSR2 = gl.getUniformLocation(prog,'uSR2');
+	gl.uniform1i(uDepthTex, 0);
+
+	// helper: convert depth arrays to Uint8 RGB texture row
+	const depthRow = new Uint8Array(TEX_W * 3);
+	function uploadDepthTexture(maxDepthVal){
+		for(let i=0;i<TEX_W;i++){
+			let b = depthBid[i] / maxDepthVal;
+			let a = depthAsk[i] / maxDepthVal;
+			// clamp and scale 0-255
+			depthRow[i*3+0] = Math.min(255, Math.max(0, Math.floor(b * 255)));
+			depthRow[i*3+1] = Math.min(255, Math.max(0, Math.floor(a * 255)));
+			depthRow[i*3+2] = 0;
+		}
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, depthTex);
+		gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,TEX_W,1,gl.RGB,gl.UNSIGNED_BYTE,depthRow);
+	}
+
+	// core simulation step (CPU)
+	function stepSim(dtSec){
+		// makers add liquidity: random placement around best (index 0=best)
+		for(let m=0;m<Math.round(makers * dtSec);m++){
+			let side = Math.random() < 0.5 ? 'bid' : 'ask';
+			// choose depth index using triangular distribution favoring near-book
+			let r = Math.random();
+			let idx = Math.floor((1 - Math.pow(r, 1.8)) * (DEPTH_LEVELS-1));
+			let vol = (1 + Math.random()*8) * (1 + Math.random()*0.5);
+			if(side==='bid') depthBid[idx] += vol;
+			else depthAsk[idx] += vol;
+		}
+		// takers remove liquidity: consume best bins, might cross price
+		// simulate a Poisson arrival count
+		let expected = takers * dtSec;
+		let n = poisson(expected);
+		for(let i=0;i<n;i++){
+			let side = Math.random() < 0.5 ? 'buy' : 'sell';
+			if(side==='buy'){
+				// buyer removes ask liquidity starting at best (index 0)
+				let rem = 1 + Math.random()*10;
+				let idx = 0;
+				while(rem>0 && idx<DEPTH_LEVELS){
+					let taken = Math.min(rem, depthAsk[idx]);
+					depthAsk[idx] -= taken;
+					rem -= taken;
+					if(depthAsk[idx] <= 0.0001) { idx++; }
+				}
+				// if removed enough to cross to next tick, bump price upward
+				if(idx > 0){
+					price += idx;
+					// rotate arrays to reflect price movement: bids shift right, asks shift left
+					rotateArrays(-idx | 0); // negative -> shift left
+				}
+			} else {
+				// seller removes bid liquidity
+				let rem = 1 + Math.random()*10;
+				let idx = 0;
+				while(rem>0 && idx<DEPTH_LEVELS){
+					let taken = Math.min(rem, depthBid[idx]);
+					depthBid[idx] -= taken;
+					rem -= taken;
+					if(depthBid[idx] <= 0.0001) idx++;
+				}
+				if(idx > 0){
+					price -= idx;
+					rotateArrays(idx | 0); // positive -> shift right
+				}
+			}
+		}
+		// natural decay and rebalancing (spread maintenance)
+		for(let i=0;i<DEPTH_LEVELS;i++){
+			depthBid[i] *= (1 - 0.02*dtSec);
+			depthAsk[i] *= (1 - 0.02*dtSec);
+			// small diffusion of liquidity
+			if(i>0 && Math.random() < 0.002) { let t=depthBid[i]; depthBid[i]*=0.9; depthBid[i-1]+=t*0.1; }
+			if(i>0 && Math.random() < 0.002) { let t=depthAsk[i]; depthAsk[i]*=0.9; depthAsk[i-1]+=t*0.1; }
+		}
+		// compute recent depth sum for SR detection
+		let sum = 0;
+		for(let i=0;i<40;i++){ sum += depthBid[i] + depthAsk[i]; }
+		historyDepthSum.push(sum);
+		if(historyDepthSum.length>HISTORY_LEN) historyDepthSum.shift();
+	}
+
+	// rotate arrays when price moves: positive shift means bids move right (price down)
+	function rotateArrays(shift){
+		if(shift===0) return;
+		let s = Math.abs(shift);
+		if(shift>0){
+			// right rotate (elements move to higher indices); drop tail
+			for(let i=DEPTH_LEVELS-1;i>=0;i--){
+				depthBid[i] = (i-s >= 0) ? depthBid[i-s] : 0;
+				depthAsk[i] = (i-s >= 0) ? depthAsk[i-s] : 0;
+			}
+		} else {
+			// left rotate
+			for(let i=0;i<DEPTH_LEVELS;i++){
+				depthBid[i] = (i+s < DEPTH_LEVELS) ? depthBid[i+s] : 0;
+				depthAsk[i] = (i+s < DEPTH_LEVELS) ? depthAsk[i+s] : 0;
+			}
+		}
+	}
+
+	// poisson sampler (Knuth)
+	function poisson(lambda){
+		let L = Math.exp(-lambda);
+		let k = 0;
+		let p = 1;
+		do{
+			k++;
+			p *= Math.random();
+		} while(p > L);
+		return k - 1;
+	}
+
+	// compute support/resistance as recent peaks in averaged depth profile
+	function computeSR(){
+		// average recent depths into one profile
+		let agg = new Float32Array(DEPTH_LEVELS);
+		// use a short-term history: just take current as proxy for speed
+		for(let i=0;i<DEPTH_LEVELS;i++) agg[i] = depthBid[i] + depthAsk[i];
+		// smooth and find two highest local maxima (excluding extremes)
+		let smooth = new Float32Array(DEPTH_LEVELS);
+		for(let i=1;i<DEPTH_LEVELS-1;i++) smooth[i] = (agg[i-1]+agg[i]+agg[i+1])/3;
+		let max1=0, idx1=0, max2=0, idx2=0;
+		for(let i=5;i<DEPTH_LEVELS-5;i++){
+			if(smooth[i] > max1){ max2=max1; idx2=idx1; max1=smooth[i]; idx1=i; }
+			else if(smooth[i] > max2){ max2 = smooth[i]; idx2 = i; }
+		}
+		// convert index to normalized y position (we chose y=height fraction)
+		// map index to a y in [0,1] where 0 is bottom. We compute percentile of liquidity height
+		let total = 0;
+		for(let i=0;i<DEPTH_LEVELS;i++) total += agg[i];
+		let cum=0, pos1=0, pos2=0;
+		for(let i=0;i<DEPTH_LEVELS;i++){ cum += agg[i]; if(i<=idx1) pos1 = cum/Math.max(1,total); if(i<=idx2) pos2 = cum/Math.max(1,total); }
+		// clamp to [0.05,0.95]
+		pos1 = 0.05 + 0.9 * (idx1 / DEPTH_LEVELS);
+		pos2 = 0.05 + 0.9 * (idx2 / DEPTH_LEVELS);
+		return [pos1, pos2, idx1, idx2];
+	}
+
+	// render loop
+	function frame(now){
+		requestAnimationFrame(frame);
+		let dt = (now - lastT) / 1000;
+		lastT = now;
+		if(running){
+			stepSim(dt * speed);
+		}
+		// prepare texture: find max for normalization
+		let maxD = 1;
+		for(let i=0;i<DEPTH_LEVELS;i++){
+			maxD = Math.max(maxD, depthBid[i], depthAsk[i]);
+		}
+		uploadDepthTexture(maxD);
+		// compute SR
+		const [s1, s2, i1, i2] = computeSR();
+		// draw
+		gl.viewport(0,0,gl.canvas.width, gl.canvas.height);
+		gl.clearColor(0,0,0,1);
+		gl.clear(gl.COLOR_BUFFER_BIT);
+		gl.useProgram(prog);
+		gl.uniform1f(uMaxDepth, maxD);
+		gl.uniform1f(uSplitX, MID_X);
+		gl.uniform2f(uRes, gl.canvas.width, gl.canvas.height);
+		gl.uniform1f(uSR1, s1);
+		gl.uniform1f(uSR2, s2);
+		gl.drawArrays(gl.TRIANGLES, 0, 6);
+		// update info pane
+		updateInfo(i1, i2);
+	}
+
+	function updateInfo(i1,i2){
+		priceEl.textContent = price.toFixed(0);
+		const bestBid = depthBid[0] | 0;
+		const bestAsk = depthAsk[0] | 0;
+		bestEl.textContent = `${bestBid} / ${bestAsk}`;
+		if(i1!==undefined) srEl.textContent = `${i1}, ${i2}`;
+	}
+
+	// start anim
+	requestAnimationFrame(frame);
+
+	// small helper: keep canvas resolution crisp
+	function resizeCanvas(){
+		const dpr = window.devicePixelRatio || 1;
+		const w = canvas.clientWidth * dpr | 0;
+		const h = canvas.clientHeight * dpr | 0;
+		if(canvas.width !== w || canvas.height !== h){
+			canvas.width = w; canvas.height = h;
+		}
+	}
+	new ResizeObserver(resizeCanvas).observe(canvas);
+	resizeCanvas();
+
+})(); 
+// ...existing code...
+</script>
+</body>
+</html>

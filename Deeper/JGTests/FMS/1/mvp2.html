@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Free Market Simulation mvp2</title>
+	<style>
+		html, body { margin: 0; height: 100%; background:#0f1115; color:#e6e6e6; font-family: system-ui, sans-serif; }
+		#ui { position: fixed; top: 10px; left: 10px; background:#161a22; border:1px solid #2a2f3a; padding:10px; border-radius:8px; z-index:2; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+		#ui label { display:block; margin:6px 0 2px; font-size:12px; color:#b9c0cf; }
+		#ui input[type=range] { width: 220px; }
+		#ui .row { display:flex; align-items:center; gap:8px; }
+		#ui .val { width:52px; text-align:right; color:#9fb0ff; font-size:12px; }
+		#status { margin-top:6px; font-size:12px; color:#9fb0ff; }
+		canvas { display:block; width:100vw; height:100vh; }
+	</style>
+</head>
+<body>
+	<div id="ui">
+		<div class="row">
+			<label for="makers">Makers</label>
+			<input id="makers" type="range" min="0" max="800" step="1" value="200" />
+			<div id="makersVal" class="val">200</div>
+		</div>
+		<div class="row">
+			<label for="takers">Takers</label>
+			<input id="takers" type="range" min="0" max="800" step="1" value="150" />
+			<div id="takersVal" class="val">150</div>
+		</div>
+		<div class="row">
+			<label for="speed">Sim steps/frame</label>
+			<input id="speed" type="range" min="1" max="50" step="1" value="8" />
+			<div id="speedVal" class="val">8</div>
+		</div>
+		<div class="row">
+			<label for="vol">Volatility</label>
+			<input id="vol" type="range" min="1" max="100" step="1" value="25" />
+			<div id="volVal" class="val">25</div>
+		</div>
+		<div class="row">
+			<label for="decay">Book decay</label>
+			<input id="decay" type="range" min="0" max="50" step="1" value="5" />
+			<div id="decayVal" class="val">5%</div>
+		</div>
+		<div class="row">
+			<button id="toggle">Pause</button>
+			<button id="reset">Reset</button>
+		</div>
+		<div id="status">Initializing WebGPU…</div>
+	</div>
+	<canvas id="c"></canvas>
+
+	<script type="module">
+		const canvas = document.getElementById('c');
+		const ctx = canvas.getContext('2d');
+		const dpr = Math.max(1, window.devicePixelRatio || 1);
+
+		// UI
+		const makersEl = document.getElementById('makers');
+		const takersEl = document.getElementById('takers');
+		const speedEl  = document.getElementById('speed');
+		const volEl    = document.getElementById('vol');
+		const decayEl  = document.getElementById('decay');
+		const makersVal = document.getElementById('makersVal');
+		const takersVal = document.getElementById('takersVal');
+		const speedVal  = document.getElementById('speedVal');
+		const volVal    = document.getElementById('volVal');
+		const decayVal  = document.getElementById('decayVal');
+		const toggleBtn = document.getElementById('toggle');
+		const resetBtn  = document.getElementById('reset');
+		const statusEl  = document.getElementById('status');
+
+		function fit() {
+			const w = Math.floor(window.innerWidth  * dpr);
+			const h = Math.floor(window.innerHeight * dpr);
+			if (canvas.width !== w || canvas.height !== h) {
+				canvas.width = w; canvas.height = h;
+			}
+		}
+		window.addEventListener('resize', fit); fit();
+
+		// Sim params
+		const N_BINS = 256;                 // price bins in order book
+		const HISTORY_LEN = 4000;           // close price history for SR
+		const CANDLE_MS = 600;              // candle aggregation period
+		const MAX_CANDLES = 400;            // drawn candles
+
+		let running = true;
+		let lastCandleTime = performance.now();
+		let currentCandle = { o: NaN, h: -Infinity, l: Infinity, c: NaN };
+		const candles = [];                 // {o,h,l,c}
+		const priceHistory = new Float32Array(HISTORY_LEN);
+		let histWrite = 0;
+
+		// WebGPU setup
+		if (!('gpu' in navigator)) {
+			statusEl.textContent = 'WebGPU not available. Use Chrome/Edge 113+ with --enable-unsafe-webgpu if needed.';
+			throw new Error('WebGPU not available');
+		}
+
+		const adapter = await navigator.gpu.requestAdapter();
+		const device = await adapter.requestDevice();
+		statusEl.textContent = 'WebGPU ready (compute-accelerated simulation).';
+
+		// Buffers
+		function makeBuffer(size, usage, label) {
+			const b = device.createBuffer({ size: ((size + 3) & ~3), usage, label });
+			return b;
+		}
+		// Storage: bids, asks (runtime sized)
+		const BYTES_F32 = 4, BYTES_U32 = 4;
+		const bookBytes = N_BINS * BYTES_F32;
+		const bidsBuf = makeBuffer(bookBytes, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST, 'bids');
+		const asksBuf = makeBuffer(bookBytes, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST, 'asks');
+		// Scalars: rng (u32), lastPriceIndex (u32)
+		const scalarsBuf = makeBuffer(2 * BYTES_U32, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC, 'scalars');
+		// Params uniform (pad to 256 bytes)
+		const paramsBufSize = 256;
+		const paramsBuf = makeBuffer(paramsBufSize, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST, 'params');
+		// lastPrice out (f32)
+		const lastPriceBuf = makeBuffer(BYTES_F32, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC, 'lastPrice');
+
+		// Staging buffers to read back results
+		const bidsRead  = makeBuffer(bookBytes, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST, 'bidsRead');
+		const asksRead  = makeBuffer(bookBytes, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST, 'asksRead');
+		const lpRead    = makeBuffer(BYTES_F32, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST, 'lpRead');
+
+		// WGSL compute shader: makers/takers/order book + last price index
+		const simWGSL = /* wgsl */`
+struct Params {
+  maker_count : u32,
+  taker_count : u32,
+  sim_steps   : u32,
+  n_bins      : u32,
+  maker_size  : f32,
+  taker_size  : f32,
+  decay       : f32,
+  volatility  : f32,
+  mid_index   : u32,
+  _pad0       : u32,
+  _pad1       : u32,
+  _pad2       : u32,
+};
+
+@group(0) @binding(0) var<storage, read_write> bids : array<f32>;
+@group(0) @binding(1) var<storage, read_write> asks : array<f32>;
+@group(0) @binding(2) var<storage, read_write> scalars : array<u32>; // [rng, lastPriceIdx]
+@group(0) @binding(3) var<uniform> params : Params;
+@group(0) @binding(4) var<storage, read_write> lastPriceOut : array<f32>; // [idx as f32]
+
+fn rng() -> f32 {
+  var x = scalars[0];
+  x = x * 1664525u + 1013904223u;
+  scalars[0] = x;
+  return f32(x & 0x00FFFFFFu) / 16777216.0;
+}
+
+@compute @workgroup_size(1)
+fn main() {
+  var lp : u32 = scalars[1];
+  let n  : u32 = params.n_bins;
+
+  for (var s: u32 = 0u; s < params.sim_steps; s = s + 1u) {
+    // passive decay
+    for (var i: u32 = 0u; i < n; i = i + 1u) {
+      bids[i] = max(0.0, bids[i] * (1.0 - params.decay));
+      asks[i] = max(0.0, asks[i] * (1.0 - params.decay));
+    }
+
+    // makers add liquidity around mid_index with triangular distribution
+    for (var m: u32 = 0u; m < params.maker_count; m = m + 1u) {
+      let sideBuy = rng() < 0.5;
+      let tri = rng() - rng(); // ~ triangular in [-1,1]
+      var off = i32(round(tri * params.volatility * f32(n) * 0.05));
+      if (sideBuy) {
+        off = -abs(off);
+        let idx = clamp(i32(params.mid_index) + off, 0, i32(n)-1);
+        bids[u32(idx)] = bids[u32(idx)] + params.maker_size;
+      } else {
+        off = abs(off);
+        let idx = clamp(i32(params.mid_index) + off, 0, i32(n)-1);
+        asks[u32(idx)] = asks[u32(idx)] + params.maker_size;
+      }
+    }
+
+    // takers consume against best levels and set last price to traded level
+    for (var t: u32 = 0u; t < params.taker_count; t = t + 1u) {
+      let buyMkt = rng() > 0.5;
+      if (buyMkt) {
+        var j: u32 = lp;
+        loop {
+          if (j >= n) { break; }
+          if (asks[j] > 0.0) {
+            let q = min(asks[j], params.taker_size);
+            asks[j] = asks[j] - q;
+            lp = j;
+            break;
+          }
+          j = j + 1u;
+        }
+      } else {
+        var j: i32 = i32(lp);
+        loop {
+          if (j < 0) { break; }
+          if (bids[u32(j)] > 0.0) {
+            let q = min(bids[u32(j)], params.taker_size);
+            bids[u32(j)] = bids[u32(j)] - q;
+            lp = u32(j);
+            break;
+          }
+          j = j - 1;
+        }
+      }
+    }
+  }
+
+  scalars[1] = lp;
+  lastPriceOut[0] = f32(lp);
+}
+		`;
+
+		const pipeline = device.createComputePipeline({
+			layout: 'auto',
+			compute: { module: device.createShaderModule({ code: simWGSL }), entryPoint: 'main' }
+		});
+
+		const bindGroup = device.createBindGroup({
+			layout: pipeline.getBindGroupLayout(0),
+			entries: [
+				{ binding: 0, resource: { buffer: bidsBuf } },
+				{ binding: 1, resource: { buffer: asksBuf } },
+				{ binding: 2, resource: { buffer: scalarsBuf } },
+				{ binding: 3, resource: { buffer: paramsBuf } },
+				{ binding: 4, resource: { buffer: lastPriceBuf } },
+			]
+		});
+
+		// Initialize buffers
+		function seed(n) {
+			const rnd = (Math.random()*0xffffffff)>>>0;
+			// rng seed + last price at mid
+			const scal = new Uint32Array([rnd, Math.floor(n/2)]);
+			device.queue.writeBuffer(scalarsBuf, 0, scal);
+			// seed book: small liquidity near mid
+			const mid = scal[1];
+			const bids = new Float32Array(n).fill(0);
+			const asks = new Float32Array(n).fill(0);
+			for (let i=0;i<n;i++){
+				const d = Math.abs(i - mid);
+				const base = Math.max(0, 1.0 - d/32);
+				if (i<mid) bids[i] = base * 0.5;
+				else if (i>mid) asks[i] = base * 0.5;
+			}
+			device.queue.writeBuffer(bidsBuf, 0, bids);
+			device.queue.writeBuffer(asksBuf, 0, asks);
+		}
+		seed(N_BINS);
+
+		// Params buffer writer
+		const paramsView = new DataView(new ArrayBuffer(256));
+		function writeParams() {
+			// layout: u32,u32,u32,u32, f32,f32,f32,f32, u32, u32,u32,u32
+			let o = 0;
+			paramsView.setUint32(o, +makersEl.value|0, true); o+=4;
+			paramsView.setUint32(o, +takersEl.value|0, true); o+=4;
+			paramsView.setUint32(o, +speedEl.value|0,  true); o+=4;
+			paramsView.setUint32(o, N_BINS, true); o+=4;
+			paramsView.setFloat32(o, 0.8, true); o+=4;                // maker_size
+			paramsView.setFloat32(o, 1.0, true); o+=4;                // taker_size
+			paramsView.setFloat32(o, (+decayEl.value)/100, true); o+=4; // decay
+			paramsView.setFloat32(o, (+volEl.value)/100, true); o+=4; // volatility (0..1)
+			paramsView.setUint32(o, Math.floor(N_BINS/2), true); o+=4; // mid index
+			o = 64; // leave rest as padding
+			device.queue.writeBuffer(paramsBuf, 0, paramsView.buffer);
+		}
+		writeParams();
+
+		// UI wiring
+		function syncLabels() {
+			makersVal.textContent = makersEl.value;
+			takersVal.textContent = takersEl.value;
+			speedVal.textContent  = speedEl.value;
+			volVal.textContent    = volEl.value;
+			decayVal.textContent  = decayEl.value + '%';
+		}
+		[makersEl, takersEl, speedEl, volEl, decayEl].forEach(el => el.addEventListener('input', () => { syncLabels(); writeParams(); }));
+		syncLabels();
+
+		toggleBtn.addEventListener('click', () => {
+			running = !running;
+			toggleBtn.textContent = running ? 'Pause' : 'Resume';
+			if (running) loop();
+		});
+		resetBtn.addEventListener('click', () => {
+			candles.length = 0;
+			histWrite = 0;
+			currentCandle = { o: NaN, h: -Infinity, l: Infinity, c: NaN };
+			seed(N_BINS);
+		});
+
+		// Helpers
+		function updateCandles(priceIdx) {
+			const now = performance.now();
+			const p = priceIdx;
+			if (!Number.isFinite(currentCandle.o)) currentCandle.o = p;
+			currentCandle.h = Math.max(currentCandle.h, p);
+			currentCandle.l = Math.min(currentCandle.l, p);
+			currentCandle.c = p;
+
+			if (now - lastCandleTime >= CANDLE_MS) {
+				candles.push(currentCandle);
+				if (candles.length > MAX_CANDLES) candles.shift();
+				currentCandle = { o: p, h: p, l: p, c: p };
+				lastCandleTime = now;
+			}
+		}
+
+		function pushHistory(p) {
+			priceHistory[histWrite % HISTORY_LEN] = p;
+			histWrite++;
+		}
+
+		function computeSR(topN, minGapPx, yScale) {
+			if (histWrite < 10) return [];
+			const len = Math.min(histWrite, HISTORY_LEN);
+			const hist = new Float32Array(N_BINS);
+			for (let i=0;i<len;i++){
+				const v = priceHistory[(histWrite - 1 - i) % HISTORY_LEN];
+				const idx = Math.max(0, Math.min(N_BINS-1, Math.round(v)));
+				// slight recency weight
+				hist[idx] += 1.0 - (i/len)*0.5;
+			}
+			const peaks = [];
+			while (peaks.length < topN) {
+				let bestI = -1, bestV = 0;
+				for (let i=0;i<N_BINS;i++) {
+					if (hist[i] > bestV) { bestV = hist[i]; bestI = i; }
+				}
+				if (bestI < 0 || bestV <= 0) break;
+				const y = yScale(bestI);
+				if (!peaks.some(py => Math.abs(py - y) < minGapPx)) {
+					peaks.push(y);
+				}
+				// suppress neighborhood
+				const suppress = 3;
+				for (let j=Math.max(0,bestI-suppress); j<=Math.min(N_BINS-1,bestI+suppress); j++) hist[j] = 0;
+			}
+			return peaks;
+		}
+
+		// Rendering
+		function render2D(lastPriceIdx, bidsSnap, asksSnap) {
+			fit();
+			const W = canvas.width, H = canvas.height;
+			ctx.clearRect(0,0,W,H);
+
+			// Layout: top 70% candles, bottom 30% order book
+			const topH = Math.floor(H * 0.7);
+			const botY = topH+1;
+			const botH = H - botY;
+
+			// Price scale from candles in view
+			const view = [...candles.slice(-MAX_CANDLES), currentCandle];
+			let minP = Infinity, maxP = -Infinity;
+			for (const k of view) {
+				if (!Number.isFinite(k.o)) continue;
+				minP = Math.min(minP, k.l);
+				maxP = Math.max(maxP, k.h);
+			}
+			if (!isFinite(minP) || !isFinite(maxP) || minP===maxP) { minP= N_BINS/2-10; maxP= N_BINS/2+10; }
+			const pad = (maxP - minP) * 0.1 + 1;
+			minP -= pad; maxP += pad;
+
+			const yScale = (p) => {
+				const t = (p - minP) / (maxP - minP);
+				return Math.round((1 - t) * (topH - 20) + 10);
+			};
+
+			// Draw SR levels
+			const sr = computeSR(6, 10*dpr, yScale);
+			ctx.strokeStyle = '#37424f';
+			ctx.lineWidth = 1 * dpr;
+			ctx.setLineDash([4*dpr, 3*dpr]);
+			for (const y of sr) {
+				ctx.beginPath();
+				ctx.moveTo(0, y);
+				ctx.lineTo(W, y);
+				ctx.stroke();
+			}
+			ctx.setLineDash([]);
+
+			// Draw candles
+			const n = Math.min(view.length, Math.floor(W / (3*dpr)));
+			const start = view.length - n;
+			const cw = Math.max(2*dpr, Math.floor(W / (n + 4)));
+			const gap = Math.max(1, Math.floor(cw*0.2));
+			let x = 2*dpr;
+			for (let i=0;i<view.length;i++){
+				if (i < start) continue;
+				const k = view[i];
+				if (!Number.isFinite(k.o)) { x += cw; continue; }
+				const yo = yScale(k.o), yc = yScale(k.c), yh = yScale(k.h), yl = yScale(k.l);
+				// wick
+				ctx.strokeStyle = '#9fb0cf';
+				ctx.lineWidth = 1*dpr;
+				ctx.beginPath();
+				ctx.moveTo(x + cw/2, yh);
+				ctx.lineTo(x + cw/2, yl);
+				ctx.stroke();
+				// body
+				const up = k.c >= k.o;
+				ctx.fillStyle = up ? '#1fc27e' : '#ff5c5c';
+				const top = Math.min(yo, yc);
+				const h = Math.max(1*dpr, Math.abs(yo - yc));
+				ctx.fillRect(x + gap/2, top, Math.max(1, cw - gap), h);
+				x += cw;
+				if (x > W) break;
+			}
+
+			// Draw last price line
+			const yLast = yScale(lastPriceIdx);
+			ctx.strokeStyle = '#8888ff';
+			ctx.lineWidth = 1*dpr;
+			ctx.beginPath(); ctx.moveTo(0,yLast); ctx.lineTo(W,yLast); ctx.stroke();
+
+			// Order book heat (bottom)
+			// Normalize
+			let maxBid = 1e-6, maxAsk = 1e-6;
+			for (let i=0;i<N_BINS;i++){ if (bidsSnap[i]>maxBid) maxBid = bidsSnap[i]; if (asksSnap[i]>maxAsk) maxAsk = asksSnap[i]; }
+
+			// Map price bin to x
+			const xFromBin = (i) => Math.round((i / (N_BINS-1)) * (W-1));
+			// Draw as vertical heat bars, bids (blue), asks (red)
+			for (let i=0;i<N_BINS;i++){
+				const xb = xFromBin(i);
+				const bw = Math.max(1, Math.floor(W / N_BINS));
+				const bh = Math.min(botH-4, Math.floor((bidsSnap[i]/maxBid) * (botH-4)));
+				const ah = Math.min(botH-4, Math.floor((asksSnap[i]/maxAsk) * (botH-4)));
+				// bids
+				ctx.fillStyle = 'rgba(79,148,255,0.8)';
+				ctx.fillRect(xb, botY + (botH - bh), bw, bh);
+				// asks
+				ctx.fillStyle = 'rgba(255,118,118,0.8)';
+				ctx.fillRect(xb, botY + 2, bw, ah);
+			}
+
+			// Axes separators
+			ctx.strokeStyle = '#2a2f3a';
+			ctx.beginPath(); ctx.moveTo(0, botY); ctx.lineTo(W, botY); ctx.stroke();
+		}
+
+		// Main loop
+		async function stepOnce() {
+			// run compute pass
+			const encoder = device.createCommandEncoder();
+			const pass = encoder.beginComputePass();
+			pass.setPipeline(pipeline);
+			pass.setBindGroup(0, bindGroup);
+			pass.dispatchWorkgroups(1);
+			pass.end();
+
+			// copy to staging buffers
+			encoder.copyBufferToBuffer(lastPriceBuf, 0, lpRead, 0, BYTES_F32);
+			encoder.copyBufferToBuffer(bidsBuf, 0, bidsRead, 0, bookBytes);
+			encoder.copyBufferToBuffer(asksBuf, 0, asksRead, 0, bookBytes);
+
+			device.queue.submit([encoder.finish()]);
+			await device.queue.onSubmittedWorkDone();
+
+			// map and read
+			await Promise.all([lpRead.mapAsync(GPUMapMode.READ), bidsRead.mapAsync(GPUMapMode.READ), asksRead.mapAsync(GPUMapMode.READ)]);
+			const lpView = new Float32Array(lpRead.getMappedRange().slice(0));
+			const bidsView = new Float32Array(bidsRead.getMappedRange().slice(0));
+			const asksView = new Float32Array(asksRead.getMappedRange().slice(0));
+			lpRead.unmap(); bidsRead.unmap(); asksRead.unmap();
+
+			const lastPriceIdx = lpView[0];
+			updateCandles(lastPriceIdx);
+			pushHistory(lastPriceIdx);
+
+			render2D(lastPriceIdx, bidsView, asksView);
+		}
+
+		async function loop() {
+			if (!running) return;
+			await stepOnce();
+			requestAnimationFrame(loop);
+		}
+		loop();
+	</script>
+</body>
+</html>

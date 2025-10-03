@@ -1,0 +1,497 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>WebGL Market SIM - MVP15</title>
+<style>
+  html,body { height:100%; margin:0; font-family:Segoe UI, Arial; background:#111; color:#ddd; }
+  #ui { position: absolute; left:8px; top:8px; z-index:10; background:rgba(0,0,0,0.5); padding:8px; border-radius:6px; }
+  #ui label { display:block; font-size:12px; margin-top:6px; }
+  #canvas { width:100%; height:100%; display:block; }
+  .row { display:flex; gap:8px; align-items:center; }
+  input[type=range] { width:200px; }
+  button { margin-top:6px; }
+  .small { font-size:11px; color:#aaa; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <div class="row">
+    <label>makers <span id="makersVal">10</span></label>
+    <input id="makers" type="range" min="0" max="100" value="10" />
+  </div>
+  <div class="row">
+    <label>takers <span id="takersVal">5</span></label>
+    <input id="takers" type="range" min="0" max="100" value="5" />
+  </div>
+  <div class="row">
+    <label>sim speed <span id="speedVal">1.0x</span></label>
+    <input id="speed" type="range" min="0.1" max="5" step="0.1" value="1" />
+  </div>
+  <div class="row">
+    <label>feature step <span id="stepVal">4</span> <span class="small">(1:candles → 2:+volume → 3:+depth → 4:+executions)</span></label>
+    <input id="step" type="range" min="1" max="4" step="1" value="4" />
+  </div>
+  <div class="row">
+    <button id="start">Start</button>
+    <button id="pause">Pause</button>
+    <button id="reset">Reset</button>
+  </div>
+  <div class="small">Deterministic seed: 12345</div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+// filepath: d:\Game of life\GitHub\MyFistWebsite\Deeper\JGTests\FMS\mvp15.html
+
+(() => {
+  // --- Utilities: deterministic RNG ---
+  function XorShift32(seed) {
+    let x = seed >>> 0;
+    return () => {
+      x ^= x << 13; x >>>= 0;
+      x ^= x >>> 17;
+      x ^= x << 5; x >>>= 0;
+      return (x >>> 0) / 0xFFFFFFFF;
+    };
+  }
+  const rand = XorShift32(12345);
+
+  // --- Basic sim parameters ---
+  const canvas = document.getElementById('canvas');
+  const gl = canvas.getContext('webgl', { antialias: false });
+  if (!gl) { alert('WebGL required'); return; }
+
+  let width = 1, height = 1;
+  function resize() {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    width = Math.floor(canvas.clientWidth * dpr);
+    height = Math.floor(canvas.clientHeight * dpr);
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width; canvas.height = height;
+      gl.viewport(0,0,width,height);
+    }
+  }
+  window.addEventListener('resize', () => { resize(); draw(); });
+  canvas.style.width = '100%'; canvas.style.height = '100%';
+  resize();
+
+  // --- Simple shader to draw colored rectangles/lines (positions in pixel space) ---
+  const vsSrc = `
+  attribute vec2 a_pos;
+  uniform vec2 u_view;
+  void main(){
+    vec2 clip = (a_pos / u_view) * 2.0 - 1.0;
+    gl_Position = vec4(clip * vec2(1,-1), 0, 1);
+  }`;
+  const fsSrc = `
+  precision mediump float;
+  uniform vec4 u_color;
+  void main(){ gl_FragColor = u_color; }`;
+  function compile(src, type){ const s = gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s); return s; }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, compile(vsSrc, gl.VERTEX_SHADER));
+  gl.attachShader(prog, compile(fsSrc, gl.FRAGMENT_SHADER));
+  gl.linkProgram(prog); if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) throw gl.getProgramInfoLog(prog);
+  gl.useProgram(prog);
+  const a_pos = gl.getAttribLocation(prog,'a_pos');
+  const u_view = gl.getUniformLocation(prog,'u_view');
+  const u_color = gl.getUniformLocation(prog,'u_color');
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.enableVertexAttribArray(a_pos);
+  gl.vertexAttribPointer(a_pos,2,gl.FLOAT,false,0,0);
+
+  function drawRect(x,y,w,h,color) {
+    const x2 = x + w, y2 = y + h;
+    const verts = new Float32Array([x,y, x2,y, x,y2, x,y2, x2,y, x2,y2]);
+    gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STREAM_DRAW);
+    gl.uniform2f(u_view, width, height);
+    gl.uniform4fv(u_color, color);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
+
+  // tiny helper for lines (1px width)
+  function drawLine(x1,y1,x2,y2, color, thickness=1) {
+    const angle = Math.atan2(y2-y1, x2-x1);
+    const dx = Math.sin(angle) * thickness * 0.5;
+    const dy = Math.cos(angle) * thickness * 0.5;
+    const verts = new Float32Array([
+      x1-dx, y1+dy, x2-dx, y2+dy, x1+dx, y1-dy,
+      x1+dx, y1-dy, x2-dx, y2+dy, x2+dx, y2-dy
+    ]);
+    gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STREAM_DRAW);
+    gl.uniform2f(u_view, width, height);
+    gl.uniform4fv(u_color, color);
+    gl.drawArrays(gl.TRIANGLES,0,6);
+  }
+
+  // --- Simulation structures ---
+  let state = null;
+  function makeState() {
+    return {
+      tick: 0,
+      time: 0,
+      tickInterval: 0.5, // seconds per sim tick
+      mid: 1000, // price basis
+      tickSize: 1,
+      book: { bids: new Map(), asks: new Map() }, // price(int) -> size
+      trades: [], // {time,price,volume}
+      candles: [], // rolling candle list
+      currentCandle: null,
+      candleInterval: 10.0, // seconds per candle
+      visibleCandles: 120,
+      rng: XorShift32(12345), // local RNG copy for determinism
+    };
+  }
+
+  // LOB helpers
+  function addOrder(bookSide, price, size) {
+    const m = bookSide;
+    const prev = m.get(price) || 0;
+    m.set(price, prev + size);
+  }
+  function reduceOrder(bookSide, price, size) {
+    const m = bookSide;
+    const prev = m.get(price) || 0;
+    const rem = Math.max(0, prev - size);
+    if (rem <= 0) m.delete(price); else m.set(price, rem);
+    return Math.min(prev, size);
+  }
+  function bestBid() {
+    let best = -Infinity;
+    for (let p of state.book.bids.keys()) if (p > best) best = p;
+    return best === -Infinity ? null : best;
+  }
+  function bestAsk() {
+    let best = Infinity;
+    for (let p of state.book.asks.keys()) if (p < best) best = p;
+    return best === Infinity ? null : best;
+  }
+
+  // matching engine - taker market buy consumes asks, market sell consumes bids
+  function executeMarket(side, size) {
+    let remaining = size;
+    if (side === 'buy') {
+      // consume asks low->high
+      const asks = Array.from(state.book.asks.keys()).sort((a,b)=>a-b);
+      for (let p of asks) {
+        if (remaining <= 0) break;
+        const taken = reduceOrder(state.book.asks, p, remaining);
+        if (taken>0) {
+          state.trades.push({time: state.time, price: p, volume: taken});
+          remaining -= taken;
+        }
+      }
+    } else {
+      const bids = Array.from(state.book.bids.keys()).sort((a,b)=>b-a);
+      for (let p of bids) {
+        if (remaining <= 0) break;
+        const taken = reduceOrder(state.book.bids, p, remaining);
+        if (taken>0) {
+          state.trades.push({time: state.time, price: p, volume: taken});
+          remaining -= taken;
+        }
+      }
+    }
+    return size - remaining;
+  }
+
+  // agent behaviors
+  function spawnMakers(n) {
+    for (let i=0;i<n;i++) {
+      // place some limit orders around mid
+      const offset = Math.floor((state.rng()-0.5)*40);
+      const price = Math.max(1, state.mid + offset);
+      const side = state.rng() < 0.5 ? 'b' : 'a';
+      const size = Math.ceil(1 + state.rng()*10);
+      if (side==='b') addOrder(state.book.bids, price, size);
+      else addOrder(state.book.asks, price, size);
+    }
+  }
+  function spawnTakers(n) {
+    for (let i=0;i<n;i++) {
+      const side = state.rng() < 0.5 ? 'buy' : 'sell';
+      const size = 1 + Math.floor(state.rng()*20);
+      executeMarket(side, size);
+    }
+  }
+
+  // candle aggregation
+  function openNewCandle() {
+    state.currentCandle = { open: state.mid, high: state.mid, low: state.mid, close: state.mid, volume:0, startTime: state.time };
+  }
+  function recordTradeToCandle(trade) {
+    const c = state.currentCandle;
+    if (!c) openNewCandle();
+    c.high = Math.max(c.high, trade.price);
+    c.low = Math.min(c.low, trade.price);
+    c.close = trade.price;
+    c.volume += trade.volume;
+  }
+  function advanceCandleIfNeeded() {
+    if (!state.currentCandle) openNewCandle();
+    if (state.time - state.currentCandle.startTime >= state.candleInterval) {
+      state.candles.push(state.currentCandle);
+      if (state.candles.length > state.visibleCandles) state.candles.shift();
+      openNewCandle();
+    }
+  }
+
+  // UI wiring
+  const makersEl = document.getElementById('makers');
+  const takersEl = document.getElementById('takers');
+  const speedEl = document.getElementById('speed');
+  const stepEl = document.getElementById('step');
+  const startBtn = document.getElementById('start');
+  const pauseBtn = document.getElementById('pause');
+  const resetBtn = document.getElementById('reset');
+  const makersVal = document.getElementById('makersVal');
+  const takersVal = document.getElementById('takersVal');
+  const speedVal = document.getElementById('speedVal');
+  const stepVal = document.getElementById('stepVal');
+  makersEl.oninput = () => makersVal.textContent = makersEl.value;
+  takersEl.oninput = () => takersVal.textContent = takersEl.value;
+  speedEl.oninput = () => speedVal.textContent = speedEl.value + 'x';
+  stepEl.oninput = () => stepVal.textContent = stepEl.value;
+
+  startBtn.onclick = () => running = true;
+  pauseBtn.onclick = () => running = false;
+  resetBtn.onclick = () => { running=false; state = makeState(); draw(); };
+
+  // initialize
+  state = makeState();
+  state.rng = XorShift32(12345); // deterministic
+  openNewCandle();
+
+  // pre-seed some book for stability
+  for (let p = state.mid - 50; p < state.mid + 50; p++) {
+    if (Math.abs(p - state.mid) < 2) continue;
+    const bidSize = Math.floor((1 - Math.abs(p-state.mid)/100)*20 * (0.5 + rand()*0.5));
+    const askSize = Math.floor((1 - Math.abs(p-state.mid)/100)*20 * (0.5 + rand()*0.5));
+    if (bidSize>0) state.book.bids.set(p, bidSize);
+    if (askSize>0) state.book.asks.set(p, askSize);
+  }
+
+  // --- Rendering layout ---
+  function computePanels() {
+    const pad = 10;
+    const rightWidth = Math.floor(width * 0.25);
+    const centerW = width - rightWidth - pad*3;
+    const centerH = height - 120; // reserve bottom for volume bars
+    const bottomH = 100;
+    return {
+      pad, rightWidth,
+      center: { x: pad, y: pad, w: centerW, h: centerH },
+      bottom: { x: pad, y: pad + centerH + pad, w: centerW, h: bottomH },
+      right: { x: pad + centerW + pad, y: pad, w: rightWidth, h: centerH + bottomH + pad }
+    };
+  }
+
+  // map price/time to pixel coords
+  function computeViewRanges() {
+    const candles = state.candles;
+    const cCount = Math.max(1, candles.length);
+    const timeMax = state.time;
+    const timeMin = Math.max(0, timeMax - state.visibleCandles * state.candleInterval);
+    let pMin = Infinity, pMax = -Infinity;
+    // consider current candle and LOB top levels for range
+    if (state.currentCandle) { pMin = Math.min(pMin, state.currentCandle.low); pMax = Math.max(pMax, state.currentCandle.high); }
+    for (let c of candles) { pMin = Math.min(pMin, c.low); pMax = Math.max(pMax, c.high); }
+    for (let p of state.book.bids.keys()) { pMin = Math.min(pMin, p); pMax = Math.max(pMax, p); }
+    for (let p of state.book.asks.keys()) { pMin = Math.min(pMin, p); pMax = Math.max(pMax, p); }
+    if (!isFinite(pMin)) { pMin = state.mid - 10; pMax = state.mid + 10; }
+    // pad
+    const padP = Math.max(1, Math.floor((pMax - pMin) * 0.1));
+    pMin -= padP; pMax += padP;
+    return { timeMin, timeMax, pMin, pMax };
+  }
+
+  // rendering functions
+  function clear() {
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(0,0,width,height);
+    gl.clearColor(0.06,0.06,0.07,1); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.disable(gl.SCISSOR_TEST);
+  }
+
+  function drawCandles(panel, vr) {
+    const all = state.candles.concat([state.currentCandle]).filter(Boolean);
+    const n = all.length;
+    const maxW = panel.w;
+    const candleW = Math.max(3, Math.floor(maxW / Math.max(30, state.visibleCandles)));
+    const padding = 2;
+    // time -> x mapping: timeMin -> panel.x, timeMax -> panel.x+panel.w
+    function tx(t) { return panel.x + ((t - vr.timeMin) / (vr.timeMax - vr.timeMin)) * panel.w; }
+    function ty(p) { return panel.y + panel.h - ((p - vr.pMin) / (vr.pMax - vr.pMin)) * panel.h; }
+
+    // draw wick and bodies
+    for (let i = 0; i < all.length; i++) {
+      const c = all[i];
+      const cx = tx(c.startTime + 0.5 * state.candleInterval);
+      const w = candleW;
+      const openY = ty(c.open), closeY = ty(c.close), highY = ty(c.high), lowY = ty(c.low);
+      const bodyTop = Math.min(openY, closeY), bodyH = Math.abs(openY - closeY);
+      const colorBull = [0.13,0.7,0.2,1], colorBear = [0.8,0.1,0.15,1];
+      const col = (c.close >= c.open) ? colorBull : colorBear;
+      // wick: vertical thin line
+      drawLine(cx, highY, cx, lowY, [col[0],col[1],col[2],0.9], 2);
+      // body
+      drawRect(cx - w/2, bodyTop, w, Math.max(1, bodyH), col);
+    }
+  }
+
+  function drawVolumes(panel, vr) {
+    // show volumes per candle at bottom
+    const all = state.candles.concat([state.currentCandle]).filter(Boolean);
+    const maxVol = Math.max(1, ...all.map(c=>c.volume));
+    const w = panel.w / Math.max(1, all.length);
+    for (let i=0;i<all.length;i++){
+      const c = all[i]; const x = panel.x + i * w;
+      const h = (c.volume / maxVol) * panel.h;
+      const col = c.close >= c.open ? [0.13,0.7,0.2,0.6] : [0.8,0.1,0.15,0.6];
+      drawRect(x, panel.y + panel.h - h, Math.max(1, w-1), h, col);
+    }
+  }
+
+  function drawOrderBook(panel, vr) {
+    // draw background
+    drawRect(panel.x, panel.y, panel.w, panel.h, [0.02,0.02,0.02,0.8]);
+    // draw depth lines: bids green on left of right-panel, asks red on right side
+    const maxSize = Math.max(1, ...[...state.book.bids.values(), ...state.book.asks.values()]);
+    const leftArea = { x: panel.x + 6, w: panel.w/2 - 10 };
+    const rightArea = { x: panel.x + panel.w/2 + 4, w: panel.w/2 - 10 };
+    const bins = 60; // sample price bands
+    // bids
+    const bids = Array.from(state.book.bids.entries());
+    for (let [p,size] of bids) {
+      const y = panel.y + panel.h - ((p - vr.pMin) / (vr.pMax - vr.pMin)) * panel.h;
+      if (y < panel.y || y > panel.y+panel.h) continue;
+      const norm = Math.min(1, size / maxSize);
+      const w = leftArea.w * norm;
+      drawRect(leftArea.x, y-2, w, 4, [0.0,0.8,0.3, 0.3 + 0.6*norm]);
+    }
+    // asks
+    const asks = Array.from(state.book.asks.entries());
+    for (let [p,size] of asks) {
+      const y = panel.y + panel.h - ((p - vr.pMin) / (vr.pMax - vr.pMin)) * panel.h;
+      if (y < panel.y || y > panel.y+panel.h) continue;
+      const norm = Math.min(1, size / maxSize);
+      const w = rightArea.w * norm;
+      drawRect(rightArea.x + (rightArea.w - w), y-2, w, 4, [0.85,0.12,0.14, 0.3 + 0.6*norm]);
+    }
+    // mid price line
+    const midY = panel.y + panel.h - ((state.mid - vr.pMin) / (vr.pMax - vr.pMin)) * panel.h;
+    drawLine(panel.x+2, midY, panel.x + panel.w - 2, midY, [1,1,1,0.06], 1);
+  }
+
+  function drawExecutions(panelCenter, panelBottom, vr) {
+    // draw executed trade blocks overlay onto center panel (time & price)
+    const timeframe = vr.timeMax - vr.timeMin;
+    if (timeframe <= 0) return;
+    function tx(t) { return panelCenter.x + ((t - vr.timeMin) / timeframe) * panelCenter.w; }
+    function ty(p) { return panelCenter.y + panelCenter.h - ((p - vr.pMin) / (vr.pMax - vr.pMin)) * panelCenter.h; }
+    // group trades into recent clusters displayed as semi-transparent rects
+    for (let tr of state.trades) {
+      if (tr.time < vr.timeMin) continue;
+      const x = tx(tr.time);
+      const w = Math.max(2, (state.candleInterval / timeframe) * panelCenter.w * 0.8);
+      const y = ty(tr.price);
+      const h = Math.max(4, Math.sqrt(tr.volume) * 3);
+      const col = tr.volume > 0 ? [1,0.6,0.0,0.35] : [1,1,1,0.25];
+      drawRect(x - w/2, y - h/2, w, h, col);
+    }
+  }
+
+  // main draw
+  function draw() {
+    resize();
+    clear();
+    const panels = computePanels();
+    const vr = computeViewRanges();
+    // determine feature step
+    const step = parseInt(stepEl.value || '4', 10);
+    // panel backgrounds
+    drawRect(panels.center.x-4, panels.center.y-4, panels.center.w+8, panels.center.h+8, [0.05,0.05,0.06,0.8]);
+    drawRect(panels.bottom.x-4, panels.bottom.y-4, panels.bottom.w+8, panels.bottom.h+8, [0.03,0.03,0.04,0.9]);
+    drawRect(panels.right.x-4, panels.right.y-4, panels.right.w+8, panels.right.h+8, [0.03,0.03,0.04,0.9]);
+
+    // 1) Candles always
+    if (step >= 1) drawCandles(panels.center, vr);
+
+    // 2) Volume bars
+    if (step >= 2) drawVolumes(panels.bottom, vr);
+
+    // 3) Order book depth
+    if (step >= 3) drawOrderBook(panels.right, vr);
+
+    // 4) Executed blocks overlay
+    if (step >= 4) drawExecutions(panels.center, panels.bottom, vr);
+  }
+
+  // --- Simulation loop ---
+  let running = false;
+  let lastFrame = performance.now();
+  function simStep(deltaSeconds) {
+    const speed = parseFloat(speedEl.value || '1.0');
+    const makerCount = parseInt(makersEl.value || '10', 10);
+    const takerCount = parseInt(takersEl.value || '5', 10);
+    // scaled time - process discrete ticks
+    let toAdvance = deltaSeconds * speed;
+    while (toAdvance > 0) {
+      const stepSeconds = Math.min(state.tickInterval, toAdvance);
+      state.time += stepSeconds;
+      state.tick++;
+      // spawn makers/takers proportionally per tick
+      const instMakers = Math.round(makerCount * (stepSeconds / 1.0));
+      const instTakers = Math.round(takerCount * (stepSeconds / 1.0));
+      spawnMakers(instMakers);
+      spawnTakers(instTakers);
+      // update mid price by some random walk influenced by top-of-book
+      const bb = bestBid(), ba = bestAsk();
+      if (bb && ba) {
+        state.mid = Math.floor((bb + ba) / 2 + (state.rng()-0.5)*2);
+      } else {
+        state.mid = Math.floor(state.mid + (state.rng()-0.5)*2);
+      }
+      // process trades to candle
+      while (state.trades.length && state.trades[0].time <= state.time) {
+        const tr = state.trades.shift();
+        recordTradeToCandle(tr);
+        // keep history: we keep a separate list of executions for drawing; shift to executedHistory
+        executedHistory.push(tr);
+        if (executedHistory.length > 1000) executedHistory.shift();
+      }
+      advanceCandleIfNeeded();
+      toAdvance -= stepSeconds;
+    }
+  }
+
+  // keep a persistent executed history for overlay drawing
+  const executedHistory = [];
+
+  function loop(now) {
+    const dt = Math.min(0.5, (now - lastFrame) / 1000);
+    lastFrame = now;
+    if (running) simStep(dt);
+    // rehydrate trades back for rendering (we use executedHistory)
+    // small copying to state.trades for rendering; add contents of executedHistory back
+    state.trades = executedHistory.slice();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // start animation
+  requestAnimationFrame(loop);
+  // start paused
+  running = false;
+
+  // small initial draw
+  draw();
+
+})();
+</script>
+
+</body>
+</html>

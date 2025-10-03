@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Free Market Simulation mvp9</title>
+	<style>
+		body { margin: 0; font-family: system-ui, sans-serif; background: #0b0e13; color: #dfe6ee; }
+		.wrap { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; }
+		.controls { display: flex; gap: 16px; align-items: center; padding: 10px 14px; border-bottom: 1px solid #1b2230; background:#0f131a; position: sticky; top:0; }
+		.controls label { font-size: 12px; opacity: .9; }
+		input[type="range"] { width: 200px; }
+		.grid { display: grid; grid-template-columns: 1fr 240px; grid-template-rows: 1fr 120px; gap: 8px; padding: 8px; }
+		canvas { width: 100%; height: 100%; background: #0c1017; border: 1px solid #1b2230; border-radius: 6px; image-rendering: pixelated; }
+		.price { grid-column: 1; grid-row: 1; }
+		.orderbook { grid-column: 2; grid-row: 1 / span 2; }
+		.volume { grid-column: 1; grid-row: 2; }
+		.footer { padding: 6px 14px; font-size: 12px; color: #9fb1c7; border-top:1px solid #1b2230; }
+		.small { font-size: 12px; }
+		.row { display:flex; gap:8px; align-items:center; }
+		.badge { padding: 2px 6px; border:1px solid #1b2230; border-radius: 4px; background:#0f131a; }
+		.warn { color:#ffb86b; }
+	</style>
+</head>
+<body>
+<div class="wrap">
+	<div class="controls">
+		<div class="row">
+			<button id="toggleBtn">Start</button>
+			<button id="resetBtn">Reset</button>
+		</div>
+		<div class="row">
+			<label>Makers %</label>
+			<input id="makerSlider" type="range" min="0" max="100" value="60" />
+			<span id="makerVal" class="badge">60%</span>
+		</div>
+		<div class="row">
+			<label>Sim speed</label>
+			<input id="speedSlider" type="range" min="1" max="20000" step="1" value="2000" />
+			<span id="speedVal" class="badge">2000 steps/frame</span>
+		</div>
+		<div class="row small">
+			<span>Spread and depth auto-evolve; taker sizes are stochastic.</span>
+		</div>
+	</div>
+
+	<div class="grid">
+		<canvas id="priceCanvas" class="price"></canvas>
+		<canvas id="orderBookCanvas" class="orderbook"></canvas>
+		<canvas id="volumeCanvas" class="volume"></canvas>
+	</div>
+
+	<div class="footer">
+		<span>Free Market Simulation (makers vs takers). WebGPU accelerated compute, 1D price ladder LOB. This is a toy model for research; not market advice.</span>
+	</div>
+</div>
+
+<script>
+(async function() {
+	const makerSlider = document.getElementById('makerSlider');
+	const speedSlider = document.getElementById('speedSlider');
+	const makerVal = document.getElementById('makerVal');
+	const speedVal = document.getElementById('speedVal');
+	const toggleBtn = document.getElementById('toggleBtn');
+	const resetBtn = document.getElementById('resetBtn');
+
+	const priceCanvas = document.getElementById('priceCanvas');
+	const orderBookCanvas = document.getElementById('orderBookCanvas');
+	const volumeCanvas = document.getElementById('volumeCanvas');
+
+	const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+	function sizeCanvas(canvas) {
+		const rect = canvas.getBoundingClientRect();
+		canvas.width = Math.max(100, Math.floor(rect.width * dpr));
+		canvas.height = Math.max(60, Math.floor(rect.height * dpr));
+	}
+	function resizeAll() {
+		[sizeCanvas(priceCanvas), sizeCanvas(orderBookCanvas), sizeCanvas(volumeCanvas)];
+	}
+	window.addEventListener('resize', resizeAll);
+	resizeAll();
+
+	if (!('gpu' in navigator)) {
+		document.querySelector('.footer').innerHTML = '<span class="warn">WebGPU not supported in this browser. Use latest Chrome/Edge with chrome://flags/#enable-unsafe-webgpu enabled if necessary.</span>';
+		return;
+	}
+	if (!window.isSecureContext) {
+		document.querySelector('.footer').innerHTML = '<span class="warn">WebGPU requires a secure context (https or localhost). Please serve this page via a local web server.</span>';
+		return;
+	}
+
+	// WebGPU setup (guarded)
+	let adapter;
+	try {
+		adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+	} catch (_) { adapter = null; }
+	if (!adapter) {
+		document.querySelector('.footer').innerHTML = '<span class="warn">Failed to get a WebGPU adapter. Ensure GPU support is enabled and try on a compatible browser.</span>';
+		return;
+	}
+
+	let device;
+	try {
+		device = await adapter.requestDevice();
+	} catch (_) { device = null; }
+	if (!device) {
+		document.querySelector('.footer').innerHTML = '<span class="warn">Failed to create a WebGPU device. Check browser flags/permissions and try again.</span>';
+		return;
+	}
+	const queue = device.queue;
+
+	// Simulation constants
+	const LEVELS = 1024;              // total price levels
+	const MID = Math.floor(LEVELS/2); // initial mid index
+	const VIEW = 256;                 // slice to visualize each frame
+	const VIEW_HALF = VIEW >> 1;
+
+	// Buffers
+	function makeStorageBuffer(byteLength, usageExtra = 0) {
+		return device.createBuffer({ size: ((byteLength + 255) & ~255), usage: GPUBufferUsage.STORAGE | usageExtra, mappedAtCreation: false });
+	}
+	function makeReadbackBuffer(byteLength) {
+		return device.createBuffer({ size: ((byteLength + 255) & ~255), usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+	}
+
+	// bids/asks as storage arrays<i32>
+	const bidsBuf = makeStorageBuffer(LEVELS * 4, GPUBufferUsage.COPY_DST);
+	const asksBuf = makeStorageBuffer(LEVELS * 4, GPUBufferUsage.COPY_DST);
+
+	// state: { lastTrade:i32, bestBid:i32, bestAsk:i32, rng:i32, lastVol:i32, pad[3]:i32 }
+	const STATE_I32 = 8; // keep 8 ints for alignment
+	const stateBuf = makeStorageBuffer(STATE_I32 * 4, GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC);
+	const stateReadback = makeReadbackBuffer(STATE_I32 * 4);
+
+	// control (storage) to avoid uniform alignment pains
+	const CONTROL_F32_WORDS = 8; // 8 * 4 = 32 bytes
+	const controlBuf = makeStorageBuffer(CONTROL_F32_WORDS * 4, GPUBufferUsage.COPY_DST);
+
+	// view buffer (GPU) with slice of the book for fast readback
+	const viewStructBytes = (2 + VIEW + VIEW) * 4;
+	const viewBuf = makeStorageBuffer(viewStructBytes, GPUBufferUsage.COPY_SRC);
+	const viewReadback = makeReadbackBuffer(viewStructBytes);
+
+	// Init order book depth near mid
+	{
+		const bids = new Int32Array(LEVELS);
+		const asks = new Int32Array(LEVELS);
+		// Seed symmetric shallow book: depth decays with distance from mid
+		for (let d = 0; d < 40; d++) {
+			const depth = Math.max(1, Math.round(20 * Math.exp(-d * 0.15)));
+			const bidIdx = MID - 1 - d;
+			const askIdx = MID + d;
+			if (bidIdx >= 0) bids[bidIdx] = depth;
+			if (askIdx < LEVELS) asks[askIdx] = depth;
+		}
+		queue.writeBuffer(bidsBuf, 0, bids);
+		queue.writeBuffer(asksBuf, 0, asks);
+
+		// State
+		const s = new Int32Array(STATE_I32);
+		s[0] = MID;                                 // lastTrade
+		s[1] = MID - 1;                             // bestBid
+		s[2] = MID;                                 // bestAsk
+		s[3] = (Math.random() * 0xFFFFFFFF) | 0;    // rng
+		s[4] = 0;                                   // lastVol
+		queue.writeBuffer(stateBuf, 0, s);
+
+		// Control defaults
+		const c = new Float32Array(CONTROL_F32_WORDS);
+		c[0] = LEVELS;      // levels
+		c[1] = +speedSlider.value; // steps per frame
+		c[2] = MID;         // mid
+		c[3] = 0;           // pad
+		c[4] = (+makerSlider.value) / 100.0; // makerShare
+		c[5] = 6.0;         // avg order size (mean, taker executes ~Exp-dist)
+		c[6] = 0; c[7] = 0; // pad
+		queue.writeBuffer(controlBuf, 0, c);
+	}
+
+	// Compute shader (WGSL)
+	const shaderCode = /* wgsl */`
+struct Levels { data: array<i32>, };
+
+struct State {
+  lastTrade: i32,
+  bestBid: i32,
+  bestAsk: i32,
+  rng: i32,
+  lastVol: i32,
+  pad0: i32,
+  pad1: i32,
+  pad2: i32,
+};
+
+struct Control {
+  levels: u32,
+  steps: u32,
+  mid: i32,
+  pad0: i32,
+  makerShare: f32,
+  avgOrder: f32,
+  pad1: vec2<f32>,
+};
+
+struct View {
+  start: i32,
+  pad: i32,
+  bids: array<i32, 256>,
+  asks: array<i32, 256>,
+};
+
+@group(0) @binding(0) var<storage, read_write> BIDS: Levels;
+@group(0) @binding(1) var<storage, read_write> ASKS: Levels;
+@group(0) @binding(2) var<storage, read_write> ST: State;
+@group(0) @binding(3) var<storage, read> CTL: Control;
+@group(0) @binding(4) var<storage, read_write> VIEW: View;
+
+fn lcg(u: u32) -> u32 {
+  return u * 1664525u + 1013904223u;
+}
+fn rand() -> f32 {
+  // update ST.rng in-place
+  var r: u32 = bitcast<u32>(ST.rng);
+  r = lcg(r);
+  ST.rng = bitcast<i32>(r);
+  // [0,1)
+  return f32(r) * (1.0 / 4294967296.0);
+}
+fn exp_sample(mean: f32) -> f32 {
+  // Exponential with mean
+  let u = max(1e-6, 1.0 - rand());
+  return -mean * log(u);
+}
+fn geo_offset(lambda: f32) -> i32 {
+  // Distance from best price; small values more likely
+  return i32(floor(-log(max(1e-6, 1.0 - rand())) * lambda));
+}
+fn clampI(x: i32, lo: i32, hi: i32) -> i32 {
+  return max(lo, min(hi, x));
+}
+fn find_next_ask(start: i32, levels: i32) -> i32 {
+  var idx = start;
+  loop {
+    if (idx >= levels) { return levels; }
+    if (ASKS.data[u32(idx)] > 0) { return idx; }
+    idx = idx + 1;
+  }
+}
+fn find_prev_bid(start: i32) -> i32 {
+  var idx = start;
+  loop {
+    if (idx < 0) { return -1; }
+    if (BIDS.data[u32(idx)] > 0) { return idx; }
+    idx = idx - 1;
+  }
+}
+
+@compute @workgroup_size(1)
+fn step() {
+  let levels = i32(CTL.levels);
+  let mid = CTL.mid;
+
+  ST.lastVol = 0;
+
+  // iterate events
+  var s: u32 = 0u;
+  loop {
+    if (s >= CTL.steps) { break; }
+    s = s + 1u;
+
+    let u = rand();
+    let isMaker = u < CTL.makerShare;
+    let sideBuy = rand() < 0.5;
+
+    if (isMaker) {
+      // Maker places limit near current best price
+      let dist = geo_offset(6.0);
+      let sz = max(1, i32(round(exp_sample(max(1.0, CTL.avgOrder)))));
+      if (sideBuy) {
+        var price = ST.bestBid;
+        if (price < 0) { price = mid - 1; }
+        price = clampI(price - dist, 0, levels - 1);
+        BIDS.data[u32(price)] = BIDS.data[u32(price)] + sz;
+        if (price > ST.bestBid) { ST.bestBid = price; }
+      } else {
+        var price = ST.bestAsk;
+        if (price >= levels) { price = mid; }
+        price = clampI(price + dist, 0, levels - 1);
+        ASKS.data[u32(price)] = ASKS.data[u32(price)] + sz;
+        if (ST.bestAsk < 0 || (price < ST.bestAsk)) { ST.bestAsk = price; }
+      }
+    } else {
+      // Taker executes market order
+      var remaining = max(1, i32(round(exp_sample(max(1.0, CTL.avgOrder)))));
+      if (sideBuy) {
+        // consumes asks from best ask upward
+        var idx = ST.bestAsk;
+        if (idx < 0) { idx = find_next_ask(0, levels); }
+        if (idx >= levels) { continue; }
+        loop {
+          if (remaining <= 0 || idx >= levels) { break; }
+          var avail = ASKS.data[u32(idx)];
+          if (avail <= 0) {
+            idx = idx + 1;
+            continue;
+          }
+          let take = min(avail, remaining);
+          ASKS.data[u32(idx)] = avail - take;
+          remaining = remaining - take;
+          ST.lastTrade = idx;
+          ST.lastVol = ST.lastVol + take;
+          if (ASKS.data[u32(idx)] <= 0) { idx = idx + 1; }
+        }
+        ST.bestAsk = find_next_ask(idx, levels);
+      } else {
+        // sell taker consumes bids from best bid downward
+        var idx = ST.bestBid;
+        if (idx >= levels) { idx = mid - 1; }
+        if (idx < 0) { idx = find_prev_bid(mid - 1); }
+        if (idx < 0) { continue; }
+        loop {
+          if (remaining <= 0 || idx < 0) { break; }
+          var avail = BIDS.data[u32(idx)];
+          if (avail <= 0) {
+            idx = idx - 1;
+            continue;
+          }
+          let take = min(avail, remaining);
+          BIDS.data[u32(idx)] = avail - take;
+          remaining = remaining - take;
+          ST.lastTrade = idx;
+          ST.lastVol = ST.lastVol + take;
+          if (BIDS.data[u32(idx)] <= 0) { idx = idx - 1; }
+        }
+        ST.bestBid = find_prev_bid(idx);
+      }
+    }
+  }
+
+  // Produce a small view slice for fast readback centered near lastTrade
+  var start = ST.lastTrade - 128;
+  if (start < 0) { start = 0; }
+  if (start > (levels - 256)) { start = levels - 256; }
+  VIEW.start = start;
+
+  for (var i: u32 = 0u; i < 256u; i = i + 1u) {
+    let j = u32(start) + i;
+    VIEW.bids[i] = BIDS.data[j];
+    VIEW.asks[i] = ASKS.data[j];
+  }
+}
+`;
+
+	const module = device.createShaderModule({ code: shaderCode });
+	const pipeline = device.createComputePipeline({
+		layout: 'auto',
+		compute: { module, entryPoint: 'step' }
+	});
+
+	const bindGroup = device.createBindGroup({
+		layout: pipeline.getBindGroupLayout(0),
+		entries: [
+			{ binding: 0, resource: { buffer: bidsBuf }},
+			{ binding: 1, resource: { buffer: asksBuf }},
+			{ binding: 2, resource: { buffer: stateBuf }},
+			{ binding: 3, resource: { buffer: controlBuf }},
+			{ binding: 4, resource: { buffer: viewBuf }},
+		]
+	});
+
+	// UI handlers
+	function updateLabels() {
+		makerVal.textContent = `${makerSlider.value}%`;
+		speedVal.textContent = `${speedSlider.value} steps/frame`;
+	}
+	updateLabels();
+
+	makerSlider.addEventListener('input', () => {
+		updateLabels();
+		const c = new Float32Array(1);
+		c[0] = (+makerSlider.value) / 100.0;
+		queue.writeBuffer(controlBuf, 4 * 4, c); // makerShare at offset 16
+	});
+	speedSlider.addEventListener('input', () => {
+		updateLabels();
+		const c = new Uint32Array(1);
+		c[0] = +speedSlider.value;
+		queue.writeBuffer(controlBuf, 1 * 4, c); // steps at offset 4
+	});
+
+	let running = false;
+	toggleBtn.addEventListener('click', () => {
+		running = !running;
+		toggleBtn.textContent = running ? 'Pause' : 'Start';
+		if (running) requestAnimationFrame(frame);
+	});
+	resetBtn.addEventListener('click', () => {
+		running = false;
+		toggleBtn.textContent = 'Start';
+		window.location.reload();
+	});
+
+	// Visual state
+	const priceCtx = priceCanvas.getContext('2d');
+	const obCtx = orderBookCanvas.getContext('2d');
+	const volCtx = volumeCanvas.getContext('2d');
+	const priceHistory = [];
+	const volumeHistory = [];
+
+	function drawPrice(lastIdx) {
+		const w = priceCanvas.width, h = priceCanvas.height;
+		priceCtx.clearRect(0, 0, w, h);
+		// grid
+		priceCtx.strokeStyle = '#17202c';
+		priceCtx.lineWidth = 1;
+		for (let y = 0; y < h; y += Math.max(20, (h/8)|0)) {
+			priceCtx.beginPath(); priceCtx.moveTo(0,y+.5); priceCtx.lineTo(w,y+.5); priceCtx.stroke();
+		}
+		// line
+		if (priceHistory.length < 2) return;
+		const min = Math.min(...priceHistory);
+		const max = Math.max(...priceHistory);
+		const span = Math.max(1, max - min);
+		priceCtx.strokeStyle = '#7dd3fc';
+		priceCtx.lineWidth = 2;
+		priceCtx.beginPath();
+		for (let i=0;i<priceHistory.length;i++){
+			const x = i / (priceHistory.length - 1) * (w-10) + 5;
+			const y = h - ((priceHistory[i] - min) / span) * (h-10) - 5;
+			if (i===0) priceCtx.moveTo(x,y); else priceCtx.lineTo(x,y);
+		}
+		priceCtx.stroke();
+		// last price marker
+		priceCtx.fillStyle = '#9fe7a4';
+		const y = h - ((lastIdx - min) / span) * (h-10) - 5;
+		priceCtx.fillRect(w-6, y-6, 6, 12);
+	}
+
+	function drawOrderBook(viewStart, bidsView, asksView) {
+		const w = orderBookCanvas.width, h = orderBookCanvas.height;
+		obCtx.clearRect(0,0,w,h);
+		// compute max depth for scaling
+		let maxDepth = 1;
+		for (let i=0;i<asksView.length;i++) { maxDepth = Math.max(maxDepth, asksView[i]); }
+		for (let i=0;i<bidsView.length;i++) { maxDepth = Math.max(maxDepth, bidsView[i]); }
+		const rowH = Math.max(1, Math.floor(h / bidsView.length));
+		for (let i=0;i<bidsView.length;i++) {
+			const y = h - (i+1)*rowH;
+			// asks (red) on top half
+			const ad = asksView[i] || 0;
+			const aw = Math.floor((ad / maxDepth) * (w-6));
+			obCtx.fillStyle = 'rgba(255, 99, 99, 0.35)';
+			obCtx.fillRect(w - aw - 3, y, aw, rowH-1);
+			// bids (green) on bottom half
+			const bd = bidsView[i] || 0;
+			const bw = Math.floor((bd / maxDepth) * (w-6));
+			obCtx.fillStyle = 'rgba(80, 200, 120, 0.35)';
+			obCtx.fillRect(3, y, bw, rowH-1);
+		}
+		// mid marker roughly at center of slice
+		obCtx.fillStyle = '#cbd5e1';
+		obCtx.fillRect(0, h - (VIEW_HALF)*rowH - 1, w, 2);
+	}
+
+	function drawVolume() {
+		const w = volumeCanvas.width, h = volumeCanvas.height;
+		volCtx.clearRect(0,0,w,h);
+		volCtx.fillStyle = '#344158';
+		volCtx.fillRect(0,0,w,h);
+		// bars
+		const n = volumeHistory.length;
+		if (!n) return;
+		const maxv = Math.max(1, ...volumeHistory);
+		const barW = Math.max(1, Math.floor(w / n));
+		for (let i=0;i<n;i++){
+			const v = volumeHistory[i];
+			const bh = Math.floor((v / maxv) * (h - 4));
+			volCtx.fillStyle = '#7aa2f7';
+			volCtx.fillRect(i*barW, h - bh, barW-1, bh);
+		}
+	}
+
+	function pushCapped(arr, v, cap) {
+		arr.push(v);
+		if (arr.length > cap) arr.shift();
+	}
+
+	async function frame() {
+		if (!running) return;
+
+		// encode compute pass
+		const encoder = device.createCommandEncoder();
+		{
+			const pass = encoder.beginComputePass();
+			pass.setPipeline(pipeline);
+			pass.setBindGroup(0, bindGroup);
+			pass.dispatchWorkgroups(1);
+			pass.end();
+		}
+		encoder.copyBufferToBuffer(stateBuf, 0, stateReadback, 0, STATE_I32 * 4);
+		encoder.copyBufferToBuffer(viewBuf, 0, viewReadback, 0, viewStructBytes);
+		device.queue.submit([encoder.finish()]);
+
+		// wait for GPU work and map
+		await device.queue.onSubmittedWorkDone();
+		await Promise.all([stateReadback.mapAsync(GPUMapMode.READ), viewReadback.mapAsync(GPUMapMode.READ)]).catch(()=>{});
+
+		const sArr = new Int32Array(stateReadback.getMappedRange());
+		const lastTrade = sArr[0];
+		const lastVol = Math.max(0, sArr[4]);
+		stateReadback.unmap();
+
+		const viewArr = new Int32Array(viewReadback.getMappedRange());
+		const viewStart = viewArr[0];
+		const bidsView = viewArr.slice(2, 2 + VIEW);
+		const asksView = viewArr.slice(2 + VIEW, 2 + VIEW + VIEW);
+		viewReadback.unmap();
+
+		pushCapped(priceHistory, lastTrade, 800);
+		pushCapped(volumeHistory, lastVol, 400);
+
+		drawPrice(lastTrade);
+		drawOrderBook(viewStart, bidsView, asksView);
+		drawVolume();
+
+		requestAnimationFrame(frame);
+	}
+
+	// Kick off paused; user can Start
+})();
+</script>
+</body>
+</html>

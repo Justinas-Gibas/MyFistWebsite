@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>FMS mvp1 — Free Market Simulation</title>
+	<style>
+		/* Minimal styles: layout + controls */
+		html,body { height:100%; margin:0; font-family:system-ui,Segoe UI,Roboto,Arial; background:#0b0b0c; color:#ddd; }
+		.container { display:flex; height:100vh; gap:8px; padding:8px; box-sizing:border-box; }
+		.left { flex:1; display:flex; flex-direction:column; gap:8px; }
+		.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+		label { font-size:13px; color:#ccc; }
+		input[type=range] { width:140px; }
+		input[type=number] { width:70px; }
+		button { padding:6px 10px; background:#1f1f22; color:#ddd; border:1px solid #333; cursor:pointer; }
+		canvas { background:#070708; border:1px solid #222; display:block; width:100%; height:calc(100% - 120px); }
+		.side { width:320px; display:flex; flex-direction:column; gap:8px; }
+		.panel { padding:8px; background:#0f0f10; border:1px solid #222; flex:0 0 auto; }
+		.small { height:120px; }
+		.legend { display:flex; gap:8px; align-items:center; }
+		.dot { width:12px; height:6px; display:inline-block; margin-right:6px; }
+		small { color:#888; display:block; margin-top:6px; }
+	</style>
+</head>
+<body>
+	<div class="container">
+		<div class="left">
+			<div class="controls panel">
+				<label> Makers: <input id="makers" type="number" min="0" step="1" value="40"></label>
+				<label> Takers: <input id="takers" type="number" min="0" step="1" value="8"></label>
+				<label> Sim speed: <input id="speed" type="range" min="0.1" max="5" step="0.1" value="1"></label>
+				<span id="speedVal">1.0x</span>
+				<button id="start">Start</button>
+				<button id="pause">Pause</button>
+				<button id="reset">Reset</button>
+				<small>Tip: watch horizontal trade-lines accumulate into support/resistance bands.</small>
+			</div>
+
+			<canvas id="chart"></canvas>
+
+			<div class="panel small" id="candlesPanel">
+				<div style="display:flex; justify-content:space-between; align-items:center;">
+					<div>Simple Candles (agg ticks)</div>
+					<div id="stats">Price: —</div>
+				</div>
+				<canvas id="candles" style="width:100%; height:72px; display:block; margin-top:6px;"></canvas>
+			</div>
+		</div>
+
+		<div class="side">
+			<div class="panel">
+				<div style="font-weight:600">Order Book (snapshot)</div>
+				<canvas id="book" width="300" height="300" style="width:100%; height:300px;"></canvas>
+				<small>Blue = asks, orange = bids. Width = volume.</small>
+			</div>
+
+			<div class="panel">
+				<div style="font-weight:600">Legend</div>
+				<div class="legend">
+					<span class="dot" style="background:rgba(0,200,100,0.9)"></span> Buy ticks
+					<span style="width:12px"></span>
+					<span class="dot" style="background:rgba(220,50,50,0.9)"></span> Sell ticks
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		// Simple, readable market sim + renderer (vanilla JS)
+		// Feature-detect WebGPU (placeholder if you want to add GPU acceleration later)
+		const supportsWebGPU = !!navigator.gpu;
+		if (supportsWebGPU) {
+			console.info('WebGPU detected — current renderer uses 2D canvas. You can add WebGPU drawing pipeline later.');
+		}
+
+		// DOM
+		const canvas = document.getElementById('chart');
+		const ctx = canvas.getContext('2d');
+		const bookCanvas = document.getElementById('book');
+		const btx = bookCanvas.getContext('2d');
+		const candlesCanvas = document.getElementById('candles');
+		const ctxCandle = candlesCanvas.getContext('2d');
+		const makersInput = document.getElementById('makers');
+		const takersInput = document.getElementById('takers');
+		const speedInput = document.getElementById('speed');
+		const speedVal = document.getElementById('speedVal');
+		const startBtn = document.getElementById('start');
+		const pauseBtn = document.getElementById('pause');
+		const resetBtn = document.getElementById('reset');
+		const stats = document.getElementById('stats');
+
+		// Resize helpers
+		function resize() {
+			canvas.width = canvas.clientWidth * devicePixelRatio;
+			canvas.height = canvas.clientHeight * devicePixelRatio;
+			bookCanvas.width = bookCanvas.clientWidth * devicePixelRatio;
+			bookCanvas.height = bookCanvas.clientHeight * devicePixelRatio;
+			candlesCanvas.width = candlesCanvas.clientWidth * devicePixelRatio;
+			candlesCanvas.height = candlesCanvas.clientHeight * devicePixelRatio;
+		}
+		window.addEventListener('resize', resize);
+		resize();
+
+		// Simulation parameters
+		let running = false;
+		let lastFrame = performance.now();
+		let simTime = 0; // ms since start
+		let tradeId = 0;
+
+		// Market state
+		let midPrice = 1000; // starting price
+		const orderBook = { bids: new Map(), asks: new Map() }; // price -> volume
+		const trades = []; // {id, t, price, side, size}
+		const MAX_TRADES = 2000;
+
+		// Controls bindings
+		speedInput.addEventListener('input', () => { speedVal.textContent = Number(speedInput.value).toFixed(1) + 'x'; });
+		startBtn.onclick = () => { running = true; lastFrame = performance.now(); loop(); };
+		pauseBtn.onclick = () => { running = false; };
+		resetBtn.onclick = () => { initMarket(); drawAll(); };
+
+		// Helpers for price formatting
+		function p2(x){ return Number(x).toFixed(2); }
+
+		// Initialize market with some makers posting passive depth
+		function initMarket() {
+			trades.length = 0;
+			orderBook.bids.clear();
+			orderBook.asks.clear();
+			midPrice = 1000;
+			simTime = 0;
+			tradeId = 0;
+
+			// Seed makers
+			const makers = Math.max(10, Number(makersInput.value) || 40);
+			for (let i=0;i<makers;i++){
+				let offset = (Math.round((Math.random()*200-100)))/100;
+				let price = +(midPrice + offset).toFixed(2);
+				const side = price < midPrice ? 'bid' : 'ask';
+				const map = side==='bid'?orderBook.bids:orderBook.asks;
+				map.set(price, (map.get(price)||0) + (Math.random()*2+0.2));
+			}
+		}
+		initMarket();
+
+		// Simulation step: makers post/cancel, takers hit random
+		function simStep(dtMs) {
+			simTime += dtMs;
+			const makers = Math.max(0, Number(makersInput.value)||0);
+			const takers = Math.max(0, Number(takersInput.value)||0);
+			// Slight mid drift based on recent trades
+			if (trades.length){
+				const recent = trades[trades.length-1];
+				midPrice += (recent.side==='buy'?0.01:-0.01) * (Math.random()*0.6+0.4);
+			}
+
+			// Makers: add/cancel some orders each frame proportional to makers count
+			for (let i=0;i<Math.round(makers*dtMs/200);i++){
+				let offset = (Math.random()*300 - 150)/100; // -1.5 .. +1.5
+				let price = +(midPrice + offset).toFixed(2);
+				const side = price < midPrice ? 'bid' : 'ask';
+				const map = side==='bid' ? orderBook.bids : orderBook.asks;
+				// Randomly add volume or remove
+				if (Math.random() < 0.8) {
+					map.set(price, (map.get(price)||0) + (Math.random()*3 + 0.1));
+				} else {
+					// cancel a bit
+					if (map.has(price)) {
+						let v = map.get(price) - (Math.random()*2);
+						if (v <= 0.05) map.delete(price); else map.set(price, v);
+					}
+				}
+			}
+
+			// Takers: execute market orders hitting book
+			for (let i=0;i<Math.round(takers*dtMs/500);i++){
+				if (Math.random()<0.6) {
+					executeMarketOrder('buy');
+				} else {
+					executeMarketOrder('sell');
+				}
+			}
+
+			// Keep size bounded
+			while (trades.length > MAX_TRADES) trades.shift();
+		}
+
+		// Market execution: taker hits best price, consumes some volume
+		function executeMarketOrder(side) {
+			// side = 'buy' (taker buys from asks) or 'sell' (taker sells into bids)
+			const bookSide = side==='buy' ? orderBook.asks : orderBook.bids;
+			if (bookSide.size === 0) {
+				// if no resting orders, create a trade by moving mid
+				const move = (Math.random()*2 + 0.5) * (side==='buy' ? 1 : -1);
+				midPrice = +(midPrice + move).toFixed(2);
+				pushTrade(midPrice, side, Math.random()*2+0.1);
+				return;
+			}
+			// Find best price
+			const prices = Array.from(bookSide.keys()).map(Number);
+			prices.sort((a,b)=> side==='buy' ? a-b : b-a); // asks: low->high ; bids: high->low (we use asks for buy)
+			const best = prices[0];
+			let avail = bookSide.get(best) || 0;
+			const takeSize = Math.min(avail, Math.random()*3 + 0.2);
+			avail -= takeSize;
+			if (avail <= 0.05) bookSide.delete(best); else bookSide.set(best, avail);
+			pushTrade(best, side, takeSize);
+			// small midPrice adjustment toward executed price
+			midPrice = +(midPrice*0.98 + best*0.02).toFixed(2);
+		}
+
+		function pushTrade(price, side, size) {
+			trades.push({ id: ++tradeId, t: simTime, price: +price, side, size });
+		}
+
+		// Drawing functions
+		function drawAll() {
+			// clear
+			ctx.clearRect(0,0,canvas.width,canvas.height);
+			ctx.save();
+			ctx.scale(devicePixelRatio, devicePixelRatio);
+			const w = canvas.clientWidth, h = canvas.clientHeight;
+			// background
+			ctx.fillStyle = '#070708';
+			ctx.fillRect(0,0,w,h);
+
+			// Settings for time window
+			const timeWindow = 60 * 1000; // ms shown on screen
+			const now = simTime;
+			const leftTime = now - timeWindow;
+
+			// Price range around mid
+			const priceSpan = 12; // +/- range
+			const minP = midPrice - priceSpan/2;
+			const maxP = midPrice + priceSpan/2;
+
+			// Draw grid
+			ctx.strokeStyle = '#111';
+			ctx.lineWidth = 1;
+			for (let i=0;i<6;i++){
+				const yy = (i/5)*h;
+				ctx.beginPath(); ctx.moveTo(0,yy); ctx.lineTo(w,yy); ctx.stroke();
+			}
+
+			// Draw trades as horizontal lines from their time to right edge
+			for (let tr of trades) {
+				const age = now - tr.t;
+				// if trade is older than timeWindow*1.2 skip fade
+				if (age > timeWindow*1.2) continue;
+				const x = ((tr.t - leftTime)/timeWindow) * w;
+				const y = h - ((tr.price - minP)/ (maxP - minP)) * h;
+				const col = tr.side==='buy' ? 'rgba(0,200,100,0.12)' : 'rgba(220,80,80,0.12)';
+				// fade older trades more
+				const alpha = Math.max(0.02, 1 - age / (timeWindow*1.0));
+				ctx.strokeStyle = col.replace(/0\.12|0\.\d+/, alpha.toFixed(2));
+				ctx.lineWidth = 2;
+				ctx.beginPath();
+				ctx.moveTo(Math.max(0,x), y);
+				ctx.lineTo(w, y); // extend into the future visually
+				ctx.stroke();
+			}
+
+			// Support/Resistance detection: bin trade volume
+			const bins = 40;
+			const binSize = (maxP - minP) / bins;
+			const volBins = new Array(bins).fill(0);
+			for (let tr of trades) {
+				if (tr.price < minP || tr.price > maxP) continue;
+				const idx = Math.floor((tr.price - minP) / binSize);
+				if (idx>=0 && idx<bins) volBins[idx] += tr.size;
+			}
+			// find top bins
+			const pairs = volBins.map((v,i)=>({v,i})).sort((a,b)=>b.v-a.v).slice(0,4);
+			// draw S/R lines
+			for (let p of pairs) {
+				if (p.v < 0.5) continue;
+				const y = h - ((minP + (p.i+0.5)*binSize - minP) / (maxP - minP)) * h;
+				ctx.strokeStyle = 'rgba(200,200,60,0.9)';
+				ctx.lineWidth = 1;
+				ctx.setLineDash([6,4]);
+				ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+				ctx.setLineDash([]);
+			}
+
+			// Draw a simple mid-price marker
+			const midY = h - ((midPrice - minP)/(maxP - minP))*h;
+			ctx.fillStyle = '#66f';
+			ctx.fillRect(w-8, midY-8, 8, 16);
+
+			ctx.restore();
+
+			// Draw order book snapshot (simple horizontal bars)
+			drawOrderBook(minP, maxP);
+
+			// Draw candles
+			drawCandles();
+
+			// Update stats
+			const last = trades[trades.length-1];
+			stats.textContent = 'Price: ' + (last ? p2(last.price) + ' ('+ last.side +')' : p2(midPrice));
+		}
+
+		function drawOrderBook(minP, maxP) {
+			btx.clearRect(0,0,bookCanvas.width,bookCanvas.height);
+			btx.save(); btx.scale(devicePixelRatio, devicePixelRatio);
+			const w = bookCanvas.clientWidth, h = bookCanvas.clientHeight;
+			// aggregate depth into levels
+			const levels = 30;
+			const step = (maxP - minP) / levels;
+			const bidLevels = new Array(levels).fill(0);
+			const askLevels = new Array(levels).fill(0);
+			for (let [p,v] of orderBook.bids) {
+				if (p < minP || p > maxP) continue;
+				const idx = Math.floor((p - minP) / step);
+				if (idx>=0 && idx<levels) bidLevels[idx]+=v;
+			}
+			for (let [p,v] of orderBook.asks) {
+				if (p < minP || p > maxP) continue;
+				const idx = Math.floor((p - minP) / step);
+				if (idx>=0 && idx<levels) askLevels[idx]+=v;
+			}
+			const maxVol = Math.max(1, ...bidLevels, ...askLevels);
+			for (let i=0;i<levels;i++){
+				const y = h - (i/levels)*h;
+				// asks (blue)
+				const aw = (askLevels[i]/maxVol) * (w*0.9);
+				btx.fillStyle = 'rgba(80,160,255,0.9)';
+				btx.fillRect(0, y-6, aw, 5);
+				// bids (orange)
+				const bw = (bidLevels[i]/maxVol) * (w*0.9);
+				btx.fillStyle = 'rgba(255,165,60,0.9)';
+				btx.fillRect(w-bw, y-6, bw, 5);
+			}
+			btx.restore();
+		}
+
+		// Candle aggregation: simple fixed-time buckets
+		let candleBuckets = [];
+		const candleMs = 5000; // each candle duration
+		function drawCandles() {
+			// build buckets
+			const now = simTime;
+			const start = now - (candlesCanvas.clientWidth / 6) * candleMs; // show some candles
+			candleBuckets = [];
+			for (let tr of trades) {
+				if (tr.t < start) continue;
+				const idx = Math.floor((tr.t - start)/candleMs);
+				if (!candleBuckets[idx]) candleBuckets[idx] = { o:tr.price, h:tr.price, l:tr.price, c:tr.price, v:tr.size };
+				else {
+					const b = candleBuckets[idx];
+					b.h = Math.max(b.h, tr.price); b.l = Math.min(b.l, tr.price); b.c = tr.price; b.v += tr.size;
+				}
+			}
+			// draw
+			ctxCandle.clearRect(0,0,candlesCanvas.width,candlesCanvas.height);
+			ctxCandle.save(); ctxCandle.scale(devicePixelRatio, devicePixelRatio);
+			const w = candlesCanvas.clientWidth, h = candlesCanvas.clientHeight;
+			const step = Math.max(1, w / Math.max(1,candleBuckets.length));
+			const minP = Math.min(...candleBuckets.filter(Boolean).map(b=>b.l), midPrice-5);
+			const maxP = Math.max(...candleBuckets.filter(Boolean).map(b=>b.h), midPrice+5);
+			for (let i=0;i<candleBuckets.length;i++){
+				const b = candleBuckets[i];
+				if (!b) continue;
+				const x = i*step + 2;
+				const col = b.c >= b.o ? 'rgba(0,200,100,0.9)' : 'rgba(220,80,80,0.9)';
+				// wick
+				const yH = h - (b.h - minP)/(maxP-minP)*h;
+				const yL = h - (b.l - minP)/(maxP-minP)*h;
+				const yO = h - (b.o - minP)/(maxP-minP)*h;
+				const yC = h - (b.c - minP)/(maxP-minP)*h;
+				ctxCandle.strokeStyle = col; ctxCandle.lineWidth = 1;
+				ctxCandle.beginPath(); ctxCandle.moveTo(x+step/2, yH); ctxCandle.lineTo(x+step/2, yL); ctxCandle.stroke();
+				// body
+				const by = Math.min(yO,yC), bh = Math.max(1, Math.abs(yC-yO));
+				ctxCandle.fillStyle = col;
+				ctxCandle.fillRect(x, by, Math.max(1, step*0.6), bh);
+			}
+			ctxCandle.restore();
+		}
+
+		// Main loop
+		function loop(ts) {
+			if (!running) return;
+			const now = performance.now();
+			let dt = (now - lastFrame) * Number(speedInput.value || 1);
+			lastFrame = now;
+			// cap dt to avoid huge jumps
+			dt = Math.min(dt, 200);
+			simStep(dt);
+			drawAll();
+			requestAnimationFrame(loop);
+		}
+
+		// Start paused with a draw
+		drawAll();
+	</script>
+</body>
+</html>

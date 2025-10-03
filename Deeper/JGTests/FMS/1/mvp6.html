@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Free Market Simulation MVP6 - WebGPU</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            background: #1a1a1a;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+        .container {
+            display: flex;
+            gap: 10px;
+            min-width: 1400px;
+        }
+        .chart-area {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        .controls {
+            background: #2a2a2a;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        .control-group label {
+            font-size: 12px;
+            color: #ccc;
+        }
+        .control-group input {
+            width: 80px;
+        }
+        .candles-container {
+            flex: 1;
+            position: relative;
+            min-height: 400px;
+        }
+        canvas {
+            border: 1px solid #444;
+            background: #0f0f0f;
+        }
+        #candlesCanvas {
+            width: 100%;
+            height: 400px;
+        }
+        .orderbook {
+            width: 300px;
+            background: #2a2a2a;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        .orderbook h3 {
+            margin: 0 0 10px 0;
+            text-align: center;
+            font-size: 14px;
+        }
+        .orderbook-section {
+            margin-bottom: 15px;
+        }
+        .orderbook-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #888;
+            border-bottom: 1px solid #444;
+            padding-bottom: 2px;
+        }
+        .order-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            padding: 1px 0;
+            position: relative;
+        }
+        .ask-row {
+            color: #ff6b6b;
+        }
+        .bid-row {
+            color: #51cf66;
+        }
+        .volume-bar {
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            opacity: 0.2;
+            z-index: 0;
+        }
+        .ask-row .volume-bar {
+            background: #ff6b6b;
+        }
+        .bid-row .volume-bar {
+            background: #51cf66;
+        }
+        .stats {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+        }
+        .transaction-lines {
+            position: absolute;
+            pointer-events: none;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="chart-area">
+            <div class="controls">
+                <div class="control-group">
+                    <label>Makers (%)</label>
+                    <input type="range" id="makersSlider" min="1" max="50" value="10">
+                    <span id="makersValue">10%</span>
+                </div>
+                <div class="control-group">
+                    <label>Takers (%)</label>
+                    <input type="range" id="takersSlider" min="50" max="99" value="90">
+                    <span id="takersValue">90%</span>
+                </div>
+                <div class="control-group">
+                    <label>Sim Speed</label>
+                    <input type="range" id="speedSlider" min="1" max="10" value="5">
+                    <span id="speedValue">5x</span>
+                </div>
+                <div class="control-group">
+                    <label>Volatility</label>
+                    <input type="range" id="volatilitySlider" min="1" max="100" value="20">
+                    <span id="volatilityValue">20</span>
+                </div>
+                <button id="resetBtn">Reset</button>
+                <button id="pauseBtn">Pause</button>
+            </div>
+            <div class="candles-container">
+                <canvas id="candlesCanvas"></canvas>
+                <canvas id="transactionLines" class="transaction-lines"></canvas>
+            </div>
+            <div class="stats">
+                <div class="stats-row">
+                    <span>Current Price:</span>
+                    <span id="currentPrice">$100.00</span>
+                </div>
+                <div class="stats-row">
+                    <span>24h Volume:</span>
+                    <span id="volume24h">0</span>
+                </div>
+                <div class="stats-row">
+                    <span>Transactions/s:</span>
+                    <span id="transactionsPerSec">0</span>
+                </div>
+                <div class="stats-row">
+                    <span>Spread:</span>
+                    <span id="spread">$0.00</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="orderbook">
+            <h3>Order Book</h3>
+            <div class="orderbook-section">
+                <div class="orderbook-header">
+                    <span>Asks</span>
+                    <span>Volume</span>
+                </div>
+                <div id="asks"></div>
+            </div>
+            <div class="orderbook-section">
+                <div class="orderbook-header">
+                    <span>Bids</span>
+                    <span>Volume</span>
+                </div>
+                <div id="bids"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class FreeMarketSimulation {
+            constructor() {
+                this.canvas = document.getElementById('candlesCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.transactionCanvas = document.getElementById('transactionLines');
+                this.transactionCtx = this.transactionCanvas.getContext('2d');
+                
+                this.device = null;
+                this.initWebGPU();
+                
+                // Market state
+                this.currentPrice = 100.0;
+                this.candles = [];
+                this.orderBook = { bids: [], asks: [] };
+                this.transactions = [];
+                this.volume24h = 0;
+                this.transactionCount = 0;
+                this.lastSecond = Date.now();
+                
+                // Simulation parameters
+                this.makersPercent = 10;
+                this.takersPercent = 90;
+                this.simSpeed = 5;
+                this.volatility = 20;
+                this.isPaused = false;
+                
+                // Visual parameters
+                this.candleWidth = 8;
+                this.candleSpacing = 2;
+                this.maxCandles = 100;
+                this.priceRange = 20;
+                
+                this.setupControls();
+                this.setupCanvas();
+                this.generateInitialOrderBook();
+                this.startSimulation();
+            }
+            
+            async initWebGPU() {
+                if (!navigator.gpu) {
+                    console.warn('WebGPU not supported, falling back to CPU');
+                    return;
+                }
+                
+                try {
+                    const adapter = await navigator.gpu.requestAdapter();
+                    this.device = await adapter.requestDevice();
+                    console.log('WebGPU initialized successfully');
+                } catch (error) {
+                    console.warn('WebGPU initialization failed:', error);
+                }
+            }
+            
+            setupControls() {
+                const makersSlider = document.getElementById('makersSlider');
+                const takersSlider = document.getElementById('takersSlider');
+                const speedSlider = document.getElementById('speedSlider');
+                const volatilitySlider = document.getElementById('volatilitySlider');
+                
+                makersSlider.addEventListener('input', (e) => {
+                    this.makersPercent = parseInt(e.target.value);
+                    document.getElementById('makersValue').textContent = `${this.makersPercent}%`;
+                    takersSlider.value = 100 - this.makersPercent;
+                    this.takersPercent = 100 - this.makersPercent;
+                    document.getElementById('takersValue').textContent = `${this.takersPercent}%`;
+                });
+                
+                takersSlider.addEventListener('input', (e) => {
+                    this.takersPercent = parseInt(e.target.value);
+                    document.getElementById('takersValue').textContent = `${this.takersPercent}%`;
+                    makersSlider.value = 100 - this.takersPercent;
+                    this.makersPercent = 100 - this.takersPercent;
+                    document.getElementById('makersValue').textContent = `${this.makersPercent}%`;
+                });
+                
+                speedSlider.addEventListener('input', (e) => {
+                    this.simSpeed = parseInt(e.target.value);
+                    document.getElementById('speedValue').textContent = `${this.simSpeed}x`;
+                });
+                
+                volatilitySlider.addEventListener('input', (e) => {
+                    this.volatility = parseInt(e.target.value);
+                    document.getElementById('volatilityValue').textContent = this.volatility;
+                });
+                
+                document.getElementById('resetBtn').addEventListener('click', () => {
+                    this.reset();
+                });
+                
+                document.getElementById('pauseBtn').addEventListener('click', () => {
+                    this.isPaused = !this.isPaused;
+                    document.getElementById('pauseBtn').textContent = this.isPaused ? 'Resume' : 'Pause';
+                });
+            }
+            
+            setupCanvas() {
+                const resize = () => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    this.canvas.width = rect.width;
+                    this.canvas.height = rect.height;
+                    this.transactionCanvas.width = rect.width;
+                    this.transactionCanvas.height = rect.height;
+                };
+                
+                resize();
+                window.addEventListener('resize', resize);
+            }
+            
+            generateInitialOrderBook() {
+                this.orderBook.bids = [];
+                this.orderBook.asks = [];
+                
+                // Generate bid orders (below current price)
+                for (let i = 0; i < 10; i++) {
+                    const price = this.currentPrice - (i + 1) * 0.1;
+                    const volume = Math.random() * 1000 + 100;
+                    this.orderBook.bids.push({ price, volume });
+                }
+                
+                // Generate ask orders (above current price)
+                for (let i = 0; i < 10; i++) {
+                    const price = this.currentPrice + (i + 1) * 0.1;
+                    const volume = Math.random() * 1000 + 100;
+                    this.orderBook.asks.push({ price, volume });
+                }
+            }
+            
+            simulateTransaction() {
+                const isMaker = Math.random() * 100 < this.makersPercent;
+                const randomFactor = (Math.random() - 0.5) * 2; // -1 to 1
+                const priceChange = randomFactor * (this.volatility / 1000);
+                
+                if (isMaker) {
+                    // Maker adds liquidity
+                    const isBid = Math.random() < 0.5;
+                    const basePrice = isBid ? 
+                        this.currentPrice - Math.random() * 0.5 : 
+                        this.currentPrice + Math.random() * 0.5;
+                    const volume = Math.random() * 500 + 50;
+                    
+                    if (isBid) {
+                        this.orderBook.bids.push({ price: basePrice, volume });
+                        this.orderBook.bids.sort((a, b) => b.price - a.price);
+                    } else {
+                        this.orderBook.asks.push({ price: basePrice, volume });
+                        this.orderBook.asks.sort((a, b) => a.price - b.price);
+                    }
+                } else {
+                    // Taker removes liquidity and moves price
+                    const isBuy = Math.random() < 0.5;
+                    const volume = Math.random() * 200 + 10;
+                    
+                    if (isBuy && this.orderBook.asks.length > 0) {
+                        const bestAsk = this.orderBook.asks[0];
+                        this.currentPrice = bestAsk.price;
+                        bestAsk.volume -= volume;
+                        if (bestAsk.volume <= 0) {
+                            this.orderBook.asks.shift();
+                        }
+                    } else if (!isBuy && this.orderBook.bids.length > 0) {
+                        const bestBid = this.orderBook.bids[0];
+                        this.currentPrice = bestBid.price;
+                        bestBid.volume -= volume;
+                        if (bestBid.volume <= 0) {
+                            this.orderBook.bids.shift();
+                        }
+                    }
+                    
+                    // Add small random price movement
+                    this.currentPrice += priceChange;
+                    
+                    this.transactions.push({
+                        price: this.currentPrice,
+                        volume,
+                        timestamp: Date.now(),
+                        type: isBuy ? 'buy' : 'sell'
+                    });
+                    
+                    this.volume24h += volume;
+                    this.transactionCount++;
+                }
+                
+                // Maintain order book depth
+                this.maintainOrderBook();
+            }
+            
+            maintainOrderBook() {
+                // Remove orders too far from current price
+                this.orderBook.bids = this.orderBook.bids.filter(bid => 
+                    this.currentPrice - bid.price < this.priceRange
+                ).slice(0, 15);
+                
+                this.orderBook.asks = this.orderBook.asks.filter(ask => 
+                    ask.price - this.currentPrice < this.priceRange
+                ).slice(0, 15);
+                
+                // Add new orders if needed
+                if (this.orderBook.bids.length < 10) {
+                    for (let i = this.orderBook.bids.length; i < 10; i++) {
+                        const price = this.currentPrice - Math.random() * 2 - 0.1;
+                        const volume = Math.random() * 1000 + 100;
+                        this.orderBook.bids.push({ price, volume });
+                    }
+                    this.orderBook.bids.sort((a, b) => b.price - a.price);
+                }
+                
+                if (this.orderBook.asks.length < 10) {
+                    for (let i = this.orderBook.asks.length; i < 10; i++) {
+                        const price = this.currentPrice + Math.random() * 2 + 0.1;
+                        const volume = Math.random() * 1000 + 100;
+                        this.orderBook.asks.push({ price, volume });
+                    }
+                    this.orderBook.asks.sort((a, b) => a.price - b.price);
+                }
+            }
+            
+            updateCandles() {
+                const now = Date.now();
+                const candleInterval = 5000; // 5 seconds per candle
+                
+                if (this.candles.length === 0) {
+                    this.candles.push({
+                        open: this.currentPrice,
+                        high: this.currentPrice,
+                        low: this.currentPrice,
+                        close: this.currentPrice,
+                        volume: 0,
+                        timestamp: now
+                    });
+                }
+                
+                const currentCandle = this.candles[this.candles.length - 1];
+                
+                if (now - currentCandle.timestamp >= candleInterval) {
+                    // Start new candle
+                    this.candles.push({
+                        open: this.currentPrice,
+                        high: this.currentPrice,
+                        low: this.currentPrice,
+                        close: this.currentPrice,
+                        volume: 0,
+                        timestamp: now
+                    });
+                    
+                    if (this.candles.length > this.maxCandles) {
+                        this.candles.shift();
+                    }
+                } else {
+                    // Update current candle
+                    currentCandle.high = Math.max(currentCandle.high, this.currentPrice);
+                    currentCandle.low = Math.min(currentCandle.low, this.currentPrice);
+                    currentCandle.close = this.currentPrice;
+                    
+                    // Add recent transaction volume
+                    const recentTransactions = this.transactions.filter(t => 
+                        now - t.timestamp < candleInterval
+                    );
+                    currentCandle.volume = recentTransactions.reduce((sum, t) => sum + t.volume, 0);
+                }
+            }
+            
+            drawCandles() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                if (this.candles.length === 0) return;
+                
+                const padding = 50;
+                const chartWidth = this.canvas.width - padding * 2;
+                const chartHeight = this.canvas.height - padding * 2;
+                
+                // Calculate price range
+                const prices = this.candles.flatMap(c => [c.high, c.low]);
+                const minPrice = Math.min(...prices) * 0.99;
+                const maxPrice = Math.max(...prices) * 1.01;
+                const priceRange = maxPrice - minPrice;
+                
+                // Draw grid
+                this.ctx.strokeStyle = '#333';
+                this.ctx.lineWidth = 1;
+                for (let i = 0; i <= 10; i++) {
+                    const y = padding + (chartHeight * i / 10);
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(padding, y);
+                    this.ctx.lineTo(this.canvas.width - padding, y);
+                    this.ctx.stroke();
+                    
+                    // Price labels
+                    const price = maxPrice - (priceRange * i / 10);
+                    this.ctx.fillStyle = '#888';
+                    this.ctx.font = '10px Courier New';
+                    this.ctx.fillText(price.toFixed(2), 5, y + 3);
+                }
+                
+                // Draw candles
+                const candleWidth = Math.max(2, chartWidth / this.candles.length - 2);
+                
+                this.candles.forEach((candle, index) => {
+                    const x = padding + (index * chartWidth / this.candles.length);
+                    const openY = padding + chartHeight - ((candle.open - minPrice) / priceRange * chartHeight);
+                    const closeY = padding + chartHeight - ((candle.close - minPrice) / priceRange * chartHeight);
+                    const highY = padding + chartHeight - ((candle.high - minPrice) / priceRange * chartHeight);
+                    const lowY = padding + chartHeight - ((candle.low - minPrice) / priceRange * chartHeight);
+                    
+                    const isGreen = candle.close >= candle.open;
+                    this.ctx.strokeStyle = isGreen ? '#51cf66' : '#ff6b6b';
+                    this.ctx.fillStyle = isGreen ? '#51cf66' : '#ff6b6b';
+                    this.ctx.lineWidth = 1;
+                    
+                    // Draw wick
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x + candleWidth / 2, highY);
+                    this.ctx.lineTo(x + candleWidth / 2, lowY);
+                    this.ctx.stroke();
+                    
+                    // Draw body
+                    const bodyHeight = Math.abs(closeY - openY) || 1;
+                    const bodyY = Math.min(openY, closeY);
+                    
+                    if (isGreen) {
+                        this.ctx.fillRect(x, bodyY, candleWidth, bodyHeight);
+                    } else {
+                        this.ctx.strokeRect(x, bodyY, candleWidth, bodyHeight);
+                    }
+                });
+                
+                // Draw current price line
+                const currentPriceY = padding + chartHeight - ((this.currentPrice - minPrice) / priceRange * chartHeight);
+                this.ctx.strokeStyle = '#ffd43b';
+                this.ctx.lineWidth = 2;
+                this.ctx.setLineDash([5, 5]);
+                this.ctx.beginPath();
+                this.ctx.moveTo(padding, currentPriceY);
+                this.ctx.lineTo(this.canvas.width - padding, currentPriceY);
+                this.ctx.stroke();
+                this.ctx.setLineDash([]);
+            }
+            
+            drawTransactionLines() {
+                this.transactionCtx.clearRect(0, 0, this.transactionCanvas.width, this.transactionCanvas.height);
+                
+                // Draw lines from recent transactions to order book
+                const recentTransactions = this.transactions.slice(-10);
+                const candleArea = this.canvas.width - 100;
+                
+                this.transactionCtx.strokeStyle = 'rgba(255, 212, 59, 0.3)';
+                this.transactionCtx.lineWidth = 1;
+                
+                recentTransactions.forEach((transaction, index) => {
+                    const startX = candleArea - (10 - index) * 10;
+                    const startY = this.canvas.height / 2; // Approximate candle position
+                    const endX = this.canvas.width - 50; // Order book area
+                    const endY = this.canvas.height / 2; // Approximate price level
+                    
+                    this.transactionCtx.beginPath();
+                    this.transactionCtx.moveTo(startX, startY);
+                    this.transactionCtx.lineTo(endX, endY);
+                    this.transactionCtx.stroke();
+                });
+            }
+            
+            updateOrderBookDisplay() {
+                const asksElement = document.getElementById('asks');
+                const bidsElement = document.getElementById('bids');
+                
+                // Display asks (sorted by price ascending)
+                const maxAskVolume = Math.max(...this.orderBook.asks.map(ask => ask.volume));
+                asksElement.innerHTML = this.orderBook.asks.slice(0, 10).reverse().map(ask => {
+                    const volumePercent = (ask.volume / maxAskVolume) * 100;
+                    return `
+                        <div class="order-row ask-row">
+                            <span>$${ask.price.toFixed(2)}</span>
+                            <span>${ask.volume.toFixed(0)}</span>
+                            <div class="volume-bar" style="width: ${volumePercent}%"></div>
+                        </div>
+                    `;
+                }).join('');
+                
+                // Display bids (sorted by price descending)
+                const maxBidVolume = Math.max(...this.orderBook.bids.map(bid => bid.volume));
+                bidsElement.innerHTML = this.orderBook.bids.slice(0, 10).map(bid => {
+                    const volumePercent = (bid.volume / maxBidVolume) * 100;
+                    return `
+                        <div class="order-row bid-row">
+                            <span>$${bid.price.toFixed(2)}</span>
+                            <span>${bid.volume.toFixed(0)}</span>
+                            <div class="volume-bar" style="width: ${volumePercent}%"></div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            updateStats() {
+                document.getElementById('currentPrice').textContent = `$${this.currentPrice.toFixed(2)}`;
+                document.getElementById('volume24h').textContent = this.volume24h.toFixed(0);
+                
+                const now = Date.now();
+                if (now - this.lastSecond >= 1000) {
+                    document.getElementById('transactionsPerSec').textContent = this.transactionCount;
+                    this.transactionCount = 0;
+                    this.lastSecond = now;
+                }
+                
+                const spread = this.orderBook.asks[0] && this.orderBook.bids[0] ? 
+                    this.orderBook.asks[0].price - this.orderBook.bids[0].price : 0;
+                document.getElementById('spread').textContent = `$${spread.toFixed(2)}`;
+            }
+            
+            reset() {
+                this.currentPrice = 100.0;
+                this.candles = [];
+                this.transactions = [];
+                this.volume24h = 0;
+                this.transactionCount = 0;
+                this.generateInitialOrderBook();
+            }
+            
+            startSimulation() {
+                const step = () => {
+                    if (!this.isPaused) {
+                        // Run multiple transactions per frame based on sim speed
+                        for (let i = 0; i < this.simSpeed; i++) {
+                            this.simulateTransaction();
+                        }
+                        
+                        this.updateCandles();
+                        this.drawCandles();
+                        this.drawTransactionLines();
+                        this.updateOrderBookDisplay();
+                        this.updateStats();
+                    }
+                    
+                    requestAnimationFrame(step);
+                };
+                
+                step();
+            }
+        }
+        
+        // Initialize simulation when page loads
+        window.addEventListener('load', () => {
+            new FreeMarketSimulation();
+        });
+    </script>
+</body>
+</html>

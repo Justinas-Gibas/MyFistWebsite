@@ -1,0 +1,451 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>Market Agentic Simulation (LOB refactor)</title>
+	<style>
+		body { font-family: Arial, sans-serif; margin: 10px; background: #111; color: #ddd; }
+		.controls { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-bottom:8px; }
+		label { font-size:13px; }
+		input[type=number], input[type=text] { width:90px; }
+		canvas { background:#000; border:1px solid #444; display:block; }
+		.info { font-size:12px; color:#aaa; margin-top:6px; }
+		.small { font-size:11px; color:#999; }
+	</style>
+</head>
+<body>
+	<div class="controls">
+		<label>Makers/s: <input id="makerRate" type="number" min="0" max="10000" value="200"></label>
+		<label>Takers/s: <input id="takerRate" type="number" min="0" max="10000" value="100"></label>
+		<label>Tick size: <input id="tickSize" type="number" step="0.0001" value="0.01"></label>
+		<label>Bin sec: <input id="binSec" type="number" min="0.1" step="0.1" value="1"></label>
+		<label>Spread (ticks): <input id="makerSpread" type="number" min="0" value="2"></label>
+		<label>Cancel prob/s: <input id="cancelRate" type="number" min="0" value="0.1" step="0.1"></label>
+		<label>Lifetime mean (s): <input id="lifeMean" type="number" min="0.1" step="0.1" value="15"></label>
+		<label>Latency ms: <input id="makerLatency" type="number" min="0" value="150"></label>
+		<button id="startBtn">Start</button>
+		<button id="pauseBtn">Pause</button>
+		<button id="resetBtn">Reset</button>
+		<label>Tick(ms): <input id="tickMs" type="number" min="1" value="100"></label>
+	</div>
+
+	<canvas id="simCanvas" width="1200" height="650"></canvas>
+	<div class="info">LOB with absolute tick indices. Last trade price is canonical. Heatmap = traded volume per tick. OHLCV buckets by time. Level-2 depth to the right.</div>
+
+<script>
+(() => {
+	// Basic UI and canvas
+	const canvas = document.getElementById('simCanvas');
+	const ctx = canvas.getContext('2d');
+	const W = canvas.width, H = canvas.height;
+
+	// Controls
+	const makerRateInput = document.getElementById('makerRate');
+	const takerRateInput = document.getElementById('takerRate');
+	const tickSizeInput = document.getElementById('tickSize');
+	const binSecInput = document.getElementById('binSec');
+	const makerSpreadInput = document.getElementById('makerSpread');
+	const cancelRateInput = document.getElementById('cancelRate');
+	const lifeMeanInput = document.getElementById('lifeMean');
+	const makerLatencyInput = document.getElementById('makerLatency');
+	const startBtn = document.getElementById('startBtn');
+	const pauseBtn = document.getElementById('pauseBtn');
+	const resetBtn = document.getElementById('resetBtn');
+	const tickMsInput = document.getElementById('tickMs');
+
+	// Layout
+	const orderbookWidth = 300;
+	const volBand = 110;
+	const chartX0 = 80;
+	const chartW = W - chartX0 - orderbookWidth - 10;
+	const chartH = H - volBand;
+	const maxHistory = 1200;
+
+	// Simulation state (absolute tick indexing)
+	let tickSize = Number(tickSizeInput.value); // price = index * tickSize
+	let lastTradeIndex = 100000; // absolute index (integer)
+	let lastTradePrice = lastTradeIndex * tickSize;
+	let bids = new Map(); // index -> volume
+	let asks = new Map(); // index -> volume
+	let makerOrders = new Map(); // id -> order {id, side, index, vol, createdTick, expiryTick, owner}
+	let nextOrderId = 1;
+	let tradedVolumePerTick = new Map(); // index -> volume (heatmap)
+	let tradeHistory = []; // {index, vol, side, tick}
+	let candles = []; // OHLCV buckets
+	let currentCandle = null;
+	let simTick = 0; // unified simulation tick count
+	let running = false;
+	let timer = null;
+
+	// Helpers
+	function priceForIndex(i) { return i * tickSize; }
+	function indexForPrice(p) { return Math.round(p / tickSize); }
+	function bestBidIndex() {
+		let max = -Infinity;
+		for (let k of bids.keys()) if (k > max && bids.get(k) > 0) max = k;
+		return (max === -Infinity) ? null : max;
+	}
+	function bestAskIndex() {
+		let min = Infinity;
+		for (let k of asks.keys()) if (k < min && asks.get(k) > 0) min = k;
+		return (min === Infinity) ? null : min;
+	}
+	function bestBidPrice() { const i = bestBidIndex(); return i==null? null : priceForIndex(i); }
+	function bestAskPrice() { const i = bestAskIndex(); return i==null? null : priceForIndex(i); }
+	function randExp(mean) { // exponential sample
+		return -Math.log(1 - Math.random()) * mean;
+	}
+	function randInt(max) { return Math.floor(Math.random() * max); }
+
+	// Seed LOB with symmetric passive liquidity around lastTradeIndex
+	function seedLiquidity() {
+		bids.clear(); asks.clear(); makerOrders.clear(); nextOrderId = 1; tradedVolumePerTick.clear();
+		const depth = 50;
+		for (let d = 1; d <= depth; d++) {
+			const vol = Math.max(1, Math.round(20 * Math.exp(-d/12) * (0.5 + Math.random())));
+			bids.set(lastTradeIndex - d, vol);
+			asks.set(lastTradeIndex + d, vol);
+		}
+		// ensure best quotes exist
+		tradeHistory = [];
+		candles = [];
+		currentCandle = null;
+	}
+
+	// Maker: place a limit order that never crosses. They pick side, price index near best with configured spread.
+	function placeMakerOrder(nowTick) {
+		const id = nextOrderId++;
+		const spread = Math.max(0, Math.round(Number(makerSpreadInput.value) || 2));
+		const side = Math.random() < 0.5 ? 'bid' : 'ask';
+		// choose base near top of book
+		let base = lastTradeIndex;
+		const offset = Math.round(randNormal(0, 6));
+		if (side === 'bid') {
+			// pick index below best bid but <= bestBidIndex - 1 - spread to avoid crossing
+			const bb = bestBidIndex();
+			let target = (bb != null) ? bb - (1 + randInt(spread + 1)) : lastTradeIndex - (1 + randInt(spread + 4));
+			target = Math.max(1, target + offset);
+			// ensure not crossing: must be < bestAskIndex
+			const ba = bestAskIndex();
+			if (ba != null && target >= ba) target = ba - 1;
+			bids.set(target, (bids.get(target) || 0) + 1);
+			makerOrders.set(id, {id, side, index: target, vol: 1, createdTick: nowTick, expiryTick: nowTick + Math.ceil(randExp(Number(lifeMeanInput.value)||15)*10)});
+		} else {
+			const ba = bestAskIndex();
+			let target = (ba != null) ? ba + (1 + randInt(spread + 1)) : lastTradeIndex + (1 + randInt(spread + 4));
+			target = Math.max(1, target + offset);
+			const bb = bestBidIndex();
+			if (bb != null && target <= bb) target = bb + 1;
+			asks.set(target, (asks.get(target) || 0) + 1);
+			makerOrders.set(id, {id, side, index: target, vol: 1, createdTick: nowTick, expiryTick: nowTick + Math.ceil(randExp(Number(lifeMeanInput.value)||15)*10)});
+		}
+	}
+
+	// Cancel/refresh makers probabilistically
+	function maybeCancelOrders(nowTick) {
+		const cancelRate = Number(cancelRateInput.value) || 0.1; // per second
+		if (cancelRate <= 0) return;
+		for (const [id, o] of Array.from(makerOrders)) {
+			// expiry or random cancellation
+			if (nowTick >= o.expiryTick || Math.random() < (cancelRate * (tickMs/1000))) {
+				// remove
+				if (o.side === 'bid') {
+					const v = Math.max(0, (bids.get(o.index)||0) - o.vol);
+					if (v === 0) bids.delete(o.index); else bids.set(o.index, v);
+				} else {
+					const v = Math.max(0, (asks.get(o.index)||0) - o.vol);
+					if (v === 0) asks.delete(o.index); else asks.set(o.index, v);
+				}
+				makerOrders.delete(id);
+			}
+		}
+	}
+
+	// Taker executes: market buy consumes asks from best ask upward; market sell consumes bids from best bid downward.
+	function takerExecute(isBuy, size, nowTick) {
+		let remaining = size;
+		let executed = [];
+		if (isBuy) {
+			// consume lowest ask indices first
+			const askKeys = Array.from(asks.keys()).sort((a,b)=>a-b);
+			for (const idx of askKeys) {
+				if (remaining <= 0) break;
+				const avail = asks.get(idx) || 0;
+				if (avail <= 0) continue;
+				const take = Math.min(avail, remaining);
+				asks.set(idx, avail - take);
+				if (asks.get(idx) === 0) asks.delete(idx);
+				remaining -= take;
+				executed.push({index: idx, vol: take, side: 'buy'});
+			}
+		} else {
+			// sell -> consume highest bids first
+			const bidKeys = Array.from(bids.keys()).sort((a,b)=>b-a);
+			for (const idx of bidKeys) {
+				if (remaining <= 0) break;
+				const avail = bids.get(idx) || 0;
+				if (avail <= 0) continue;
+				const take = Math.min(avail, remaining);
+				bids.set(idx, avail - take);
+				if (bids.get(idx) === 0) bids.delete(idx);
+				remaining -= take;
+				executed.push({index: idx, vol: take, side: 'sell'});
+			}
+		}
+
+		// register executions: update trade history, tradedVolumePerTick, lastTradeIndex/price
+		for (const ex of executed) {
+			tradeHistory.push({index: ex.index, vol: ex.vol, side: ex.side, tick: nowTick});
+			tradedVolumePerTick.set(ex.index, (tradedVolumePerTick.get(ex.index) || 0) + ex.vol);
+			// last trade becomes canonical
+			lastTradeIndex = ex.index;
+			lastTradePrice = priceForIndex(lastTradeIndex);
+			// update OHLCV candle
+			addTradeToCandle(ex.index, ex.vol, nowTick);
+		}
+		return executed.length > 0;
+	}
+
+	// Candles (time-bucketed)
+	const binSec = () => Number(binSecInput.value) || 1;
+	function addTradeToCandle(index, vol, nowTick) {
+		const t = nowTick * tickMs;
+		const binMs = binSec() * 1000;
+		if (!currentCandle || t >= currentCandle.t0 + binMs) {
+			// close previous
+			if (currentCandle) candles.push(currentCandle);
+			currentCandle = {t0: t, open: priceForIndex(index), high: priceForIndex(index), low: priceForIndex(index), close: priceForIndex(index), vol: vol};
+			// keep some history length
+			if (candles.length > 2000) candles.shift();
+		} else {
+			currentCandle.high = Math.max(currentCandle.high, priceForIndex(index));
+			currentCandle.low = Math.min(currentCandle.low, priceForIndex(index));
+			currentCandle.close = priceForIndex(index);
+			currentCandle.vol += vol;
+		}
+	}
+
+	// Unified clock tick
+	let tickMs = Number(tickMsInput.value) || 100;
+	function stepSimulation() {
+		simTick++;
+		// update tickMs in case UI changed
+		tickMs = Number(tickMsInput.value) || tickMs;
+
+		// schedule maker placements according to Poisson rate (makers per second -> probability per tick)
+		const makerRate = Number(makerRateInput.value) || 0;
+		const takerRate = Number(takerRateInput.value) || 0;
+		const makerProbPerTick = makerRate * (tickMs/1000);
+		const takerProbPerTick = takerRate * (tickMs/1000);
+
+		// maker latency handling: we simulate immediate scheduling but enforce a small "latency" window: some orders placed subject to latency
+		const latencyFactor = Math.max(0, Number(makerLatencyInput.value) || 150);
+
+		// Place makers (we allow multiple per tick based on Poisson)
+		let toPlace = Math.floor(makerProbPerTick);
+		if (Math.random() < (makerProbPerTick - toPlace)) toPlace++;
+		for (let i=0;i<toPlace;i++) {
+			// schedule with latency (simple: create after latency ticks)
+			const delayTicks = Math.max(0, Math.round(latencyFactor / tickMs));
+			// To keep concise: if latency=0 place now, else delay by queueing expiryTick offset (we use createdTick to indicate effective placement)
+			placeMakerOrder(simTick + delayTicks);
+		}
+
+		// Cancel/expire maker orders
+		maybeCancelOrders(simTick);
+
+		// Takers: execute market orders
+		let takersToRun = Math.floor(takerProbPerTick);
+		if (Math.random() < (takerProbPerTick - takersToRun)) takersToRun++;
+		for (let t=0;t<takersToRun;t++) {
+			const isBuy = Math.random() < 0.5;
+			const size = Math.max(1, 1 + randInt(5));
+			takerExecute(isBuy, size, simTick);
+		}
+
+		// Ensure there is always some passive liquidity — if bestBook depth is low, seed more makers
+		if ((bestAskIndex() === null || bestBidIndex() === null)) seedLiquidity();
+
+		// remove stale candles beyond some size
+		if (candles.length > 2000) candles.splice(0, candles.length - 2000);
+	}
+
+	// Drawing utilities
+	function clear() { ctx.clearRect(0,0,W,H); }
+
+	function draw() {
+		clear();
+		// compute visible price window centered around lastTradeIndex
+		const halfTicksVisible = Math.floor(chartH / 6); // tunable: number of ticks vertically
+		const midIndex = lastTradeIndex;
+		const topIndex = midIndex + halfTicksVisible;
+		const bottomIndex = Math.max(0, midIndex - halfTicksVisible);
+
+		// heatmap background: tradedVolumePerTick
+		// compute max for scaling
+		let maxV = 1;
+		for (let [k, v] of tradedVolumePerTick) {
+			if (k >= bottomIndex && k <= topIndex) maxV = Math.max(maxV, v);
+		}
+		for (let idx = bottomIndex; idx <= topIndex; idx++) {
+			const y = ((topIndex - idx) / (topIndex - bottomIndex)) * chartH;
+			const h = Math.max(1, chartH / (topIndex - bottomIndex + 1));
+			const vol = tradedVolumePerTick.get(idx) || 0;
+			const alpha = Math.min(0.85, vol / (maxV*1.0));
+			if (alpha > 0.01) {
+				const col = `rgba(220,140,10,${0.05 + alpha*0.6})`;
+				ctx.fillStyle = col;
+				ctx.fillRect(chartX0, y, chartW, h);
+			}
+		}
+
+		// draw price y-axis ticks
+		ctx.fillStyle = 'rgba(255,255,255,0.7)';
+		ctx.font = '12px monospace';
+		for (let idx = bottomIndex; idx <= topIndex; idx += Math.max(1, Math.round((topIndex-bottomIndex)/8))) {
+			const y = ((topIndex - idx) / (topIndex - bottomIndex)) * chartH;
+			ctx.fillText(priceForIndex(idx).toFixed(2), 6, y+4);
+		}
+
+		// draw candles (compressed time-series on left part of chart)
+		const candleW = Math.max(2, Math.floor(chartW / Math.max(1, Math.min(200, candles.length+1))));
+		for (let i = 0; i < Math.min(candles.length, Math.floor(chartW / candleW)); i++) {
+			const c = candles[candles.length - 1 - i];
+			const cx = chartX0 + chartW - (i+1)*candleW;
+			const openY = priceToY(c.open, topIndex, bottomIndex);
+			const closeY = priceToY(c.close, topIndex, bottomIndex);
+			const highY = priceToY(c.high, topIndex, bottomIndex);
+			const lowY = priceToY(c.low, topIndex, bottomIndex);
+			ctx.strokeStyle = c.close >= c.open ? '#8f8' : '#f88';
+			ctx.fillStyle = ctx.strokeStyle;
+			ctx.beginPath();
+			ctx.moveTo(cx + candleW/2, highY);
+			ctx.lineTo(cx + candleW/2, lowY);
+			ctx.stroke();
+			ctx.fillRect(cx + 1, Math.min(openY, closeY), candleW-2, Math.max(1, Math.abs(closeY - openY)));
+		}
+
+		// draw trade history line (last trades)
+		ctx.beginPath();
+		let drawn = 0;
+		const histLen = Math.min(120, tradeHistory.length);
+		for (let i = 0; i < histLen; i++) {
+			const t = tradeHistory[tradeHistory.length - 1 - i];
+			const x = chartX0 + chartW - (i / Math.max(1, histLen-1)) * chartW;
+			const y = priceToY(priceForIndex(t.index), topIndex, bottomIndex);
+			if (i === 0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+			drawn++;
+		}
+		if (drawn > 0) {
+			ctx.strokeStyle = '#00d1ff';
+			ctx.lineWidth = 1.5;
+			ctx.stroke();
+		}
+
+		// Draw last trade marker
+		ctx.fillStyle = '#ffb86b';
+		const lastY = priceToY(lastTradePrice, topIndex, bottomIndex);
+		ctx.beginPath();
+		ctx.arc(chartX0 + chartW - 8, lastY, 4, 0, Math.PI*2);
+		ctx.fill();
+
+		// Draw Level-2 depth on the right
+		const obX0 = W - orderbookWidth;
+		ctx.fillStyle = 'rgba(255,255,255,0.03)';
+		ctx.fillRect(obX0, 0, orderbookWidth, chartH);
+		// compute max depth
+		let maxBook = 1;
+		for (let v of bids.values()) if (v > maxBook) maxBook = v;
+		for (let v of asks.values()) if (v > maxBook) maxBook = v;
+
+		// draw price ladder lines and bars
+		for (let idx = bottomIndex; idx <= topIndex; idx++) {
+			const y = ((topIndex - idx) / (topIndex - bottomIndex)) * chartH;
+			if (idx % 4 === 0) {
+				ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+				ctx.beginPath(); ctx.moveTo(obX0, y+0.5); ctx.lineTo(W-2, y+0.5); ctx.stroke();
+			}
+			const askV = asks.get(idx) || 0;
+			const bidV = bids.get(idx) || 0;
+			const obMid = obX0 + Math.floor(orderbookWidth/2);
+			const obW = Math.floor((orderbookWidth-20)/2);
+			if (askV > 0) {
+				const w = (askV / maxBook) * obW;
+				ctx.fillStyle = 'rgba(220,40,40,0.65)';
+				ctx.fillRect(obMid+4, y-4, w, 8);
+			}
+			if (bidV > 0) {
+				const w = (bidV / maxBook) * obW;
+				ctx.fillStyle = 'rgba(30,220,80,0.65)';
+				ctx.fillRect(obMid-4-w, y-4, w, 8);
+			}
+		}
+		// labels
+		ctx.fillStyle = '#ddd';
+		ctx.font = '12px monospace';
+		ctx.fillText('Level-2 Depth', obX0 + 8, 16);
+		ctx.fillStyle = '#f88'; ctx.fillText('Asks →', obX0 + orderbookWidth/2 + 8, 32);
+		ctx.fillStyle = '#8f8'; ctx.fillText('← Bids', obX0 + 6, 32);
+
+		// top-left labels
+		ctx.fillStyle = '#fff'; ctx.font = '13px monospace';
+		ctx.fillText('Last: ' + lastTradePrice.toFixed(4), 90, 18);
+		const bbp = bestBidPrice(), bap = bestAskPrice();
+		ctx.fillStyle = '#8f8'; if (bbp) ctx.fillText('BestBid: ' + bbp.toFixed(4), 250, 18);
+		ctx.fillStyle = '#f88'; if (bap) ctx.fillText('BestAsk: ' + bap.toFixed(4), 430, 18);
+	}
+
+	// map price to y given top/bottom indices
+	function priceToY(priceOrIndex, topIndex, bottomIndex) {
+		const p = (typeof priceOrIndex === 'number' && priceOrIndex > 1000000) ? priceOrIndex : priceOrIndex;
+		// if argument is a price value, convert to index
+		let idx = Number.isInteger(priceOrIndex) ? priceOrIndex : Math.round(priceOrIndex / tickSize);
+		const y = ((topIndex - idx) / (topIndex - bottomIndex)) * chartH;
+		return y;
+	}
+
+	// simple normal approx for maker placement (used above)
+	function randNormal(mean=0, std=1) {
+		let u=0,v=0;
+		while(u===0) u=Math.random();
+		while(v===0) v=Math.random();
+		return mean + std * Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+	}
+
+	// control handlers
+	startBtn.addEventListener('click', () => {
+		if (running) return;
+		running = true;
+		tickMs = Number(tickMsInput.value) || tickMs;
+		timer = setInterval(() => { stepSimulation(); draw(); }, Math.max(10, tickMs));
+	});
+	pauseBtn.addEventListener('click', () => {
+		running = false;
+		if (timer) { clearInterval(timer); timer = null; }
+	});
+	resetBtn.addEventListener('click', () => {
+		pauseBtn.click();
+		lastTradeIndex = 100000;
+		lastTradePrice = priceForIndex(lastTradeIndex);
+		seedLiquidity();
+		tradeHistory = [];
+		tradedVolumePerTick.clear();
+		candles = [];
+		currentCandle = null;
+		simTick = 0;
+		draw();
+	});
+
+	// initial seed
+	seedLiquidity();
+	draw();
+
+	// expose for debug
+	window.simState = {
+		bids, asks, makerOrders, tradeHistory, tradedVolumePerTick, candles
+	};
+	// ...existing code...
+})();
+</script>
+</body>
+</html>

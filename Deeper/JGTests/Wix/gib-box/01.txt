@@ -1,0 +1,39 @@
+    class GibBox extends HTMLElement {
+  connectedCallback() {
+    this.root = this.attachShadow({ mode: 'open' }); // shadow DOM
+
+    const THREE = await import('https://unpkg.com/three@0.160.0/build/three.module.js'); // core ESM
+    const { Scene } = THREE; // sanity-use a symbol
+    console.log('Three OK, Scene exists:', !!Scene); // should log true
+
+    const style = document.createElement('style'); // style tag
+    style.textContent = `
+      button {
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: none;
+        background: #29b6f6;
+        color: white;
+        font-weight: bold;
+        cursor: pointer;
+        margin: 4px;
+      }
+    `;
+
+    const btn = document.createElement('button'); // first button
+    btn.textContent = 'Click me'; // label text
+
+    // click handler: clone button and add copy to shadow root
+    btn.addEventListener('click', () => {
+      const clone = btn.cloneNode(true); // deep copy of button
+      clone.textContent = 'I am new'; // change text on clone
+      clone.addEventListener('click', () => {
+        this.root.append(btn); // attach button
+      })
+      this.root.appendChild(clone); // add to shadow DOM
+    });
+
+    this.root.append(style, btn); // attach style + button
+  }
+}
+customElements.define('gib-box', GibBox); // register

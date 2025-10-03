@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU Free Market Simulation - Order Book Research</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            overflow-x: auto;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            grid-template-rows: auto 1fr auto;
+            gap: 10px;
+            height: calc(100vh - 20px);
+        }
+        .controls {
+            grid-column: 1 / -1;
+            background: #1a1a1a;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .main-view {
+            background: #111;
+            border: 1px solid #333;
+            position: relative;
+            overflow: hidden;
+        }
+        .order-book {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        .stats {
+            grid-column: 1 / -1;
+            background: #1a1a1a;
+            padding: 10px;
+            border: 1px solid #333;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .control-group {
+            display: inline-block;
+            margin: 0 20px 10px 0;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            font-size: 12px;
+        }
+        input, select {
+            background: #333;
+            border: 1px solid #555;
+            color: #00ff00;
+            padding: 5px;
+            margin-left: 5px;
+        }
+        button {
+            background: #333;
+            border: 1px solid #555;
+            color: #00ff00;
+            padding: 8px 15px;
+            cursor: pointer;
+            margin: 0 5px;
+        }
+        button:hover {
+            background: #444;
+        }
+        .order-book h3 {
+            margin: 0 0 10px 0;
+            color: #00ff00;
+            font-size: 14px;
+        }
+        .order-entry {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            margin: 2px 0;
+        }
+        .ask { color: #ff4444; }
+        .bid { color: #44ff44; }
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .transaction-line {
+            position: absolute;
+            height: 1px;
+            background: linear-gradient(to right, rgba(255,255,255,0.8), transparent);
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="control-group">
+                <label>Makers:</label>
+                <input type="range" id="makersCount" min="1" max="500" value="50">
+                <span id="makersValue">50</span>
+            </div>
+            <div class="control-group">
+                <label>Takers:</label>
+                <input type="range" id="takersCount" min="1" max="2000" value="200">
+                <span id="takersValue">200</span>
+            </div>
+            <div class="control-group">
+                <label>Sim Speed:</label>
+                <input type="range" id="simSpeed" min="0.1" max="10" step="0.1" value="1">
+                <span id="speedValue">1.0x</span>
+            </div>
+            <div class="control-group">
+                <label>Volatility:</label>
+                <input type="range" id="volatility" min="0.1" max="5" step="0.1" value="1">
+                <span id="volatilityValue">1.0</span>
+            </div>
+            <button id="pauseBtn">Pause</button>
+            <button id="resetBtn">Reset</button>
+            <button id="exportBtn">Export Data</button>
+        </div>
+        
+        <div class="main-view">
+            <canvas id="marketCanvas"></canvas>
+        </div>
+        
+        <div class="order-book">
+            <h3>Order Book Depth</h3>
+            <div id="askOrders"></div>
+            <div style="border-top: 1px solid #333; margin: 10px 0; padding-top: 10px;">
+                <div style="text-align: center; color: #ffff00;">Spread: <span id="spread">0.00</span></div>
+            </div>
+            <div id="bidOrders"></div>
+        </div>
+        
+        <div class="stats">
+            <div>
+                <div>Current Price</div>
+                <div class="stat-value" id="currentPrice">$100.00</div>
+            </div>
+            <div>
+                <div>Volume (24h)</div>
+                <div class="stat-value" id="volume24h">0</div>
+            </div>
+            <div>
+                <div>Transactions</div>
+                <div class="stat-value" id="totalTxns">0</div>
+            </div>
+            <div>
+                <div>Avg Spread</div>
+                <div class="stat-value" id="avgSpread">0.00%</div>
+            </div>
+            <div>
+                <div>Market Cap</div>
+                <div class="stat-value" id="marketCap">$1M</div>
+            </div>
+            <div>
+                <div>Volatility</div>
+                <div class="stat-value" id="realizedVol">0.00%</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class WebGPUMarketSimulation {
+            constructor() {
+                this.canvas = document.getElementById('marketCanvas');
+                this.device = null;
+                this.context = null;
+                this.isRunning = true;
+                
+                // Market state
+                this.currentPrice = 100.0;
+                this.orderBook = { bids: [], asks: [] };
+                this.priceHistory = [];
+                this.volumeHistory = [];
+                this.transactions = [];
+                this.agents = [];
+                
+                // Simulation parameters
+                this.makersCount = 50;
+                this.takersCount = 200;
+                this.simSpeed = 1.0;
+                this.volatility = 1.0;
+                
+                this.init();
+            }
+            
+            async init() {
+                await this.initWebGPU();
+                this.setupEventListeners();
+                this.createAgents();
+                this.startSimulation();
+            }
+            
+            async initWebGPU() {
+                // Always start with 2D context for compatibility
+                this.context = this.canvas.getContext('2d');
+                
+                if (!navigator.gpu) {
+                    console.log('WebGPU not supported, using Canvas 2D');
+                    this.device = null;
+                    return;
+                }
+                
+                try {
+                    const adapter = await navigator.gpu.requestAdapter();
+                    if (!adapter) {
+                        console.log('WebGPU adapter not available, using Canvas 2D');
+                        this.device = null;
+                        return;
+                    }
+                    
+                    this.device = await adapter.requestDevice();
+                    console.log('WebGPU device available for future use');
+                    
+                    // Note: We keep using 2D context for now since WebGPU rendering isn't implemented
+                    // When WebGPU rendering is implemented, we would create a separate canvas or switch contexts
+                    
+                } catch (error) {
+                    console.log('WebGPU initialization failed, using Canvas 2D:', error);
+                    this.device = null;
+                }
+                
+                // Ensure we have a valid 2D context
+                if (!this.context) {
+                    console.error('Failed to get 2D context');
+                    this.context = this.canvas.getContext('2d', { alpha: false });
+                }
+            }
+            
+            createAgents() {
+                this.agents = [];
+                
+                // Create maker agents (provide liquidity)
+                for (let i = 0; i < this.makersCount; i++) {
+                    this.agents.push({
+                        id: `maker_${i}`,
+                        type: 'maker',
+                        balance: Math.random() * 10000 + 1000,
+                        inventory: Math.random() * 100 + 10,
+                        bidPrice: this.currentPrice * (0.95 + Math.random() * 0.1),
+                        askPrice: this.currentPrice * (1.0 + Math.random() * 0.1),
+                        orderSize: Math.random() * 10 + 1,
+                        updateInterval: Math.random() * 5000 + 1000
+                    });
+                }
+                
+                // Create taker agents (consume liquidity)
+                for (let i = 0; i < this.takersCount; i++) {
+                    this.agents.push({
+                        id: `taker_${i}`,
+                        type: 'taker',
+                        balance: Math.random() * 5000 + 500,
+                        tradingInterval: Math.random() * 2000 + 500,
+                        orderSize: Math.random() * 5 + 0.1,
+                        priceDeviation: Math.random() * 0.02 + 0.001
+                    });
+                }
+            }
+            
+            updateOrderBook() {
+                // Clear old orders
+                this.orderBook.bids = [];
+                this.orderBook.asks = [];
+                
+                // Collect orders from maker agents
+                this.agents.filter(a => a.type === 'maker').forEach(agent => {
+                    if (Math.random() < 0.7) { // 70% chance to have active orders
+                        this.orderBook.bids.push({
+                            price: agent.bidPrice,
+                            size: agent.orderSize,
+                            agent: agent.id
+                        });
+                        this.orderBook.asks.push({
+                            price: agent.askPrice,
+                            size: agent.orderSize,
+                            agent: agent.id
+                        });
+                    }
+                });
+                
+                // Sort order book
+                this.orderBook.bids.sort((a, b) => b.price - a.price);
+                this.orderBook.asks.sort((a, b) => a.price - b.price);
+                
+                // Update spread
+                const bestBid = this.orderBook.bids[0]?.price || 0;
+                const bestAsk = this.orderBook.asks[0]?.price || 0;
+                const spread = bestAsk - bestBid;
+                document.getElementById('spread').textContent = spread.toFixed(2);
+                
+                this.renderOrderBook();
+            }
+            
+            processRandomTransactions() {
+                const takers = this.agents.filter(a => a.type === 'taker');
+                
+                takers.forEach(taker => {
+                    if (Math.random() < 0.01 * this.simSpeed) { // Random transaction probability
+                        const isBuy = Math.random() < 0.5;
+                        const priceVariation = (Math.random() - 0.5) * 0.02 * this.volatility;
+                        const transactionPrice = this.currentPrice * (1 + priceVariation);
+                        const size = taker.orderSize * (0.5 + Math.random());
+                        
+                        this.executeTransaction({
+                            price: transactionPrice,
+                            size: size,
+                            side: isBuy ? 'buy' : 'sell',
+                            agent: taker.id,
+                            timestamp: Date.now()
+                        });
+                    }
+                });
+            }
+            
+            executeTransaction(transaction) {
+                this.transactions.push(transaction);
+                this.currentPrice = transaction.price;
+                
+                // Add to price history
+                this.priceHistory.push({
+                    price: transaction.price,
+                    timestamp: transaction.timestamp,
+                    volume: transaction.size
+                });
+                
+                // Keep only last 1000 price points
+                if (this.priceHistory.length > 1000) {
+                    this.priceHistory.shift();
+                }
+                
+                // Create transaction line effect
+                this.createTransactionLine(transaction);
+                
+                // Update agents
+                this.updateAgentBehavior(transaction);
+            }
+            
+            createTransactionLine(transaction) {
+                const line = document.createElement('div');
+                line.className = 'transaction-line';
+                line.style.background = transaction.side === 'buy' ? 
+                    'linear-gradient(to right, rgba(68,255,68,0.8), transparent)' :
+                    'linear-gradient(to right, rgba(255,68,68,0.8), transparent)';
+                line.style.top = '50%';
+                line.style.left = '0';
+                line.style.width = '100%';
+                
+                document.querySelector('.main-view').appendChild(line);
+                
+                // Fade out and remove
+                setTimeout(() => {
+                    line.style.opacity = '0';
+                    line.style.transition = 'opacity 2s';
+                    setTimeout(() => line.remove(), 2000);
+                }, 100);
+            }
+            
+            updateAgentBehavior(transaction) {
+                this.agents.forEach(agent => {
+                    if (agent.type === 'maker') {
+                        // Makers adjust their quotes based on recent transactions
+                        const adjustment = (Math.random() - 0.5) * 0.005 * this.volatility;
+                        agent.bidPrice = transaction.price * (0.995 + adjustment);
+                        agent.askPrice = transaction.price * (1.005 + adjustment);
+                    }
+                });
+            }
+            
+            render() {
+                this.resizeCanvas();
+                
+                // Always use Canvas 2D for now since WebGPU rendering isn't implemented yet
+                this.renderCanvas2D();
+            }
+            
+            resizeCanvas() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+            }
+            
+            renderCanvas2D() {
+                if (!this.context) {
+                    console.error('No canvas context available');
+                    return;
+                }
+                
+                const ctx = this.context;
+                const width = this.canvas.width;
+                const height = this.canvas.height;
+                
+                // Clear canvas
+                ctx.fillStyle = '#111';
+                ctx.fillRect(0, 0, width, height);
+                
+                if (this.priceHistory.length < 2) return;
+                
+                // Calculate price range
+                const prices = this.priceHistory.map(p => p.price);
+                const minPrice = Math.min(...prices);
+                const maxPrice = Math.max(...prices);
+                const priceRange = maxPrice - minPrice || 1;
+                
+                // Draw candlestick chart
+                const candleWidth = Math.max(2, width / this.priceHistory.length);
+                
+                this.priceHistory.forEach((point, i) => {
+                    const x = (i / this.priceHistory.length) * width;
+                    const y = height - ((point.price - minPrice) / priceRange) * height;
+                    
+                    // Draw price line
+                    if (i > 0) {
+                        const prevPoint = this.priceHistory[i - 1];
+                        const prevX = ((i - 1) / this.priceHistory.length) * width;
+                        const prevY = height - ((prevPoint.price - minPrice) / priceRange) * height;
+                        
+                        ctx.strokeStyle = point.price > prevPoint.price ? '#44ff44' : '#ff4444';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+                        ctx.moveTo(prevX, prevY);
+                        ctx.lineTo(x, y);
+                        ctx.stroke();
+                    }
+                    
+                    // Draw volume bar at bottom
+                    const volumeHeight = (point.volume / 20) * (height * 0.2);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.fillRect(x - candleWidth/2, height - volumeHeight, candleWidth, volumeHeight);
+                });
+                
+                // Draw current price line
+                const currentY = height - ((this.currentPrice - minPrice) / priceRange) * height;
+                ctx.strokeStyle = '#ffff00';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(0, currentY);
+                ctx.lineTo(width, currentY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Draw price label
+                ctx.fillStyle = '#ffff00';
+                ctx.font = '14px Courier New';
+                ctx.fillText(`$${this.currentPrice.toFixed(2)}`, 10, currentY - 10);
+            }
+            
+            renderWebGPU() {
+                // WebGPU rendering would go here for better performance
+                // For now, fall back to Canvas 2D
+                this.renderCanvas2D();
+            }
+            
+            renderOrderBook() {
+                const askOrdersEl = document.getElementById('askOrders');
+                const bidOrdersEl = document.getElementById('bidOrders');
+                
+                askOrdersEl.innerHTML = '';
+                bidOrdersEl.innerHTML = '';
+                
+                // Render asks (highest to lowest)
+                this.orderBook.asks.slice(0, 10).reverse().forEach(order => {
+                    const div = document.createElement('div');
+                    div.className = 'order-entry ask';
+                    div.innerHTML = `<span>$${order.price.toFixed(2)}</span><span>${order.size.toFixed(2)}</span>`;
+                    askOrdersEl.appendChild(div);
+                });
+                
+                // Render bids (highest to lowest)
+                this.orderBook.bids.slice(0, 10).forEach(order => {
+                    const div = document.createElement('div');
+                    div.className = 'order-entry bid';
+                    div.innerHTML = `<span>$${order.price.toFixed(2)}</span><span>${order.size.toFixed(2)}</span>`;
+                    bidOrdersEl.appendChild(div);
+                });
+            }
+            
+            updateStats() {
+                document.getElementById('currentPrice').textContent = `$${this.currentPrice.toFixed(2)}`;
+                document.getElementById('totalTxns').textContent = this.transactions.length.toLocaleString();
+                
+                // Calculate 24h volume (last 1000 transactions as proxy)
+                const recentVolume = this.transactions.slice(-1000).reduce((sum, tx) => sum + tx.size, 0);
+                document.getElementById('volume24h').textContent = recentVolume.toFixed(0);
+                
+                // Calculate volatility
+                if (this.priceHistory.length > 20) {
+                    const returns = [];
+                    for (let i = 1; i < this.priceHistory.length; i++) {
+                        returns.push(Math.log(this.priceHistory[i].price / this.priceHistory[i-1].price));
+                    }
+                    const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+                    const variance = returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length;
+                    const volatility = Math.sqrt(variance) * Math.sqrt(252) * 100; // Annualized
+                    document.getElementById('realizedVol').textContent = `${volatility.toFixed(2)}%`;
+                }
+            }
+            
+            setupEventListeners() {
+                // Control updates
+                document.getElementById('makersCount').addEventListener('input', (e) => {
+                    this.makersCount = parseInt(e.target.value);
+                    document.getElementById('makersValue').textContent = e.target.value;
+                    this.createAgents();
+                });
+                
+                document.getElementById('takersCount').addEventListener('input', (e) => {
+                    this.takersCount = parseInt(e.target.value);
+                    document.getElementById('takersValue').textContent = e.target.value;
+                    this.createAgents();
+                });
+                
+                document.getElementById('simSpeed').addEventListener('input', (e) => {
+                    this.simSpeed = parseFloat(e.target.value);
+                    document.getElementById('speedValue').textContent = `${e.target.value}x`;
+                });
+                
+                document.getElementById('volatility').addEventListener('input', (e) => {
+                    this.volatility = parseFloat(e.target.value);
+                    document.getElementById('volatilityValue').textContent = e.target.value;
+                });
+                
+                document.getElementById('pauseBtn').addEventListener('click', () => {
+                    this.isRunning = !this.isRunning;
+                    document.getElementById('pauseBtn').textContent = this.isRunning ? 'Pause' : 'Resume';
+                });
+                
+                document.getElementById('resetBtn').addEventListener('click', () => {
+                    this.priceHistory = [];
+                    this.transactions = [];
+                    this.currentPrice = 100.0;
+                    this.createAgents();
+                });
+                
+                document.getElementById('exportBtn').addEventListener('click', () => {
+                    const data = {
+                        priceHistory: this.priceHistory,
+                        transactions: this.transactions,
+                        orderBook: this.orderBook,
+                        agents: this.agents.map(a => ({...a, type: a.type}))
+                    };
+                    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `market_simulation_${Date.now()}.json`;
+                    a.click();
+                });
+            }
+            
+            startSimulation() {
+                const simulate = () => {
+                    if (this.isRunning) {
+                        this.processRandomTransactions();
+                        this.updateOrderBook();
+                        this.render();
+                        this.updateStats();
+                    }
+                    
+                    requestAnimationFrame(simulate);
+                };
+                
+                simulate();
+            }
+        }
+        
+        // Initialize simulation when page loads
+        window.addEventListener('load', () => {
+            new WebGPUMarketSimulation();
+        });
+    </script>
+</body>
+</html>

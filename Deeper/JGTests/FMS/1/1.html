@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<title>WebGPU Free Market Simulation</title>
+	<style>
+		body {
+			margin: 0;
+			font-family: system-ui, sans-serif;
+			background: #0f172a;
+			color: #e2e8f0;
+			display: flex;
+			flex-direction: column;
+			min-height: 100vh;
+		}
+		header, footer {
+			padding: 0.75rem 1.25rem;
+			background: #1e293b;
+		}
+		main {
+			flex: 1;
+			display: grid;
+			grid-template-columns: minmax(280px, 18rem) 1fr;
+			gap: 1rem;
+			padding: 1rem;
+		}
+		section {
+			background: #1e293b;
+			border-radius: 0.75rem;
+			padding: 1rem;
+			box-shadow: 0 10px 30px rgba(15, 23, 42, 0.45);
+		}
+		label {
+			display: flex;
+			flex-direction: column;
+			gap: 0.3rem;
+			font-size: 0.9rem;
+			margin-bottom: 1rem;
+		}
+		input[type="range"] {
+			width: 100%;
+		}
+		canvas {
+			width: 100%;
+			height: 100%;
+			border-radius: 0.75rem;
+			background: #0b1120;
+		}
+		pre {
+			margin: 0;
+			font-family: "JetBrains Mono", Menlo, monospace;
+			font-size: 0.8rem;
+			white-space: pre-wrap;
+			word-break: break-word;
+		}
+		.value-badge {
+			font-weight: 600;
+			color: #38bdf8;
+		}
+		@media (max-width: 960px) {
+			main {
+				grid-template-columns: 1fr;
+			}
+		}
+	</style>
+</head>
+<body>
+	<header>
+		<h1>WebGPU Market Microstructure Sandbox</h1>
+	</header>
+	<main>
+		<section>
+			<h2>Parameters</h2>
+			<label>
+				Makers
+				<input id="makers" type="range" min="1" max="100" step="1" value="40" />
+				<span class="value-badge" id="makersValue">40</span>
+			</label>
+			<label>
+				Takers
+				<input id="takers" type="range" min="1" max="100" step="1" value="35" />
+				<span class="value-badge" id="takersValue">35</span>
+			</label>
+			<label>
+				Simulation speed
+				<input id="simSpeed" type="range" min="0.1" max="5" step="0.1" value="1.0" />
+				<span class="value-badge" id="speedValue">1.0×</span>
+			</label>
+			<p id="status"></p>
+		</section>
+		<section style="display:flex;flex-direction:column;gap:0.75rem;">
+			<canvas id="marketCanvas" width="1280" height="640"></canvas>
+			<pre id="orderBook"></pre>
+		</section>
+	</main>
+	<footer>
+		<small>Simulated order-book dynamics for exploratory research. WebGPU capable browser required.</small>
+	</footer>
+	<script type="module">
+		const UI = {
+			makers: document.getElementById('makers'),
+			takers: document.getElementById('takers'),
+			speed: document.getElementById('simSpeed'),
+			makersValue: document.getElementById('makersValue'),
+			takersValue: document.getElementById('takersValue'),
+			speedValue: document.getElementById('speedValue'),
+			status: document.getElementById('status'),
+			orderBook: document.getElementById('orderBook'),
+			canvas: document.getElementById('marketCanvas')
+		};
+
+		const MAX_CANDLES = 240;
+		const ORDER_LEVELS = 10;
+		const MAX_SEGMENTS = 1024;
+		const CHART_X = { left: -1.0, right: 0.55 };
+		const BOOK_X = { left: 0.6, right: 1.0 };
+		const CHART_Y = { bottom: -0.9, top: 0.9 };
+
+		const state = {
+			price: 100,
+			candles: [],
+			currentCandle: null,
+			candleTimer: 0,
+			orderBook: { bids: [], asks: [] },
+			simSpeed: parseFloat(UI.speed.value),
+			vertexBuffer: null,
+			pipeline: null,
+			context: null,
+			device: null,
+			format: null,
+			vertexData: new Float32Array(MAX_SEGMENTS * 2 * 5),
+			vertexCount: 0,
+			initialised: false,
+			accumulator: 0
+		};
+
+		const updateUIValues = () => {
+			UI.makersValue.textContent = UI.makers.value;
+			UI.takersValue.textContent = UI.takers.value;
+			UI.speedValue.textContent = `${parseFloat(UI.speed.value).toFixed(1)}×`;
+			state.simSpeed = parseFloat(UI.speed.value);
+		};
+
+		UI.makers.addEventListener('input', updateUIValues);
+		UI.takers.addEventListener('input', updateUIValues);
+		UI.speed.addEventListener('input', updateUIValues);
+		updateUIValues();
+
+		const initOrderBook = () => {
+			state.orderBook.bids = [];
+			state.orderBook.asks = [];
+			const basePrice = state.price;
+			for (let i = 0; i < ORDER_LEVELS; i++) {
+				state.orderBook.bids.push({ price: basePrice - (i + 1) * 0.2, volume: 100 - i * 6 });
+				state.orderBook.asks.push({ price: basePrice + (i + 1) * 0.2, volume: 100 - i * 6 });
+			}
+		};
+
+		const updateOrderBookDOM = () => {
+			const lines = ['Order Book (price | volume)', '---------------------------', 'Asks:'];
+			state.orderBook.asks.slice().reverse().forEach(level => {
+				lines.push(`${level.price.toFixed(2)} | ${level.volume.toFixed(1)}`);
+			});
+			lines.push('---');
+			lines.push('Bids:');
+			state.orderBook.bids.forEach(level => {
+				lines.push(`${level.price.toFixed(2)} | ${level.volume.toFixed(1)}`);
+			});
+			UI.orderBook.textContent = lines.join('\n');
+		};
+
+		const ensureCurrentCandle = () => {
+			if (!state.currentCandle) {
+				state.currentCandle = { open: state.price, high: state.price, low: state.price, close: state.price };
+			}
+		};
+
+		const finaliseCandle = () => {
+			if (!state.currentCandle) return;
+			state.candles.push({ ...state.currentCandle });
+			if (state.candles.length > MAX_CANDLES) state.candles.shift();
+			state.currentCandle = { open: state.price, high: state.price, low: state.price, close: state.price };
+		};
+
+		const simulateOrderBook = () => {
+			const makerStrength = parseFloat(UI.makers.value);
+			const takerStrength = parseFloat(UI.takers.value);
+			const pressure = (takerStrength - makerStrength) / Math.max(makerStrength + takerStrength, 1);
+			const volatility = 0.15 + Math.abs(pressure) * 0.35;
+
+			const imbalance = state.orderBook.asks.reduce((sum, ask) => sum + ask.volume, 0) -
+				state.orderBook.bids.reduce((sum, bid) => sum + bid.volume, 0);
+
+			const randomShock = (Math.random() - 0.5) * volatility;
+			const liquidityEffect = Math.tanh(imbalance / 1000) * 0.05;
+			const directional = pressure * 0.04;
+
+			state.price += randomShock + liquidityEffect + directional;
+			state.price = Math.max(5, state.price);
+
+			state.orderBook.bids.forEach((level, idx) => {
+				const decay = 0.1 + idx * 0.03;
+				level.price = state.price - (idx + 1) * 0.2;
+				level.volume = Math.max(10, level.volume + (Math.random() - 0.45) * makerStrength * 0.5 - decay);
+			});
+			state.orderBook.asks.forEach((level, idx) => {
+				const decay = 0.1 + idx * 0.03;
+				level.price = state.price + (idx + 1) * 0.2;
+				level.volume = Math.max(10, level.volume + (Math.random() - 0.55) * takerStrength * 0.4 - decay);
+			});
+		};
+
+		const stepSimulation = (dt) => {
+			simulateOrderBook();
+			ensureCurrentCandle();
+			state.currentCandle.close = state.price;
+			state.currentCandle.high = Math.max(state.currentCandle.high, state.price);
+			state.currentCandle.low = Math.min(state.currentCandle.low, state.price);
+			state.candleTimer += dt;
+			if (state.candleTimer >= 1.0) {
+				finaliseCandle();
+				state.candleTimer = 0;
+			}
+		};
+
+		const computeExtents = () => {
+			const sample = state.candles.length ? state.candles.slice(-MAX_CANDLES) : state.currentCandle ? [state.currentCandle] : [];
+			let min = Number.POSITIVE_INFINITY;
+			let max = Number.NEGATIVE_INFINITY;
+			sample.forEach(c => {
+				min = Math.min(min, c.low);
+				max = Math.max(max, c.high);
+			});
+			if (!isFinite(min) || !isFinite(max)) {
+				min = state.price - 1;
+				max = state.price + 1;
+			}
+			if (Math.abs(max - min) < 1e-3) {
+				max += 0.5;
+				min -= 0.5;
+			}
+			return { min, max };
+		};
+
+		const supportResistance = () => {
+			const lookback = state.candles.slice(-80);
+			if (!lookback.length) return null;
+			let highest = lookback[0].high;
+			let lowest = lookback[0].low;
+			lookback.forEach(c => {
+				if (c.high > highest) highest = c.high;
+				if (c.low < lowest) lowest = c.low;
+			});
+			return { support: lowest, resistance: highest };
+		};
+
+		const normaliseX = (index, total) => {
+			const t = total <= 1 ? 1 : index / (total - 1);
+			return CHART_X.left + t * (CHART_X.right - CHART_X.left);
+		};
+
+		const normaliseY = (price, min, max) => {
+			const ratio = (price - min) / (max - min);
+			return CHART_Y.bottom + ratio * (CHART_Y.top - CHART_Y.bottom);
+		};
+
+		const buildVertices = () => {
+			const { min, max } = computeExtents();
+			const sr = supportResistance();
+			const candles = state.candles.slice(-MAX_CANDLES);
+			const totalCandles = candles.length;
+			let ptr = 0;
+
+			const pushVertex = (x, y, r, g, b) => {
+				state.vertexData[ptr++] = x;
+				state.vertexData[ptr++] = y;
+				state.vertexData[ptr++] = r;
+				state.vertexData[ptr++] = g;
+				state.vertexData[ptr++] = b;
+			};
+
+			const pushLine = (x1, y1, x2, y2, color) => {
+				if (ptr + 10 >= state.vertexData.length) return;
+				pushVertex(x1, y1, ...color);
+				pushVertex(x2, y2, ...color);
+			};
+
+			candles.forEach((candle, idx) => {
+				const x = normaliseX(idx, totalCandles);
+				const wickTop = normaliseY(candle.high, min, max);
+				const wickBottom = normaliseY(candle.low, min, max);
+				const open = normaliseY(candle.open, min, max);
+				const close = normaliseY(candle.close, min, max);
+				const color = candle.close >= candle.open ? [0.06, 0.85, 0.53] : [0.96, 0.32, 0.32];
+				pushLine(x, wickBottom, x, wickTop, color);
+				const bodyHalf = (CHART_X.right - CHART_X.left) / (totalCandles * 2.2);
+				pushLine(x - bodyHalf, open, x + bodyHalf, open, color);
+				pushLine(x - bodyHalf, close, x + bodyHalf, close, color);
+				pushLine(x - bodyHalf, open, x - bodyHalf, close, color);
+				pushLine(x + bodyHalf, open, x + bodyHalf, close, color);
+			});
+
+			if (state.currentCandle) {
+				const idx = totalCandles;
+				const x = normaliseX(idx, totalCandles + 1);
+				const color = [0.72, 0.82, 1.0];
+				const wickTop = normaliseY(state.currentCandle.high, min, max);
+				const wickBottom = normaliseY(state.currentCandle.low, min, max);
+				const open = normaliseY(state.currentCandle.open, min, max);
+				const close = normaliseY(state.currentCandle.close, min, max);
+				pushLine(x, wickBottom, x, wickTop, color);
+				pushLine(x - 0.004, open, x + 0.004, close, color);
+			}
+
+			if (sr) {
+				const supportY = normaliseY(sr.support, min, max);
+				const resistanceY = normaliseY(sr.resistance, min, max);
+				pushLine(CHART_X.left, supportY, CHART_X.right, supportY, [0.3, 0.7, 1.0]);
+				pushLine(CHART_X.left, resistanceY, CHART_X.right, resistanceY, [1.0, 0.7, 0.3]);
+			}
+
+			const maxBid = Math.max(...state.orderBook.bids.map(b => b.volume), 1);
+			const maxAsk = Math.max(...state.orderBook.asks.map(a => a.volume), 1);
+			const bookHeight = CHART_Y.top - CHART_Y.bottom;
+			state.orderBook.bids.forEach((level, idx) => {
+				const y = CHART_Y.bottom + (idx / ORDER_LEVELS) * bookHeight * 0.5;
+				const normalized = level.volume / maxBid;
+				const x1 = BOOK_X.left;
+				const x2 = BOOK_X.left + normalized * (BOOK_X.right - BOOK_X.left) * 0.9;
+				pushLine(x1, y, x2, y, [0.08, 0.85, 0.55]);
+			});
+			state.orderBook.asks.forEach((level, idx) => {
+				const y = CHART_Y.top - (idx / ORDER_LEVELS) * bookHeight * 0.5;
+				const normalized = level.volume / maxAsk;
+				const x1 = BOOK_X.left;
+				const x2 = BOOK_X.left + normalized * (BOOK_X.right - BOOK_X.left) * 0.9;
+				pushLine(x1, y, x2, y, [0.96, 0.32, 0.32]);
+			});
+
+			state.vertexCount = ptr / 5;
+		};
+
+		const render = () => {
+			if (!state.initialised) return;
+			buildVertices();
+			state.device.queue.writeBuffer(state.vertexBuffer, 0, state.vertexData.buffer, 0, state.vertexCount * 5 * 4);
+			const encoder = state.device.createCommandEncoder();
+			const pass = encoder.beginRenderPass({
+				colorAttachments: [{
+					view: state.context.getCurrentTexture().createView(),
+					loadOp: 'clear',
+					clearValue: { r: 0.04, g: 0.07, b: 0.14, a: 1 },
+					storeOp: 'store'
+				}]
+			});
+			pass.setPipeline(state.pipeline);
+			pass.setVertexBuffer(0, state.vertexBuffer);
+			pass.draw(state.vertexCount, 1, 0, 0);
+			pass.end();
+			state.device.queue.submit([encoder.finish()]);
+		};
+
+		const frame = (time) => {
+			if (!state.initialised) {
+				requestAnimationFrame(frame);
+				return;
+			}
+			const dt = time ? time - (frame.lastTime || time) : 0;
+			frame.lastTime = time;
+			state.accumulator += (dt / 1000) * state.simSpeed;
+			const fixedStep = 0.1;
+			while (state.accumulator >= fixedStep) {
+				stepSimulation(fixedStep);
+				state.accumulator -= fixedStep;
+			}
+			updateOrderBookDOM();
+			render();
+			requestAnimationFrame(frame);
+		};
+
+		const initWebGPU = async () => {
+			if (!('gpu' in navigator)) {
+				UI.status.textContent = 'WebGPU not supported in this browser.';
+				return;
+			}
+			try {
+				const adapter = await navigator.gpu.requestAdapter();
+				if (!adapter) {
+					UI.status.textContent = 'No WebGPU adapter available.';
+					return;
+				}
+				const device = await adapter.requestDevice();
+				const context = UI.canvas.getContext('webgpu');
+				const format = navigator.gpu.getPreferredCanvasFormat();
+
+				context.configure({ device, format, alphaMode: 'opaque' });
+
+				const shaderModule = device.createShaderModule({
+					code: `
+						struct VertexOut {
+							@builtin(position) position : vec4<f32>,
+							@location(0) color : vec3<f32>
+						};
+
+						@vertex
+						fn vs_main(@location(0) pos : vec2<f32>, @location(1) color : vec3<f32>) -> VertexOut {
+							var out : VertexOut;
+							out.position = vec4<f32>(pos, 0.0, 1.0);
+							out.color = color;
+							return out;
+						}
+
+						@fragment
+						fn fs_main(input : VertexOut) -> @location(0) vec4<f32> {
+							return vec4<f32>(input.color, 1.0);
+						}
+					`
+				});
+
+				const pipeline = device.createRenderPipeline({
+					layout: 'auto',
+					vertex: {
+						module: shaderModule,
+						entryPoint: 'vs_main',
+						buffers: [{
+							arrayStride: 5 * 4,
+							attributes: [
+								{ shaderLocation: 0, offset: 0, format: 'float32x2' },
+								{ shaderLocation: 1, offset: 8, format: 'float32x3' }
+							]
+						}]
+					},
+					fragment: {
+						module: shaderModule,
+						entryPoint: 'fs_main',
+						targets: [{ format }]
+					},
+					primitive: { topology: 'line-list' }
+				});
+
+				const vertexBuffer = device.createBuffer({
+					size: state.vertexData.byteLength,
+					usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+				});
+
+				state.device = device;
+				state.context = context;
+				state.pipeline = pipeline;
+				state.vertexBuffer = vertexBuffer;
+				state.format = format;
+				state.initialised = true;
+				UI.status.textContent = 'Simulation running (WebGPU).';
+			} catch (err) {
+				console.error(err);
+				UI.status.textContent = 'Failed to initialise WebGPU.';
+			}
+		};
+
+		initOrderBook();
+		updateOrderBookDOM();
+		initWebGPU().then(() => requestAnimationFrame(frame));
+	</script>
+</body>
+</html>
