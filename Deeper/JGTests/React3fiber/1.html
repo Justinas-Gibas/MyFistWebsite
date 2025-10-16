@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>React Three Fiber Starter</title>
+	<style>
+		html, body, #root {
+			margin: 0;
+			height: 100%;
+			background: radial-gradient(circle at top, #20242f 0%, #0f1119 60%, #05060a 100%);
+			font-family: system-ui, sans-serif;
+			color: #f5f5f5;
+		}
+		canvas {
+			display: block;
+		}
+	</style>
+	<script type="importmap">
+	{
+		"imports": {
+			"react": "https://esm.sh/react@18.3.1",
+			"react-dom": "https://esm.sh/react-dom@18.3.1",
+			"react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+			"three": "https://esm.sh/three@0.161.0",
+			"three-stdlib": "https://esm.sh/three-stdlib@2.29.6?external=three",
+			"camera-controls": "https://cdn.jsdelivr.net/npm/camera-controls@3.1.0/+esm",
+			"@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.14?external=react,react-dom,three",
+			"@react-three/drei": "https://esm.sh/@react-three/drei@9.105.6?external=react,react-dom,three,@react-three/fiber,three-stdlib,camera-controls",
+			"leva": "https://esm.sh/leva@0.10.0?external=react,react-dom",
+			"zustand": "https://esm.sh/zustand@4.5.2?external=react"
+		}
+	}
+	</script>   
+</head>
+<body>
+	<div id="root"></div>
+	<script type="module">
+		// React supplies the component model and hooks used throughout this scene.
+		import React, { Suspense, useMemo, useEffect, useRef } from "react";
+		// ReactDOM lets us mount the React tree into the DOM via createRoot.
+		import { createRoot } from "react-dom/client";
+		// @react-three/fiber bridges three.js with React declarative rendering.
+		import { Canvas } from "@react-three/fiber";
+		// Drei bundles handy helpers (controls, environments, HTML overlays, etc.).
+		import { Float, CameraControls, Environment, Html, ContactShadows } from "@react-three/drei";
+		// Leva renders a live control panel so we can tweak scene parameters.
+		import { Leva, useControls } from "leva";
+		// Zustand provides a tiny global store for sharing scene state between components.
+		import { create } from "zustand";
+
+		const useSceneStore = create(set => ({
+			color: "#ff6f61",
+			intensity: 1.2,
+			setColor: color => set({ color }),
+			setIntensity: intensity => set({ intensity })
+		}));
+
+		function ControlPanel() {
+			const { setColor, setIntensity } = useSceneStore();
+			useControls("Glow", {
+				color: {
+					value: "#ff6f61",
+					onChange: setColor
+				},
+				intensity: {
+					value: 1.2,
+					min: 0,
+					max: 3,
+					step: 0.1,
+					onChange: setIntensity
+				}
+			});
+			return null;
+		}
+
+		function GlowGem() {
+			const { color, intensity } = useSceneStore();
+			const emissive = useMemo(() => color, [color]);
+			return React.createElement(
+				Float,
+				{ speed: 2, rotationIntensity: 1, floatIntensity: 2 },
+				React.createElement(
+					"mesh",
+					{ castShadow: true },
+					React.createElement("icosahedronGeometry", { args: [1, 8] }),
+					React.createElement("meshStandardMaterial", {
+						color: "#141414",
+						metalness: 0.4,
+						roughness: 0.1,
+						emissive,
+						emissiveIntensity: intensity
+					})
+				)
+			);
+		}
+
+		function CameraRig() {
+			const controls = useRef(null);
+			useEffect(() => {
+				if (!controls.current) return;
+				controls.current
+					.normalizeRotations()
+					.setLookAt(5, 2, 5, 0, 0, 0, true);
+			}, []);
+			return React.createElement(CameraControls, {
+				ref: controls,
+				smoothTime: 0.18,
+				draggingSmoothTime: 0.12,
+				maxSpeed: 50,
+				dollyToCursor: true,
+				minDistance: 1.5,
+				maxDistance: 10,
+				dollySpeed: 0.9
+			});
+		}
+
+		function Scene() {
+			return React.createElement(
+				React.Fragment,
+				null,
+				React.createElement("ambientLight", { intensity: 0.2 }),
+				React.createElement("directionalLight", { position: [2, 3, 2], intensity: 1.5, castShadow: true }),
+				React.createElement(GlowGem, null),
+				React.createElement(ContactShadows, { position: [0, -1.5, 0], opacity: 1, scale: 9, blur: 1.75, resolution: 64, far: 4 }),
+				React.createElement(Environment, { preset: "city" }),
+				React.createElement(
+					Html,
+					{ position: [0, 2, 0], center: true },
+					React.createElement(
+						"div",
+						{ style: { textAlign: "center", opacity: 0.8 } },
+						React.createElement(
+							"h1",
+							{ style: { margin: 0, fontSize: "1.6rem", letterSpacing: "0.1em" } },
+							"React Three Fiber"
+						),
+						React.createElement(
+							"p",
+							{ style: { marginTop: "0.2rem", fontSize: "0.9rem" } },
+							"Drei · Leva · Zustand"
+						)
+					)
+				),
+				React.createElement(CameraRig, null)
+			);
+		}
+
+		function App() {
+			return React.createElement(
+				React.Fragment,
+				null,
+				React.createElement(Leva, { collapsed: true }),
+				React.createElement(ControlPanel, null),
+				React.createElement(
+					Canvas,
+					{ shadows: true, performance: { min: 0.8 }, camera: { position: [20, 2, 20], fov: 45 }, dpr: [1, 1.5] },
+					React.createElement(
+						Suspense,
+						{ fallback: null },
+						React.createElement(Scene, null)
+					)
+				)
+			);
+		}
+
+		createRoot(document.getElementById("root")).render(React.createElement(App));
+	</script>
+</body>
+</html>

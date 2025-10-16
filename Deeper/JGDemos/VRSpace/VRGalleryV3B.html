@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Three.js AR/XR - Enhanced Virtual Art Gallery</title>
+    <meta charset="UTF-8">
+    
+    <meta name="author" content="Justinas Gibas" />
+    <meta name="description" content="Three.js AR/XR - Enhanced Virtual Art Gallery">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="icon" type="image/svg+xml" href="../../upper/JG.svg">
+    <link rel="icon" type="image/x-icon" href="../../upper/JG_favicon.ico">
+    <link rel="stylesheet" href="../../lib/styles/reset.css">
+    <!-- <link rel="stylesheet" href="../../lib/styles/style.css"> -->
+    <style>
+        body, html { margin: 0; height: 100%; overflow: hidden; }
+        canvas { width: 100%; height: 100%; display: block; }
+
+        /* Simple styling so the button is usable in AR dom-overlay too */
+        #btnPickImage {
+            position: fixed; top: 10px; left: 10px;
+            z-index: 10; padding: 8px 12px; font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <!-- New: UI for replacing the artwork image -->
+    <button id="btnPickImage">Replace Artwork Image</button>
+    <input id="filePicker" type="file" accept="image/*" style="display:none" />
+
+<script async src="../../lib/utils/es-module-shims.js"></script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "../../lib/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { FontLoader } from '../../lib/loaders/FontLoader.js';
+import { TextGeometry } from '../../lib/utils/TextGeometry.js';
+import { OrbitControls } from '../../lib/controls/OrbitControls.js';
+import { ARButton } from '../../lib/webxr/ARButton.js';
+import Stats from '../../lib/libs/stats.module.js'
+
+let camera, scene, renderer, controls;
+let hitTestSource = null;
+let hitTestSourceRequested = false;
+let Artwork = null;
+
+// New: Anchor state (optional feature) to keep AR placement stable between frames.
+let artworkAnchor = null;
+let artworkAnchorSpace = null;
+
+// New: Small offset to keep the art a few cm in front of the wall to avoid z-fighting.
+const WALL_OFFSET = 0.02; // meters
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const stats = new Stats();
+document.body.appendChild(stats.dom);
+
+function initGallery() {
+    scene = new THREE.Scene();
+    camera = setupCamera();
+    renderer = setupRenderer();
+
+    setupLighting();
+    setupControls();
+    setupGallery();
+    // New: setup simple UI to pick and apply a custom image texture
+    setupUI();
+    setupEventListeners();
+    renderer.xr.addEventListener('sessionstart', onStartSession);
+    renderer.xr.addEventListener('sessionend', onEndSession);
+    animate();
+}
+
+function onStartSession() {
+    setupARHitTest();
+}
+
+function onEndSession() {
+    hitTestSource = null;
+    hitTestSourceRequested = false;
+    // Cleanup anchor state when AR session ends.
+    artworkAnchor = null;
+    artworkAnchorSpace = null;
+}
+
+async function setupARHitTest() {
+    const session = renderer.xr.getSession();
+    if (!session) return;
+
+    try {
+        // 'viewer' space hit test casts a ray from the device (or transient input in select).
+        const viewerSpace = await session.requestReferenceSpace('viewer');
+        hitTestSourceRequested = true;
+        session.requestHitTestSource({ space: viewerSpace }).then((source) => {
+            hitTestSource = source;
+        });
+    } catch (e) {
+        console.error('Error setting up AR hit test:', e);
+    }
+
+    // In AR, 'select' fires on user tap; we place/snap the artwork there.
+    session.addEventListener('select', onSelect);
+}
+
+// Replace the placement logic to snap to vertical walls (if available).
+async function onSelect(event) {
+    // Guard: need an active hit test and the artwork mesh created.
+    if (hitTestSource === null || Artwork === null) return;
+
+    const frame = event.frame;
+    const referenceSpace = renderer.xr.getReferenceSpace();
+    const session = renderer.xr.getSession();
+    if (!frame || !referenceSpace || !session) return;
+
+    const hitTestResults = frame.getHitTestResults(hitTestSource);
+    if (hitTestResults.length === 0) return;
+
+    const hit = hitTestResults[0];
+    const pose = hit.getPose(referenceSpace);
+    if (!pose) return;
+
+    // Extract hit position in world space.
+    const hitPosition = new THREE.Vector3(
+        pose.transform.position.x,
+        pose.transform.position.y,
+        pose.transform.position.z
+    );
+
+    // Try to find a nearby vertical plane (requires optional plane-detection).
+    // If found, align the artwork flush to that wall; otherwise, fall back to facing the camera.
+    let chosenNormal = null;
+    if (frame.worldInformation && frame.worldInformation.detectedPlanes) {
+        const planeInfo = findVerticalPlaneNearHit(frame, referenceSpace, hitPosition, 0.35); // search within 35cm
+        if (planeInfo && planeInfo.normal) {
+            chosenNormal = planeInfo.normal.clone().normalize();
+        }
+    }
+
+    // Compute target rotation:
+    // - If we have a wall normal, align the plane's +Z to point out of the wall into the room.
+    // - Otherwise, face the camera as a reasonable fallback.
+    const cameraWorld = new THREE.Vector3();
+    camera.getWorldPosition(cameraWorld);
+    const viewDir = cameraWorld.clone().sub(hitPosition).normalize();
+
+    let targetQuat = new THREE.Quaternion();
+    if (chosenNormal) {
+        // Ensure the normal faces the camera (flip if necessary).
+        if (chosenNormal.dot(viewDir) < 0) chosenNormal.multiplyScalar(-1);
+
+        // Keep artwork upright: build a basis with Z = wall normal, Y ~ world up.
+        const z = chosenNormal.clone().normalize();         // outward from wall
+        let up = new THREE.Vector3(0, 1, 0);                // desired up
+        // If the normal is too close to up, pick a different helper up to avoid gimbal issues.
+        if (Math.abs(z.dot(up)) > 0.95) up = new THREE.Vector3(0, 0, 1);
+        const x = new THREE.Vector3().crossVectors(up, z).normalize();
+        const y = new THREE.Vector3().crossVectors(z, x).normalize();
+        const m = new THREE.Matrix4().makeBasis(x, y, z);
+        targetQuat.setFromRotationMatrix(m);
+    } else {
+        // Fallback: face camera.
+        Artwork.position.copy(hitPosition);
+        Artwork.lookAt(cameraWorld);
+        Artwork.rotateY(Math.PI);
+        targetQuat.copy(Artwork.quaternion);
+    }
+
+    // Compute final position with a small offset away from the wall if we have a normal.
+    const finalPosition = hitPosition.clone();
+    if (chosenNormal) finalPosition.add(chosenNormal.clone().multiplyScalar(WALL_OFFSET));
+
+    // Apply transform immediately.
+    Artwork.matrixAutoUpdate = true;
+    Artwork.position.copy(finalPosition);
+    Artwork.quaternion.copy(targetQuat);
+
+    // Optional: create an anchor so the placement remains stable as tracking improves.
+    // This requires the 'anchors' feature to be available on the session.
+    try {
+        // Dispose previous anchor if any.
+        if (artworkAnchor && artworkAnchor.delete) artworkAnchor.delete();
+        artworkAnchor = null;
+        artworkAnchorSpace = null;
+
+        const anchorPose = new XRRigidTransform(
+            { x: finalPosition.x, y: finalPosition.y, z: finalPosition.z },
+            { x: targetQuat.x, y: targetQuat.y, z: targetQuat.z, w: targetQuat.w }
+        );
+
+        // Some implementations expose createAnchor on XRHitTestResult; others on XRFrame.
+        if (hit.createAnchor) {
+            artworkAnchor = await hit.createAnchor(anchorPose);
+        } else if (frame.createAnchor) {
+            artworkAnchor = await frame.createAnchor(anchorPose, referenceSpace);
+        }
+
+        if (artworkAnchor) {
+            artworkAnchorSpace = artworkAnchor.anchorSpace;
+            // From now on, we will read back the anchor pose each frame in render().
+            // This keeps the artwork "glued" to the real-world wall as tracking updates.
+        }
+    } catch (e) {
+        // Anchors are optional; placement still works without them.
+        console.warn('Anchor creation failed or unsupported:', e);
+    }
+}
+
+// Helper: find a vertical plane near a given hit position using WebXR plane detection.
+function findVerticalPlaneNearHit(frame, referenceSpace, hitPosition, maxDistanceMeters = 0.3) {
+    const planes = frame.worldInformation.detectedPlanes;
+    if (!planes || planes.size === 0) return null;
+
+    let best = null;
+    // Robust iteration across XRPlaneSet implementations.
+    for (const plane of (planes.values ? planes.values() : planes)) {
+        // Get the plane's world pose.
+        const planePose = frame.getPose(plane.planeSpace, referenceSpace);
+        if (!planePose) continue;
+
+        // Compute the plane normal in world space.
+        const normalWorld = computePlaneNormalWorld(plane, planePose);
+
+        // Consider "vertical" planes only (small Y component).
+        if (!normalWorld || Math.abs(normalWorld.y) > 0.3) continue;
+
+        // Distance from hit to plane along the normal.
+        const planePosition = new THREE.Vector3(
+            planePose.transform.position.x,
+            planePose.transform.position.y,
+            planePose.transform.position.z
+        );
+        const dist = Math.abs(hitPosition.clone().sub(planePosition).dot(normalWorld));
+
+        if (dist <= maxDistanceMeters) {
+            if (!best || dist < best.distance) {
+                best = { normal: normalWorld, distance: dist, plane, planePose };
+            }
+        }
+    }
+    return best;
+}
+
+// Simplify: plane normal is plane-space +Y rotated by the plane pose orientation.
+function computePlaneNormalWorld(plane, planePose) {
+    const q = new THREE.Quaternion(
+        planePose.transform.orientation.x,
+        planePose.transform.orientation.y,
+        planePose.transform.orientation.z,
+        planePose.transform.orientation.w
+    );
+    return new THREE.Vector3(0, 1, 0).applyQuaternion(q).normalize();
+}
+
+function setupCamera() {
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
+    camera.position.set(0, 1.6, 3);
+    return camera;
+}
+
+function setupRenderer() {
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.xr.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    // Request AR features:
+    // - hit-test (required) to place objects where the user taps.
+    // - anchors (optional) to persist placement robustly as tracking updates.
+    // - plane-detection (optional) to find vertical walls and snap to them.
+    // Note: These features depend on device/browser support (Chrome on Android).
+    // No extra libraries are needed; WebXR provides scanning and real-world scale in meters.
+    document.body.appendChild(ARButton.createButton(renderer, {
+        requiredFeatures: ['hit-test'],
+        optionalFeatures: ['anchors', 'plane-detection', 'dom-overlay'],
+        domOverlay: { root: document.body }
+    }));
+    return renderer;
+}
+
+function setupLighting() {
+    const ambientLight = new THREE.HemisphereLight(0xddeeff, 0x202020, 1);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(5, 10, 7.5);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+}
+
+function setupControls() {
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.6, 0);
+    controls.update();
+}
+
+function setupGallery() {
+    loadArtPieces(scene);
+}
+
+function wrapText(text, maxCharsPerLine) {
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = words[0];
+
+    for (let i = 1; i < words.length; i++) {
+        if ((currentLine + words[i]).length < maxCharsPerLine) {
+            currentLine += ' ' + words[i];
+        } else {
+            lines.push(currentLine);
+            currentLine = words[i];
+        }
+    }
+    lines.push(currentLine); // Add the last line
+
+    return lines;
+}
+
+function loadText(scene) {
+    const loader = new FontLoader();
+    loader.load('../../lib/styles/helvetiker_regular.typeface.json', function (font) {
+        const maxCharsPerLine = 30;
+        const lineHeight = 0.15;
+
+        const lines = wrapText('Our long text that needs to be wrapped goes here.  Autoriai: JK, AK, JG.', maxCharsPerLine);
+
+        lines.forEach((line, index) => {
+            const textGeometry = new TextGeometry(line, {
+                font: font,
+                size: 0.1,
+                height: 0.01,
+                depth: 0,
+                curveSegments: 4,
+                bevelEnabled: false,
+            });
+
+            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+
+            // Adjust Y position based on the line index
+            textMesh.position.set(1, 2.5 - (index * lineHeight), -0.01); // Adjust X and Z as needed
+            textMesh.rotation.y = -Math.PI; // Rotate to face the opposite direction
+
+            scene.add(textMesh);
+        });
+    });
+}
+
+function loadArtPieces(scene) {
+    const textureLoader = new THREE.TextureLoader();
+    const artGeometry = new THREE.PlaneGeometry(1.0, 1.0);
+    textureLoader.load('../../lib/images/BackWater.png', function(texture) {
+        const artMaterial = new THREE.MeshStandardMaterial({map: texture});
+        const art = new THREE.Mesh(artGeometry, artMaterial);
+        art.castShadow = true;
+        art.position.set(0, 2, 0);
+        art.userData = { clickable: true };
+        scene.add(art);
+        Artwork = art;
+        loadText(scene);
+
+        // Removed: rely on global dblclick + raycast for desktop.
+        // art.addEventListener('dblclick', () => translateCameraToArt(art.position), false);
+    });
+}
+
+function onDoubleClick(event) {
+    // Calculate mouse position in normalized device coordinates
+    // (-1 to +1) for both components
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    // Now, check for intersections
+    checkForIntersections();
+}
+
+function translateCameraToArt(targetPosition) {
+    const startPosition = camera.position.clone();
+    const endPosition = targetPosition.clone().add(new THREE.Vector3(0, 0, 3)); // Adjust Z to stop in front of the artwork
+    //endPosition.y = camera.position.y; // Keep the camera at the same height
+    let alpha = 0.0;
+
+    function animate() {
+        if (alpha < 1.0) {
+            alpha += 0.01; // Speed of the camera movement
+            camera.position.lerpVectors(startPosition, endPosition, alpha);
+            camera.lookAt(targetPosition.x, targetPosition.y, targetPosition.z);
+            requestAnimationFrame(animate);
+        } else {
+            //updateOrbitControlsTarget(endPosition); // Update after animation completes
+        }
+    }
+    animate();
+    updateOrbitControlsTarget(targetPosition);
+}
+
+function updateOrbitControlsTarget(newTarget) {
+    controls.target.set(newTarget.x, newTarget.y, newTarget.z); // Update 'controls' directly
+    controls.update();
+}
+
+function checkForIntersections() {
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children);
+
+    for (let i = 0; i < intersects.length; i++) {
+        if (intersects[i].object.userData.clickable) {
+            translateCameraToArt(intersects[i].object.position);
+            break; // Assuming you want to interact with the first object the ray hits that is clickable
+        }
+    }
+}
+
+function onWindowResize(camera, renderer) {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function setupEventListeners() {
+    window.addEventListener('resize', () => onWindowResize(camera, renderer), false);
+    document.addEventListener('dblclick', onDoubleClick, false);
+}
+
+function setupUI() {
+    const btn = document.getElementById('btnPickImage');
+    const input = document.getElementById('filePicker');
+
+    if (!btn || !input) return;
+
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) {
+            replaceArtworkTexture(file);
+            // Allow selecting the same file again later
+            input.value = '';
+        }
+    });
+}
+
+// New: Load selected image and set as Artwork texture.
+function replaceArtworkTexture(file) {
+    if (!Artwork) {
+        console.warn('Artwork not ready yet.');
+        return;
+    }
+    const url = URL.createObjectURL(file);
+    const loader = new THREE.TextureLoader();
+
+    loader.load(
+        url,
+        (texture) => {
+            // Clean up previous texture to avoid leaks.
+            if (Artwork.material && Artwork.material.map) {
+                Artwork.material.map.dispose();
+            }
+            // Assign new map and update material.
+            Artwork.material.map = texture;
+            Artwork.material.needsUpdate = true;
+
+            URL.revokeObjectURL(url);
+        },
+        undefined,
+        (err) => {
+            console.error('Failed to load user image as texture:', err);
+            URL.revokeObjectURL(url);
+        }
+    );
+}
+
+function animate() {
+    renderer.setAnimationLoop(() => render());
+}
+
+function render() {
+    stats.begin();
+
+    // Update from anchor if available; otherwise allow normal object updates.
+    const xrFrame = renderer.xr.getFrame && renderer.xr.getFrame();
+    if (xrFrame && artworkAnchorSpace && Artwork) {
+        const refSpace = renderer.xr.getReferenceSpace();
+        const pose = xrFrame.getPose(artworkAnchorSpace, refSpace);
+        if (pose) {
+            Artwork.matrixAutoUpdate = false;
+            Artwork.matrix.fromArray(pose.transform.matrix);
+            // Keep Three.js internals in sync (useful for helpers, bounds, etc.).
+            Artwork.matrix.decompose(Artwork.position, Artwork.quaternion, Artwork.scale);
+        }
+    } else if (Artwork) {
+        Artwork.matrixAutoUpdate = true;
+    }
+
+    renderer.render(scene, camera);
+    stats.end();
+}
+
+initGallery();
+</script>
+
+</body>
+</html>
