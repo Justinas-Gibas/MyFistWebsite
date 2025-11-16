@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Simple Raw Mic Recorder</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 1rem;
+      padding: 2rem;
+      background: #111;
+      color: #eee;
+    }
+    button {
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      background: #444;
+      color: #eee;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    #status {
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+    #downloads {
+      margin-top: 1rem;
+      width: 100%;
+      max-width: 500px;
+    }
+    .recording-item {
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      border-radius: 0.75rem;
+      background: #222;
+    }
+    audio {
+      width: 100%;
+      margin-top: 0.5rem;
+    }
+    a {
+      color: #7fd;
+    }
+  </style>
+</head>
+<body>
+  <h1>Raw Mic Recorder</h1>
+
+  <div>
+    <button id="initBtn">Allow Mic</button>
+    <button id="startBtn" disabled>Start</button>
+    <button id="pauseBtn" disabled>Pause</button>
+    <button id="stopBtn" disabled>Stop</button>
+  </div>
+
+  <div id="status">Mic not initialized.</div>
+
+  <div id="downloads"></div>
+
+  <script>
+    let mediaStream = null;
+    let mediaRecorder = null;
+    let chunks = [];
+    let recordingCount = 0;
+    let isInitializing = false;
+
+    const initBtn = document.getElementById('initBtn');
+    const startBtn = document.getElementById('startBtn');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const statusEl = document.getElementById('status');
+    const downloadsEl = document.getElementById('downloads');
+    const resetControls = () => {
+      startBtn.disabled = false;
+      pauseBtn.disabled = true;
+      pauseBtn.textContent = 'Pause';
+      stopBtn.disabled = true;
+    };
+    resetControls();
+
+    /**
+     * Requests microphone access and prepares controls for recording.
+     * @returns {Promise<void>}
+     */
+    initBtn.onclick = async () => {
+      if (isInitializing) {
+        statusEl.textContent = 'Mic request already in progress…';
+        return;
+      }
+      if (mediaStream) {
+        statusEl.textContent = 'Mic already initialized.';
+        return;
+      }
+      isInitializing = true;
+      try {
+        statusEl.textContent = 'Requesting microphone…';
+
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+            // You can also try:
+            // channelCount: 2,
+            // sampleRate: 48000
+          }
+        });
+
+        statusEl.textContent = 'Mic ready. You can start recording.';
+        initBtn.disabled = true;
+        startBtn.disabled = false;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = 'Could not access microphone: ' + err.message;
+      } finally {
+        isInitializing = false;
+      }
+    };
+
+    /**
+     * Starts a new recording session and wires recorder event handlers.
+     * @returns {void}
+     */
+    startBtn.onclick = () => {
+      if (!mediaStream) {
+        statusEl.textContent = 'Allow microphone access first.';
+        return;
+      }
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        statusEl.textContent = 'Finish the current recording before starting a new one.';
+        return;
+      }
+      chunks = [];
+
+      const options = {};
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        options.mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options.mimeType = 'audio/webm';
+      }
+
+      mediaRecorder = new MediaRecorder(mediaStream, options);
+
+      /**
+       * Collects audio data chunks emitted by the MediaRecorder.
+       * @param {BlobEvent} e - Blob event containing recorded audio data.
+       * @returns {void}
+       */
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      /**
+       * Updates UI state when recording begins.
+       * @returns {void}
+       */
+      mediaRecorder.onstart = () => {
+        statusEl.textContent = 'Recording…';
+        startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        stopBtn.disabled = false;
+      };
+
+      /**
+       * Indicates that recording is temporarily paused.
+       * @returns {void}
+       */
+      mediaRecorder.onpause = () => {
+        statusEl.textContent = 'Recording paused.';
+      };
+
+      /**
+       * Indicates that recording has resumed after a pause.
+       * @returns {void}
+       */
+      mediaRecorder.onresume = () => {
+        statusEl.textContent = 'Recording…';
+      };
+
+      /**
+       * Finalizes recording, creates a downloadable file, and resets controls.
+       * @returns {void}
+       */
+      mediaRecorder.onstop = () => {
+        statusEl.textContent = 'Recording stopped. Creating file…';
+        if (!chunks.length) {
+          statusEl.textContent = 'No audio captured. Ready for a new recording.';
+          resetControls();
+          return;
+        }
+
+        const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+
+        recordingCount += 1;
+        const item = document.createElement('div');
+        item.className = 'recording-item';
+
+        const title = document.createElement('div');
+        const now = new Date();
+        const name = `recording-${recordingCount}-${now.toISOString().replace(/[:.]/g, '-')}.webm`;
+        title.textContent = name;
+        item.appendChild(title);
+
+        const audio = document.createElement('audio');
+        audio.controls = true;
+        audio.src = url;
+        item.appendChild(audio);
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = name;
+        link.textContent = 'Download';
+        item.appendChild(link);
+
+        downloadsEl.prepend(item);
+
+        resetControls();
+        statusEl.textContent = 'Mic ready. You can start a new recording.';
+      };
+
+      mediaRecorder.start();
+    };
+
+    /**
+     * Toggles pause/resume state on the active recording.
+     * @returns {void}
+     */
+    pauseBtn.onclick = () => {
+      if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+      if (mediaRecorder.state === 'recording') {
+        mediaRecorder.pause();
+        pauseBtn.textContent = 'Resume';
+      } else if (mediaRecorder.state === 'paused') {
+        mediaRecorder.resume();
+        pauseBtn.textContent = 'Pause';
+      }
+    };
+
+    /**
+     * Stops the current recording session and resets the pause button label.
+     * @returns {void}
+     */
+    stopBtn.onclick = () => {
+      if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+      stopBtn.disabled = true;
+      pauseBtn.disabled = true;
+      mediaRecorder.stop();
+      pauseBtn.textContent = 'Pause';
+    };
+  </script>
+</body>
+</html>
