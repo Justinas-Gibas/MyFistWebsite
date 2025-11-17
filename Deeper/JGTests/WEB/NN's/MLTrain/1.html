@@ -1,0 +1,1962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>ML Architecture Forge</title>
+	<style>
+		:root {
+			color-scheme: light dark;
+			--bg: #10131a;
+			--panel: rgba(21, 26, 38, 0.92);
+			--panel-border: rgba(255, 255, 255, 0.08);
+			--accent: #7dd3fc;
+			--accent-strong: #34d399;
+			--text: #e2e8f0;
+			--muted: #9ca3af;
+			--warn: #fbbf24;
+			--danger: #f87171;
+			--success: #4ade80;
+		}
+		* { box-sizing: border-box; }
+		html, body {
+			margin: 0;
+			min-height: 100%;
+			background: radial-gradient(circle at 20% 20%, rgba(45,70,110,0.45), transparent 65%), radial-gradient(circle at 80% 0%, rgba(16,185,129,0.18), transparent 55%), var(--bg);
+			font-family: "Segoe UI", "Inter", sans-serif;
+			color: var(--text);
+		}
+		header.top-bar {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			padding: 1rem 1.5rem;
+			position: sticky;
+			top: 0;
+			backdrop-filter: blur(12px);
+			background: rgba(5,10,18,0.82);
+			border-bottom: 1px solid var(--panel-border);
+			z-index: 40;
+		}
+		header .title {
+			display: flex;
+			flex-direction: column;
+			gap: 0.1rem;
+		}
+		header h1 {
+			margin: 0;
+			font-size: 1.45rem;
+			letter-spacing: 0.04em;
+		}
+		header h1 span {
+			color: var(--accent);
+			font-weight: 600;
+		}
+		header .subtitle {
+			font-size: 0.85rem;
+			color: var(--muted);
+		}
+		header .status-badge {
+			padding: 0.35rem 0.9rem;
+			border-radius: 999px;
+			background: rgba(56,189,248,0.18);
+			color: var(--accent);
+			font-size: 0.85rem;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			border: 1px solid rgba(56,189,248,0.25);
+		}
+		main.layout {
+			display: grid;
+			grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.3fr) minmax(320px, 1.1fr);
+			gap: 1.5rem;
+			padding: 1.5rem;
+		}
+		.panel {
+			background: var(--panel);
+			border: 1px solid var(--panel-border);
+			border-radius: 18px;
+			padding: 1.2rem;
+			display: flex;
+			flex-direction: column;
+			min-height: 480px;
+			position: relative;
+			overflow: hidden;
+		}
+		.panel::after {
+			content: "";
+			position: absolute;
+			inset: 0;
+			border-radius: inherit;
+			border: 1px solid rgba(125, 211, 252, 0.08);
+			pointer-events: none;
+		}
+		.panel h2 {
+			margin: 0 0 0.75rem;
+			font-size: 1.1rem;
+			letter-spacing: 0.05em;
+			text-transform: uppercase;
+			color: var(--accent);
+		}
+		.panel section-title {
+			font-weight: 600;
+		}
+		.scoreboard {
+			display: grid;
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+			gap: 0.75rem;
+			margin-bottom: 1rem;
+		}
+		.score-tile {
+			background: rgba(255,255,255,0.02);
+			border: 1px solid var(--panel-border);
+			border-radius: 14px;
+			padding: 0.65rem 0.75rem;
+		}
+		.score-tile h3 {
+			margin: 0;
+			font-size: 0.75rem;
+			color: var(--muted);
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+		}
+		.score-tile strong {
+			display: block;
+			margin-top: 0.35rem;
+			font-size: 1.35rem;
+			color: var(--accent);
+		}
+		.stage-grid {
+			display: flex;
+			flex-direction: column;
+			gap: 0.85rem;
+			margin-bottom: 1rem;
+			overflow-y: auto;
+			padding-right: 0.25rem;
+		}
+		.stage-card {
+			position: relative;
+			padding: 0.9rem;
+			border-radius: 16px;
+			border: 1px solid rgba(125, 211, 252, 0.22);
+			background: rgba(14,23,36,0.75);
+			cursor: pointer;
+			transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+		}
+		.stage-card:hover {
+			transform: translateY(-2px);
+			border-color: rgba(52,211,153,0.4);
+		}
+		.stage-card.locked {
+			border-style: dashed;
+			border-color: rgba(255,255,255,0.12);
+			background: rgba(18, 18, 24, 0.65);
+			cursor: not-allowed;
+			opacity: 0.7;
+		}
+		.stage-card.active {
+			border-color: rgba(56,189,248,0.7);
+			box-shadow: 0 0 0 2px rgba(56,189,248,0.18);
+		}
+		.stage-card header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			margin-bottom: 0.5rem;
+		}
+		.stage-card h3 {
+			margin: 0;
+			font-size: 1rem;
+			color: var(--text);
+		}
+		.stage-card .difficulty {
+			font-size: 0.72rem;
+			color: var(--muted);
+			text-transform: uppercase;
+			letter-spacing: 0.1em;
+		}
+		.stage-card p {
+			margin: 0;
+			font-size: 0.86rem;
+			color: var(--muted);
+			line-height: 1.35;
+		}
+		details.info-block {
+			margin-top: auto;
+			background: rgba(255,255,255,0.02);
+			border-radius: 14px;
+			border: 1px solid var(--panel-border);
+			padding: 0.75rem 0.9rem;
+		}
+		details.info-block summary {
+			cursor: pointer;
+			font-size: 0.85rem;
+			letter-spacing: 0.06em;
+			color: var(--accent);
+		}
+		details.info-block p, details.info-block ul {
+			margin: 0.5rem 0 0;
+			font-size: 0.85rem;
+			color: var(--muted);
+		}
+		.catalog-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+			gap: 0.75rem;
+			margin-bottom: 1rem;
+			overflow-y: auto;
+			max-height: 200px;
+			padding-right: 0.35rem;
+		}
+		.layer-card {
+			border-radius: 14px;
+			border: 1px solid rgba(255,255,255,0.09);
+			background: rgba(255,255,255,0.04);
+			padding: 0.75rem;
+			cursor: pointer;
+			display: flex;
+			flex-direction: column;
+			gap: 0.4rem;
+			transition: transform 140ms ease, border-color 140ms ease;
+		}
+		.layer-card:hover {
+			transform: translateY(-2px);
+			border-color: rgba(125, 211, 252, 0.45);
+		}
+		.layer-card strong {
+			font-size: 0.95rem;
+			color: var(--text);
+		}
+		.layer-card span {
+			font-size: 0.78rem;
+			color: var(--muted);
+			line-height: 1.25;
+		}
+		.layer-card .badge {
+			align-self: flex-start;
+			padding: 0.18rem 0.55rem;
+			border-radius: 999px;
+			font-size: 0.7rem;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			background: rgba(125, 211, 252, 0.16);
+			color: var(--accent);
+		}
+		.architecture-shell {
+			background: rgba(12,18,28,0.6);
+			border: 1px dashed rgba(125,211,252,0.3);
+			border-radius: 16px;
+			padding: 0.75rem;
+			display: flex;
+			gap: 0.75rem;
+			justify-content: space-between;
+			overflow-x: auto;
+		}
+		.slot {
+			min-width: 140px;
+			min-height: 110px;
+			border-radius: 12px;
+			border: 1px solid rgba(148,163,184,0.25);
+			background: rgba(255,255,255,0.03);
+			padding: 0.55rem;
+			display: flex;
+			flex-direction: column;
+			justify-content: space-between;
+			position: relative;
+		}
+		.slot.empty {
+			align-items: center;
+			justify-content: center;
+			color: rgba(148,163,184,0.6);
+			font-size: 0.8rem;
+			text-align: center;
+			border-style: dashed;
+		}
+		.slot strong {
+			font-size: 0.92rem;
+			color: var(--text);
+		}
+		.slot span {
+			font-size: 0.78rem;
+			color: var(--muted);
+		}
+		.slot button {
+			margin-top: 0.45rem;
+			padding: 0.25rem;
+			background: rgba(244,114,182,0.12);
+			border: 1px solid rgba(244,114,182,0.28);
+			color: #f472b6;
+			border-radius: 8px;
+			font-size: 0.72rem;
+			cursor: pointer;
+		}
+		.controls-grid {
+			margin-top: 1rem;
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+			gap: 0.75rem;
+		}
+		label.control {
+			display: flex;
+			flex-direction: column;
+			gap: 0.45rem;
+			font-size: 0.78rem;
+			color: var(--muted);
+			text-transform: uppercase;
+			letter-spacing: 0.09em;
+		}
+		label.control input[type="range"] {
+			width: 100%;
+		}
+		label.control span.value {
+			font-size: 0.9rem;
+			color: var(--accent);
+			font-weight: 600;
+		}
+		select, input, button {
+			font-family: inherit;
+		}
+		select, input[type="number"] {
+			background: rgba(5,10,18,0.5);
+			color: var(--text);
+			border: 1px solid rgba(148,163,184,0.25);
+			border-radius: 10px;
+			padding: 0.5rem;
+		}
+		.primary-btn {
+			margin-top: 1.1rem;
+			padding: 0.7rem 1.1rem;
+			background: linear-gradient(135deg, rgba(56,189,248,0.8), rgba(34,211,238,0.7));
+			border: none;
+			border-radius: 14px;
+			color: #04121a;
+			font-weight: 600;
+			font-size: 0.95rem;
+			cursor: pointer;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			transition: transform 120ms ease, box-shadow 120ms ease;
+		}
+		.primary-btn:hover {
+			transform: translateY(-1px);
+			box-shadow: 0 12px 30px rgba(56,189,248,0.25);
+		}
+		.primary-btn:disabled {
+			opacity: 0.6;
+			cursor: progress;
+			box-shadow: none;
+		}
+		.secondary-btn {
+			margin-left: auto;
+			padding: 0.6rem 0.9rem;
+			background: rgba(148,163,184,0.12);
+			border: 1px solid rgba(148,163,184,0.28);
+			border-radius: 10px;
+			color: var(--muted);
+			font-size: 0.8rem;
+			cursor: pointer;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+		}
+		.console {
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+			gap: 0.9rem;
+		}
+		.console .metric-banner {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			background: rgba(34,197,94,0.12);
+			border: 1px solid rgba(34,197,94,0.3);
+			color: var(--success);
+			padding: 0.75rem 1rem;
+			border-radius: 14px;
+			min-height: 60px;
+		}
+		.console .metric-banner span {
+			font-size: 0.85rem;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+		}
+		.console .metric-banner strong {
+			font-size: 1.35rem;
+		}
+		.console .metric-banner.fail {
+			background: rgba(248,113,113,0.12);
+			border-color: rgba(248,113,113,0.35);
+			color: var(--danger);
+		}
+		progress {
+			width: 100%;
+			height: 12px;
+			accent-color: var(--accent);
+		}
+		pre.log {
+			flex: 1;
+			background: rgba(0,0,0,0.32);
+			border: 1px solid rgba(148,163,184,0.18);
+			border-radius: 14px;
+			padding: 0.85rem;
+			margin: 0;
+			font-size: 0.78rem;
+			color: rgba(226,232,240,0.9);
+			max-height: 260px;
+			overflow-y: auto;
+			overflow-x: auto;
+			line-height: 1.45;
+			font-family: "JetBrains Mono", "Fira Code", monospace;
+			white-space: pre;
+		}
+		.playground {
+			background: rgba(2,10,26,0.55);
+			border: 1px solid rgba(125,211,252,0.18);
+			border-radius: 14px;
+			padding: 0.9rem;
+		}
+		.playground h3 {
+			margin: 0 0 0.5rem;
+			font-size: 0.95rem;
+			color: var(--accent);
+			letter-spacing: 0.05em;
+		}
+		.playground .input-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+			gap: 0.75rem;
+		}
+		.playground label {
+			display: flex;
+			flex-direction: column;
+			gap: 0.35rem;
+			font-size: 0.8rem;
+			color: var(--muted);
+		}
+		.playground output {
+			font-size: 0.9rem;
+			color: var(--accent);
+			font-weight: 600;
+		}
+		.badge-tray {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.5rem;
+			margin-top: 0.75rem;
+		}
+		.badge {
+			background: rgba(34,197,94,0.12);
+			color: var(--success);
+			border: 1px solid rgba(34,197,94,0.3);
+			padding: 0.35rem 0.6rem;
+			border-radius: 999px;
+			font-size: 0.72rem;
+			letter-spacing: 0.06em;
+			text-transform: uppercase;
+		}
+		.badge.locked {
+			background: rgba(148,163,184,0.08);
+			color: var(--muted);
+			border-color: rgba(148,163,184,0.2);
+		}
+		.challenge-card {
+			margin-top: 1rem;
+			padding: 0.8rem 1rem;
+			border-radius: 14px;
+			background: rgba(59,130,246,0.12);
+			border: 1px solid rgba(59,130,246,0.26);
+			color: rgba(147,197,253,0.9);
+		}
+		.challenge-card h4 {
+			margin: 0 0 0.35rem;
+			font-size: 0.85rem;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+		}
+		.knowledge-feed {
+			margin-top: 1rem;
+			padding: 0.8rem 1rem;
+			background: rgba(15,118,110,0.12);
+			border-radius: 14px;
+			border: 1px solid rgba(45,212,191,0.22);
+			font-size: 0.86rem;
+			color: rgba(204,251,241,0.9);
+		}
+		.knowledge-feed strong {
+			display: block;
+			font-size: 0.78rem;
+			text-transform: uppercase;
+			letter-spacing: 0.12em;
+			color: rgba(153,246,228,0.85);
+			margin-bottom: 0.35rem;
+		}
+		aside.toast {
+			position: fixed;
+			left: 50%;
+			bottom: 24px;
+			transform: translate(-50%, 150%);
+			min-width: 280px;
+			max-width: 420px;
+			padding: 0.85rem 1.1rem;
+			background: rgba(8,47,73,0.9);
+			border: 1px solid rgba(125,211,252,0.25);
+			border-radius: 14px;
+			text-align: center;
+			opacity: 0;
+			transition: opacity 220ms ease, transform 220ms ease;
+			z-index: 100;
+			font-size: 0.88rem;
+			color: var(--accent);
+		}
+		aside.toast.show {
+			opacity: 1;
+			transform: translate(-50%, 0%);
+		}
+		footer {
+			padding: 1.2rem 1.5rem 2rem;
+			color: rgba(148,163,184,0.9);
+			font-size: 0.82rem;
+			text-align: center;
+		}
+		footer span {
+			color: var(--accent);
+		}
+		@media (max-width: 1200px) {
+			main.layout {
+				grid-template-columns: repeat(2, minmax(0, 1fr));
+			}
+			.panel.stage-panel {
+				grid-row: span 2;
+			}
+		}
+		@media (max-width: 960px) {
+			main.layout {
+				grid-template-columns: 1fr;
+			}
+			.panel {
+				min-height: auto;
+			}
+			header.top-bar {
+				flex-direction: column;
+				align-items: flex-start;
+				gap: 0.75rem;
+			}
+		}
+		.layer-selector {
+			margin-top: 0.75rem;
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+			gap: 0.75rem;
+			align-items: flex-end;
+		}
+		.layer-selector label {
+			font-size: 0.78rem;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			color: var(--muted);
+			display: block;
+			margin-bottom: 0.35rem;
+		}
+		.layer-selector select {
+			width: 100%;
+			background: rgba(5,10,18,0.5);
+			color: var(--text);
+			border: 1px solid rgba(148,163,184,0.25);
+			border-radius: 10px;
+			padding: 0.45rem 0.5rem;
+		}
+		.layer-selector .selector-actions {
+			display: flex;
+			gap: 0.5rem;
+		}
+		.primary-btn.small,
+		.secondary-btn.small {
+			margin: 0;
+			font-size: 0.74rem;
+			padding: 0.55rem 0.9rem;
+		}
+		.template-bar {
+			margin-top: 0.75rem;
+			display: flex;
+			gap: 0.75rem;
+			align-items: flex-end;
+			flex-wrap: wrap;
+		}
+		.template-bar label {
+			font-size: 0.78rem;
+			letter-spacing: 0.08em;
+			text-transform: uppercase;
+			color: var(--muted);
+			display: block;
+			margin-bottom: 0.35rem;
+		}
+		.template-bar select {
+			background: rgba(5,10,18,0.5);
+			color: var(--text);
+			border: 1px solid rgba(148,163,184,0.25);
+			border-radius: 10px;
+			padding: 0.45rem 0.5rem;
+			min-width: 220px;
+		}
+	</style>
+</head>
+<body>
+	<header class="top-bar">
+		<div class="title">
+			<h1>ML Architecture <span>Forge</span></h1>
+			<div class="subtitle">Design cognitive circuits, train lean models, surprise the evaluation crew.</div>
+		</div>
+		<div class="status-badge" id="backendStatus">Probing backend…</div>
+	</header>
+
+	<main class="layout">
+		<section class="panel stage-panel">
+			<h2>Mission Control</h2>
+			<div class="scoreboard">
+				<div class="score-tile">
+					<h3>Score</h3>
+					<strong id="scorePoints">0</strong>
+				</div>
+				<div class="score-tile">
+					<h3>Play Time</h3>
+					<strong id="playTime">00:00:00</strong>
+				</div>
+				<div class="score-tile">
+					<h3>Attempts</h3>
+					<strong id="attemptsCount">0</strong>
+				</div>
+				<div class="score-tile">
+					<h3>Stages Cleared</h3>
+					<strong id="stagesCleared">0 / 3</strong>
+				</div>
+			</div>
+
+			<div class="stage-grid" id="stageCards"></div>
+
+			<details class="info-block" open>
+				<summary>Stage Intel</summary>
+				<div id="stageInsight">
+					<p>Select a stage to review mission intel, goal metrics, and suggested layer stacks.</p>
+				</div>
+			</details>
+
+			<details class="info-block">
+				<summary>Concept Brief</summary>
+				<div id="conceptBrief">
+					<p>Each mission front-loads its own conceptual nugget—from non-linear gates to dynamic function fitting. Unlock all for a research-grade debrief.</p>
+				</div>
+			</details>
+		</section>
+
+		<section class="panel builder-panel">
+			<h2>Architecture Forge</h2>
+			<div class="catalog-grid" id="layerCatalog"></div>
+
+			<div class="architecture-shell" id="architectureSlots"></div>
+			<div class="layer-selector">
+				<div>
+					<label for="slotSelect">Target Slot</label>
+					<select id="slotSelect"></select>
+				</div>
+				<div>
+					<label for="layerSelect">Layer Card</label>
+					<select id="layerSelect">
+						<option value="">Select a layer</option>
+					</select>
+				</div>
+				<div class="selector-actions">
+					<button type="button" class="primary-btn small" id="applyLayerBtn">Assign Layer</button>
+					<button type="button" class="secondary-btn small" id="clearSlotBtn">Clear Slot</button>
+				</div>
+			</div>
+
+			<div class="template-bar">
+				<div style="flex:1; min-width:220px;">
+					<label for="templateSelect">Quick Templates</label>
+					<select id="templateSelect">
+						<option value="">Select a prepared stack</option>
+					</select>
+				</div>
+				<button type="button" class="secondary-btn small" id="applyTemplateBtn">Load Template</button>
+			</div>
+
+			<div class="controls-grid">
+				<label class="control">
+					Epochs
+					<input type="range" id="epochSlider" min="8" max="160" step="1" value="42">
+					<span class="value" id="epochValue">42</span>
+				</label>
+				<label class="control">
+					Learning Rate
+					<input type="range" id="lrSlider" min="0.0005" max="0.05" step="0.0005" value="0.01">
+					<span class="value" id="lrValue">0.0100</span>
+				</label>
+				<label class="control">
+					Batch Size
+					<select id="batchSelect">
+						<option value="16">16</option>
+						<option value="32" selected>32</option>
+						<option value="64">64</option>
+					</select>
+				</label>
+				<label class="control">
+					Optimizer
+					<select id="optimizerSelect">
+						<option value="adam">Adam</option>
+						<option value="sgd">SGD</option>
+						<option value="rmsprop">RMSProp</option>
+					</select>
+				</label>
+				<label class="control">
+					Shuffle
+					<select id="shuffleToggle">
+						<option value="true" selected>Enabled</option>
+						<option value="false">Disabled</option>
+					</select>
+				</label>
+				<label class="control">
+					Regularization
+					<select id="regularizeToggle">
+						<option value="none" selected>None</option>
+						<option value="l2-0.001">L2 • 1e-3</option>
+						<option value="l2-0.005">L2 • 5e-3</option>
+					</select>
+				</label>
+			</div>
+
+			<div style="display:flex; gap:0.75rem; margin-top:1.1rem;">
+				<button class="primary-btn" id="trainBtn">Train Model</button>
+				<button class="secondary-btn" id="clearArchitecture">Reset Build</button>
+			</div>
+		</section>
+
+		<section class="panel console-panel">
+			<h2>Lab Console</h2>
+			<div class="console">
+				<div class="metric-banner fail" id="metricBanner">
+					<span id="metricLabel">Awaiting training run…</span>
+					<strong id="metricValue">–</strong>
+				</div>
+				<progress value="0" max="1" id="epochProgress"></progress>
+				<pre class="log" id="trainingLog">// Awaiting mission directives…</pre>
+				<div class="playground">
+					<h3>Prediction Playground</h3>
+					<div class="input-grid" id="playgroundInputs">
+						<p style="grid-column:1/-1; margin:0; color:var(--muted);">Train a model to deploy it here. Tweak inputs in real-time and observe predictions update instantly.</p>
+					</div>
+					<div id="playgroundOutput" style="margin-top:0.75rem; font-size:0.82rem; color:var(--muted);">
+						Output stream will appear once a model is live.
+					</div>
+				</div>
+				<div class="badge-tray" id="achievementTray"></div>
+				<div class="challenge-card" id="researchChallenge">
+					<h4>Research Challenge</h4>
+					<div id="challengeText">Clear a stage to reveal a live research mini-brief.</div>
+				</div>
+				<div class="knowledge-feed" id="knowledgeFeed">
+					<strong>Knowledge Byte</strong>
+					<span data-role="knowledge-text">Frontload an architecture, unlock the story—watch this space for rotating insights.</span>
+				</div>
+			</div>
+		</section>
+	</main>
+
+	<footer>
+		Crafted for immersive <span>3-hour</span> ML architecture mastery. Harness dense stacks, WebGPU acceleration, and research-grade challenges to wow the evaluation team.
+	</footer>
+
+	<aside class="toast" id="toast"></aside>
+
+	<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.16.0/dist/tf.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.16.0/dist/tf-backend-webgpu.min.js"></script>
+	<script>
+		const MAX_SLOTS = 5;
+
+		const stages = [
+			{
+				id: "logic-lab",
+				name: "Logic Gate Lab",
+				difficulty: "Apprentice",
+				type: "classification",
+				goalMetric: 0.92,
+				goalDirection: "≥",
+				metricLabel: "Target Accuracy",
+				metricFormatter: v => (v * 100).toFixed(1) + "%",
+				concept: "Non-linear decision boundaries. Discover why XOR defeated early perceptrons and how hidden ReLU layers revive it.",
+				narrative: "Coach a compact neural agent to crack the XOR gate: architect hidden neurons, reach high accuracy, unlock the maze beyond.",
+				dataset: () => createXorDataset(360),
+				featureNames: ["Bit A", "Bit B"],
+				labelNames: ["False", "True"],
+				featureRange: [[0, 1], [0, 1]],
+				tips: [
+					"Start with two dense layers (8→16 units) using ReLU.",
+					"Keep dropout minimal: the dataset is small and noise-free.",
+					"Adam optimizer with lr≈0.01 converges briskly."
+				]
+			},
+			{
+				id: "spiral-maze",
+				name: "Spiral Maze Garden",
+				difficulty: "Researcher",
+				type: "classification",
+				goalMetric: 0.85,
+				goalDirection: "≥",
+				metricLabel: "Target Accuracy",
+				metricFormatter: v => (v * 100).toFixed(1) + "%",
+				concept: "Curvilinear class boundaries. Encourage your model to sculpt swirling manifolds with deeper stacks and normalization.",
+				narrative: "Guide a rover through a tangled double spiral. Your architecture must bend feature space until classes disentangle.",
+				dataset: () => createSpiralDataset(220),
+				featureNames: ["X₁", "X₂"],
+				labelNames: ["Azure Coil", "Emerald Coil"],
+				featureRange: [[-1.4, 1.4], [-1.4, 1.4]],
+				tips: [
+					"Stack 3 dense layers (16→32→32) with ReLU or tanh.",
+					"Batch normalisation stabilizes deeper stacks here.",
+					"RMSProp or Adam with lr≈0.008 helps wrangle the swirl."
+				]
+			},
+			{
+				id: "wave-oracle",
+				name: "Wave Oracle",
+				difficulty: "Fellow",
+				type: "regression",
+				goalMetric: 0.055,
+				goalDirection: "≤",
+				metricLabel: "Target MAE",
+				metricFormatter: v => v.toFixed(3),
+				concept: "Sequence-inspired regression. Fit a composite sine signal with smooth generalisation, balancing width and regularisation.",
+				narrative: "Forecast a chimeric wave carved from sinusoids and noise. Architect a regressor that generalises beyond the observed horizon.",
+				dataset: () => createWaveDataset(480),
+				featureNames: ["Phase", "Phase²"],
+				labelNames: ["Wave Height"],
+				featureRange: [[-3.2, 3.2], [0, 10.5]],
+				tips: [
+					"Blend tanh and ReLU layers for expressive smooth curves.",
+					"L2 regularisation plus dropout tames overfitting.",
+					"Lower learning rates (~0.005) prevent divergence."
+				]
+			}
+		];
+
+		const layerCatalog = [
+			{
+				id: "dense8-relu",
+				label: "Dense ×8 • ReLU",
+				type: "dense",
+				units: 8,
+				activation: "relu",
+				allowedFirst: true,
+				description: "Compact extractor perfect for XOR warm-ups.",
+				tags: ["Starter"]
+			},
+			{
+				id: "dense16-relu",
+				label: "Dense ×16 • ReLU",
+				type: "dense",
+				units: 16,
+				activation: "relu",
+				allowedFirst: true,
+				description: "Adds capacity for curvy decision surfaces.",
+				tags: ["Versatile"]
+			},
+			{
+				id: "dense32-relu",
+				label: "Dense ×32 • ReLU",
+				type: "dense",
+				units: 32,
+				activation: "relu",
+				allowedFirst: true,
+				description: "Deeper feature sculpting for spirals.",
+				tags: ["Spiral"]
+			},
+			{
+				id: "dense64-relu",
+				label: "Dense ×64 • ReLU",
+				type: "dense",
+				units: 64,
+				activation: "relu",
+				allowedFirst: true,
+				description: "High-capacity block. Watch for overfitting.",
+				tags: ["Power"]
+			},
+			{
+				id: "dense32-tanh",
+				label: "Dense ×32 • tanh",
+				type: "dense",
+				units: 32,
+				activation: "tanh",
+				allowedFirst: true,
+				description: "Smooth approximator—great for wave regression.",
+				tags: ["Wave"]
+			},
+			{
+				id: "dense16-swish",
+				label: "Dense ×16 • swish",
+				type: "dense",
+				units: 16,
+				activation: "swish",
+				allowedFirst: true,
+				description: "Self-gated activation for nuanced dynamics.",
+				tags: ["Adaptive"]
+			},
+			{
+				id: "dropout20",
+				label: "Dropout 20%",
+				type: "dropout",
+				rate: 0.2,
+				allowedFirst: false,
+				description: "Regularises wide stacks. Avoid as first layer.",
+				tags: ["Regularise"]
+			},
+			{
+				id: "dropout35",
+				label: "Dropout 35%",
+				type: "dropout",
+				rate: 0.35,
+				allowedFirst: false,
+				description: "Aggressive regularisation—use sparingly.",
+				tags: ["Risk"]
+			},
+			{
+				id: "batchnorm",
+				label: "Batch Norm",
+				type: "batchnorm",
+				allowedFirst: false,
+				description: "Stabilises deep stacks, vital for spirals.",
+				tags: ["Stability"]
+			},
+			{
+				id: "dense8-linear",
+				label: "Dense ×8 • Linear",
+				type: "dense",
+				units: 8,
+				activation: "linear",
+				allowedFirst: false,
+				description: "Bridge layer for regression smoothing.",
+				tags: ["Wave"]
+			}
+		];
+
+		const architectureTemplates = [
+			{
+				id: "logic-starter",
+				label: "Logic Lab Starter",
+				stage: "logic-lab",
+				layerIds: ["dense8-relu", "dense16-relu", "dense8-linear"],
+				description: "Two dense blocks plus a linear taper for XOR."
+			},
+			{
+				id: "spiral-shaper",
+				label: "Spiral Stack",
+				stage: "spiral-maze",
+				layerIds: ["dense16-relu", "dense32-relu", "batchnorm", "dense32-relu", "dropout20"],
+				description: "Deep ReLU stack with stabilisation for the double spiral."
+			},
+			{
+				id: "wave-sculptor",
+				label: "Wave Sculptor",
+				stage: "wave-oracle",
+				layerIds: ["dense32-tanh", "dense16-swish", "dense8-linear", "dropout20"],
+				description: "Smooth tanh + swish combo with a linear bridge and dropout."
+			},
+			{
+				id: "balanced-classifier",
+				label: "Balanced Classifier",
+				stage: null,
+				layerIds: ["dense16-relu", "batchnorm", "dense32-relu", "dropout20"],
+				description: "General-purpose classifier core for any stage."
+			}
+		];
+
+		const achievementsMeta = {
+			"first-flight": { title: "First Flight", description: "Complete your first training run." },
+			"logic-hero": { title: "Logic Hero", description: "Beat Logic Gate Lab at ≥97% accuracy." },
+			"spiral-tamer": { title: "Spiral Tamer", description: "Conquer Spiral Maze with ≥90% accuracy." },
+			"wave-oracle": { title: "Wave Oracle", description: "Achieve ≤0.04 MAE on the Wave Oracle." },
+			"dropout-defender": { title: "Dropout Defender", description: "Win a stage using dropout regularisation." },
+			"webgpu-pioneer": { title: "WebGPU Pioneer", description: "Train successfully on the WebGPU backend." },
+			"resilient-mind": { title: "Resilient Mind", description: "Launch 8 or more training attempts." },
+			"minimalist": { title: "Minimalist Master", description: "Clear a stage with ≤2 architecture slots filled." }
+		};
+
+		const researchChallenges = [
+			{
+				id: "low-layers",
+				description: "Beat any stage using no more than two hidden layers.",
+				check: ctx => ctx.passed && ctx.hiddenLayers <= 2
+			},
+			{
+				id: "regularised-win",
+				description: "Win a stage with both batch norm and dropout active.",
+				check: ctx => ctx.passed && ctx.usedBatchNorm && ctx.usedDropout
+			},
+			{
+				id: "stable-learning",
+				description: "Train with learning rate ≤ 0.006 and still meet the goal metric.",
+				check: ctx => ctx.passed && ctx.learningRate <= 0.006
+			},
+			{
+				id: "fast-converge",
+				description: "Hit the goal metric within 35 epochs.",
+				check: ctx => ctx.passed && ctx.epochs <= 35
+			}
+		];
+
+		const knowledgeBytes = [
+			{
+				title: "Hidden Layers & XOR Legacy",
+				text: "Until hidden layers entered the scene, simple perceptrons failed XOR completely. Your Logic Lab run reenacts the proof that universal approximation needs depth."
+			},
+			{
+				title: "BatchNorm in Curved Spaces",
+				text: "Batch normalisation re-centers intermediate activations, combating covariate shift. On spiral data, it stabilises gradients so deep ReLU stacks don't stall."
+			},
+			{
+				title: "Dropout’s Probabilistic Spare Neurons",
+				text: "Dropout approximates an ensemble of subnetworks. Regularising your Wave Oracle with dropout lets the network average away high-frequency noise."
+			},
+			{
+				title: "Optimizer Intuition",
+				text: "SGD remains strong when you crave interpretability. Adam and RMSProp adaptively tune per-weight learning rates—boosting convergence on non-stationary landscapes like spirals."
+			},
+			{
+				title: "WebGPU Advantage",
+				text: "WebGPU unlocks compute shaders directly from the browser. Expect 2-5× improvements over WebGL for dense layers thanks to modern parallelism."
+			}
+		];
+
+		const state = {
+			architectureSlots: Array.from({ length: MAX_SLOTS }, () => null),
+			score: 0,
+			attempts: 0,
+			stageResults: {},
+			achievements: new Set(),
+			currentStageId: null,
+			isTraining: false,
+			timerStart: Date.now(),
+			timerOffset: 0,
+			activeChallenge: null,
+			lastChallengeId: null,
+			demoModel: null,
+			demoStageType: null,
+			demoLabelNames: [],
+			demoFeatureNames: [],
+			demoFeatureRange: [],
+			lastDatasetMeta: null,
+			backend: "pending",
+			webgpuEnabled: false
+		};
+
+		const elements = {};
+
+		document.addEventListener("DOMContentLoaded", initGame);
+
+		async function initGame() {
+			assignDomRefs();
+			loadSavedState();
+			renderLayerCatalog();
+			populateTemplateSelect();
+			renderArchitectureSlots();
+			renderStageCards();
+			startTimer();
+			startKnowledgeRotation();
+			bindControls();
+			await prepareBackend();
+			updateScoreboard();
+			updateAchievementsUI();
+			if (!state.activeChallenge) {
+				assignNewChallenge();
+			}
+			appendLog("Systems online. Select a stage and assemble your first architecture.");
+		}
+
+		function assignDomRefs() {
+			elements.stageCards = document.getElementById("stageCards");
+			elements.stageInsight = document.getElementById("stageInsight");
+			elements.conceptBrief = document.getElementById("conceptBrief");
+			elements.layerCatalog = document.getElementById("layerCatalog");
+			elements.architectureSlots = document.getElementById("architectureSlots");
+			elements.slotSelect = document.getElementById("slotSelect");
+			elements.layerSelect = document.getElementById("layerSelect");
+			elements.templateSelect = document.getElementById("templateSelect");
+			elements.applyLayerBtn = document.getElementById("applyLayerBtn");
+			elements.clearSlotBtn = document.getElementById("clearSlotBtn");
+			elements.applyTemplateBtn = document.getElementById("applyTemplateBtn");
+			elements.trainBtn = document.getElementById("trainBtn");
+			elements.clearArchitecture = document.getElementById("clearArchitecture");
+			elements.epochSlider = document.getElementById("epochSlider");
+			elements.epochValue = document.getElementById("epochValue");
+			elements.lrSlider = document.getElementById("lrSlider");
+			elements.lrValue = document.getElementById("lrValue");
+			elements.batchSelect = document.getElementById("batchSelect");
+			elements.optimizerSelect = document.getElementById("optimizerSelect");
+			elements.shuffleToggle = document.getElementById("shuffleToggle");
+			elements.regularizeToggle = document.getElementById("regularizeToggle");
+			elements.trainingLog = document.getElementById("trainingLog");
+			elements.metricBanner = document.getElementById("metricBanner");
+			elements.metricLabel = document.getElementById("metricLabel");
+			elements.metricValue = document.getElementById("metricValue");
+			elements.scorePoints = document.getElementById("scorePoints");
+			elements.playTime = document.getElementById("playTime");
+			elements.attemptsCount = document.getElementById("attemptsCount");
+			elements.stagesCleared = document.getElementById("stagesCleared");
+			elements.playgroundInputs = document.getElementById("playgroundInputs");
+			elements.playgroundOutput = document.getElementById("playgroundOutput");
+			elements.challengeText = document.getElementById("challengeText");
+			elements.achievementTray = document.getElementById("achievementTray");
+			elements.epochProgress = document.getElementById("epochProgress");
+			elements.toast = document.getElementById("toast");
+			elements.backendStatus = document.getElementById("backendStatus");
+			elements.knowledgeFeed = document.getElementById("knowledgeFeed").querySelector("[data-role='knowledge-text']");
+		}
+
+		function bindControls() {
+			elements.trainBtn.addEventListener("click", runTraining);
+			elements.clearArchitecture.addEventListener("click", () => {
+				state.architectureSlots = Array.from({ length: MAX_SLOTS }, () => null);
+				renderArchitectureSlots();
+				showToast("Architecture slots cleared.");
+			});
+			elements.epochSlider.addEventListener("input", () => {
+				elements.epochValue.textContent = elements.epochSlider.value;
+			});
+			elements.lrSlider.addEventListener("input", () => {
+				elements.lrValue.textContent = parseFloat(elements.lrSlider.value).toFixed(4);
+			});
+			elements.applyLayerBtn.addEventListener("click", handleLayerAssignment);
+			elements.clearSlotBtn.addEventListener("click", handleSlotClear);
+			elements.applyTemplateBtn.addEventListener("click", handleTemplateApply);
+		}
+
+		async function prepareBackend() {
+			let backend = "cpu";
+			const hasWebGPU = typeof navigator !== "undefined" && !!navigator.gpu;
+			const adapterProto = typeof GPUAdapter !== "undefined" ? GPUAdapter.prototype : null;
+			const canQueryAdapterInfo = !!(adapterProto && typeof adapterProto.requestAdapterInfo === "function");
+			const shouldAttemptWebGPU = hasWebGPU && canQueryAdapterInfo;
+			if (shouldAttemptWebGPU) {
+				try {
+					await tf.setBackend("webgpu");
+					await tf.ready();
+					backend = "webgpu";
+					state.webgpuEnabled = true;
+					awardAchievement("webgpu-pioneer");
+				} catch (err) {
+					console.warn("WebGPU backend failed to initialise:", err);
+				}
+			} else if (hasWebGPU) {
+				console.info("WebGPU detected but adapter info APIs are unavailable; defaulting to WebGL.");
+			}
+			if (tf.getBackend() !== backend) {
+				try {
+					await tf.setBackend("webgl");
+					await tf.ready();
+					backend = "webgl";
+				} catch (err) {
+					console.warn("WebGL backend fallback failed, using CPU.", err);
+				}
+			}
+			state.backend = backend;
+			elements.backendStatus.textContent = backend.toUpperCase() + " READY";
+			if (backend === "cpu") {
+				elements.backendStatus.style.background = "rgba(248,113,113,0.18)";
+				elements.backendStatus.style.color = "var(--danger)";
+			}
+		}
+
+		function renderStageCards() {
+			elements.stageCards.innerHTML = "";
+			stages.forEach((stage, idx) => {
+				const card = document.createElement("article");
+				card.className = "stage-card";
+				card.dataset.stageId = stage.id;
+
+				const prevStage = idx > 0 ? stages[idx - 1] : null;
+				const isLocked = prevStage && !(state.stageResults[prevStage.id] && state.stageResults[prevStage.id].passed);
+				if (isLocked) card.classList.add("locked");
+				if (state.currentStageId === stage.id) card.classList.add("active");
+
+				const result = state.stageResults[stage.id];
+				const statusText = result?.passed ? `Best ${stage.metricFormatter(result.bestMetric)}` : stage.difficulty;
+
+				card.innerHTML = `
+					<header>
+						<h3>${stage.name}</h3>
+						<span class="difficulty">${statusText}</span>
+					</header>
+					<p>${stage.narrative}</p>
+				`;
+
+				card.addEventListener("click", () => {
+					if (card.classList.contains("locked")) {
+						showToast("Complete the previous mission to unlock this stage.");
+						return;
+					}
+					state.currentStageId = stage.id;
+					renderStageCards();
+					loadStageIntel(stage);
+				});
+
+				elements.stageCards.appendChild(card);
+			});
+		}
+
+		function loadStageIntel(stage) {
+			const result = state.stageResults[stage.id];
+			const goalDesc = `${stage.metricLabel}: ${stage.goalDirection} ${stage.metricFormatter(stage.goalMetric)}`;
+			const best = result ? `Best run: ${stage.metricFormatter(result.bestMetric)}` : "No runs yet.";
+
+			elements.stageInsight.innerHTML = `
+				<p><strong>Brief:</strong> ${stage.narrative}</p>
+				<p><strong>Goal:</strong> ${goalDesc}</p>
+				<p><strong>Progress:</strong> ${best}</p>
+				<ul>${stage.tips.map(tip => `<li>${tip}</li>`).join("")}</ul>
+			`;
+			elements.conceptBrief.innerHTML = `<p>${stage.concept}</p>`;
+			appendLog(`Stage selected: ${stage.name}. Assemble a stack and hit “Train Model”.`);
+			setupPlaygroundInputs(stage);
+		}
+
+		function renderLayerCatalog() {
+			elements.layerCatalog.innerHTML = "";
+			layerCatalog.forEach(layer => {
+				const card = document.createElement("button");
+				card.type = "button";
+				card.className = "layer-card";
+				card.dataset.layerId = layer.id;
+				card.innerHTML = `
+					<strong>${layer.label}</strong>
+					<span>${layer.description}</span>
+					<span class="badge">${layer.tags.join(" • ")}</span>
+				`;
+				card.addEventListener("click", () => tryAddLayer(layer.id));
+				elements.layerCatalog.appendChild(card);
+			});
+			populateLayerSelect();
+		}
+
+		function renderArchitectureSlots() {
+			elements.architectureSlots.innerHTML = "";
+			state.architectureSlots.forEach((slotLayer, index) => {
+				const slot = document.createElement("div");
+				slot.className = slotLayer ? "slot" : "slot empty";
+				if (!slotLayer) {
+					slot.innerHTML = `
+						<span>Slot #${index + 1}<br>Use the selector below to assign a layer.</span>
+					`;
+				} else {
+					slot.innerHTML = `
+						<div>
+							<strong>${slotLayer.label || formatLayerLabel(slotLayer)}</strong>
+							<span>${describeLayer(slotLayer)}</span>
+						</div>
+						<button type="button" data-action="remove" data-index="${index}">Remove</button>
+					`;
+					slot.querySelector("button").addEventListener("click", () => {
+						state.architectureSlots[index] = null;
+						renderArchitectureSlots();
+						showToast(`Layer removed from slot ${index + 1}.`);
+					});
+				}
+				elements.architectureSlots.appendChild(slot);
+			});
+			populateSlotSelect();
+		}
+
+		function populateLayerSelect() {
+			if (!elements.layerSelect) return;
+			const previous = elements.layerSelect.value;
+			const options = ["<option value=\"\">Select a layer</option>"];
+			layerCatalog.forEach(layer => {
+				options.push(`<option value="${layer.id}">${layer.label}</option>`);
+			});
+			elements.layerSelect.innerHTML = options.join("");
+			if (previous && layerCatalog.some(layer => layer.id === previous)) {
+				elements.layerSelect.value = previous;
+			}
+		}
+
+		function populateSlotSelect() {
+			if (!elements.slotSelect) return;
+			const options = state.architectureSlots.map((layer, idx) => {
+				const status = layer ? (layer.label || formatLayerLabel(layer)) : "Empty";
+				return `<option value="${idx}">Slot ${idx + 1} • ${status}</option>`;
+			});
+			elements.slotSelect.innerHTML = options.join("");
+		}
+
+		function handleLayerAssignment() {
+			if (!state.currentStageId) {
+				showToast("Select a stage before configuring layers.");
+				return;
+			}
+			const layerId = elements.layerSelect?.value;
+			if (!layerId) {
+				showToast("Pick a layer before assigning it.");
+				return;
+			}
+			const slotIndex = parseInt(elements.slotSelect?.value ?? "", 10);
+			tryAddLayer(layerId, Number.isInteger(slotIndex) ? slotIndex : null);
+		}
+
+		function handleSlotClear() {
+			const slotIndex = parseInt(elements.slotSelect?.value ?? "", 10);
+			if (!Number.isInteger(slotIndex)) {
+				showToast("Select a slot to clear.");
+				return;
+			}
+			if (!state.architectureSlots[slotIndex]) {
+				showToast(`Slot ${slotIndex + 1} is already empty.`);
+				return;
+			}
+			state.architectureSlots[slotIndex] = null;
+			renderArchitectureSlots();
+			showToast(`Cleared slot ${slotIndex + 1}.`);
+		}
+
+		function populateTemplateSelect() {
+			if (!elements.templateSelect) return;
+			const options = ["<option value=\"\">Select a prepared stack</option>"];
+			architectureTemplates.forEach(template => {
+				const stageName = template.stage ? (stages.find(stage => stage.id === template.stage)?.name ?? "Stage Locked") : "Any Stage";
+				options.push(`<option value="${template.id}">${template.label} • ${stageName}</option>`);
+			});
+			elements.templateSelect.innerHTML = options.join("");
+		}
+
+		function handleTemplateApply() {
+			const templateId = elements.templateSelect?.value;
+			if (!templateId) {
+				showToast("Select a template to load.");
+				return;
+			}
+			applyTemplate(templateId);
+		}
+
+		function applyTemplate(templateId) {
+			const template = architectureTemplates.find(t => t.id === templateId);
+			if (!template) {
+				showToast("Template unavailable.");
+				return;
+			}
+			const targetStageId = template.stage || state.currentStageId;
+			if (!targetStageId) {
+				showToast("Select a stage before loading this template.");
+				return;
+			}
+			if (state.currentStageId !== targetStageId) {
+				state.currentStageId = targetStageId;
+				renderStageCards();
+				const targetStage = stages.find(stage => stage.id === targetStageId);
+				if (targetStage) {
+					loadStageIntel(targetStage);
+				}
+			}
+			const resolvedLayers = template.layerIds.map(id => {
+				const layer = layerCatalog.find(entry => entry.id === id);
+				return layer ? { ...layer } : null;
+			});
+			state.architectureSlots = Array.from({ length: MAX_SLOTS }, (_, idx) => resolvedLayers[idx] || null);
+			renderArchitectureSlots();
+			showToast(`Template "${template.label}" loaded. Tweak as needed.`);
+		}
+
+		function tryAddLayer(layerId, targetSlotIndex = null) {
+			if (!state.currentStageId) {
+				showToast("Select a stage before configuring layers.");
+				return;
+			}
+			let slotIndex = Number.isInteger(targetSlotIndex) ? targetSlotIndex : (elements.slotSelect ? parseInt(elements.slotSelect.value, 10) : NaN);
+			if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= MAX_SLOTS) {
+				slotIndex = state.architectureSlots.findIndex(slot => slot === null);
+			}
+			if (slotIndex === -1) {
+				showToast("All slots are filled. Remove a layer or reset.");
+				return;
+			}
+			const layerDef = layerCatalog.find(l => l.id === layerId);
+			if (!layerDef) return;
+			const isFirstLayer = state.architectureSlots.every(slot => slot === null);
+			if (!layerDef.allowedFirst && isFirstLayer) {
+				showToast("Place a dense layer first before adding regularisers.");
+				return;
+			}
+			state.architectureSlots[slotIndex] = { ...layerDef };
+			renderArchitectureSlots();
+			showToast(`Assigned ${layerDef.label} to slot ${slotIndex + 1}.`);
+		}
+
+		function describeLayer(layer) {
+			switch (layer.type) {
+				case "dense":
+					return `${layer.units} units • ${layer.activation.toUpperCase()} activation`;
+				case "dropout":
+					return `Drops ${Math.round(layer.rate * 100)}% during training`;
+				case "batchnorm":
+					return "Normalises activations per mini-batch";
+				default:
+					return "";
+			}
+		}
+
+		function formatLayerLabel(layer) {
+			if (layer.label) return layer.label;
+			if (layer.type === "dense") return `Dense x${layer.units}`;
+			if (layer.type === "dropout") return `Dropout ${Math.round(layer.rate * 100)}%`;
+			if (layer.type === "batchnorm") return "BatchNorm";
+			return "Custom Layer";
+		}
+
+		function validateArchitecture(stage, layers) {
+			if (layers.length === 0) {
+				return { ok: false, message: "Add at least one hidden layer before training." };
+			}
+			const hasDense = layers.some(layer => layer.type === "dense");
+			if (!hasDense) {
+				return { ok: false, message: "Include at least one dense layer to process inputs." };
+			}
+			for (let i = 0; i < layers.length; i++) {
+				if (!layers[i]) continue;
+				if (!layers[i].allowedFirst) {
+					const precedingDense = layers.slice(0, i).some(layer => layer && layer.type === "dense");
+					if (!precedingDense) {
+						return { ok: false, message: `${layers[i].label || "This layer"} requires a dense layer before it.` };
+					}
+				}
+			}
+			return { ok: true };
+		}
+
+		async function runTraining() {
+			if (state.isTraining) return;
+			const stage = stages.find(s => s.id === state.currentStageId);
+			if (!stage) {
+				showToast("Select a stage to begin training.");
+				return;
+			}
+			const architecture = state.architectureSlots.filter(Boolean);
+			const validation = validateArchitecture(stage, architecture);
+			if (!validation.ok) {
+				showToast(validation.message);
+				return;
+			}
+
+			state.isTraining = true;
+			state.attempts += 1;
+			updateScoreboard();
+			saveState();
+			appendLog(`Training initiated on ${stage.name} (${stage.metricLabel}).`);
+			elements.trainBtn.disabled = true;
+			elements.trainBtn.textContent = "Training…";
+			elements.epochProgress.value = 0;
+
+			const epochCount = parseInt(elements.epochSlider.value, 10);
+			const learningRate = parseFloat(elements.lrSlider.value);
+			const batchSize = parseInt(elements.batchSelect.value, 10);
+			const optimizerKey = elements.optimizerSelect.value;
+			const shuffle = elements.shuffleToggle.value === "true";
+			const regularise = elements.regularizeToggle.value;
+
+			let dataset;
+			let tensors;
+			let model;
+			try {
+				dataset = stage.dataset();
+				tensors = prepareTensors(stage, dataset);
+				model = buildModel(stage, architecture, regularise);
+
+				const optimizer = optimizerFactories()[optimizerKey](learningRate);
+				const compileConfig = stage.type === "classification"
+					? { loss: "categoricalCrossentropy", metrics: ["accuracy"] }
+					: { loss: "meanSquaredError", metrics: ["mae"] };
+				model.compile({ ...compileConfig, optimizer });
+
+				let bestMetric = stage.type === "classification" ? 0 : Number.POSITIVE_INFINITY;
+
+				await model.fit(tensors.trainXs, tensors.trainYs, {
+					epochs: epochCount,
+					batchSize,
+					shuffle,
+					validationSplit: 0.2,
+					callbacks: {
+						onEpochEnd: async (epoch, logs) => {
+							const progress = (epoch + 1) / epochCount;
+							elements.epochProgress.value = progress;
+							const metricKey = stage.type === "classification" ? "acc" : "mae";
+							const metricVal = logs[metricKey] ?? logs.val_acc ?? logs.val_mae ?? 0;
+							if (stage.type === "classification") {
+								bestMetric = Math.max(bestMetric, metricVal);
+							} else {
+								bestMetric = Math.min(bestMetric, metricVal);
+							}
+							appendLog(`Epoch ${epoch + 1}/${epochCount} — loss: ${logs.loss.toFixed(4)}, metric: ${metricVal.toFixed(4)}`);
+							await tf.nextFrame();
+						}
+					}
+				});
+
+				const evalOutputs = await model.evaluate(tensors.testXs, tensors.testYs);
+				const outputsArray = Array.isArray(evalOutputs) ? evalOutputs : [evalOutputs];
+				const evalValues = await Promise.all(outputsArray.map(t => t.data()));
+				const testLoss = evalValues[0][0];
+				const metricValue = evalValues[evalValues.length - 1][0];
+				outputsArray.forEach(t => t.dispose());
+
+				const passed = stage.type === "classification"
+					? metricValue >= stage.goalMetric
+					: metricValue <= stage.goalMetric;
+
+				state.score += computeScore(stage, metricValue, passed);
+				state.stageResults[stage.id] = updateStageResult(stage, metricValue, passed);
+				if (stage.type === "classification" && metricValue >= 0.97 && stage.id === "logic-lab") {
+					awardAchievement("logic-hero");
+				}
+				if (stage.id === "spiral-maze" && passed && metricValue >= 0.9) {
+					awardAchievement("spiral-tamer");
+				}
+				if (stage.id === "wave-oracle" && metricValue <= 0.04) {
+					awardAchievement("wave-oracle");
+				}
+				if (architecture.some(layer => layer.type === "dropout") && passed) {
+					awardAchievement("dropout-defender");
+				}
+				if (state.attempts >= 8) {
+					awardAchievement("resilient-mind");
+				}
+				const hiddenLayers = architecture.filter(layer => layer.type === "dense").length;
+				const context = {
+					passed,
+					hiddenLayers,
+					usedBatchNorm: architecture.some(layer => layer.type === "batchnorm"),
+					usedDropout: architecture.some(layer => layer.type === "dropout"),
+					learningRate,
+					epochs: epochCount
+				};
+				checkResearchChallenge(context);
+				if (passed && hiddenLayers <= 2) {
+					awardAchievement("minimalist");
+				}
+				if (state.webgpuEnabled) {
+					awardAchievement("webgpu-pioneer");
+				}
+				updateMetricBanner(stage, metricValue, passed, testLoss);
+				appendLog(`Evaluation — loss: ${testLoss.toFixed(4)}, ${stage.metricLabel}: ${stage.metricFormatter(metricValue)} (${passed ? "goal met" : "goal missed"})`);
+
+				if (state.demoModel) {
+					state.demoModel.dispose();
+				}
+				state.demoModel = model;
+				state.demoStageType = stage.type;
+				state.demoLabelNames = stage.labelNames;
+				state.demoFeatureNames = dataset.featureNames;
+				state.demoFeatureRange = dataset.featureRange;
+				state.lastDatasetMeta = dataset;
+				setupPlaygroundInputs(stage);
+				updatePlaygroundPrediction();
+
+				updateScoreboard();
+				renderStageCards();
+				updateAchievementsUI();
+				assignNewChallengeIfNeeded(passed);
+				saveState();
+				if (passed) {
+					showToast(`Mission cleared! ${stage.metricLabel}: ${stage.metricFormatter(metricValue)}.`);
+				} else {
+					showToast(`${stage.metricLabel}: ${stage.metricFormatter(metricValue)} — refine your architecture.`);
+				}
+			} catch (error) {
+				console.error(error);
+				showToast("Training interrupted. Check console for details.");
+				appendLog(`Error: ${error.message}`);
+				if (model) model.dispose();
+			} finally {
+				if (tensors) {
+					tensors.trainXs.dispose();
+					tensors.trainYs.dispose();
+					tensors.testXs.dispose();
+					tensors.testYs.dispose();
+				}
+				if (!state.demoModel || state.demoModel !== model) {
+					if (model && (!state.demoModel || state.demoModel !== model)) {
+						// disposed in catch; avoid double dispose
+					}
+				}
+				state.isTraining = false;
+				elements.trainBtn.disabled = false;
+				elements.trainBtn.textContent = "Train Model";
+			}
+		}
+
+		function optimizerFactories() {
+			return {
+				adam: lr => tf.train.adam(lr),
+				sgd: lr => tf.train.sgd(lr),
+				rmsprop: lr => tf.train.rmsprop(lr)
+			};
+		}
+
+		function prepareTensors(stage, dataset) {
+			const trainXs = tf.tensor2d(dataset.trainX);
+			const testXs = tf.tensor2d(dataset.testX);
+			let trainYs;
+			let testYs;
+			if (stage.type === "classification") {
+				const trainIndices = tf.tensor1d(dataset.trainY, "int32");
+				const testIndices = tf.tensor1d(dataset.testY, "int32");
+				trainYs = tf.oneHot(trainIndices, dataset.outputUnits);
+				testYs = tf.oneHot(testIndices, dataset.outputUnits);
+				trainIndices.dispose();
+				testIndices.dispose();
+			} else {
+				trainYs = tf.tensor2d(dataset.trainY, [dataset.trainY.length, 1]);
+				testYs = tf.tensor2d(dataset.testY, [dataset.testY.length, 1]);
+			}
+			return { trainXs, trainYs, testXs, testYs };
+		}
+
+		function buildModel(stage, layers, regularise) {
+			const model = tf.sequential();
+			const regularizer = parseRegulariser(regularise);
+			let isFirstDense = true;
+			layers.forEach(layer => {
+				if (!layer) return;
+				if (layer.type === "dense") {
+					const config = {
+						units: layer.units,
+						activation: layer.activation,
+						kernelInitializer: "glorotUniform"
+					};
+					if (regularizer) config.kernelRegularizer = regularizer;
+					if (isFirstDense) {
+						config.inputShape = [stage.featureNames.length];
+						isFirstDense = false;
+					}
+					model.add(tf.layers.dense(config));
+				} else if (layer.type === "dropout") {
+					model.add(tf.layers.dropout({ rate: layer.rate }));
+				} else if (layer.type === "batchnorm") {
+					model.add(tf.layers.batchNormalization());
+				}
+			});
+			if (isFirstDense) {
+				model.add(tf.layers.dense({
+					units: 16,
+					activation: "relu",
+					inputShape: [stage.featureNames.length],
+					kernelRegularizer: regularizer || undefined
+				}));
+			}
+			if (stage.type === "classification") {
+				model.add(tf.layers.dense({
+					units: stage.labelNames.length,
+					activation: "softmax",
+					kernelRegularizer: regularizer || undefined
+				}));
+			} else {
+				model.add(tf.layers.dense({
+					units: 1,
+					activation: "linear",
+					kernelRegularizer: regularizer || undefined
+				}));
+			}
+			return model;
+		}
+
+		function parseRegulariser(option) {
+			if (!option || option === "none") return null;
+			const [, value] = option.split("-");
+			const rate = parseFloat(value);
+			return tf.regularizers.l2({ l2: rate });
+		}
+
+		function computeScore(stage, metric, passed) {
+			if (!passed) return 15;
+			if (stage.type === "classification") {
+				return Math.round(metric * 180);
+			}
+			return Math.max(40, Math.round((1 - metric) * 240));
+		}
+
+		function updateStageResult(stage, metricValue, passed) {
+			const existing = state.stageResults[stage.id] || { bestMetric: stage.type === "classification" ? 0 : Number.POSITIVE_INFINITY, passed: false };
+			let bestMetric = existing.bestMetric;
+			if (stage.type === "classification") {
+				bestMetric = Math.max(bestMetric, metricValue);
+			} else {
+				bestMetric = Math.min(bestMetric, metricValue);
+			}
+			return { passed: existing.passed || passed, bestMetric };
+		}
+
+		function updateMetricBanner(stage, metricValue, passed, loss) {
+			const banner = elements.metricBanner;
+			banner.classList.toggle("fail", !passed);
+			banner.classList.toggle("success", passed);
+			elements.metricLabel.textContent = `${stage.metricLabel} (${stage.goalDirection} ${stage.metricFormatter(stage.goalMetric)}) • Loss ${loss.toFixed(4)}`;
+			elements.metricValue.textContent = stage.metricFormatter(metricValue);
+		}
+
+		function setupPlaygroundInputs(stage) {
+			const ranges = state.demoFeatureRange.length ? state.demoFeatureRange : stage.featureRange;
+			const names = state.demoFeatureNames.length ? state.demoFeatureNames : stage.featureNames;
+			elements.playgroundInputs.innerHTML = "";
+			if (!ranges) {
+				elements.playgroundInputs.innerHTML = `<p style="grid-column:1/-1; margin:0; color:var(--muted);">Train a model to unlock interactive inference.</p>`;
+				return;
+			}
+			names.forEach((name, idx) => {
+				const [min, max] = ranges[idx];
+				const control = document.createElement("label");
+				control.innerHTML = `
+					<span>${name}</span>
+					<input type="range" data-role="play-input" data-index="${idx}" min="${min}" max="${max}" step="${((max - min) / 100).toFixed(4)}" value="${(min + max) / 2}">
+					<output>${((min + max) / 2).toFixed(3)}</output>
+				`;
+				const slider = control.querySelector("input");
+				const output = control.querySelector("output");
+				slider.addEventListener("input", () => {
+					output.textContent = parseFloat(slider.value).toFixed(3);
+					updatePlaygroundPrediction();
+				});
+				elements.playgroundInputs.appendChild(control);
+			});
+		}
+
+		function updatePlaygroundPrediction() {
+			if (!state.demoModel) {
+				elements.playgroundOutput.textContent = "Train and deploy a model to stream predictions here.";
+				return;
+			}
+			const sliders = Array.from(elements.playgroundInputs.querySelectorAll("input[data-role='play-input']"));
+			if (sliders.length === 0) return;
+			const values = sliders.map(slider => parseFloat(slider.value));
+			const result = tf.tidy(() => {
+				const input = tf.tensor2d([values]);
+				const output = state.demoModel.predict(input);
+				return output.arraySync()[0];
+			});
+			if (state.demoStageType === "classification") {
+				const summary = result.map((prob, idx) => `${state.demoLabelNames[idx]}: ${(prob * 100).toFixed(1)}%`).join("<br>");
+				elements.playgroundOutput.innerHTML = `
+					<strong>Class Probabilities</strong><br>${summary}
+				`;
+			} else {
+				const value = Array.isArray(result) ? result[0] : result;
+				elements.playgroundOutput.innerHTML = `
+					<strong>Predicted Wave Height:</strong> ${value.toFixed(4)}
+				`;
+			}
+		}
+
+		function checkResearchChallenge(context) {
+			if (!state.activeChallenge) return;
+			const challenge = researchChallenges.find(ch => ch.id === state.activeChallenge);
+			if (!challenge) return;
+			if (challenge.check(context)) {
+				showToast(`Research challenge cleared: ${challenge.description}`);
+				state.activeChallenge = null;
+				assignNewChallenge();
+			}
+		}
+
+		function assignNewChallengeIfNeeded(passed) {
+			if (!passed) return;
+			assignNewChallenge();
+		}
+
+		function assignNewChallenge() {
+			const available = researchChallenges.filter(ch => ch.id !== state.activeChallenge && ch.id !== state.lastChallengeId);
+			const challenge = available[Math.floor(Math.random() * available.length)] || researchChallenges[0];
+			state.activeChallenge = challenge.id;
+			state.lastChallengeId = challenge.id;
+			elements.challengeText.textContent = challenge.description;
+		}
+
+		function updateScoreboard() {
+			const cleared = stages.filter(stage => state.stageResults[stage.id]?.passed).length;
+			elements.scorePoints.textContent = state.score.toString();
+			elements.attemptsCount.textContent = state.attempts.toString();
+			elements.stagesCleared.textContent = `${cleared} / ${stages.length}`;
+		}
+
+		function awardAchievement(id) {
+			if (!achievementsMeta[id]) return;
+			if (state.achievements.has(id)) return;
+			state.achievements.add(id);
+			updateAchievementsUI();
+			showToast(`Achievement unlocked: ${achievementsMeta[id].title}`);
+			saveState();
+		}
+
+		function updateAchievementsUI() {
+			elements.achievementTray.innerHTML = "";
+			Object.entries(achievementsMeta).forEach(([id, meta]) => {
+				const badge = document.createElement("span");
+				badge.className = "badge" + (state.achievements.has(id) ? "" : " locked");
+				badge.title = meta.description;
+				badge.textContent = meta.title;
+				elements.achievementTray.appendChild(badge);
+			});
+		}
+
+		function appendLog(message) {
+			const timestamp = new Date().toLocaleTimeString();
+			const current = elements.trainingLog.textContent ? elements.trainingLog.textContent.split("\n") : [];
+			current.push(`[${timestamp}] ${message}`);
+			const trimmed = current.slice(-80);
+			elements.trainingLog.textContent = trimmed.join("\n");
+			elements.trainingLog.scrollTop = elements.trainingLog.scrollHeight;
+		}
+
+		function showToast(message) {
+			elements.toast.textContent = message;
+			elements.toast.classList.add("show");
+			clearTimeout(showToast._timer);
+			showToast._timer = setTimeout(() => {
+				elements.toast.classList.remove("show");
+			}, 3200);
+		}
+
+		function startTimer() {
+			setInterval(() => {
+				const elapsed = Date.now() - state.timerStart + state.timerOffset;
+				elements.playTime.textContent = formatDuration(elapsed);
+			}, 1000);
+		}
+
+		function formatDuration(ms) {
+			const totalSeconds = Math.floor(ms / 1000);
+			const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+			const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+			const seconds = String(totalSeconds % 60).padStart(2, "0");
+			return `${hours}:${minutes}:${seconds}`;
+		}
+
+		function startKnowledgeRotation() {
+			let idx = Math.floor(Math.random() * knowledgeBytes.length);
+			updateKnowledgeByte(idx);
+			setInterval(() => {
+				idx = (idx + 1) % knowledgeBytes.length;
+				updateKnowledgeByte(idx);
+			}, 90000);
+		}
+
+		function updateKnowledgeByte(index) {
+			const item = knowledgeBytes[index];
+			elements.knowledgeFeed.innerHTML = `<strong>${item.title}</strong>${item.text}`;
+		}
+
+		function saveState() {
+			const data = {
+				score: state.score,
+				attempts: state.attempts,
+				stageResults: state.stageResults,
+				achievements: Array.from(state.achievements),
+				timerOffset: Date.now() - state.timerStart + state.timerOffset,
+				activeChallenge: state.activeChallenge,
+				lastChallengeId: state.lastChallengeId
+			};
+			localStorage.setItem("ml-architecture-forge-state", JSON.stringify(data));
+		}
+
+		function loadSavedState() {
+			try {
+				const raw = localStorage.getItem("ml-architecture-forge-state");
+				if (!raw) return;
+				const data = JSON.parse(raw);
+				state.score = data.score ?? 0;
+				state.attempts = data.attempts ?? 0;
+				state.stageResults = data.stageResults ?? {};
+				state.timerOffset = data.timerOffset ?? 0;
+				state.activeChallenge = data.activeChallenge ?? null;
+				state.lastChallengeId = data.lastChallengeId ?? null;
+				state.achievements = new Set(data.achievements ?? []);
+				state.timerStart = Date.now();
+			} catch (err) {
+				console.warn("Failed to load saved state:", err);
+			}
+		}
+
+		function createXorDataset(samples) {
+			const points = [];
+			for (let i = 0; i < samples; i++) {
+				const a = Math.random() > 0.5 ? 1 : 0;
+				const b = Math.random() > 0.5 ? 1 : 0;
+				const label = a ^ b;
+				points.push({ input: [a, b], label });
+			}
+			shuffle(points);
+			const split = Math.floor(points.length * 0.75);
+			const train = points.slice(0, split);
+			const test = points.slice(split);
+			return {
+				trainX: train.map(p => p.input),
+				trainY: train.map(p => p.label),
+				testX: test.map(p => p.input),
+				testY: test.map(p => p.label),
+				outputUnits: 2,
+				featureNames: ["Bit A", "Bit B"],
+				featureRange: [[0, 1], [0, 1]]
+			};
+		}
+
+		function createSpiralDataset(samplesPerClass) {
+			const points = [];
+			const noise = 0.08;
+			for (let classIndex = 0; classIndex < 2; classIndex++) {
+				for (let i = 0; i < samplesPerClass; i++) {
+					const ratio = i / samplesPerClass;
+					const radius = ratio;
+					const angle = classIndex * Math.PI + ratio * 4.2;
+					const x = radius * Math.cos(angle) + (Math.random() - 0.5) * noise;
+					const y = radius * Math.sin(angle) + (Math.random() - 0.5) * noise;
+					points.push({ input: [x, y], label: classIndex });
+				}
+			}
+			shuffle(points);
+			const split = Math.floor(points.length * 0.72);
+			const train = points.slice(0, split);
+			const test = points.slice(split);
+			return {
+				trainX: train.map(p => p.input),
+				trainY: train.map(p => p.label),
+				testX: test.map(p => p.input),
+				testY: test.map(p => p.label),
+				outputUnits: 2,
+				featureNames: ["X₁", "X₂"],
+				featureRange: [[-1.4, 1.4], [-1.4, 1.4]]
+			};
+		}
+
+		function createWaveDataset(samples) {
+			const points = [];
+			for (let i = 0; i < samples; i++) {
+				const phase = -Math.PI + (2 * Math.PI * i) / samples;
+				const feature2 = Math.pow(phase + Math.PI, 2);
+				const target = Math.sin(phase * 1.5) * 0.7 + Math.sin(phase * 0.5) * 0.5 + 0.05 * Math.cos(phase * 3.2) + (Math.random() - 0.5) * 0.07;
+				points.push({ input: [phase, feature2], label: target });
+			}
+			shuffle(points);
+			const split = Math.floor(points.length * 0.8);
+			const train = points.slice(0, split);
+			const test = points.slice(split);
+			return {
+				trainX: train.map(p => p.input),
+				trainY: train.map(p => [p.label]),
+				testX: test.map(p => p.input),
+				testY: test.map(p => [p.label]),
+				outputUnits: 1,
+				featureNames: ["Phase", "Phase²"],
+				featureRange: [[-3.2, 3.2], [0, 10.5]]
+			};
+		}
+
+		function shuffle(array) {
+			for (let i = array.length - 1; i > 0; i--) {
+				const j = Math.floor(Math.random() * (i + 1));
+				[array[i], array[j]] = [array[j], array[i]];
+			}
+		}
+	</script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Litegraph Demo</title>
+  <script src="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/build/litegraph.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jagenjo/litegraph.js/css/litegraph.css" />
+  <link rel="icon" type="image/x-icon" href="../../../../../upper/JG_favicon.ico">
+
+
+  <style>
+    html, body { 
+      margin: 0; 
+      height: 100%; 
+      overflow: hidden; 
+      font-family: Arial, sans-serif;
+    }
+    canvas { 
+      width: 100vw; 
+      height: 100vh; 
+      display: block; 
+      background: #1e1e1e; 
+      touch-action: none; /* Prevent default touch behaviors */
+    }
+    
+    .right-click-indicator {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1000;
+      border: 3px solid rgba(55, 250, 55, 0.7);
+      background: radial-gradient(circle, rgba(55, 250, 55, 0.9) 0%, transparent 0%);
+      transform: translate(-50%, -50%);
+      transition: all 0.1s ease-out;
+    }
+    
+    @keyframes countdown {
+      from {
+        transform: translate(-50%, -50%) scale(0.1);
+        opacity: 0.1;
+      }
+      to {
+        transform: translate(-50%, -50%) scale(1.61);
+        opacity: 0.9;
+      }
+    }
+  </style>  
+</head>
+<body>
+  <canvas id="graphcanvas" style='border: 1px solid'></canvas>
+  <script>
+    // Responsive canvas setup
+    function setupCanvas() {
+      const canvas = document.getElementById('graphcanvas');
+      const dpr = window.devicePixelRatio || 1;
+      
+      // Set canvas size based on viewport
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      
+      // Scale the canvas back down using CSS
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      
+      // Scale the drawing context so everything draws at the higher resolution
+      const ctx = canvas.getContext('2d');
+      ctx.scale(dpr, dpr);
+    }
+
+    // Initial setup
+    setupCanvas();
+    
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      setupCanvas();
+      if (window.canvas) {
+        window.canvas.resize();
+      }
+    });
+
+    // Create graph and canvas
+    const graph = new LGraph();
+    const canvas = new LGraphCanvas("#graphcanvas", graph);
+    window.canvas = canvas; // Store reference for resize
+
+    // Create a constant node
+    const constA = LiteGraph.createNode("basic/const");
+    constA.pos = [100, 100];
+    constA.setValue(3);
+    graph.add(constA);
+
+    const constB = LiteGraph.createNode("basic/const");
+    constB.pos = [100, 200];
+    constB.setValue(7);
+    graph.add(constB);
+
+    // Custom add node
+    function AddNode() {
+      this.addInput("A", "number");
+      this.addInput("B", "number");
+      this.addOutput("Sum", "number");
+    }
+    AddNode.title = "Add";
+    AddNode.prototype.onExecute = function() {
+      const a = this.getInputData(0) || 0;
+      const b = this.getInputData(1) || 0;
+      this.setOutputData(0, a + b);
+    };
+    LiteGraph.registerNodeType("math/add", AddNode);
+
+    const adder = LiteGraph.createNode("math/add");
+    adder.pos = [300, 150];
+    graph.add(adder);
+
+    // Watch the result
+    const watcher = LiteGraph.createNode("basic/watch");
+    watcher.pos = [500, 150];
+    graph.add(watcher);
+
+    // Connect the nodes
+    constA.connect(0, adder, 0);
+    constB.connect(0, adder, 1);
+    adder.connect(0, watcher, 0);
+
+    // Start the graph
+    graph.start();
+    window.canvas.resize();
+  </script>
+</body>
+</html>

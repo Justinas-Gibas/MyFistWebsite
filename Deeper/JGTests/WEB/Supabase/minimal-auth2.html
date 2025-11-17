@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supabase Auth Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 500px; margin: 50px auto; padding: 20px; }
+        form { background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 8px; }
+        input { width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #45a049; }
+        button.logout { background: #2196F3; }
+        button.logout:hover { background: #0b7dda; }
+        button.danger { background: #f44336; }
+        button.danger:hover { background: #da190b; }
+        #status { padding: 15px; margin: 20px 0; border-radius: 4px; display: none; }
+        #status.success { background: #d4edda; color: #155724; display: block; }
+        #status.error { background: #f8d7da; color: #721c24; display: block; }
+        h2 { margin-top: 0; }
+        #account-management { background: #e3f2fd; padding: 20px; margin: 20px 0; border-radius: 8px; display: none; }
+        #account-management.show { display: block; }
+    </style>
+</head>
+<body>
+    <h1>Supabase Auth Test</h1>
+    
+    <form id="signup-form">
+        <h2>Sign Up</h2>
+        <input type="email" id="signup-email" placeholder="Email" required>
+        <input type="password" id="signup-password" placeholder="Password (min 6 chars)" required minlength="6">
+        <button type="submit">Sign Up</button>
+    </form>
+
+    <form id="login-form">
+        <h2>Log In</h2>
+        <input type="email" id="login-email" placeholder="Email" required>
+        <input type="password" id="login-password" placeholder="Password" required>
+        <button type="submit">Log In</button>
+    </form>
+
+    <div id="status"></div>
+
+    <div id="account-management">
+        <h2>Account Management</h2>
+        
+        <form id="change-password-form">
+            <h3>Change Password</h3>
+            <input type="password" id="new-password" placeholder="New Password (min 6 chars)" required minlength="6">
+            <button type="submit">Change Password</button>
+        </form>
+
+        <button id="logout-btn" class="logout">Log Out</button>
+        <button id="delete-account-btn" class="danger">Delete Account</button>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+        // Replace with your Supabase credentials
+        const SUPABASE_URL = 'https://cvbmvzpotrfkogumllkg.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2Ym12enBvdHJma29ndW1sbGtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4NTgzMTYsImV4cCI6MjA1MzQzNDMxNn0.L9LlWM5-5xYiBrzv6meEXyN90oklXUl3LEoYkUDKToM';
+
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function showStatus(message, isError = false) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = isError ? 'error' : 'success';
+        }
+
+        function toggleAccountManagement(show) {
+            const accountMgmt = document.getElementById('account-management');
+            if (show) {
+                accountMgmt.classList.add('show');
+            } else {
+                accountMgmt.classList.remove('show');
+            }
+        }
+
+        // Sign Up Handler
+        document.getElementById('signup-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+
+            try {
+                const { data, error } = await supabase.auth.signUp({
+                    email: email,
+                    password: password,
+                });
+
+                if (error) throw error;
+
+                showStatus(`Sign up successful! Check your email to confirm. User ID: ${data.user?.id || 'pending'}`);
+                e.target.reset();
+            } catch (error) {
+                showStatus(`Sign up error: ${error.message}`, true);
+            }
+        });
+
+        // Log In Handler
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password,
+                });
+
+                if (error) throw error;
+
+                showStatus(`Login successful! User: ${data.user.email}`);
+                toggleAccountManagement(true);
+                e.target.reset();
+            } catch (error) {
+                showStatus(`Login error: ${error.message}`, true);
+            }
+        });
+
+        // Change Password Handler
+        document.getElementById('change-password-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newPassword = document.getElementById('new-password').value;
+
+            try {
+                const { data, error } = await supabase.auth.updateUser({
+                    password: newPassword
+                });
+
+                if (error) throw error;
+
+                showStatus('Password changed successfully!');
+                e.target.reset();
+            } catch (error) {
+                showStatus(`Password change error: ${error.message}`, true);
+            }
+        });
+
+        // Logout Handler
+        document.getElementById('logout-btn').addEventListener('click', async () => {
+            try {
+                const { error } = await supabase.auth.signOut();
+
+                if (error) throw error;
+
+                showStatus('Logged out successfully!');
+                toggleAccountManagement(false);
+            } catch (error) {
+                showStatus(`Logout error: ${error.message}`, true);
+            }
+        });
+
+        // Delete Account Handler
+        document.getElementById('delete-account-btn').addEventListener('click', async () => {
+            const confirmed = confirm('Are you sure you want to delete your account? This action cannot be undone.');
+            
+            if (!confirmed) return;
+
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                
+                if (!user) throw new Error('No user logged in');
+
+                // Note: Account deletion requires RPC function or admin API
+                // This uses the admin delete method which requires proper backend setup
+                const { error } = await supabase.rpc('delete_user');
+
+                if (error) throw error;
+
+                showStatus('Account deleted successfully!');
+                toggleAccountManagement(false);
+            } catch (error) {
+                showStatus(`Delete account error: ${error.message}. Note: Account deletion may require backend setup.`, true);
+            }
+        });
+
+        // Check for existing session on load
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                showStatus(`Already logged in as: ${session.user.email}`);
+                toggleAccountManagement(true);
+            }
+        });
+    </script>
+</body>
+</html>

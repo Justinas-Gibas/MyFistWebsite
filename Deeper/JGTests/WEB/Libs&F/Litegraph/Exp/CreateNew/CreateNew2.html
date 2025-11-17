@@ -1,0 +1,307 @@
+<html>
+<head>
+	<link rel="stylesheet" type="text/css" href="../../../../../lib/Litegraph/litegraph.css">
+	<script type="text/javascript" src="../../../../../../lib/Litegraph/litegraph.js"></script>
+	<style>
+		body {
+			margin: 0;
+			padding: 20px;
+			font-family: Arial, sans-serif;
+			background-color: #ffffff;
+		}
+		
+		.controls {
+			margin-bottom: 20px;
+			text-align: center;
+		}
+		
+		button {
+			padding: 10px 20px;
+			font-size: 16px;
+			background-color: #00000071;
+			color: white;
+			border: none;
+			border-radius: 5px;
+			cursor: pointer;
+		}
+		
+		button:hover {
+			background-color: #363636;
+		}
+		
+		.graphs-container {
+			display: grid;
+			gap: 20px;
+			max-width: 100%;
+			justify-items: center;
+			/* Grid columns are set dynamically by script */
+		}
+		
+		.graph-container {
+			background: #f9f9f9;
+			border: 1px solid #ddd;
+			border-radius: 8px;
+			padding: 15px;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			box-sizing: border-box;
+			/* Width is set dynamically by script */
+		}
+		
+		.graph-title {
+			text-align: center;
+			margin-bottom: 10px;
+			font-weight: bold;
+			color: #7a7a7a;
+			word-break: break-all;
+			font-size: 12px;
+		}
+		
+		.graph-controls {
+			margin-bottom: 10px;
+		}
+		
+		.graph-controls button {
+			font-size: 12px;
+			padding: 5px 10px;
+			margin: 0 5px;
+			background-color: #dc3545;
+		}
+		
+		.graph-controls button:hover {
+			background-color: #c82333;
+		}
+		
+		canvas {
+			border: 1px solid #333;
+			border-radius: 4px;
+			/* Dimensions are set dynamically by script */
+		}
+	</style>
+</head>
+<body>
+	<div class="controls">
+		<button id="createNewGraph">Create New Graph</button>
+		<button id="clearAllGraphs">Clear All Graphs</button>
+	</div>
+	
+	<div id="graphsContainer" class="graphs-container">
+		<!-- Graphs will be dynamically added here -->
+	</div>
+
+	<script>
+		// UUID generation function
+		function generateUUID() {
+			return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+				var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+				return v.toString(16);
+			});
+		}
+
+		// Map to hold graph instances using UUID as key
+		let graphs = new Map();
+
+		// --- Layout Calculation ---
+		const FIBONACCI_SIZES = [144, 233, 377, 610, 987];
+		const MAX_GRAPH_WIDTH = 800; // Max width for a canvas
+		const MIN_GRAPH_WIDTH = 233; // Min width for a canvas
+
+		function findClosestFibonacci(size) {
+			// Find the largest Fibonacci number that is less than or equal to the size
+			return [...FIBONACCI_SIZES].reverse().find(fib => fib <= size) || MIN_GRAPH_WIDTH;
+		}
+
+		function calculateOptimalLayout() {
+			const graphCount = graphs.size;
+			if (graphCount === 0) return { canvasSize: 512, columns: 1 };
+
+			const viewportWidth = window.innerWidth - 40; // Account for body padding
+			const containerPadding = 30; // 15px padding on each side
+			const containerGap = 20;
+
+			let bestLayout = { columns: 1, canvasSize: MIN_GRAPH_WIDTH };
+
+			// Iterate through possible column counts to find the best fit
+			for (let cols = 1; cols <= graphCount; cols++) {
+				const availableWidth = viewportWidth - (cols - 1) * containerGap;
+				const potentialCanvasSize = Math.floor(availableWidth / cols) - containerPadding;
+
+				if (potentialCanvasSize < MIN_GRAPH_WIDTH) {
+					break; // Stop if canvases become too small
+				}
+
+				const fibSize = findClosestFibonacci(Math.min(potentialCanvasSize, MAX_GRAPH_WIDTH));
+
+				// Prefer layouts that result in larger canvases
+				if (fibSize >= bestLayout.canvasSize) {
+					bestLayout = { columns: cols, canvasSize: fibSize };
+				}
+			}
+			return bestLayout;
+		}
+		
+		function updateLayout() {
+			const { canvasSize, columns } = calculateOptimalLayout();
+			const containerSize = canvasSize + 30; // Add padding
+			
+			// Update grid layout
+			const container = document.getElementById('graphsContainer');
+			container.style.gridTemplateColumns = `repeat(${columns}, ${containerSize}px)`;
+			
+			// Update all existing graphs
+			graphs.forEach((graphData, uuid) => {
+				// Update container size
+				graphData.container.style.width = `${containerSize}px`;
+				
+				// Update canvas size
+				const canvas = graphData.container.querySelector('canvas');
+				if (canvas.width !== canvasSize) {
+					canvas.width = canvasSize;
+					canvas.height = canvasSize;
+					canvas.style.width = `${canvasSize}px`;
+					canvas.style.height = `${canvasSize}px`;
+					
+					// Resize the LiteGraph canvas
+					graphData.canvas.resize();
+				}
+			});
+			
+			console.log(`Layout updated: ${canvasSize}px canvas, ${columns} columns`);
+		}
+		
+		function createNewGraph() {
+			const graphUUID = generateUUID();
+			const canvasId = `canvas-${graphUUID}`;
+			
+			// Create container elements
+			const container = document.createElement('div');
+			container.className = 'graph-container';
+			container.id = `container-${graphUUID}`;
+			// Size will be set by updateLayout
+			
+			const title = document.createElement('div');
+			title.className = 'graph-title';
+			title.textContent = `Graph: ${graphUUID}`;
+			
+			const controls = document.createElement('div');
+			controls.className = 'graph-controls';
+			
+			const deleteBtn = document.createElement('button');
+			deleteBtn.textContent = 'Delete';
+			deleteBtn.onclick = () => deleteGraph(graphUUID);
+			
+			const canvas = document.createElement('canvas');
+			canvas.id = canvasId;
+			// Dimensions will be set by updateLayout
+			
+			// Assemble container
+			controls.appendChild(deleteBtn);
+			container.appendChild(title);
+			container.appendChild(controls);
+			container.appendChild(canvas);
+			
+			// Add to DOM
+			document.getElementById('graphsContainer').appendChild(container);
+			
+			// Create LiteGraph instance
+			const graph = new LGraph();
+			const graphCanvas = new LGraphCanvas(`#${canvasId}`, graph);
+			
+			// Add some default nodes
+			const nodeConst = LiteGraph.createNode("basic/const");
+			nodeConst.pos = [10, 50];
+			graph.add(nodeConst);
+			nodeConst.setValue(Math.round(Math.random() * 100) / 10);
+			
+			const nodeWatch = LiteGraph.createNode("basic/watch");
+			nodeWatch.pos = [250, 150];
+			graph.add(nodeWatch);
+			
+			nodeConst.connect(0, nodeWatch, 0);
+			graph.start();
+			
+			// Store graph reference with UUID as key
+			graphs.set(graphUUID, {
+				uuid: graphUUID,
+				graph: graph,
+				canvas: graphCanvas,
+				container: container
+			});
+			
+			// Update layout for all graphs
+			updateLayout();
+			
+			console.log(`Created graph with UUID: ${graphUUID}`);
+			return graphUUID;
+		}
+		
+		function deleteGraph(graphUUID) {
+			if (graphs.has(graphUUID)) {
+				const graphData = graphs.get(graphUUID);
+				
+				// Stop the graph
+				graphData.graph.stop();
+				
+				// Remove from DOM
+				graphData.container.remove();
+				
+				// Clean up reference
+				graphs.delete(graphUUID);
+				
+				// Update layout for remaining graphs
+				updateLayout();
+				
+				console.log(`Deleted graph with UUID: ${graphUUID}`);
+			}
+		}
+		
+		function clearAllGraphs() {
+			graphs.forEach((graphData, uuid) => {
+				// Stop graph and remove container immediately
+				if (graphs.has(uuid)) {
+					const graphData = graphs.get(uuid);
+					graphData.graph.stop();
+					graphData.container.remove();
+					graphs.delete(uuid);
+				}
+			});
+			// A single update after all are removed
+			updateLayout();
+		}
+		
+		// Helper function to get graph by UUID
+		function getGraphByUUID(uuid) {
+			return graphs.get(uuid);
+		}
+		
+		// Helper function to send data to specific graph
+		function sendDataToGraph(uuid, data) {
+			const graphData = graphs.get(uuid);
+			if (graphData) {
+				// Example: Update const node value
+				const nodes = graphData.graph._nodes;
+				const constNode = nodes.find(node => node.type === "basic/const");
+				if (constNode) {
+					constNode.setValue(data);
+				}
+				console.log(`Sent data ${data} to graph ${uuid}`);
+			}
+		}
+		
+		// Event listeners
+		document.getElementById('createNewGraph').addEventListener('click', createNewGraph);
+		document.getElementById('clearAllGraphs').addEventListener('click', clearAllGraphs);
+		
+		// Window resize handler
+		let resizeTimeout;
+		window.addEventListener('resize', () => {
+			clearTimeout(resizeTimeout);
+			resizeTimeout = setTimeout(updateLayout, 150); // Debounce resize event
+		});
+		
+		// Create initial graph
+		createNewGraph();
+	</script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<html>
+<head>
+	<link rel="stylesheet" type="text/css" href="../../../../../../lib/Litegraph/litegraph.css">
+	<script type="text/javascript" src="../../../../../../lib/Litegraph/litegraph.js"></script>
+	<style>
+		body {
+			margin: 0;
+			padding: 20px;
+			font-family: Arial, sans-serif;
+		}
+		.graph-container {
+			display: inline-block;
+			margin: 10px;
+			vertical-align: top;
+		}
+		.graph-title {
+			text-align: center;
+			margin-bottom: 10px;
+			font-weight: bold;
+		}
+		canvas {
+			border: 1px solid #333;
+		}
+	</style>
+</head>
+<body>
+	<div class="graph-container">
+		<div class="graph-title">Graph 1</div>
+		<canvas id='mycanvas1' width='512' height='512'></canvas>
+	</div>
+	
+	<div class="graph-container">
+		<div class="graph-title">Graph 2</div>
+		<canvas id='mycanvas2' width='512' height='512'></canvas>
+	</div>
+
+<script>
+// Create a deep copy function for LiteGraph
+function createSeparateLiteGraph() {
+    // Create a new namespace
+    var newLG = {};
+    
+    // Copy all properties from original LiteGraph
+    for (var key in LiteGraph) {
+        if (typeof LiteGraph[key] === 'function') {
+            newLG[key] = LiteGraph[key].bind(newLG);
+        } else {
+            newLG[key] = LiteGraph[key];
+        }
+    }
+    
+    // Copy constructor functions
+    newLG.LGraph = LiteGraph.LGraph;
+    newLG.LGraphCanvas = LiteGraph.LGraphCanvas;
+    newLG.createNode = LiteGraph.createNode;
+    
+    return newLG;
+}
+
+// Create separate LiteGraph instances
+var LiteGraph1 = LiteGraph; // Use original
+var LiteGraph2 = createSeparateLiteGraph(); // Create separate copy
+
+// Set different configurations
+LiteGraph1.release_link_on_empty_shows_menu = false;
+LiteGraph2.release_link_on_empty_shows_menu = true;
+
+// First Graph
+var graph1 = new LiteGraph1.LGraph();
+var canvas1 = new LiteGraph1.LGraphCanvas("#mycanvas1", graph1);
+
+var node_const1 = LiteGraph1.createNode("basic/const");
+node_const1.pos = [10,100];
+graph1.add(node_const1);
+node_const1.setValue(4.5);
+
+var node_watch1 = LiteGraph1.createNode("basic/watch");
+node_watch1.pos = [350,300];
+graph1.add(node_watch1);
+
+node_const1.connect(0, node_watch1, 0);
+graph1.start();
+
+// Second Graph
+var graph2 = new LiteGraph2.LGraph();
+var canvas2 = new LiteGraph2.LGraphCanvas("#mycanvas2", graph2);
+
+var node_const2 = LiteGraph2.createNode("basic/const");
+node_const2.pos = [10,100];
+graph2.add(node_const2);
+node_const2.setValue(7.2);
+
+var node_watch2 = LiteGraph2.createNode("basic/watch");
+node_watch2.pos = [350,300];
+graph2.add(node_watch2);
+
+var node_math = LiteGraph2.createNode("math/operation");
+node_math.pos = [180, 200];
+graph2.add(node_math);
+
+node_const2.connect(0, node_math, 0);
+node_math.connect(0, node_watch2, 0);
+
+graph2.start();
+</script>
+</body>
+</html>
