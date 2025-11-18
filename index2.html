@@ -1,237 +1,586 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>3D portfolio using Three.js"</title>
-    <meta charset="UTF-8">
-    <meta name="author" content="Justinas Gibas" />
-    <meta name="description" content="3D portfolio using Three.js" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#ffffff">
+    <meta charset="UTF-8" />
+    <title>Minimal Three.js</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 
     <style>
-        body, html { margin: 0; height: 100%; overflow: hidden; }
-        canvas { width: 100%; height: 100%; display: block; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #ffffff;
+            font-family: system-ui, sans-serif;
+        }
+        #root, canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
     </style>
 </head>
 <body>
-
-<script async src="./Deeper/lib/utils/es-module-shims.js"></script>
-
-<script type="importmap">
-{
-  "imports": {
-    "three": "./Deeper/lib/three.module.js"
-  }
-}
-</script>
+<div id="root"></div>
 
 <script type="module">
-import * as THREE from 'three';
-import { FontLoader } from './Deeper/lib/loaders/FontLoader.js';
-import { TextGeometry } from './Deeper/lib/utils/TextGeometry.js';
-import { GLTFLoader } from './Deeper/lib/loaders/GLTFLoader.js';
-import { RGBELoader } from './Deeper/lib/loaders/RGBELoader.js';
-import { OrbitControls } from './Deeper/lib/controls/OrbitControls.js';
-import { Sky } from './Deeper/lib/utils/Sky.js';
-import Stats from './Deeper/lib/libs/stats.module.js';
+import * as THREE from "https://esm.sh/three@0.160.0";
+import { OrbitControls } from "https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js";
 
-let camera, scene, renderer, controls, carouselGroup;
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-const targetPosition = new THREE.Vector3();
-let moveCamera = false;
+// --- Billboard & ring configuration (easy to tweak) ---
+const BILLBOARD_CONFIG = {
+    width: 2,              // billboard plane width in world units
+    height: 2,           // billboard plane height in world units
+    radius: 4,             // ring radius around the cube
+    y: 1.5,                // height of billboards above ground
+    dragSensitivity: 0.001,// rotation per pixel drag
+    dragMultiplier: 3,     // extra multiplier for pointer drag speed
+    friction: 0.93,         // inertia falloff
+    // how many characters of fetched HTML we try to show on the card
+    previewCharLimit: 220
+};
 
-const stats = new Stats();
-document.body.appendChild(stats.dom);
+// Basic sizes
+const root = document.getElementById("root");
+const width = root.clientWidth;
+const height = root.clientHeight;
 
+// Create renderer and attach it to #root
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(width, height);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setClearColor(0xffffff, 1);
+renderer.shadowMap.enabled = true;
+root.appendChild(renderer.domElement);
+
+// Create scene
+const scene = new THREE.Scene();
+
+// Camera
+const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 100);
+camera.position.set(0, 2, 8);
+scene.add(camera);
+
+// Lights
+const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambient);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+dirLight.position.set(5, 10, 7);
+dirLight.castShadow = true;
+scene.add(dirLight);
+
+// Ground plane
+const planeGeo = new THREE.PlaneGeometry(50, 50);
+const planeMat = new THREE.MeshStandardMaterial({ color: 0xe0e0e0 });
+const plane = new THREE.Mesh(planeGeo, planeMat);
+plane.rotation.x = -Math.PI / 2;
+plane.position.y = -1;
+plane.receiveShadow = true;
+scene.add(plane);
+
+// Spinning cube
+const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+const boxMat = new THREE.MeshStandardMaterial({ color: 0x44aa88 });
+const cube = new THREE.Mesh(boxGeo, boxMat);
+cube.position.set(0, 0.5, 0);
+cube.castShadow = true;
+scene.add(cube);
+
+// Small helper: create a hidden iframe, wait for load, then remove it.
+// We cannot "screenshot" cross-origin iframes; we'll only inspect same-origin pages.
+function openInHiddenIframe(url) {
+    return new Promise((resolve) => {
+        const iframe = document.createElement("iframe");
+        iframe.style.position = "absolute";
+        iframe.style.width = "1px";
+        iframe.style.height = "1px";
+        iframe.style.opacity = "0";
+        iframe.style.pointerEvents = "none";
+        iframe.src = url;
+
+        const cleanup = () => {
+            iframe.remove();
+        };
+
+        iframe.onload = () => {
+            // Even if we cannot read its contents, we at least know it loaded.
+            cleanup();
+            resolve(true);
+        };
+
+        iframe.onerror = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        document.body.appendChild(iframe);
+
+        // Failsafe timeout in case onload/onerror never fire.
+        setTimeout(() => {
+            if (document.body.contains(iframe)) {
+                cleanup();
+                resolve(false);
+            }
+        }, 8000);
+    });
+}
+
+// Try to fetch the page HTML and extract a simple preview text.
+async function fetchPagePreview(url, charLimit) {
+    try {
+        const res = await fetch(url, { mode: "same-origin" });
+        if (!res.ok) return null;
+        const text = await res.text();
+
+        // Very naive extraction: strip tags and collapse whitespace.
+        const withoutTags = text.replace(/<script[\s\S]*?<\/script>/gi, "")
+                                .replace(/<style[\s\S]*?<\/style>/gi, "")
+                                .replace(/<[^>]+>/g, " ");
+        const clean = withoutTags.replace(/\s+/g, " ").trim();
+
+        if (!clean) return null;
+        return clean.slice(0, charLimit);
+    } catch {
+        return null;
+    }
+}
+
+// NEW: try to build a simple "layout preview" object from the HTML string.
+// We use DOMParser to build a temporary DOM tree and extract:
+// - document title
+// - headings (h1/h2/h3)
+// - first few links
+function buildLayoutPreviewFromHtml(html, charLimit) {
+    try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+
+        const title = (doc.querySelector("title")?.textContent || "").trim();
+
+        const headings = [];
+        doc.querySelectorAll("h1, h2, h3").forEach((el) => {
+            if (headings.length < 5) {
+                const t = el.textContent.trim();
+                if (t) headings.push(t);
+            }
+        });
+
+        const links = [];
+        doc.querySelectorAll("a").forEach((el) => {
+            if (links.length < 5) {
+                const t = el.textContent.trim();
+                if (t) links.push(t);
+            }
+        });
+
+        // Fallback preview text if we don't have much.
+        const raw = doc.body ? doc.body.textContent || "" : "";
+        const clean = raw.replace(/\s+/g, " ").trim().slice(0, charLimit);
+
+        return {
+            title,
+            headings,
+            links,
+            fallbackText: clean
+        };
+    } catch {
+        return null;
+    }
+}
+
+// Helper: draw a card into a canvas. Optional layoutPreview gives us visual hints.
+function drawProjectCardToCanvas(options) {
+    const {
+        width = 512,
+        height = 512,
+        title = "Project",
+        url = "about:blank",
+        bgColor = "#ffffff",
+        borderColor = "#000000",
+        layoutPreview = null,   // <--- changed: richer preview data
+        previewText = null      // kept for backwards compatibility
+    } = options || {};
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+
+    // Background
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, width, height);
+
+    // Border
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 8;
+    ctx.strokeRect(0, 0, width, height);
+
+    // Title
+    ctx.fillStyle = "#000000";
+    ctx.font = "bold 32px system-ui";
+    ctx.textBaseline = "top";
+    ctx.fillText(title, 24, 24);
+
+    // URL
+    ctx.font = "20px system-ui";
+    ctx.fillStyle = "#333333";
+    ctx.fillText(url, 24, 80);
+
+    // If we have layoutPreview, draw a fake "iframe" style layout
+    if (layoutPreview) {
+        const margin = 24;
+        const iframeX = margin;
+        const iframeY = 120;
+        const iframeW = width - margin * 2;
+        const iframeH = height - iframeY - 70;
+
+        // Outer "iframe" rectangle
+        ctx.strokeStyle = "#bbbbbb";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(iframeX, iframeY, iframeW, iframeH);
+
+        // Address bar
+        const barH = 28;
+        ctx.fillStyle = "#f2f2f2";
+        ctx.fillRect(iframeX, iframeY, iframeW, barH);
+
+        ctx.fillStyle = "#888888";
+        ctx.font = "14px system-ui";
+        ctx.fillText(" iframe preview (approx) ", iframeX + 8, iframeY + 7);
+
+        // Content area inside "iframe"
+        const contentX = iframeX + 10;
+        const contentY = iframeY + barH + 10;
+        const contentW = iframeW - 20;
+        const contentH = iframeH - barH - 20;
+
+        // Header block
+        ctx.fillStyle = "#dddddd";
+        ctx.fillRect(contentX, contentY, contentW * 0.6, 26);
+        ctx.fillStyle = "#333333";
+        ctx.font = "16px system-ui";
+        const headerText = layoutPreview.title || "Page Header";
+        ctx.fillText(headerText.slice(0, 30), contentX + 8, contentY + 5);
+
+        let currentY = contentY + 40;
+
+        // Headings as wider blocks
+        ctx.font = "14px system-ui";
+        layoutPreview.headings.forEach((h) => {
+            if (currentY + 22 > contentY + contentH - 40) return;
+            ctx.fillStyle = "#e8e8e8";
+            ctx.fillRect(contentX, currentY, contentW * 0.8, 20);
+            ctx.fillStyle = "#444444";
+            ctx.fillText(h.slice(0, 35), contentX + 6, currentY + 3);
+            currentY += 26;
+        });
+
+        // Links as small buttons
+        layoutPreview.links.forEach((link) => {
+            if (currentY + 22 > contentY + contentH - 20) return;
+            const w = Math.min(contentW * 0.5, 180);
+            ctx.fillStyle = "#cfe3ff";
+            ctx.fillRect(contentX, currentY, w, 20);
+            ctx.fillStyle = "#254f88";
+            ctx.fillText(link.slice(0, 20), contentX + 6, currentY + 3);
+            currentY += 24;
+        });
+
+        // Fallback small text at bottom if we have it
+        if (layoutPreview.fallbackText) {
+            ctx.fillStyle = "#666666";
+            ctx.font = "12px system-ui";
+            const textY = contentY + contentH - 12;
+            const clipped = layoutPreview.fallbackText.slice(0, 60);
+            ctx.fillText(clipped + (layoutPreview.fallbackText.length > 60 ? "..." : ""), contentX, textY);
+        }
+
+        // Hint text
+        ctx.font = "14px system-ui";
+        ctx.fillStyle = "#666666";
+        ctx.fillText("Double-click billboard to open in browser", margin, height - 38);
+        ctx.fillText("Layout is an approximate iframe preview", margin, height - 20);
+    } else if (previewText) {
+        ctx.font = "18px system-ui";
+        ctx.fillStyle = "#222222";
+
+        const margin = 24;
+        const maxWidth = width - margin * 2;
+        const lineHeight = 22;
+        let x = margin;
+        let y = 120;
+
+        // Simple word-wrapping
+        const words = previewText.split(" ");
+        let line = "";
+        for (let i = 0; i < words.length; i++) {
+            const testLine = line ? line + " " + words[i] : words[i];
+            const testWidth = ctx.measureText(testLine).width;
+            if (testWidth > maxWidth && line) {
+                ctx.fillText(line, x, y);
+                line = words[i];
+                y += lineHeight;
+                if (y > height - 80) break; // stop if near bottom
+            } else {
+                line = testLine;
+            }
+        }
+        if (line && y <= height - 80) {
+            ctx.fillText(line, x, y);
+        }
+
+        // Hint text
+        ctx.font = "16px system-ui";
+        ctx.fillStyle = "#666666";
+        ctx.fillText("Preview baked from page HTML", margin, height - 60);
+        ctx.fillText("Double-click billboard to open tab", margin, height - 35);
+    } else {
+        // Fallback hint if no preview is available
+        ctx.font = "18px system-ui";
+        ctx.fillStyle = "#666666";
+        ctx.fillText("Double-click billboard to open", 24, height - 40);
+    }
+
+    return canvas;
+}
+
+// Create a THREE texture from a card canvas.
+function createTextureFromCard(options) {
+    const canvas = drawProjectCardToCanvas(options);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    texture.anisotropy = 8;
+    return texture;
+}
+
+// Async helper: try iframe + fetch, then bake billboard texture.
+async function createBakedProjectTexture({ title, url }) {
+    const previewCharLimit = BILLBOARD_CONFIG.previewCharLimit;
+
+    // Try to open as hidden iframe (same as before)
+    await openInHiddenIframe(url);
+
+    // Try to fetch HTML and build richer layout preview
+    let layoutPreview = null;
+    let previewText = null;
+
+    try {
+        const res = await fetch(url, { mode: "same-origin" });
+        if (res.ok) {
+            const html = await res.text();
+            layoutPreview = buildLayoutPreviewFromHtml(html, previewCharLimit);
+
+            // If we have a layoutPreview, we also derive previewText from it (for backup).
+            if (layoutPreview && layoutPreview.fallbackText) {
+                previewText = layoutPreview.fallbackText;
+            } else {
+                previewText = await fetchPagePreview(url, previewCharLimit);
+            }
+        } else {
+            previewText = await fetchPagePreview(url, previewCharLimit);
+        }
+    } catch {
+        // fetch failed – maybe file not found or cross-origin; fall back to text-only helper
+        previewText = await fetchPagePreview(url, previewCharLimit);
+    }
+
+    return createTextureFromCard({
+        title,
+        url,
+        layoutPreview,
+        previewText
+    });
+}
+
+// Helper: create a billboard mesh and then swap in baked texture when ready.
+function createBillboard({ title, url, position }) {
+    const width = BILLBOARD_CONFIG.width;
+    const height = BILLBOARD_CONFIG.height;
+
+    const placeholderTexture = createTextureFromCard({
+        title,
+        url,
+        layoutPreview: null,
+        previewText: "Loading iframe-like preview..."
+    });
+
+    const geometry = new THREE.PlaneGeometry(width, height);
+    const material = new THREE.MeshBasicMaterial({
+        map: placeholderTexture,
+        transparent: true,
+        side: THREE.DoubleSide
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.copy(position);
+    mesh.userData.projectUrl = url;
+
+    (async () => {
+        const bakedTexture = await createBakedProjectTexture({ title, url });
+        material.map.dispose();
+        material.map = bakedTexture;
+        material.needsUpdate = true;
+    })();
+
+    return mesh;
+}
+
+// Array of 8 projects – edit titles/urls as needed
 const projects = [
-    { name: "L2Web", description: "Responsive website project", link: "./Deeper/L2Web/L2Web.html" },
-    { name: "GLTFLoader", description: "GLTFLoader project", link: "./Deeper/GLTFLoader/GLTFLoader.html" },
-    { name: "Chunks World", description: "GLTF chunk project", link: "./Deeper/ChunkWorld/ChunkWorld.html" },
-    { name: "Chunks World++", description: "Enhanced GLTF chunk project", link: "./Deeper/ChunkWorld++/ChunkWorld++.html" },
-    { name: "Volume Editor", description: "Volume Editor project", link: "./Deeper/VolumeEditor/VolumeEditor.html" },
-    { name: "VRSpace", description: "VRSpace for art", link: "./Deeper/VRSpace/VRSpace.html" }
+    { title: "L2Web",        url: "./upper/L2Web/L2Web.html" },
+    { title: "GLTFLoader",   url: "./Deeper/JGDemos/TapToBPM/index.html" },
+    { title: "GreenSlime", url: "./Deeper/JGDemos/GridGreenSlime/index.html" },
+    { title: "ChatBot",     url: "./Deeper/JGDemos/ChatBot/index.html" },
+    { title: "Volume Editor",url: "./Deeper/JGDemos/VolumeEditor/VolumeEditor.html" },
+    { title: "VRSpace",      url: "./Deeper/JGDemos/VRSpace/VRSpace.html" },
+    { title: "Project 7",    url: "./Deeper/JGDemos/LitegraphTouch/index.html" },
+    { title: "Project 8",    url: "./Deeper/JGDemos/Boids/index.html" }
 ];
 
-function initGallery() {
-    scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 50);
-    camera.position.set(0, 1.6, 20);
+// Container for all billboard meshes
+const billboards = [];
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+// Group to hold the ring – we rotate this for the slideshow effect
+const ringGroup = new THREE.Group();
+scene.add(ringGroup);
 
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1.6, 0);
-    controls.maxDistance = 30;
-    controls.minDistance = 5;
-    controls.update();
+// Arrange billboards in a closer ring around the cube
+const billboardRadius = BILLBOARD_CONFIG.radius;
+const billboardHeight = BILLBOARD_CONFIG.y;
 
-    setupLighting();
-    setupSky();
-    setupGroundPlane();
-    loadProjectPosters();
+projects.forEach((p, index) => {
+    const angle = (index / projects.length) * Math.PI * 2;
+    const x = Math.cos(angle) * billboardRadius;
+    const z = Math.sin(angle) * billboardRadius;
 
-    window.addEventListener('resize', onWindowResize);
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('dblclick', onDoubleClick);
-
-    animate();
-}
-
-function setupLighting() {
-    const ambientLight = new THREE.HemisphereLight(0xffffff, 0xffffff, 1);
-    scene.add(ambientLight);
-
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-    directionalLight.position.set(5, 10, 7.5);
-    directionalLight.castShadow = true;
-    scene.add(directionalLight);
-}
-
-function setupSky() {
-    const sky = new Sky();
-    sky.scale.setScalar(4500);
-    scene.add(sky);
-
-    const sun = new THREE.Vector3();
-    const effectController = {
-        turbidity: 0.0,
-        rayleigh: 0.0,
-        mieCoefficient: 0.0,
-        mieDirectionalG: 1.0,
-        elevation: 90,
-        azimuth: 90,
-        exposure: renderer.toneMappingExposure
-    };
-
-    function updateSun() {
-        const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
-        const theta = THREE.MathUtils.degToRad(effectController.azimuth);
-        sun.setFromSphericalCoords(1, phi, theta);
-        sky.material.uniforms['sunPosition'].value.copy(sun);
-        renderer.toneMappingExposure = effectController.exposure;
-    }
-
-    updateSun();
-}
-
-function setupGroundPlane() {
-    const groundGeo = new THREE.PlaneGeometry(100, 100);
-    const groundMat = new THREE.MeshPhysicalMaterial({
-        color: 0xffffff,
-        roughness: 1.0,
-        metalness: 0.0,
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.1
-    });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = 0;
-    ground.receiveShadow = true;
-    ground.name = 'groundPlane';
-    scene.add(ground);
-}
-
-function loadProjectPosters() {
-    const loader = new FontLoader();
-    loader.load('./Deeper/lib/styles/helvetiker_regular.typeface.json', function (font) {
-        const planeGeometry = new THREE.PlaneGeometry(3, 2);
-
-        carouselGroup = new THREE.Group();
-        scene.add(carouselGroup);
-
-        projects.forEach((project, index) => {
-            const material = new THREE.MeshStandardMaterial({ color: 0x888888 });
-            const poster = new THREE.Mesh(planeGeometry, material);
-            const angle = (index / projects.length) * Math.PI * 2;
-            const radius = 18;
-            poster.position.set(Math.cos(angle) * radius, 2, Math.sin(angle) * radius);
-            poster.lookAt(camera.position);
-            poster.userData = { clickable: true, link: project.link };
-            poster.name = 'projectPoster';
-            carouselGroup.add(poster);
-
-            const textGeometry = new TextGeometry(project.name, {
-                font: font,
-                size: 0.2,
-                depth: 0.01,
-                curveSegments: 4,
-                bevelEnabled: false,
-            });
-
-            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
-            textMesh.position.set(poster.position.x, poster.position.y - 1.5, poster.position.z);
-            textMesh.lookAt(camera.position);
-            carouselGroup.add(textMesh);
-        });
-    });
-}
-
-function onMouseMove(event) {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-    raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(carouselGroup.children, true);
-
-    carouselGroup.children.forEach((child) => {
-        if (child.name === 'projectPoster' && child.material) {
-            child.material.color.set(0x888888);
-        }
+    const billboard = createBillboard({
+        title: p.title,
+        url: p.url,
+        position: new THREE.Vector3(x, billboardHeight, z)
     });
 
-    if (intersects.length > 0) {
-        const obj = intersects[0].object;
-        if (obj.name === 'projectPoster' && obj.material) {
-            obj.material.color.set(0xaaaaaa);
-        }
-    }
-}
+    ringGroup.add(billboard);
+    billboards.push(billboard);
+});
+
+// Basic raycaster for detecting double-clicks on billboards
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
 
 function onDoubleClick(event) {
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObjects(carouselGroup.children, true);
+    const intersects = raycaster.intersectObjects(billboards, false);
 
     if (intersects.length > 0) {
-        const obj = intersects[0].object;
-        if (obj.userData.clickable) {
-            window.open(obj.userData.link, '_blank');
+        const hit = intersects[0].object;
+        const url = hit.userData.projectUrl;
+        if (url) {
+            window.open(url, "_blank");
         }
     }
 }
 
-function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
+renderer.domElement.addEventListener("dblclick", onDoubleClick);
+
+// OrbitControls: keep zoom, but disable rotation so we use our own ring rotation
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 3;
+controls.maxDistance = 30;
+controls.target.set(0, 0.5, 0);
+controls.enableRotate = false; // user rotates ring instead of camera orbit
+controls.update();
+
+// --- Pointer drag to rotate the ring like a 3D slideshow ---
+
+let isDragging = false;
+let lastPointerX = 0;
+let ringRotationVelocity = 0;
+
+const DRAG_SENSITIVITY = BILLBOARD_CONFIG.dragSensitivity;
+const FRICTION = BILLBOARD_CONFIG.friction;
+
+function onPointerDown(e) {
+    isDragging = true;
+    lastPointerX = e.clientX;
+}
+
+function onPointerMove(e) {
+    if (!isDragging) return;
+
+    const deltaX = e.clientX - lastPointerX;
+    lastPointerX = e.clientX;
+
+    const deltaRotation = deltaX * DRAG_SENSITIVITY * BILLBOARD_CONFIG.dragMultiplier;
+    ringGroup.rotation.y += deltaRotation;
+    ringRotationVelocity = deltaRotation;
+}
+
+function onPointerUp() {
+    isDragging = false;
+}
+
+renderer.domElement.addEventListener("pointerdown", onPointerDown);
+window.addEventListener("pointermove", onPointerMove);
+window.addEventListener("pointerup", onPointerUp);
+
+// --- Trackpad / touchpad horizontal scroll to rotate ring ---
+
+function onWheel(e) {
+    const deltaX = e.deltaX;
+    if (deltaX === 0) return;
+
+    const deltaRotation = -deltaX * DRAG_SENSITIVITY;
+    ringGroup.rotation.y += deltaRotation;
+    ringRotationVelocity = deltaRotation;
+}
+
+renderer.domElement.addEventListener("wheel", onWheel, { passive: true });
+
+// Update controls on resize as well
+window.addEventListener("resize", () => {
+    const w = root.clientWidth;
+    const h = root.clientHeight;
+    camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-}
+    renderer.setSize(w, h);
+    controls.update();
+});
 
+// Simple animation loop
 function animate() {
-    if (moveCamera) {
-        const delta = 0.05;
-        camera.position.lerp(targetPosition, delta);
-        controls.target.lerp(targetPosition, delta);
-        if (camera.position.distanceTo(targetPosition) < 0.1) {
-            moveCamera = false;
+    requestAnimationFrame(animate);
+
+    // Rotate cube a bit every frame
+    cube.rotation.y += 0.01;
+    cube.rotation.x += 0.005;
+
+    // Apply inertia to ring rotation when not dragging
+    if (!isDragging) {
+        ringGroup.rotation.y += ringRotationVelocity;
+        ringRotationVelocity *= FRICTION;
+        if (Math.abs(ringRotationVelocity) < 0.0001) {
+            ringRotationVelocity = 0;
         }
     }
 
-    renderer.setAnimationLoop(() => {
-        stats.begin();
-        renderer.render(scene, camera);
-        stats.end();
+    // Make all billboards face the camera (billboard behavior)
+    billboards.forEach((b) => {
+        b.lookAt(camera.position);
     });
+
+    controls.update();
+    renderer.render(scene, camera);
 }
 
-initGallery();
+animate();
 </script>
-
 </body>
 </html>
