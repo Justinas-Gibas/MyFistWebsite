@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>audioToColors2</title>
+    <style>
+        * { margin: 0; padding: 0; }
+        body, html { width: 100%; height: 100%; }
+        </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <button id="startButton" style="position:absolute;top:20px;left:20px;">Start</button>
+    
+    <script>        
+        const canvas = document.getElementById('canvas'); // get canvas before using it
+        const TWO_PI = Math.PI * 2; // helpful constant for sine waves
+
+        // Try WebGPU first, fallback to WebGL2
+        let webgpu = canvas.getContext('webgpu', { antialias: true, xrCompatible: true });
+        let gl = null;
+        if (webgpu) {
+            console.log('WebGPU is supported and initialized.');
+        } else if (!webgpu) {
+            console.log('WebGPU is not supported, falling back to WebGL2');
+            gl = canvas.getContext('webgl2', { antialias: true, xrCompatible: true });
+            if (!gl) { 
+                alert('WebGL2 is required for this application.'); 
+            }
+        }
+
+        // WebAudio context setup
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // we will use WebAudio oscillators to drive some parameters
+        const oscR = audioCtx.createOscillator();
+        oscR.frequency.value = 0.01;
+        const oscG = audioCtx.createOscillator();
+        oscG.frequency.value = 0.2;
+        const oscB = audioCtx.createOscillator();
+        oscB.frequency.value = 0.3;
+
+        // Ensure AudioContext starts after a user gesture (required by browsers)
+        function resumeAudioOnce() {
+            audioCtx.resume();
+            window.removeEventListener('pointerdown', resumeAudioOnce);
+        }
+        // Start audio on button click
+        document.getElementById('startButton').addEventListener('click', () => {
+            resumeAudioOnce();
+            oscR.start();oscG.start();oscB.start();
+        }, { once: true });
+        
+        let last = 0; // Initialize timestamp for delta time calculation
+
+        function resize() {
+            const w = innerWidth, h = innerHeight, dpr = devicePixelRatio || 1;
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+        }
+        addEventListener('resize', resize);
+        resize(); // Initial resize
+
+        function loop(t) {
+            const dt = ((t - last) / 1000) || 0;
+            last = t;
+
+            // Update WebAudio context (best effort; actual start requires user gesture)
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            // change background color using WebAudio time + oscillator frequencies
+            const tSec = audioCtx.currentTime;
+            const r = Math.floor((Math.sin(TWO_PI * oscR.frequency.value * tSec) * 0.5 + 0.5) * 255);
+            const g = Math.floor((Math.sin(TWO_PI * oscG.frequency.value * tSec) * 0.5 + 0.5) * 255);
+            const b = Math.floor((Math.sin(TWO_PI * oscB.frequency.value * tSec) * 0.5 + 0.5) * 255);
+            canvas.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+
+            requestAnimationFrame(loop); // Continue the loop
+        }
+
+        (function main() {
+            requestAnimationFrame(loop); // Start the loop
+        })();
+    </script>
+</body>
+</html>
