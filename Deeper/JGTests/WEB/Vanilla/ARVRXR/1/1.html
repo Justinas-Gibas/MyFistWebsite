@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Vanilla WebXR Screen Share</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  </head>
+  <body>
+    <!-- UI Overlay -->
+    <div id="ui">
+      <h1>WebXR Screen Monitor</h1>
+      <p>No Frameworks (Vanilla WebGL + WebXR)</p>
+      <p>Status: <span id="status">Ready</span></p>
+      <button id="btnShare">1. Select Screen</button>
+      <button id="btnVR" disabled>2. Enter VR</button>
+    </div>
+
+    <!-- Hidden video element to hold the stream -->
+    <video id="screenVideo" autoplay playsinline loop muted style="display:none"></video>
+    <!-- WebGL Canvas -->
+    <canvas id="xrCanvas"></canvas>
+
+    <script>
+      /**
+       * GLOBALS & STATE
+       */
+      let xrSession = null;
+      let xrRefSpace = null;
+      let gl = null;
+      let videoTexture = null;
+      let shaderProgram = null;
+      let videoElement = document.getElementById('screenVideo');
+      const statusSpan = document.getElementById('status');
+      
+      // Model State
+      let modelMatrix = new Float32Array([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 1.6, -2, 1 // Initial position: x=0, y=1.6m, z=-2m
+      ]);
+
+      /**
+       * 1. SCREEN SHARE SETUP
+       */
+      document.getElementById('btnShare').addEventListener('click', async () => {
+        try {
+          const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: { cursor: "always" },
+            audio: false
+          });
+          videoElement.srcObject = stream;
+          videoElement.play();
+          statusSpan.innerText = "Screen captured. Ready for VR.";
+          document.getElementById('btnVR').disabled = false;
+          document.getElementById('btnShare').style.display = 'none';
+        } catch (err) {
+          statusSpan.innerText = "Error: " + err.message;
+          console.error(err);
+        }
+      });
+
+      /**
+       * 2. WEBXR SESSION SETUP
+       */
+      const btnVR = document.getElementById('btnVR');
+      
+      if (navigator.xr) {
+        navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+          if (supported) {
+            btnVR.addEventListener('click', onButtonClicked);
+          } else {
+            btnVR.innerText = "VR Not Supported";
+            statusSpan.innerText = "WebXR not found/supported.";
+          }
+        });
+      }
+
+      async function onButtonClicked() {
+        if (!xrSession) {
+          try {
+            xrSession = await navigator.xr.requestSession('immersive-vr', {
+              optionalFeatures: ['local-floor', 'bounded-floor']
+            });
+            onSessionStarted(xrSession);
+          } catch(e) {
+            statusSpan.innerText = "Failed to start VR: " + e.message;
+          }
+        }
+      }
+
+      function onSessionStarted(session) {
+        session.addEventListener('end', onSessionEnded);
+        
+        // Controller Interaction: Select (Trigger) resets screen position
+        session.addEventListener('select', (ev) => {
+          if (ev.inputSource && ev.inputSource.gamepad) {
+            // Could add logic to grab/move. For minimal:
+            // Just confirm input received.
+          }
+          // Reset functionality: Bring screen to front of user on click
+          // For this minimal example, we just log, or could implement teleport logic.
+          // To keep it extremely simple and vanilla, we leave the screen fixed 
+          // or update logic inside the frame loop if we wanted it to follow head.
+          console.log("Input select triggered");
+          recenterScreen(ev.frame);
+        });
+
+        // Initialize WebGL
+        const canvas = document.getElementById('xrCanvas');
+        gl = canvas.getContext('webgl', { xrCompatible: true });
+
+        initWebGL();
+
+        session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+
+        session.requestReferenceSpace('local').then((refSpace) => {
+          xrRefSpace = refSpace;
+          session.requestAnimationFrame(onXRFrame);
+        });
+      }
+
+      function onSessionEnded() {
+        xrSession = null;
+        statusSpan.innerText = "VR Session Ended";
+        document.getElementById('btnVR').disabled = false;
+      }
+
+      // Simple logic to move screen in front of user
+      function recenterScreen(frame) {
+        const viewerPose = frame.getViewerPose(xrRefSpace);
+        if (viewerPose) {
+           // Get position and rotation from viewer
+           const p = viewerPose.transform.position;
+           const o = viewerPose.transform.orientation;
+           
+           // Very basic: Just snap 2 meters in front (approximate math for minimal code)
+           // A full quaternion-to-matrix implementation is verbose in vanilla JS.
+           // We will just move it to x=0, y=1.6, z=-2 relative to origin to reset.
+           modelMatrix[12] = p.x;
+           modelMatrix[13] = p.y;
+           modelMatrix[14] = p.z - 2.0; // 2 meters forward (simplified)
+        }
+      }
+
+      /**
+       * 3. WEBGL RENDERING (The Hard Part)
+       */
+      const vsSource = `
+        attribute vec3 aVertexPosition;
+        attribute vec2 aTextureCoord;
+        uniform mat4 uModelViewMatrix;
+        uniform mat4 uProjectionMatrix;
+        varying highp vec2 vTextureCoord;
+        void main(void) {
+          gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aVertexPosition, 1.0);
+          vTextureCoord = aTextureCoord;
+        }
+      `;
+
+      const fsSource = `
+        varying highp vec2 vTextureCoord;
+        uniform sampler2D uSampler;
+        void main(void) {
+          gl_FragColor = texture2D(uSampler, vTextureCoord);
+        }
+      `;
+
+      let buffers;
+      
+      function initWebGL() {
+        const shaderProgramInternal = initShaderProgram(gl, vsSource, fsSource);
+        shaderProgram = {
+          program: shaderProgramInternal,
+          attribLocations: {
+            vertexPosition: gl.getAttribLocation(shaderProgramInternal, 'aVertexPosition'),
+            textureCoord: gl.getAttribLocation(shaderProgramInternal, 'aTextureCoord'),
+          },
+          uniformLocations: {
+            projectionMatrix: gl.getUniformLocation(shaderProgramInternal, 'uProjectionMatrix'),
+            modelViewMatrix: gl.getUniformLocation(shaderProgramInternal, 'uModelViewMatrix'),
+            uSampler: gl.getUniformLocation(shaderProgramInternal, 'uSampler'),
+          },
+        };
+        buffers = initBuffers(gl);
+        videoTexture = initTexture(gl);
+      }
+
+      function onXRFrame(t, frame) {
+        const session = frame.session;
+        session.requestAnimationFrame(onXRFrame);
+
+        const pose = frame.getViewerPose(xrRefSpace);
+        if (!pose) return;
+
+        const glLayer = session.renderState.baseLayer;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
+        
+        // Clear canvas
+        gl.clearColor(0.1, 0.1, 0.1, 1.0);
+        gl.clearDepth(1.0); 
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthFunc(gl.LEQUAL); 
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // Update texture from video element
+        updateTexture(gl, videoTexture, videoElement);
+
+        // Render for each eye
+        for (const view of pose.views) {
+          const viewport = glLayer.getViewport(view);
+          gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+
+          drawScene(gl, view.projectionMatrix, view.transform.inverse.matrix);
+        }
+      }
+
+      function drawScene(gl, projectionMatrix, viewMatrix) {
+        gl.useProgram(shaderProgram.program);
+
+        // Vertices
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+        gl.vertexAttribPointer(shaderProgram.attribLocations.vertexPosition, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shaderProgram.attribLocations.vertexPosition);
+
+        // UVs
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.textureCoord);
+        gl.vertexAttribPointer(shaderProgram.attribLocations.textureCoord, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shaderProgram.attribLocations.textureCoord);
+
+        // Texture
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, videoTexture);
+        gl.uniform1i(shaderProgram.uniformLocations.uSampler, 0);
+
+        // Matrices
+        gl.uniformMatrix4fv(shaderProgram.uniformLocations.projectionMatrix, false, projectionMatrix);
+        
+        // Calculate ModelView (View * Model)
+        // Vanilla JS Matrix Mult:
+        const modelViewMatrix = multiplyMatrices(viewMatrix, modelMatrix);
+        gl.uniformMatrix4fv(shaderProgram.uniformLocations.modelViewMatrix, false, modelViewMatrix);
+
+        // Draw Quad
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
+
+      /**
+       * HELPERS: WebGL & Math
+       */
+      
+      function initBuffers(gl) {
+        // Position Buffer (Quad)
+        // Aspect ratio adjustment could be done here, but we'll stick to 16:9 approx (1.6 width, 0.9 height)
+        const positionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        const positions = [
+          -0.8,  0.45, -0.0,
+           0.8,  0.45, -0.0,
+          -0.8, -0.45, -0.0,
+           0.8, -0.45, -0.0,
+        ];
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+        // Texture Coord Buffer
+        const textureCoordBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, textureCoordBuffer);
+        // Flip Y for WebGL
+        const textureCoords = [
+          0.0, 0.0,
+          1.0, 0.0,
+          0.0, 1.0,
+          1.0, 1.0,
+        ];
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoords), gl.STATIC_DRAW);
+
+        return { position: positionBuffer, textureCoord: textureCoordBuffer };
+      }
+
+      function initTexture(gl) {
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        // Placeholder pixel while video loads
+        const pixel = new Uint8Array([0, 0, 255, 255]); 
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        
+        // Turn off mips and set wrapping to clamp to edge so it works with NPOT video dimensions
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        
+        return texture;
+      }
+
+      function updateTexture(gl, texture, video) {
+        if (video.readyState >= 2) { // HAVE_CURRENT_DATA
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+        }
+      }
+
+      function initShaderProgram(gl, vsSource, fsSource) {
+        const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
+        const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+        const shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+          console.error('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
+          return null;
+        }
+        return shaderProgram;
+      }
+
+      function loadShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          console.error('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
+          gl.deleteShader(shader);
+          return null;
+        }
+        return shader;
+      }
+
+      // Simple Matrix Multiply (A * B) for 4x4 Matrices
+      // Needed because WebXR gives us ViewMatrix, but we need View * Model
+      function multiplyMatrices(a, b) {
+        let out = new Float32Array(16);
+        let a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+        let a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+        let a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+        let a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+
+        let b00 = b[0], b01 = b[1], b02 = b[2], b03 = b[3];
+        let b10 = b[4], b11 = b[5], b12 = b[6], b13 = b[7];
+        let b20 = b[8], b21 = b[9], b22 = b[10], b23 = b[11];
+        let b30 = b[12], b31 = b[13], b32 = b[14], b33 = b[15];
+
+        out[0] = b00 * a00 + b01 * a10 + b02 * a20 + b03 * a30;
+        out[1] = b00 * a01 + b01 * a11 + b02 * a21 + b03 * a31;
+        out[2] = b00 * a02 + b01 * a12 + b02 * a22 + b03 * a32;
+        out[3] = b00 * a03 + b01 * a13 + b02 * a23 + b03 * a33;
+        out[4] = b10 * a00 + b11 * a10 + b12 * a20 + b13 * a30;
+        out[5] = b10 * a01 + b11 * a11 + b12 * a21 + b13 * a31;
+        out[6] = b10 * a02 + b11 * a12 + b12 * a22 + b13 * a32;
+        out[7] = b10 * a03 + b11 * a13 + b12 * a23 + b13 * a33;
+        out[8] = b20 * a00 + b21 * a10 + b22 * a20 + b23 * a30;
+        out[9] = b20 * a01 + b21 * a11 + b22 * a21 + b23 * a31;
+        out[10] = b20 * a02 + b21 * a12 + b22 * a22 + b23 * a32;
+        out[11] = b20 * a03 + b21 * a13 + b22 * a23 + b23 * a33;
+        out[12] = b30 * a00 + b31 * a10 + b32 * a20 + b33 * a30;
+        out[13] = b30 * a01 + b31 * a11 + b32 * a21 + b33 * a31;
+        out[14] = b30 * a02 + b31 * a12 + b32 * a22 + b33 * a32;
+        out[15] = b30 * a03 + b31 * a13 + b32 * a23 + b33 * a33;
+        return out;
+      }
+    </script>
+  </body>
+</html>
