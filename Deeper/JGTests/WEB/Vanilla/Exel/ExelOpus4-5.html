@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Clone</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f0f0;
+        }
+
+        .toolbar {
+            background: #217346;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .toolbar button {
+            padding: 8px 16px;
+            border: none;
+            background: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .toolbar button:hover {
+            background: #e0e0e0;
+        }
+
+        .formula-bar {
+            display: flex;
+            background: #fff;
+            border-bottom: 1px solid #ccc;
+            padding: 5px;
+            align-items: center;
+        }
+
+        .cell-reference {
+            width: 80px;
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 14px;
+            text-align: center;
+            background: #f5f5f5;
+        }
+
+        .formula-input {
+            flex: 1;
+            margin-left: 10px;
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+
+        .formula-input:focus {
+            outline: 2px solid #217346;
+        }
+
+        .spreadsheet-container {
+            overflow: auto;
+            height: calc(100vh - 100px);
+            background: #fff;
+        }
+
+        .spreadsheet {
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .spreadsheet th,
+        .spreadsheet td {
+            border: 1px solid #d0d0d0;
+            min-width: 100px;
+            height: 25px;
+            padding: 2px 5px;
+            font-size: 13px;
+        }
+
+        .spreadsheet th {
+            background: #f5f5f5;
+            font-weight: normal;
+            color: #333;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .spreadsheet th.row-header {
+            position: sticky;
+            left: 0;
+            z-index: 3;
+            width: 50px;
+            min-width: 50px;
+        }
+
+        .spreadsheet th.corner {
+            position: sticky;
+            top: 0;
+            left: 0;
+            z-index: 4;
+            background: #e8e8e8;
+        }
+
+        .spreadsheet td {
+            background: #fff;
+            cursor: cell;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .spreadsheet td:focus {
+            outline: 2px solid #217346;
+            outline-offset: -1px;
+        }
+
+        .spreadsheet td.selected {
+            background: #e8f4ea;
+        }
+
+        .spreadsheet td.editing {
+            padding: 0;
+        }
+
+        .spreadsheet td.editing input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            padding: 2px 5px;
+            font-size: 13px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .spreadsheet th.selected-header {
+            background: #217346;
+            color: #fff;
+        }
+
+        .context-menu {
+            position: fixed;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: none;
+        }
+
+        .context-menu ul {
+            list-style: none;
+            padding: 5px 0;
+        }
+
+        .context-menu li {
+            padding: 8px 20px;
+            cursor: pointer;
+        }
+
+        .context-menu li:hover {
+            background: #f0f0f0;
+        }
+
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #217346;
+            color: #fff;
+            padding: 5px 15px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button onclick="saveData()">💾 Save</button>
+        <button onclick="loadData()">📂 Load</button>
+        <button onclick="clearAll()">🗑️ Clear All</button>
+        <button onclick="exportCSV()">📊 Export CSV</button>
+    </div>
+
+    <div class="formula-bar">
+        <input type="text" class="cell-reference" id="cellReference" readonly>
+        <input type="text" class="formula-input" id="formulaInput" placeholder="Enter value or formula (e.g., =SUM(A1:A10))">
+    </div>
+
+    <div class="spreadsheet-container">
+        <table class="spreadsheet" id="spreadsheet"></table>
+    </div>
+
+    <div class="context-menu" id="contextMenu">
+        <ul>
+            <li onclick="cutCell()">✂️ Cut</li>
+            <li onclick="copyCell()">📋 Copy</li>
+            <li onclick="pasteCell()">📄 Paste</li>
+            <li onclick="deleteCell()">🗑️ Delete</li>
+            <li onclick="insertRow()">➕ Insert Row</li>
+            <li onclick="insertColumn()">➕ Insert Column</li>
+        </ul>
+    </div>
+
+    <div class="status-bar">
+        <span id="statusLeft">Ready</span>
+        <span id="statusRight"></span>
+    </div>
+
+    <script>
+        const ROWS = 100;
+        const COLS = 26;
+        const data = {};
+        let selectedCell = null;
+        let clipboard = null;
+        let isEditing = false;
+
+        // Generate column letter from index
+        function getColLetter(index) {
+            return String.fromCharCode(65 + index);
+        }
+
+        // Parse cell reference to row and col indices
+        function parseRef(ref) {
+            const match = ref.match(/^([A-Z]+)(\d+)$/i);
+            if (!match) return null;
+            const col = match[1].toUpperCase().charCodeAt(0) - 65;
+            const row = parseInt(match[2]) - 1;
+            return { row, col };
+        }
+
+        // Get cell reference string
+        function getCellRef(row, col) {
+            return `${getColLetter(col)}${row + 1}`;
+        }
+
+        // Initialize spreadsheet
+        function initSpreadsheet() {
+            const table = document.getElementById('spreadsheet');
+            let html = '<thead><tr><th class="corner row-header"></th>';
+            
+            for (let c = 0; c < COLS; c++) {
+                html += `<th data-col="${c}">${getColLetter(c)}</th>`;
+            }
+            html += '</tr></thead><tbody>';
+
+            for (let r = 0; r < ROWS; r++) {
+                html += `<tr><th class="row-header" data-row="${r}">${r + 1}</th>`;
+                for (let c = 0; c < COLS; c++) {
+                    const ref = getCellRef(r, c);
+                    html += `<td data-row="${r}" data-col="${c}" data-ref="${ref}" tabindex="0"></td>`;
+                }
+                html += '</tr>';
+            }
+            html += '</tbody>';
+            table.innerHTML = html;
+
+            // Add event listeners
+            table.addEventListener('click', handleCellClick);
+            table.addEventListener('dblclick', handleCellDblClick);
+            table.addEventListener('keydown', handleKeyDown);
+            table.addEventListener('contextmenu', handleContextMenu);
+
+            document.getElementById('formulaInput').addEventListener('keydown', handleFormulaKeyDown);
+            document.getElementById('formulaInput').addEventListener('input', handleFormulaInput);
+            document.addEventListener('click', hideContextMenu);
+        }
+
+        // Handle cell click
+        function handleCellClick(e) {
+            const cell = e.target.closest('td');
+            if (!cell) return;
+            selectCell(cell);
+        }
+
+        // Handle cell double click
+        function handleCellDblClick(e) {
+            const cell = e.target.closest('td');
+            if (!cell) return;
+            startEditing(cell);
+        }
+
+        // Select a cell
+        function selectCell(cell) {
+            if (isEditing && selectedCell) {
+                finishEditing(selectedCell);
+            }
+
+            document.querySelectorAll('.selected, .selected-header').forEach(el => {
+                el.classList.remove('selected', 'selected-header');
+            });
+
+            cell.classList.add('selected');
+            selectedCell = cell;
+
+            const row = parseInt(cell.dataset.row);
+            const col = parseInt(cell.dataset.col);
+            const ref = cell.dataset.ref;
+
+            // Highlight headers
+            document.querySelector(`th[data-col="${col}"]`)?.classList.add('selected-header');
+            document.querySelector(`th[data-row="${row}"]`)?.classList.add('selected-header');
+
+            // Update formula bar
+            document.getElementById('cellReference').value = ref;
+            document.getElementById('formulaInput').value = data[ref]?.formula || data[ref]?.value || '';
+
+            cell.focus();
+            updateStatus();
+        }
+
+        // Start editing a cell
+        function startEditing(cell) {
+            if (isEditing) return;
+            isEditing = true;
+
+            const ref = cell.dataset.ref;
+            const value = data[ref]?.formula || data[ref]?.value || '';
+
+            cell.classList.add('editing');
+            cell.innerHTML = `<input type="text" value="${value}">`;
+            const input = cell.querySelector('input');
+            input.focus();
+            input.select();
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    finishEditing(cell);
+                    moveTo(parseInt(cell.dataset.row) + 1, parseInt(cell.dataset.col));
+                } else if (e.key === 'Tab') {
+                    e.preventDefault();
+                    finishEditing(cell);
+                    moveTo(parseInt(cell.dataset.row), parseInt(cell.dataset.col) + 1);
+                } else if (e.key === 'Escape') {
+                    cancelEditing(cell);
+                }
+            });
+
+            input.addEventListener('blur', () => {
+                if (isEditing) finishEditing(cell);
+            });
+        }
+
+        // Finish editing
+        function finishEditing(cell) {
+            if (!isEditing) return;
+            isEditing = false;
+
+            const input = cell.querySelector('input');
+            if (!input) return;
+
+            const value = input.value;
+            const ref = cell.dataset.ref;
+
+            setCellValue(ref, value);
+            cell.classList.remove('editing');
+            updateCellDisplay(cell);
+            document.getElementById('formulaInput').value = value;
+        }
+
+        // Cancel editing
+        function cancelEditing(cell) {
+            isEditing = false;
+            cell.classList.remove('editing');
+            updateCellDisplay(cell);
+        }
+
+        // Set cell value
+        function setCellValue(ref, value) {
+            if (value === '') {
+                delete data[ref];
+            } else if (value.startsWith('=')) {
+                data[ref] = { formula: value, value: evaluateFormula(value) };
+            } else {
+                const num = parseFloat(value);
+                data[ref] = { value: isNaN(num) ? value : num };
+            }
+            recalculateAll();
+        }
+
+        // Evaluate formula
+        function evaluateFormula(formula) {
+            try {
+                let expr = formula.substring(1).toUpperCase();
+
+                // Handle SUM function
+                expr = expr.replace(/SUM\(([A-Z]+\d+):([A-Z]+\d+)\)/gi, (_, start, end) => {
+                    return sumRange(start, end);
+                });
+
+                // Handle AVERAGE function
+                expr = expr.replace(/AVERAGE\(([A-Z]+\d+):([A-Z]+\d+)\)/gi, (_, start, end) => {
+                    return averageRange(start, end);
+                });
+
+                // Handle MIN function
+                expr = expr.replace(/MIN\(([A-Z]+\d+):([A-Z]+\d+)\)/gi, (_, start, end) => {
+                    return minRange(start, end);
+                });
+
+                // Handle MAX function
+                expr = expr.replace(/MAX\(([A-Z]+\d+):([A-Z]+\d+)\)/gi, (_, start, end) => {
+                    return maxRange(start, end);
+                });
+
+                // Handle COUNT function
+                expr = expr.replace(/COUNT\(([A-Z]+\d+):([A-Z]+\d+)\)/gi, (_, start, end) => {
+                    return countRange(start, end);
+                });
+
+                // Replace cell references with values
+                expr = expr.replace(/([A-Z]+\d+)/gi, (ref) => {
+                    const cellData = data[ref.toUpperCase()];
+                    const val = cellData?.value ?? 0;
+                    return typeof val === 'number' ? val : `"${val}"`;
+                });
+
+                // Evaluate the expression
+                const result = Function(`"use strict"; return (${expr})`)();
+                return typeof result === 'number' ? Math.round(result * 1000000) / 1000000 : result;
+            } catch (e) {
+                return '#ERROR!';
+            }
+        }
+
+        // Range functions
+        function getRangeValues(start, end) {
+            const s = parseRef(start);
+            const e = parseRef(end);
+            const values = [];
+
+            for (let r = s.row; r <= e.row; r++) {
+                for (let c = s.col; c <= e.col; c++) {
+                    const ref = getCellRef(r, c);
+                    const val = data[ref]?.value;
+                    if (typeof val === 'number') values.push(val);
+                }
+            }
+            return values;
+        }
+
+        function sumRange(start, end) {
+            return getRangeValues(start, end).reduce((a, b) => a + b, 0);
+        }
+
+        function averageRange(start, end) {
+            const vals = getRangeValues(start, end);
+            return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+        }
+
+        function minRange(start, end) {
+            const vals = getRangeValues(start, end);
+            return vals.length ? Math.min(...vals) : 0;
+        }
+
+        function maxRange(start, end) {
+            const vals = getRangeValues(start, end);
+            return vals.length ? Math.max(...vals) : 0;
+        }
+
+        function countRange(start, end) {
+            return getRangeValues(start, end).length;
+        }
+
+        // Recalculate all formulas
+        function recalculateAll() {
+            for (const ref in data) {
+                if (data[ref].formula) {
+                    data[ref].value = evaluateFormula(data[ref].formula);
+                }
+            }
+            updateAllCells();
+        }
+
+        // Update cell display
+        function updateCellDisplay(cell) {
+            const ref = cell.dataset.ref;
+            const cellData = data[ref];
+            cell.textContent = cellData?.value ?? '';
+        }
+
+        // Update all cells
+        function updateAllCells() {
+            document.querySelectorAll('td[data-ref]').forEach(cell => {
+                updateCellDisplay(cell);
+            });
+        }
+
+        // Handle keyboard navigation
+        function handleKeyDown(e) {
+            if (!selectedCell || isEditing) return;
+
+            const row = parseInt(selectedCell.dataset.row);
+            const col = parseInt(selectedCell.dataset.col);
+
+            switch (e.key) {
+                case 'ArrowUp':
+                    e.preventDefault();
+                    moveTo(row - 1, col);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    moveTo(row + 1, col);
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    moveTo(row, col - 1);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    moveTo(row, col + 1);
+                    break;
+                case 'Tab':
+                    e.preventDefault();
+                    moveTo(row, col + (e.shiftKey ? -1 : 1));
+                    break;
+                case 'Enter':
+                    e.preventDefault();
+                    startEditing(selectedCell);
+                    break;
+                case 'Delete':
+                case 'Backspace':
+                    e.preventDefault();
+                    deleteCell();
+                    break;
+                case 'c':
+                    if (e.ctrlKey) copyCell();
+                    break;
+                case 'v':
+                    if (e.ctrlKey) pasteCell();
+                    break;
+                case 'x':
+                    if (e.ctrlKey) cutCell();
+                    break;
+                default:
+                    if (e.key.length === 1 && !e.ctrlKey && !e.altKey) {
+                        startEditing(selectedCell);
+                        selectedCell.querySelector('input').value = e.key;
+                    }
+            }
+        }
+
+        // Move to cell
+        function moveTo(row, col) {
+            if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return;
+            const cell = document.querySelector(`td[data-row="${row}"][data-col="${col}"]`);
+            if (cell) selectCell(cell);
+        }
+
+        // Handle formula bar
+        function handleFormulaKeyDown(e) {
+            if (e.key === 'Enter' && selectedCell) {
+                const value = e.target.value;
+                const ref = selectedCell.dataset.ref;
+                setCellValue(ref, value);
+                updateCellDisplay(selectedCell);
+                selectedCell.focus();
+            }
+        }
+
+        function handleFormulaInput(e) {
+            // Real-time preview could be added here
+        }
+
+        // Context menu
+        function handleContextMenu(e) {
+            e.preventDefault();
+            const cell = e.target.closest('td');
+            if (!cell) return;
+            
+            selectCell(cell);
+            
+            const menu = document.getElementById('contextMenu');
+            menu.style.display = 'block';
+            menu.style.left = e.pageX + 'px';
+            menu.style.top = e.pageY + 'px';
+        }
+
+        function hideContextMenu() {
+            document.getElementById('contextMenu').style.display = 'none';
+        }
+
+        // Clipboard operations
+        function copyCell() {
+            if (!selectedCell) return;
+            clipboard = {
+                ref: selectedCell.dataset.ref,
+                data: { ...data[selectedCell.dataset.ref] },
+                cut: false
+            };
+            updateStatus('Copied');
+        }
+
+        function cutCell() {
+            if (!selectedCell) return;
+            clipboard = {
+                ref: selectedCell.dataset.ref,
+                data: { ...data[selectedCell.dataset.ref] },
+                cut: true
+            };
+            updateStatus('Cut');
+        }
+
+        function pasteCell() {
+            if (!selectedCell || !clipboard) return;
+            const ref = selectedCell.dataset.ref;
+            
+            if (clipboard.data) {
+                data[ref] = { ...clipboard.data };
+                if (clipboard.cut) {
+                    delete data[clipboard.ref];
+                    const oldCell = document.querySelector(`td[data-ref="${clipboard.ref}"]`);
+                    if (oldCell) updateCellDisplay(oldCell);
+                    clipboard = null;
+                }
+            }
+            
+            recalculateAll();
+            updateCellDisplay(selectedCell);
+            document.getElementById('formulaInput').value = data[ref]?.formula || data[ref]?.value || '';
+            updateStatus('Pasted');
+        }
+
+        function deleteCell() {
+            if (!selectedCell) return;
+            const ref = selectedCell.dataset.ref;
+            delete data[ref];
+            recalculateAll();
+            updateCellDisplay(selectedCell);
+            document.getElementById('formulaInput').value = '';
+        }
+
+        function insertRow() {
+            // Simplified: just notify user
+            updateStatus('Insert row - feature placeholder');
+        }
+
+        function insertColumn() {
+            // Simplified: just notify user
+            updateStatus('Insert column - feature placeholder');
+        }
+
+        // Save/Load
+        function saveData() {
+            localStorage.setItem('excelCloneData', JSON.stringify(data));
+            updateStatus('Saved to local storage');
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('excelCloneData');
+            if (saved) {
+                Object.assign(data, JSON.parse(saved));
+                recalculateAll();
+                updateStatus('Loaded from local storage');
+            }
+        }
+
+        function clearAll() {
+            if (confirm('Clear all data?')) {
+                for (const key in data) delete data[key];
+                updateAllCells();
+                updateStatus('Cleared');
+            }
+        }
+
+        function exportCSV() {
+            let csv = '';
+            for (let r = 0; r < ROWS; r++) {
+                const row = [];
+                for (let c = 0; c < COLS; c++) {
+                    const ref = getCellRef(r, c);
+                    const val = data[ref]?.value ?? '';
+                    row.push(`"${String(val).replace(/"/g, '""')}"`);
+                }
+                csv += row.join(',') + '\n';
+            }
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'spreadsheet.csv';
+            a.click();
+            updateStatus('Exported to CSV');
+        }
+
+        // Status bar
+        function updateStatus(msg) {
+            if (msg) {
+                document.getElementById('statusLeft').textContent = msg;
+                setTimeout(() => {
+                    document.getElementById('statusLeft').textContent = 'Ready';
+                }, 2000);
+            }
+
+            // Calculate selection stats
+            if (selectedCell) {
+                const values = [];
+                document.querySelectorAll('td.selected').forEach(cell => {
+                    const val = data[cell.dataset.ref]?.value;
+                    if (typeof val === 'number') values.push(val);
+                });
+
+                if (values.length > 0) {
+                    const sum = values.reduce((a, b) => a + b, 0);
+                    const avg = sum / values.length;
+                    document.getElementById('statusRight').textContent = 
+                        `Sum: ${sum.toFixed(2)} | Avg: ${avg.toFixed(2)} | Count: ${values.length}`;
+                } else {
+                    document.getElementById('statusRight').textContent = '';
+                }
+            }
+        }
+
+        // Initialize
+        initSpreadsheet();
+        loadData();
+
+        // Select first cell
+        const firstCell = document.querySelector('td[data-row="0"][data-col="0"]');
+        if (firstCell) selectCell(firstCell);
+    </script>
+</body>
+</html>

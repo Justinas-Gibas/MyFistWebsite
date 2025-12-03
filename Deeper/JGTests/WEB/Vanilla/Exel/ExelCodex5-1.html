@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Codex Sheet</title>
+	<style>
+		:root {
+			font-family: "Segoe UI", system-ui, sans-serif;
+			color: #111;
+			background: #f5f5f5;
+		}
+		body {
+			margin: 0;
+			min-height: 100vh;
+			display: flex;
+			flex-direction: column;
+		}
+		header {
+			background: #1f6feb;
+			color: #fff;
+			padding: 0.75rem 1rem;
+			font-weight: 600;
+			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+		}
+		.toolbar {
+			display: flex;
+			gap: 0.75rem;
+			align-items: center;
+			padding: 0.65rem 1rem;
+			background: #fff;
+			border-bottom: 1px solid #d0d7de;
+		}
+		.toolbar button {
+			border: 1px solid #d0d7de;
+			background: #fff;
+			padding: 0.25rem 0.65rem;
+			border-radius: 4px;
+			font-size: 0.9rem;
+			cursor: pointer;
+		}
+		.toolbar button:focus-visible,
+		.sheet td:focus-visible {
+			outline: 2px solid #1f6feb;
+			outline-offset: 1px;
+		}
+		.workspace {
+			display: flex;
+			flex-direction: column;
+			gap: 0.35rem;
+			padding: 0.75rem;
+			overflow: hidden;
+		}
+		.formula-bar {
+			display: grid;
+			grid-template-columns: 60px 1fr;
+			gap: 0.35rem;
+			align-items: center;
+		}
+		.formula-bar label {
+			text-align: right;
+			font-weight: 600;
+		}
+		.formula-bar input {
+			border: 1px solid #d0d7de;
+			border-radius: 4px;
+			padding: 0.35rem 0.5rem;
+			font-size: 0.95rem;
+		}
+		.grid-wrapper {
+			flex: 1;
+			overflow: auto;
+			background: #fff;
+			border: 1px solid #d0d7de;
+		}
+		table.sheet {
+			border-collapse: collapse;
+			min-width: max(100%, 900px);
+		}
+		.sheet th,
+		.sheet td {
+			border: 1px solid #e5e5e5;
+			min-width: 80px;
+			height: 26px;
+			padding: 0 0.4rem;
+			font-size: 0.9rem;
+			background: #fff;
+		}
+		.sheet th {
+			position: sticky;
+			background: #f2f6fc;
+			font-weight: 600;
+			text-align: center;
+			z-index: 2;
+		}
+		.sheet thead th {
+			top: 0;
+		}
+		.sheet tbody th {
+			left: 0;
+		}
+		.sheet td {
+			cursor: text;
+		}
+		.sheet td.active {
+			box-shadow: inset 0 0 0 2px #1f6feb;
+			background: #e9f2ff;
+		}
+		.status-bar {
+			padding: 0.35rem 0.75rem;
+			background: #fff;
+			border-top: 1px solid #d0d7de;
+			font-size: 0.85rem;
+			color: #555;
+		}
+	</style>
+</head>
+<body>
+	<header>Codex Sheet</header>
+	<div class="toolbar">
+		<button data-action="bold">Bold</button>
+		<button data-action="italic">Italic</button>
+		<button data-action="clear">Clear Cell</button>
+	</div>
+	<div class="workspace">
+		<div class="formula-bar">
+			<label for="formula-input">fx</label>
+			<input id="formula-input" placeholder="Enter value or formula (e.g., =A1+B2 or =SUM(A1:A5))" />
+		</div>
+		<div class="grid-wrapper">
+			<table class="sheet">
+				<thead>
+					<tr id="column-headers">
+						<th></th>
+					</tr>
+				</thead>
+				<tbody id="sheet-body">
+				</tbody>
+			</table>
+		</div>
+	</div>
+	<div class="status-bar" id="status-bar">Ready</div>
+	<script>
+		const ROWS = 30;
+		const COLS = 20;
+		const sheetBody = document.getElementById("sheet-body");
+		const columnHeaders = document.getElementById("column-headers");
+		const formulaInput = document.getElementById("formula-input");
+		const statusBar = document.getElementById("status-bar");
+		const toolbar = document.querySelector(".toolbar");
+		const sheetData = {};
+		let activeCellId = null;
+		function columnLabel(index) {
+			let label = "";
+			while (index >= 0) {
+				label = String.fromCharCode((index % 26) + 65) + label;
+				index = Math.floor(index / 26) - 1;
+			}
+			return label;
+		}
+		function coordToId(row, col) {
+			return `${columnLabel(col)}${row + 1}`;
+		}
+		function idToCoord(cellId) {
+			const match = /^([A-Z]+)(\d+)$/.exec(cellId);
+			if (!match) return null;
+			const colLetters = match[1];
+			const rowIndex = parseInt(match[2], 10) - 1;
+			let colIndex = 0;
+			for (let i = 0; i < colLetters.length; i++) {
+				colIndex *= 26;
+				colIndex += colLetters.charCodeAt(i) - 64;
+			}
+			return { row: rowIndex, col: colIndex - 1 };
+		}
+		function initHeaders() {
+			for (let c = 0; c < COLS; c++) {
+				const th = document.createElement("th");
+				th.textContent = columnLabel(c);
+				columnHeaders.appendChild(th);
+			}
+		}
+		function initGrid() {
+			for (let r = 0; r < ROWS; r++) {
+				const tr = document.createElement("tr");
+				const header = document.createElement("th");
+				header.textContent = r + 1;
+				tr.appendChild(header);
+				for (let c = 0; c < COLS; c++) {
+					const cell = document.createElement("td");
+					cell.contentEditable = true;
+					cell.dataset.cell = coordToId(r, c);
+					cell.spellcheck = false;
+					cell.tabIndex = 0;
+					cell.addEventListener("focus", () => enterEditMode(cell));
+					cell.addEventListener("blur", () => commitCell(cell));
+					cell.addEventListener("input", () => {
+						cell.dataset.editing = "true";
+					});
+					cell.addEventListener("click", () => setActiveCell(cell.dataset.cell));
+					tr.appendChild(cell);
+				}
+				sheetBody.appendChild(tr);
+			}
+		}
+		function enterEditMode(cell) {
+			const id = cell.dataset.cell;
+			const raw = sheetData[id]?.raw ?? "";
+			cell.textContent = raw;
+			cell.dataset.editing = "true";
+			setActiveCell(id);
+		}
+		function commitCell(cell) {
+			const id = cell.dataset.cell;
+			const raw = cell.textContent.trim();
+			updateCell(id, raw);
+			cell.dataset.editing = "false";
+		}
+		function updateCell(cellId, raw) {
+			if (!sheetData[cellId]) sheetData[cellId] = { raw: "", value: "" };
+			sheetData[cellId].raw = raw;
+			recalculateAll();
+			refreshUI();
+		}
+		function getCellValue(cellId, visited = new Set()) {
+			const cell = sheetData[cellId];
+			if (!cell) return "";
+			if (visited.has(cellId)) return "#CYCLE!";
+			if (!cell.raw.startsWith("=")) return cell.raw;
+			visited.add(cellId);
+			const evaluated = evaluateFormula(cell.raw, visited);
+			visited.delete(cellId);
+			return evaluated;
+		}
+		function evaluateFormula(raw, visited) {
+			const expr = raw.slice(1).trim();
+			if (!expr) return "";
+			const upper = expr.toUpperCase();
+			if (upper.startsWith("SUM(") && upper.endsWith(")")) {
+				const range = expr.substring(4, expr.length - 1);
+				return sumRange(range, visited);
+			}
+			const replaced = expr.replace(/([A-Z]+)(\d+)/g, (_, col, row) => {
+				const ref = `${col.toUpperCase()}${row}`;
+				const value = parseFloat(getCellValue(ref, visited));
+				return isNaN(value) ? 0 : value;
+			});
+			try {
+				const result = Function(`"use strict";return (${replaced})`)();
+				return Number.isFinite(result) ? result : "#ERR";
+			} catch {
+				return "#ERR";
+			}
+		}
+		function sumRange(rangeText, visited) {
+			const [start, end] = rangeText.split(":").map((p) => p.trim().toUpperCase());
+			if (!start || !end) return "#ERR";
+			const startCoord = idToCoord(start);
+			const endCoord = idToCoord(end);
+			if (!startCoord || !endCoord) return "#ERR";
+			const rowStart = Math.min(startCoord.row, endCoord.row);
+			const rowEnd = Math.max(startCoord.row, endCoord.row);
+			const colStart = Math.min(startCoord.col, endCoord.col);
+			const colEnd = Math.max(startCoord.col, endCoord.col);
+			let total = 0;
+			for (let r = rowStart; r <= rowEnd; r++) {
+				for (let c = colStart; c <= colEnd; c++) {
+					const id = coordToId(r, c);
+					const val = parseFloat(getCellValue(id, visited));
+					total += isNaN(val) ? 0 : val;
+				}
+			}
+			return total;
+		}
+		function recalculateAll() {
+			Object.keys(sheetData).forEach((cellId) => {
+				const raw = sheetData[cellId].raw;
+				if (raw.startsWith("=")) {
+					sheetData[cellId].value = getCellValue(cellId);
+				} else {
+					sheetData[cellId].value = raw;
+				}
+			});
+		}
+		function refreshUI() {
+			document.querySelectorAll("td[data-cell]").forEach((cell) => {
+				const id = cell.dataset.cell;
+				const data = sheetData[id];
+				if (!cell.dataset.editing || cell.dataset.editing === "false") {
+					cell.textContent = data?.value ?? "";
+				}
+				cell.classList.toggle("active", id === activeCellId);
+			});
+			if (activeCellId) {
+				formulaInput.value = sheetData[activeCellId]?.raw ?? "";
+				statusBar.textContent = `${activeCellId}: ${sheetData[activeCellId]?.value ?? ""}`;
+			} else {
+				formulaInput.value = "";
+				statusBar.textContent = "Ready";
+			}
+		}
+		function setActiveCell(cellId) {
+			activeCellId = cellId;
+			refreshUI();
+		}
+		formulaInput.addEventListener("keydown", (event) => {
+			if (event.key === "Enter" && activeCellId) {
+				event.preventDefault();
+				updateCell(activeCellId, formulaInput.value.trim());
+			}
+		});
+		formulaInput.addEventListener("input", () => {
+			if (activeCellId) {
+				sheetData[activeCellId] = sheetData[activeCellId] || { raw: "", value: "" };
+				sheetData[activeCellId].raw = formulaInput.value;
+			}
+		});
+		toolbar.addEventListener("click", (event) => {
+			if (!event.target.dataset.action || !activeCellId) return;
+			const action = event.target.dataset.action;
+			const cell = document.querySelector(`td[data-cell="${activeCellId}"]`);
+			if (action === "clear") {
+				updateCell(activeCellId, "");
+				return;
+			}
+			document.execCommand(action, false);
+			cell?.focus();
+		});
+		initHeaders();
+		initGrid();
+		refreshUI();
+	</script>
+</body>
+</html>

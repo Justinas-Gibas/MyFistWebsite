@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Screen Share</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { text-align: center; color: #00d9ff; }
+        .section {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        button {
+            background: #00d9ff;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { background: #00b8d9; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        textarea, input {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #333;
+            background: #0f0f23;
+            color: #eee;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+        textarea { height: 80px; resize: vertical; }
+        video {
+            width: 100%;
+            max-height: 500px;
+            background: #000;
+            border-radius: 10px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        .status.connected { background: #1b5e20; }
+        .status.waiting { background: #f57c00; }
+        .status.error { background: #c62828; }
+        .hidden { display: none; }
+        .step { 
+            border-left: 3px solid #00d9ff;
+            padding-left: 15px;
+            margin: 15px 0;
+        }
+        .step h3 { margin: 0 0 10px 0; color: #00d9ff; }
+        .copy-btn { font-size: 12px; padding: 5px 10px; }
+    </style>
+</head>
+<body>
+    <h1>🖥️ WebRTC Screen Share</h1>
+    
+    <div id="statusBar" class="status waiting">Status: Ready</div>
+
+    <!-- Mode Selection -->
+    <div id="modeSelect" class="section">
+        <h2>Choose Your Role</h2>
+        <button onclick="startHost()">📡 Host (Share Screen)</button>
+        <button onclick="checkForOffer()">👀 Viewer (Watch Screen)</button>
+    </div>
+
+    <!-- Host Section -->
+    <div id="hostSection" class="section hidden">
+        <h2>📡 Host Mode</h2>
+        
+        <div class="step" id="hostStep1">
+            <h3>Step 1: Start Screen Share</h3>
+            <button onclick="createOffer()">Select Screen to Share</button>
+        </div>
+
+        <div class="step hidden" id="hostStep2">
+            <h3>Step 2: Share This Link with Viewer</h3>
+            <textarea id="offerLink" readonly></textarea>
+            <button class="copy-btn" onclick="copyToClipboard('offerLink')">📋 Copy Link</button>
+        </div>
+
+        <div class="step hidden" id="hostStep3">
+            <h3>Step 3: Paste Viewer's Answer Link</h3>
+            <input type="text" id="answerInput" placeholder="Paste the answer link from viewer...">
+            <button onclick="processAnswer()">Connect</button>
+        </div>
+    </div>
+
+    <!-- Viewer Section -->
+    <div id="viewerSection" class="section hidden">
+        <h2>👀 Viewer Mode</h2>
+        
+        <div class="step" id="viewerStep1">
+            <h3>Step 1: Paste Host's Link</h3>
+            <input type="text" id="offerInput" placeholder="Paste the offer link from host...">
+            <button onclick="processOffer()">Process Link</button>
+        </div>
+
+        <div class="step hidden" id="viewerStep2">
+            <h3>Step 2: Share This Answer Link with Host</h3>
+            <textarea id="answerLink" readonly></textarea>
+            <button class="copy-btn" onclick="copyToClipboard('answerLink')">📋 Copy Link</button>
+            <p>⏳ Waiting for host to connect...</p>
+        </div>
+    </div>
+
+    <!-- Video Display -->
+    <div id="videoSection" class="section hidden">
+        <h2>🎬 Screen Share</h2>
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay playsinline muted style="max-height: 150px; margin-top: 10px;"></video>
+    </div>
+
+    <script>
+        let pc = null;
+        let localStream = null;
+        const config = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        };
+
+        // Check URL for offer on page load
+        window.onload = () => {
+            const params = new URLSearchParams(window.location.search);
+            const offer = params.get('offer');
+            if (offer) {
+                document.getElementById('modeSelect').classList.add('hidden');
+                document.getElementById('viewerSection').classList.remove('hidden');
+                document.getElementById('offerInput').value = window.location.href;
+                setStatus('Offer detected in URL - Click "Process Link"', 'waiting');
+            }
+        };
+
+        function setStatus(msg, type = 'waiting') {
+            const bar = document.getElementById('statusBar');
+            bar.textContent = 'Status: ' + msg;
+            bar.className = 'status ' + type;
+        }
+
+        function copyToClipboard(elementId) {
+            const el = document.getElementById(elementId);
+            el.select();
+            document.execCommand('copy');
+            alert('Copied to clipboard!');
+        }
+
+        // Encode/decode helpers
+        function encode(obj) {
+            return btoa(JSON.stringify(obj));
+        }
+
+        function decode(str) {
+            return JSON.parse(atob(str));
+        }
+
+        function createPeerConnection() {
+            pc = new RTCPeerConnection(config);
+            
+            pc.oniceconnectionstatechange = () => {
+                console.log('ICE state:', pc.iceConnectionState);
+                if (pc.iceConnectionState === 'connected') {
+                    setStatus('Connected!', 'connected');
+                } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+                    setStatus('Connection lost', 'error');
+                }
+            };
+
+            pc.ontrack = (event) => {
+                console.log('Received remote track');
+                document.getElementById('remoteVideo').srcObject = event.streams[0];
+                document.getElementById('videoSection').classList.remove('hidden');
+            };
+
+            return pc;
+        }
+
+        // ============ HOST FUNCTIONS ============
+        function startHost() {
+            document.getElementById('modeSelect').classList.add('hidden');
+            document.getElementById('hostSection').classList.remove('hidden');
+            setStatus('Host mode - Select screen to share', 'waiting');
+        }
+
+        async function createOffer() {
+            try {
+                // Get screen share
+                localStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { cursor: 'always' },
+                    audio: true
+                });
+
+                document.getElementById('localVideo').srcObject = localStream;
+                document.getElementById('videoSection').classList.remove('hidden');
+
+                createPeerConnection();
+
+                // Add tracks
+                localStream.getTracks().forEach(track => {
+                    pc.addTrack(track, localStream);
+                });
+
+                // Create offer
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                // Wait for ICE gathering
+                await waitForIceGathering();
+
+                // Generate link
+                const offerData = encode(pc.localDescription);
+                const link = window.location.origin + window.location.pathname + '?offer=' + offerData;
+                
+                document.getElementById('offerLink').value = link;
+                document.getElementById('hostStep2').classList.remove('hidden');
+                document.getElementById('hostStep3').classList.remove('hidden');
+                
+                setStatus('Share the link with viewer', 'waiting');
+
+            } catch (err) {
+                console.error('Error creating offer:', err);
+                setStatus('Error: ' + err.message, 'error');
+            }
+        }
+
+        async function processAnswer() {
+            try {
+                const input = document.getElementById('answerInput').value.trim();
+                let answerData;
+
+                // Extract answer from URL or raw data
+                if (input.includes('?answer=')) {
+                    const url = new URL(input);
+                    answerData = url.searchParams.get('answer');
+                } else {
+                    answerData = input;
+                }
+
+                const answer = decode(answerData);
+                await pc.setRemoteDescription(new RTCSessionDescription(answer));
+                
+                setStatus('Connecting...', 'waiting');
+
+            } catch (err) {
+                console.error('Error processing answer:', err);
+                setStatus('Error: Invalid answer - ' + err.message, 'error');
+            }
+        }
+
+        // ============ VIEWER FUNCTIONS ============
+        function checkForOffer() {
+            document.getElementById('modeSelect').classList.add('hidden');
+            document.getElementById('viewerSection').classList.remove('hidden');
+            setStatus('Viewer mode - Paste host link', 'waiting');
+        }
+
+        async function processOffer() {
+            try {
+                const input = document.getElementById('offerInput').value.trim();
+                let offerData;
+
+                // Extract offer from URL or raw data
+                if (input.includes('?offer=')) {
+                    const url = new URL(input);
+                    offerData = url.searchParams.get('offer');
+                } else {
+                    offerData = input;
+                }
+
+                const offer = decode(offerData);
+                
+                createPeerConnection();
+                
+                await pc.setRemoteDescription(new RTCSessionDescription(offer));
+                
+                // Create answer
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+
+                // Wait for ICE gathering
+                await waitForIceGathering();
+
+                // Generate answer link
+                const answerDataEncoded = encode(pc.localDescription);
+                const link = window.location.origin + window.location.pathname + '?answer=' + answerDataEncoded;
+                
+                document.getElementById('answerLink').value = link;
+                document.getElementById('viewerStep1').classList.add('hidden');
+                document.getElementById('viewerStep2').classList.remove('hidden');
+                
+                setStatus('Share answer link with host', 'waiting');
+
+            } catch (err) {
+                console.error('Error processing offer:', err);
+                setStatus('Error: Invalid offer - ' + err.message, 'error');
+            }
+        }
+
+        // Wait for ICE candidates to be gathered
+        function waitForIceGathering() {
+            return new Promise((resolve) => {
+                if (pc.iceGatheringState === 'complete') {
+                    resolve();
+                } else {
+                    const checkState = () => {
+                        if (pc.iceGatheringState === 'complete') {
+                            pc.removeEventListener('icegatheringstatechange', checkState);
+                            resolve();
+                        }
+                    };
+                    pc.addEventListener('icegatheringstatechange', checkState);
+                    
+                    // Timeout after 5 seconds
+                    setTimeout(resolve, 5000);
+                }
+            });
+        }
+    </script>
+</body>
+</html>

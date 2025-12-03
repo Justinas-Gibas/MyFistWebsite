@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Voice Space - WebRTC Audio Room</title>
+  <style>
+    :root {
+      --primary-color: #4f46e5;
+      --primary-hover: #4338ca;
+      --secondary-color: #10b981;
+      --secondary-hover: #059669;
+      --danger-color: #ef4444;
+      --text-color: #1f2937;
+      --light-text: #6b7280;
+      --border-color: #e5e7eb;
+      --bg-color: #f9fafb;
+      --card-bg: #ffffff;
+      --transition: all 0.3s ease;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 0;
+      margin: 0;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    
+    header {
+      background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+      color: white;
+      padding: 2rem 0;
+      text-align: center;
+      border-radius: 0 0 15px 15px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    h1 {
+      margin: 0;
+      font-size: 2.5rem;
+      font-weight: 700;
+    }
+    
+    .subtitle {
+      font-size: 1.1rem;
+      opacity: 0.9;
+      margin-top: 0.5rem;
+    }
+    
+    .card {
+      background-color: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      transition: var(--transition);
+      border: 1px solid var(--border-color);
+    }
+    
+    .card:hover {
+      box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+      transform: translateY(-2px);
+    }
+    
+    .card-title {
+      font-size: 1.5rem;
+      color: var(--text-color);
+      margin-top: 0;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .card-icon {
+      width: 24px;
+      height: 24px;
+      color: var(--primary-color);
+    }
+    
+    button {
+      cursor: pointer;
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 8px;
+      border: none;
+      transition: var(--transition);
+      background-color: var(--primary-color);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin: 1rem 0;
+    }
+    
+    button:hover {
+      background-color: var(--primary-hover);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-primary {
+      background-color: var(--primary-color);
+    }
+    
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
+    
+    .btn-secondary {
+      background-color: var(--secondary-color);
+    }
+    
+    .btn-secondary:hover {
+      background-color: var(--secondary-hover);
+    }
+    
+    .btn-danger {
+      background-color: var(--danger-color);
+    }
+    
+    .btn-danger:hover {
+      background-color: #dc2626;
+    }
+    
+    .center-btn {
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin: 1.5rem 0;
+    }
+    
+    textarea {
+      width: 100%;
+      height: 120px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      padding: 0.75rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+      resize: none;
+      background-color: #f8fafc;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+    
+    #status {
+      text-align: center;
+      font-weight: 500;
+      padding: 0.75rem;
+      border-radius: 8px;
+      background-color: rgba(79, 70, 229, 0.1);
+      color: var(--primary-color);
+      margin-top: 1rem;
+      transition: var(--transition);
+    }
+    
+    .status-connecting {
+      background-color: rgba(245, 158, 11, 0.1) !important;
+      color: #d97706 !important;
+    }
+    
+    .status-connected {
+      background-color: rgba(16, 185, 129, 0.1) !important;
+      color: var(--secondary-color) !important;
+    }
+    
+    .status-error {
+      background-color: rgba(239, 68, 68, 0.1) !important;
+      color: var(--danger-color) !important;
+    }
+    
+    .role-badge {
+      display: inline-block;
+      padding: 0.35rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      background-color: rgba(79, 70, 229, 0.1);
+      color: var(--primary-color);
+      margin-bottom: 1rem;
+    }
+    
+    .broadcaster-badge {
+      background-color: rgba(16, 185, 129, 0.1);
+      color: var(--secondary-color);
+    }
+    
+    /* Fix for audio visualization - prevent layout shifts */
+    .audio-indicator-container {
+      height: 40px; /* Fixed height to prevent layout shifts */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 1rem 0;
+      padding: 0.5rem 0;
+    }
+    
+    .audio-indicator {
+      display: flex;
+      gap: 0.25rem;
+      justify-content: center;
+    }
+    
+    .audio-bar {
+      width: 4px;
+      height: 16px;
+      background-color: var(--primary-color);
+      border-radius: 2px;
+      transition: var(--transition);
+      opacity: 0.3;
+    }
+    
+    .audio-bar.active {
+      opacity: 1;
+      height: 24px;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .fade-in {
+      animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .room-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background-color: rgba(79, 70, 229, 0.05);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    
+    .participants {
+      display: flex;
+      gap: 0.5rem;
+    }
+    
+    .participant {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background-color: var(--primary-color);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+    
+    .broadcaster {
+      background-color: var(--secondary-color);
+    }
+
+    .info-box {
+      background-color: rgba(79, 70, 229, 0.05);
+      border-left: 4px solid var(--primary-color);
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .info-box.success {
+      background-color: rgba(16, 185, 129, 0.05);
+      border-left-color: var(--secondary-color);
+    }
+
+    .info-box.warning {
+      background-color: rgba(245, 158, 11, 0.05);
+      border-left-color: #d97706;
+    }
+
+    .share-link {
+      background-color: rgba(79, 70, 229, 0.05);
+      border-radius: 8px;
+      padding: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 1rem 0;
+    }
+
+    .share-link input {
+      flex-grow: 1;
+      margin: 0;
+      margin-right: 1rem;
+      background-color: rgba(255, 255, 255, 0.7);
+    }
+
+    .share-link button {
+      margin: 0;
+      padding: 0.5rem 1rem;
+    }
+
+    .steps {
+      counter-reset: step;
+      margin: 1.5rem 0;
+    }
+
+    .step {
+      position: relative;
+      padding-left: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .step::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 50%;
+      background-color: var(--primary-color);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+    }
+
+    .step h4 {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+    }
+
+    .tab-group {
+      display: flex;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .tab {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: var(--transition);
+    }
+
+    .tab.active {
+      border-bottom-color: var(--primary-color);
+      color: var(--primary-color);
+      font-weight: 600;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Add styling for default rooms grid and loading indicators */
+    .default-rooms-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .room-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    
+    .room-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .room-card.active {
+      border-color: var(--secondary-color);
+      background-color: rgba(16, 185, 129, 0.05);
+    }
+    
+    .room-status {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 0.5rem;
+      background-color: #ccc;
+    }
+    
+    .room-status.active {
+      background-color: var(--secondary-color);
+    }
+    
+    .room-status.inactive {
+      background-color: var(--danger-color);
+    }
+    
+    .setup-progress {
+      margin: 1.5rem 0;
+      padding: 1rem;
+      border-radius: 8px;
+      background-color: rgba(79, 70, 229, 0.05);
+      border-left: 4px solid var(--primary-color);
+    }
+    
+    .setup-step {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.5rem;
+      opacity: 0.5;
+    }
+    
+    .setup-step.active {
+      opacity: 1;
+      font-weight: 600;
+    }
+    
+    .setup-step.completed {
+      opacity: 0.8;
+      color: var(--secondary-color);
+    }
+    
+    .setup-icon {
+      width: 20px;
+      height: 20px;
+      margin-right: 0.5rem;
+      animation: pulse 1.5s infinite;
+    }
+    
+    .setup-step.completed .setup-icon {
+      animation: none;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+    
+    .loader {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(79, 70, 229, 0.2);
+      border-radius: 50%;
+      border-top-color: var(--primary-color);
+      animation: spin 1s linear infinite;
+      margin-right: 0.5rem;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .exchange-section {
+      background-color: rgba(79, 70, 229, 0.05);
+      border-radius: 8px;
+      padding: 1rem;
+      margin: 1rem 0;
+    }
+    
+    .exchange-section h4 {
+      margin-top: 0;
+      color: var(--primary-color);
+    }
+    
+    .exchange-section textarea {
+      height: 80px;
+      font-size: 0.8rem;
+    }
+    
+    .btn-small {
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+    }
+    
+    .connection-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    
+    .connection-step {
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1rem;
+      position: relative;
+    }
+    
+    .connection-step.completed {
+      border-color: var(--secondary-color);
+      background-color: rgba(16, 185, 129, 0.05);
+    }
+    
+    .connection-step.active {
+      border-color: var(--primary-color);
+      background-color: rgba(79, 70, 229, 0.05);
+    }
+    
+    .step-number {
+      position: absolute;
+      top: -10px;
+      left: 10px;
+      background: var(--primary-color);
+      color: white;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 0.875rem;
+    }
+    
+    .completed .step-number {
+      background: var(--secondary-color);
+    }
+
+    .device-select {
+      margin: 1rem 0;
+    }
+    
+    .device-select label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text-color);
+    }
+    
+    .device-select select {
+      width: 100%;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      font-size: 1rem;
+      background-color: white;
+      cursor: pointer;
+    }
+    
+    .device-select select:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+    
+    .refresh-devices {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      margin-top: 0.5rem;
+    }
+
+    /* New styles for two-way audio */
+    .audio-section-dual {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    
+    .audio-panel {
+      background-color: rgba(79, 70, 229, 0.05);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+    }
+    
+    .audio-panel h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.9rem;
+      color: var(--text-color);
+    }
+    
+    .audio-panel:first-child {
+      background-color: rgba(16, 185, 129, 0.05);
+    }
+    
+    .audio-panel:first-child .audio-bar {
+      background-color: var(--secondary-color);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Voice Space</h1>
+    <div class="subtitle">Simple yet powerful real-time audio communication</div>
+  </header>
+  
+  <div class="container">
+    <!-- Mode Selection -->
+    <div class="card" id="modeSelectSection">
+      <h2 class="card-title">
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+        Start Voice Chat
+      </h2>
+      <p>Choose your role to begin:</p>
+      
+      <div class="btn-group">
+        <button id="startHostBtn" class="btn-secondary">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+          Host (Broadcast Voice)
+        </button>
+        <button id="startListenerBtn" class="btn-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.536a5 5 0 001.414 1.414m2.828-9.9a9 9 0 012.828-2.828" />
+          </svg>
+          Listener (Join Voice)
+        </button>
+      </div>
+    </div>
+
+    <!-- Host Section -->
+    <div class="card hidden" id="hostSection">
+      <h2 class="card-title">
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+        </svg>
+        Host Mode - Broadcasting
+      </h2>
+      
+      <div class="role-badge broadcaster-badge">Broadcaster</div>
+      
+      <div class="connection-steps">
+        <!-- Step 1: Start Broadcasting -->
+        <div class="connection-step active" id="hostStep1">
+          <span class="step-number">1</span>
+          <h4>Start Broadcasting</h4>
+          <p>Select your microphone and click to start broadcasting.</p>
+          
+          <div class="device-select">
+            <label for="micSelect">🎤 Select Microphone:</label>
+            <select id="micSelect">
+              <option value="">-- Click "Refresh" to load devices --</option>
+            </select>
+            <button id="refreshDevicesBtn" class="btn-primary refresh-devices">
+              🔄 Refresh Devices
+            </button>
+          </div>
+          
+          <button id="createOfferBtn" class="btn-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+            Enable Microphone & Create Offer
+          </button>
+        </div>
+        
+        <!-- Step 2: Share Offer Link -->
+        <div class="connection-step" id="hostStep2">
+          <span class="step-number">2</span>
+          <h4>Share This Link with Listener</h4>
+          <p>Copy and send this link to the person who wants to listen:</p>
+          <div class="share-link">
+            <input type="text" id="offerLink" readonly placeholder="Offer link will appear here...">
+            <button id="copyOfferBtn" class="btn-primary btn-small">📋 Copy</button>
+          </div>
+        </div>
+        
+        <!-- Step 3: Enter Answer -->
+        <div class="connection-step" id="hostStep3">
+          <span class="step-number">3</span>
+          <h4>Paste Listener's Answer Link</h4>
+          <p>Ask the listener to send back their answer link and paste it here:</p>
+          <input type="text" id="answerInput" placeholder="Paste the answer link from listener...">
+          <button id="processAnswerBtn" class="btn-secondary">Connect</button>
+        </div>
+      </div>
+      
+      <!-- Audio Visualization -->
+      <div id="hostAudioSection" class="hidden">
+        <h3>🎙️ Two-Way Voice Chat Active</h3>
+        
+        <div class="audio-section-dual">
+          <div class="audio-panel">
+            <h4>📤 Your Voice (Sending)</h4>
+            <div class="audio-indicator-container">
+              <div class="audio-indicator" id="hostSendingIndicator">
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="audio-panel">
+            <h4>📥 Listener's Voice (Receiving)</h4>
+            <div class="audio-indicator-container">
+              <div class="audio-indicator" id="hostReceivingIndicator">
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="info-box success">
+          <p>Connected! You can now talk and listen to each other.</p>
+        </div>
+        <button id="stopHostBtn" class="btn-danger center-btn">Stop Call</button>
+      </div>
+    </div>
+
+    <!-- Listener Section -->
+    <div class="card hidden" id="listenerSection">
+      <h2 class="card-title">
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.536a5 5 0 001.414 1.414m2.828-9.9a9 9 0 012.828-2.828" />
+        </svg>
+        Listener Mode
+      </h2>
+      
+      <div class="role-badge">Participant</div>
+      
+      <div class="connection-steps">
+        <!-- Step 1: Enter Offer -->
+        <div class="connection-step active" id="listenerStep1">
+          <span class="step-number">1</span>
+          <h4>Paste Host's Offer Link</h4>
+          <p>Ask the host for their offer link and paste it here:</p>
+          <input type="text" id="offerInput" placeholder="Paste the offer link from host...">
+          
+          <div class="device-select">
+            <label for="listenerMicSelect">🎤 Select Your Microphone:</label>
+            <select id="listenerMicSelect">
+              <option value="">-- Click "Refresh" to load devices --</option>
+            </select>
+            <button id="refreshListenerDevicesBtn" class="btn-primary refresh-devices">
+              🔄 Refresh Devices
+            </button>
+          </div>
+          
+          <button id="processOfferBtn" class="btn-primary">Process Offer & Enable Mic</button>
+        </div>
+        
+        <!-- Step 2: Share Answer -->
+        <div class="connection-step" id="listenerStep2">
+          <span class="step-number">2</span>
+          <h4>Share This Answer Link with Host</h4>
+          <p>Copy and send this link back to the host:</p>
+          <div class="share-link">
+            <input type="text" id="answerLink" readonly placeholder="Answer link will appear here...">
+            <button id="copyAnswerBtn" class="btn-primary btn-small">📋 Copy</button>
+          </div>
+          <p class="info-box warning" id="listenerWaitingMsg">⏳ Waiting for host to complete connection...</p>
+        </div>
+      </div>
+      
+      <!-- Audio Visualization -->
+      <div id="listenerAudioSection" class="hidden">
+        <h3>🎙️ Two-Way Voice Chat Active</h3>
+        
+        <div class="audio-section-dual">
+          <div class="audio-panel">
+            <h4>📤 Your Voice (Sending)</h4>
+            <div class="audio-indicator-container">
+              <div class="audio-indicator" id="listenerSendingIndicator">
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="audio-panel">
+            <h4>📥 Host's Voice (Receiving)</h4>
+            <div class="audio-indicator-container">
+              <div class="audio-indicator" id="listenerReceivingIndicator">
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+                <div class="audio-bar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="info-box success">
+          <p>Connected! You can now talk and listen to each other.</p>
+        </div>
+        <button id="stopListenerBtn" class="btn-danger center-btn">Disconnect</button>
+      </div>
+    </div>
+
+    <!-- How It Works -->
+    <div class="card" id="guidanceSection">
+      <h2 class="card-title">
+        <svg class="card-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        How It Works
+      </h2>
+      <div class="steps">
+        <div class="step">
+          <h4>Host Creates Offer</h4>
+          <p>The host enables their microphone and generates an offer link.</p>
+        </div>
+        <div class="step">
+          <h4>Listener Processes Offer</h4>
+          <p>The listener pastes the offer link and generates an answer link.</p>
+        </div>
+        <div class="step">
+          <h4>Host Completes Connection</h4>
+          <p>The host pastes the answer link to establish the voice connection.</p>
+        </div>
+      </div>
+      <div class="info-box warning">
+        <p><strong>Note:</strong> This uses peer-to-peer WebRTC. No server needed - data goes directly between browsers!</p>
+      </div>
+    </div>
+    
+    <div id="status">Status: Ready to connect</div>
+  </div>
+
+  <script>
+    let pc = null;
+    let localStream = null;
+    let remoteStream = null;
+    let audioContext = null;
+    let audioVisualIntervals = {};
+    let availableDevices = [];
+    
+    const config = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    };
+
+    // Initialize on page load
+    window.onload = () => {
+      // Check URL for offer or answer
+      const params = new URLSearchParams(window.location.search);
+      const offer = params.get('offer');
+      const answer = params.get('answer');
+      
+      if (offer) {
+        // Auto-switch to listener mode and fill in offer
+        showListenerMode();
+        document.getElementById('offerInput').value = window.location.href;
+        updateStatus('Offer detected - Click "Process Offer" to continue', 'connecting');
+      } else if (answer) {
+        // Auto-switch to host mode for answer processing
+        showHostMode();
+        document.getElementById('answerInput').value = window.location.href;
+        updateStatus('Answer detected - Click "Connect" to complete', 'connecting');
+      }
+      
+      setupEventListeners();
+    };
+
+    function setupEventListeners() {
+      // Mode selection
+      document.getElementById('startHostBtn').addEventListener('click', showHostMode);
+      document.getElementById('startListenerBtn').addEventListener('click', showListenerMode);
+      
+      // Host actions
+      document.getElementById('refreshDevicesBtn').addEventListener('click', loadAudioDevices);
+      document.getElementById('createOfferBtn').addEventListener('click', createOffer);
+      document.getElementById('copyOfferBtn').addEventListener('click', () => copyToClipboard('offerLink'));
+      document.getElementById('processAnswerBtn').addEventListener('click', processAnswer);
+      document.getElementById('stopHostBtn').addEventListener('click', stopConnection);
+      
+      // Listener actions
+      document.getElementById('refreshListenerDevicesBtn').addEventListener('click', loadListenerAudioDevices);
+      document.getElementById('processOfferBtn').addEventListener('click', processOffer);
+      document.getElementById('copyAnswerBtn').addEventListener('click', () => copyToClipboard('answerLink'));
+      document.getElementById('stopListenerBtn').addEventListener('click', stopConnection);
+    }
+
+    function showHostMode() {
+      document.getElementById('modeSelectSection').classList.add('hidden');
+      document.getElementById('hostSection').classList.remove('hidden');
+      document.getElementById('listenerSection').classList.add('hidden');
+      document.getElementById('guidanceSection').classList.add('hidden');
+      updateStatus('Host mode - Select microphone and start', 'default');
+      
+      // Auto-load devices when entering host mode
+      loadAudioDevices();
+    }
+
+    function showListenerMode() {
+      document.getElementById('modeSelectSection').classList.add('hidden');
+      document.getElementById('hostSection').classList.add('hidden');
+      document.getElementById('listenerSection').classList.remove('hidden');
+      document.getElementById('guidanceSection').classList.add('hidden');
+      updateStatus('Listener mode - Paste host offer link', 'default');
+      
+      // Auto-load devices for listener too
+      loadListenerAudioDevices();
+    }
+
+    function updateStatus(message, type = 'default') {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = 'Status: ' + message;
+      statusEl.classList.remove('status-connecting', 'status-connected', 'status-error');
+      if (type === 'connecting') statusEl.classList.add('status-connecting');
+      if (type === 'connected') statusEl.classList.add('status-connected');
+      if (type === 'error') statusEl.classList.add('status-error');
+    }
+
+    function encode(obj) {
+      return btoa(JSON.stringify(obj));
+    }
+
+    function decode(str) {
+      return JSON.parse(atob(str));
+    }
+
+    async function copyToClipboard(elementId) {
+      const el = document.getElementById(elementId);
+      try {
+        await navigator.clipboard.writeText(el.value);
+        alert('Copied to clipboard!');
+      } catch (err) {
+        el.select();
+        document.execCommand('copy');
+        alert('Copied to clipboard!');
+      }
+    }
+
+    function createPeerConnection() {
+      pc = new RTCPeerConnection(config);
+      
+      pc.oniceconnectionstatechange = () => {
+        console.log('ICE state:', pc.iceConnectionState);
+        if (pc.iceConnectionState === 'connected') {
+          updateStatus('Connected! Two-way voice chat active.', 'connected');
+          
+          // Update listener UI if in listener mode
+          if (!document.getElementById('listenerSection').classList.contains('hidden')) {
+            document.getElementById('listenerStep2').classList.remove('active');
+            document.getElementById('listenerStep2').classList.add('completed');
+            document.getElementById('listenerAudioSection').classList.remove('hidden');
+            
+            const waitingMsg = document.getElementById('listenerWaitingMsg');
+            if (waitingMsg) {
+              waitingMsg.classList.remove('warning');
+              waitingMsg.classList.add('success');
+              waitingMsg.innerHTML = '✅ Connected to host!';
+            }
+          }
+          
+          // Update host UI if in host mode
+          if (!document.getElementById('hostSection').classList.contains('hidden')) {
+            document.getElementById('hostStep2').classList.remove('active');
+            document.getElementById('hostStep2').classList.add('completed');
+            document.getElementById('hostStep3').classList.remove('active');
+            document.getElementById('hostStep3').classList.add('completed');
+          }
+          
+        } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+          updateStatus('Connection lost', 'error');
+        }
+      };
+
+      pc.ontrack = (event) => {
+        console.log('Received remote track');
+        remoteStream = event.streams[0];
+        
+        const audio = new Audio();
+        audio.srcObject = remoteStream;
+        audio.play().catch(e => console.log('Audio play error:', e));
+        
+        // Determine which indicator to use based on current mode
+        const isHost = !document.getElementById('hostSection').classList.contains('hidden');
+        const receivingIndicatorId = isHost ? 'hostReceivingIndicator' : 'listenerReceivingIndicator';
+        
+        // Set up visualization for receiving audio
+        setupAudioVisualization(remoteStream, receivingIndicatorId);
+        
+        // Show appropriate audio section
+        if (isHost) {
+          document.getElementById('hostAudioSection').classList.remove('hidden');
+        } else {
+          document.getElementById('listenerAudioSection').classList.remove('hidden');
+          document.getElementById('listenerStep2').classList.remove('active');
+          document.getElementById('listenerStep2').classList.add('completed');
+          
+          const waitingMsg = document.getElementById('listenerWaitingMsg');
+          if (waitingMsg) {
+            waitingMsg.classList.remove('warning');
+            waitingMsg.classList.add('success');
+            waitingMsg.innerHTML = '✅ Connected to host!';
+          }
+        }
+        
+        updateStatus('Connected! Two-way voice chat active.', 'connected');
+      };
+
+      return pc;
+    }
+
+    async function waitForIceGathering() {
+      return new Promise((resolve) => {
+        if (pc.iceGatheringState === 'complete') {
+          resolve();
+        } else {
+          const checkState = () => {
+            if (pc.iceGatheringState === 'complete') {
+              pc.removeEventListener('icegatheringstatechange', checkState);
+              resolve();
+            }
+          };
+          pc.addEventListener('icegatheringstatechange', checkState);
+          // Timeout after 5 seconds
+          setTimeout(resolve, 5000);
+        }
+      });
+    }
+
+    // ============ DEVICE ENUMERATION ============
+    async function loadAudioDevices() {
+      await loadDevicesForSelect('micSelect');
+    }
+    
+    async function loadListenerAudioDevices() {
+      await loadDevicesForSelect('listenerMicSelect');
+    }
+    
+    async function loadDevicesForSelect(selectId) {
+      try {
+        updateStatus('Loading audio devices...', 'connecting');
+        
+        // Request permission first to get device labels
+        const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        tempStream.getTracks().forEach(track => track.stop());
+        
+        // Now enumerate devices
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        availableDevices = devices.filter(device => device.kind === 'audioinput');
+        
+        const micSelect = document.getElementById(selectId);
+        micSelect.innerHTML = '';
+        
+        if (availableDevices.length === 0) {
+          micSelect.innerHTML = '<option value="">No microphones found</option>';
+          updateStatus('No microphones found', 'error');
+          return;
+        }
+        
+        availableDevices.forEach((device, index) => {
+          const option = document.createElement('option');
+          option.value = device.deviceId;
+          option.textContent = device.label || `Microphone ${index + 1}`;
+          micSelect.appendChild(option);
+        });
+        
+        updateStatus(`Found ${availableDevices.length} microphone(s)`, 'default');
+        
+      } catch (err) {
+        console.error('Error loading devices:', err);
+        const micSelect = document.getElementById(selectId);
+        micSelect.innerHTML = '<option value="">Permission denied or error</option>';
+        updateStatus('Error accessing microphones: ' + err.message, 'error');
+      }
+    }
+
+    // ============ HOST FUNCTIONS ============
+    async function createOffer() {
+      try {
+        const selectedDeviceId = document.getElementById('micSelect').value;
+        
+        updateStatus('Requesting microphone access...', 'connecting');
+        
+        const audioConstraints = selectedDeviceId 
+          ? { audio: { deviceId: { exact: selectedDeviceId } } }
+          : { audio: true };
+        
+        localStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+        
+        const audioTrack = localStream.getAudioTracks()[0];
+        console.log('Using microphone:', audioTrack.label);
+        
+        updateStatus('Creating connection offer...', 'connecting');
+        
+        createPeerConnection();
+        
+        // Add audio track
+        localStream.getTracks().forEach(track => {
+          pc.addTrack(track, localStream);
+        });
+        
+        // Create offer
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        
+        // Wait for ICE gathering
+        await waitForIceGathering();
+        
+        // Generate link
+        const offerData = encode(pc.localDescription);
+        const link = window.location.origin + window.location.pathname + '?offer=' + offerData;
+        
+        document.getElementById('offerLink').value = link;
+        
+        // Update UI
+        document.getElementById('hostStep1').classList.remove('active');
+        document.getElementById('hostStep1').classList.add('completed');
+        document.getElementById('hostStep2').classList.add('active');
+        document.getElementById('hostStep3').classList.add('active');
+        
+        // Show audio visualization for sending
+        document.getElementById('hostAudioSection').classList.remove('hidden');
+        setupAudioVisualization(localStream, 'hostSendingIndicator');
+        
+        updateStatus('Offer created - Share the link with listener', 'connecting');
+        
+      } catch (err) {
+        console.error('Error creating offer:', err);
+        updateStatus('Error: ' + err.message, 'error');
+      }
+    }
+
+    async function processAnswer() {
+      try {
+        const input = document.getElementById('answerInput').value.trim();
+        if (!input) {
+          updateStatus('Please paste the answer link', 'error');
+          return;
+        }
+        
+        let answerData;
+        
+        // Extract answer from URL or raw data
+        if (input.includes('?answer=')) {
+          const url = new URL(input);
+          answerData = url.searchParams.get('answer');
+        } else {
+          answerData = input;
+        }
+        
+        const answer = decode(answerData);
+        await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        
+        // Update UI
+        document.getElementById('hostStep2').classList.remove('active');
+        document.getElementById('hostStep2').classList.add('completed');
+        document.getElementById('hostStep3').classList.remove('active');
+        document.getElementById('hostStep3').classList.add('completed');
+        
+        updateStatus('Connected! Broadcasting voice...', 'connected');
+        
+      } catch (err) {
+        console.error('Error processing answer:', err);
+        updateStatus('Error: Invalid answer - ' + err.message, 'error');
+      }
+    }
+
+    // ============ LISTENER FUNCTIONS ============
+    async function processOffer() {
+      try {
+        const input = document.getElementById('offerInput').value.trim();
+        if (!input) {
+          updateStatus('Please paste the offer link', 'error');
+          return;
+        }
+        
+        // Get listener's microphone first
+        const selectedDeviceId = document.getElementById('listenerMicSelect').value;
+        
+        updateStatus('Requesting microphone access...', 'connecting');
+        
+        const audioConstraints = selectedDeviceId 
+          ? { audio: { deviceId: { exact: selectedDeviceId } } }
+          : { audio: true };
+        
+        localStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+        
+        const audioTrack = localStream.getAudioTracks()[0];
+        console.log('Listener using microphone:', audioTrack.label);
+        
+        let offerData;
+        
+        // Extract offer from URL or raw data
+        if (input.includes('?offer=')) {
+          const url = new URL(input);
+          offerData = url.searchParams.get('offer');
+        } else {
+          offerData = input;
+        }
+        
+        updateStatus('Processing offer...', 'connecting');
+        
+        const offer = decode(offerData);
+        
+        createPeerConnection();
+        
+        // Add listener's audio track for two-way communication
+        localStream.getTracks().forEach(track => {
+          pc.addTrack(track, localStream);
+        });
+        
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        
+        // Create answer
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        
+        // Wait for ICE gathering
+        await waitForIceGathering();
+        
+        // Generate answer link
+        const answerData = encode(pc.localDescription);
+        const link = window.location.origin + window.location.pathname + '?answer=' + answerData;
+        
+        document.getElementById('answerLink').value = link;
+        
+        // Update UI
+        document.getElementById('listenerStep1').classList.remove('active');
+        document.getElementById('listenerStep1').classList.add('completed');
+        document.getElementById('listenerStep2').classList.add('active');
+        
+        // Set up visualization for listener's sending audio
+        setupAudioVisualization(localStream, 'listenerSendingIndicator');
+        
+        updateStatus('Answer created - Share link with host and wait', 'connecting');
+        
+      } catch (err) {
+        console.error('Error processing offer:', err);
+        updateStatus('Error: Invalid offer - ' + err.message, 'error');
+      }
+    }
+
+    // ============ UTILITY FUNCTIONS ============
+    function setupAudioVisualization(stream, targetElementId) {
+      // Clear existing interval for this specific indicator
+      if (audioVisualIntervals[targetElementId]) {
+        clearInterval(audioVisualIntervals[targetElementId]);
+      }
+      
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 32;
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      
+      const bars = document.querySelectorAll(`#${targetElementId} .audio-bar`);
+      
+      audioVisualIntervals[targetElementId] = setInterval(() => {
+        analyser.getByteFrequencyData(dataArray);
+        
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          sum += dataArray[i];
+        }
+        const average = sum / bufferLength;
+        
+        bars.forEach((bar, index) => {
+          const threshold = 10 + (index * 15);
+          if (average > threshold) {
+            bar.classList.add('active');
+          } else {
+            bar.classList.remove('active');
+          }
+        });
+      }, 100);
+    }
+
+    function stopConnection() {
+      // Stop media tracks
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+      }
+      
+      if (remoteStream) {
+        remoteStream.getTracks().forEach(track => track.stop());
+        remoteStream = null;
+      }
+      
+      // Close peer connection
+      if (pc) {
+        pc.close();
+        pc = null;
+      }
+      
+      // Stop all audio visualizations
+      Object.keys(audioVisualIntervals).forEach(key => {
+        clearInterval(audioVisualIntervals[key]);
+      });
+      audioVisualIntervals = {};
+      
+      // Reset URL
+      window.history.pushState({}, '', window.location.pathname);
+      
+      // Reset UI
+      document.getElementById('modeSelectSection').classList.remove('hidden');
+      document.getElementById('hostSection').classList.add('hidden');
+      document.getElementById('listenerSection').classList.add('hidden');
+      document.getElementById('guidanceSection').classList.remove('hidden');
+      document.getElementById('hostAudioSection').classList.add('hidden');
+      document.getElementById('listenerAudioSection').classList.add('hidden');
+      
+      // Reset step states
+      document.querySelectorAll('.connection-step').forEach(step => {
+        step.classList.remove('active', 'completed');
+      });
+      document.getElementById('hostStep1').classList.add('active');
+      document.getElementById('listenerStep1').classList.add('active');
+      
+      // Reset waiting message
+      const waitingMsg = document.getElementById('listenerWaitingMsg');
+      if (waitingMsg) {
+        waitingMsg.classList.remove('success');
+        waitingMsg.classList.add('warning');
+        waitingMsg.innerHTML = '⏳ Waiting for host to complete connection...';
+      }
+      
+      // Clear inputs
+      document.getElementById('offerLink').value = '';
+      document.getElementById('answerInput').value = '';
+      document.getElementById('offerInput').value = '';
+      document.getElementById('answerLink').value = '';
+      
+      updateStatus('Disconnected', 'default');
+    }
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      stopConnection();
+    });
+  </script>
+</body>
+</html>
