@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU Huge World Engine</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: monospace; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
+        button { pointer-events: auto; padding: 12px 24px; font-size: 16px; background: #00ff88; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; }
+        #debug { position: absolute; top: 10px; left: 10px; color: #00ff88; pointer-events: none; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div id="debug">Initializing Core...</div>
+    <div id="ui">
+        <button id="vr-btn" disabled>ENTER VR</button>
+    </div>
+    <canvas id="screen-canvas"></canvas>
+
+<script type="module">
+/* --------------------------------------------------------------
+   CORE ARCHITECTURE: 64-BIT CAMERA RELATIVE 
+   --------------------------------------------------------------
+   1. Logic: stored in Doubles (JS Numbers).
+   2. Render: Subtract Camera Pos from Object Pos on CPU.
+   3. GPU: Receives object positions relative to camera (0,0,0).
+   --------------------------------------------------------------
+*/
+
+// --- 1. ENGINE STATE (64-BIT PRECISION) ---
+const world = {
+    // This is our "Solar System" coordinate
+    camera: { x: 0, y: 1.6, z: 0 }, 
+    
+    // A cube placed FAR away (e.g., 10 Million km)
+    // We will teleport near it for this demo
+    objects: [
+        { x: 0, y: 1.6, z: -5, color: [1, 0, 0, 1] },       // Nearby Red Cube
+        { x: 10000000.5, y: 1.6, z: 0, color: [0, 0, 1, 1] } // Distant Blue Cube
+    ]
+};
+
+// --- 2. WEBGPU SETUP ---
+let device, context, canvasFormat;
+let renderPipeline;
+let uniformBuffer; // Stores View/Proj matrices
+
+async function initGraphics() {
+    if (!navigator.gpu) throw new Error("WebGPU not supported");
+    
+    const adapter = await navigator.gpu.requestAdapter({ xrCompatible: true });
+    device = await adapter.requestDevice();
+    canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+
+    const canvas = document.getElementById('screen-canvas');
+    context = canvas.getContext('webgpu');
+    context.configure({ device, format: canvasFormat, alphaMode: 'premultiplied' });
+
+    // SHADER: The secret is the View Matrix (Rotation ONLY)
+    // We expect 'position' to already be relative to the camera.
+    const shaderModule = device.createShaderModule({
+        code: `
+        struct Uniforms {
+            viewProj: mat4x4<f32>, // Projection * ViewRotationOnly
+        };
+        @group(0) @binding(0) var<uniform> uniforms : Uniforms;
+
+        struct VertexOutput {
+            @builtin(position) position : vec4<f32>,
+            @location(0) color : vec4<f32>,
+        };
+
+        @vertex
+        fn vs_main(@location(0) posRelative : vec4<f32>, @location(1) color : vec4<f32>) -> VertexOutput {
+            var output : VertexOutput;
+            // The magic: Position is already local to camera.
+            // We just rotate it and project it.
+            output.position = uniforms.viewProj * posRelative; 
+            output.color = color;
+            return output;
+        }
+
+        @fragment
+        fn fs_main(@location(0) color : vec4<f32>) -> @location(0) vec4<f32> {
+            return color;
+        }
+        `
+    });
+
+    renderPipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: {
+            module: shaderModule,
+            entryPoint: 'vs_main',
+            buffers: [{
+                arrayStride: 32, // vec4 pos (16) + vec4 color (16)
+                attributes: [
+                    { shaderLocation: 0, offset: 0, format: 'float32x4' }, // Position
+                    { shaderLocation: 1, offset: 16, format: 'float32x4' } // Color
+                ]
+            }]
+        },
+        fragment: {
+            module: shaderModule,
+            entryPoint: 'fs_main',
+            targets: [{ format: canvasFormat }] // Will be overwritten for VR
+        },
+        primitive: { topology: 'triangle-list' },
+        depthStencil: {
+            depthWriteEnabled: true,
+            depthCompare: 'less',
+            format: 'depth24plus',
+        }
+    });
+
+    // Create a generic uniform buffer (updated per frame)
+    uniformBuffer = device.createBuffer({
+        size: 64, // mat4x4 (16 floats * 4 bytes)
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+}
+
+// --- 3. THE RENDER LOOP (The "Move World" Logic) ---
+function render(viewProjMatrix, framebuffer, viewport) {
+    // A. CPU Subtraction (The "Huge World" Fix)
+    // We rebuild the geometry buffer every frame or use instancing. 
+    // For simplicity/cleanness, we build a transient vertex buffer here.
+    
+    // 1. Calculate relative positions
+    const vertices = [];
+    for (let obj of world.objects) {
+        // --- THE KEY LINE ---
+        // Double Precision Math happens here (JS)
+        const relX = obj.x - world.camera.x;
+        const relY = obj.y - world.camera.y;
+        const relZ = obj.z - world.camera.z;
+        // ------------------
+
+        // Push a generic cube at this relative position
+        pushCubeVertices(vertices, relX, relY, relZ, obj.color);
+    }
+
+    const vertexData = new Float32Array(vertices);
+    const vertexBuffer = device.createBuffer({
+        size: vertexData.byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+        mappedAtCreation: true
+    });
+    new Float32Array(vertexBuffer.getMappedRange()).set(vertexData);
+    vertexBuffer.unmap();
+
+    // B. Encode Commands
+    const commandEncoder = device.createCommandEncoder();
+    
+    // Upload Matrix
+    device.queue.writeBuffer(uniformBuffer, 0, viewProjMatrix);
+
+    const renderPass = commandEncoder.beginRenderPass({
+        colorAttachments: [{
+            view: framebuffer, // VR or Screen texture
+            loadOp: 'clear',
+            clearValue: { r: 0.1, g: 0.1, b: 0.1, a: 1 },
+            storeOp: 'store',
+        }],
+        depthStencilAttachment: {
+            view: createDepthTexture(viewport.width, viewport.height),
+            depthClearValue: 1.0,
+            depthLoadOp: 'clear',
+            depthStoreOp: 'discard',
+        }
+    });
+
+    renderPass.setPipeline(renderPipeline);
+    renderPass.setViewport(viewport.x, viewport.y, viewport.width, viewport.height, 0, 1);
+    
+    const uniformBindGroup = device.createBindGroup({
+        layout: renderPipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
+    });
+    
+    renderPass.setBindGroup(0, uniformBindGroup);
+    renderPass.setVertexBuffer(0, vertexBuffer);
+    renderPass.draw(vertices.length / 8, 1, 0, 0); // 8 floats per vertex
+    renderPass.end();
+
+    device.queue.submit([commandEncoder.finish()]);
+    
+    // Cleanup transient buffer (in real engine, use ring buffer)
+    vertexBuffer.destroy(); 
+}
+
+// --- 4. WebXR INTEGRATION ---
+let xrSession = null;
+let xrRefSpace = null;
+let xrBinding = null;
+
+async function initVR() {
+    if (!navigator.xr) return;
+    const supported = await navigator.xr.isSessionSupported('immersive-vr');
+    if (supported) {
+        const btn = document.getElementById('vr-btn');
+        btn.disabled = false;
+        btn.onclick = onEnterVR;
+        document.getElementById('debug').innerText = "System Ready. 64-bit Engine Online.";
+    }
+}
+
+async function onEnterVR() {
+    xrSession = await navigator.xr.requestSession('immersive-vr', {
+        requiredFeatures: ['local-floor'],
+        optionalFeatures: [] 
+    });
+    
+    // The Bridge: Connect WebXR to WebGPU
+    xrBinding = new XRGPUBinding(xrSession, device);
+    
+    xrRefSpace = await xrSession.requestReferenceSpace('local-floor');
+    
+    // Use the new Projection Layer (cleaner than old WebGL layers)
+    const layer = xrBinding.createProjectionLayer({
+        colorFormat: canvasFormat,
+        depthStencilFormat: 'depth24plus'
+    });
+    xrSession.updateRenderState({ layers: [layer] });
+
+    xrSession.requestAnimationFrame(onXRFrame);
+}
+
+function onXRFrame(time, frame) {
+    const session = frame.session;
+    session.requestAnimationFrame(onXRFrame);
+
+    const pose = frame.getViewerPose(xrRefSpace);
+    if (!pose) return;
+
+    // A. Sync "Huge World" Camera to VR Headset
+    // In a real game, you add joystick movement to 'world.camera' here.
+    // world.camera.x += joystickInput;
+    
+    // We assume the headset is the local offset. 
+    // If we want "Camera Relative", we usually zero out the translation 
+    // in the view matrix, but here is a simpler trick:
+    // We already subtracted 'world.camera' on the CPU.
+    // We just need the VR View Matrix to NOT re-add the translation.
+    
+    for (const view of pose.views) {
+        const subImage = xrBinding.getViewSubImage(layer, view);
+        
+        // Extract Rotation Only from VR View
+        // WebXR gives us a full matrix. We can strip translation manually.
+        const viewMat = new Float32Array(view.transform.inverse.matrix);
+        // Strip translation (columns 12, 13, 14)
+        viewMat[12] = 0; viewMat[13] = 0; viewMat[14] = 0;
+
+        // Multiply Projection * RotationOnlyView
+        const projMat = view.projectionMatrix;
+        const viewProj = multiplyMatrices(projMat, viewMat); // Simple helper below
+        
+        // Render
+        render(viewProj, subImage.colorTexture.createView(subImage.viewDescriptor), subImage.viewport);
+    }
+}
+
+// --- 5. HELPERS & BOOTSTRAP ---
+function createDepthTexture(w, h) {
+    // Simple transient depth texture
+    if (window.cachedDepth && window.cachedDepth.width === w) return window.cachedDepth.view;
+    const tex = device.createTexture({
+        size: [w, h],
+        format: 'depth24plus',
+        usage: GPUTextureUsage.RENDER_ATTACHMENT
+    });
+    window.cachedDepth = { width: w, view: tex.createView() };
+    return window.cachedDepth.view;
+}
+
+function pushCubeVertices(arr, x, y, z, c) {
+    const s = 0.5; // Size
+    // Simple Triangle list for a cube (just one face for brevity)
+    // Front Face
+    arr.push(x-s, y-s, z+s, c[0], c[1], c[2], c[3]);
+    arr.push(x+s, y-s, z+s, c[0], c[1], c[2], c[3]);
+    arr.push(x+s, y+s, z+s, c[0], c[1], c[2], c[3]);
+    arr.push(x-s, y-s, z+s, c[0], c[1], c[2], c[3]);
+    arr.push(x+s, y+s, z+s, c[0], c[1], c[2], c[3]);
+    arr.push(x-s, y+s, z+s, c[0], c[1], c[2], c[3]);
+    // (Add other faces in real engine)
+}
+
+// Minimal matrix multiply (Proj * View)
+function multiplyMatrices(a, b) {
+    const out = new Float32Array(16);
+    // Standard 4x4 mul... (Simplified for brevity)
+    // In production use gl-matrix or wgpu-matrix
+    for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 4; j++) {
+            let sum = 0;
+            for (let k = 0; k < 4; k++) sum += a[i * 4 + k] * b[k * 4 + j];
+            out[i * 4 + j] = sum;
+        }
+    }
+    return out;
+}
+
+// Start
+(async () => {
+    await initGraphics();
+    await initVR();
+    
+    // Start non-VR loop
+    function frame() {
+        if (!xrSession) {
+            // Mock View/Proj for screen
+            const aspect = window.innerWidth / window.innerHeight;
+            const proj = perspective(Math.PI/3, aspect, 0.1, 1000.0);
+            const view = new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]); // Identity (camera at 0)
+            
+            render(multiplyMatrices(proj, view), context.getCurrentTexture().createView(), {x:0, y:0, width:window.innerWidth, height:window.innerHeight});
+            requestAnimationFrame(frame);
+        }
+    }
+    frame();
+})();
+
+function perspective(fov, aspect, near, far) {
+    const f = 1.0 / Math.tan(fov / 2);
+    const nf = 1 / (near - far);
+    return new Float32Array([
+        f / aspect, 0, 0, 0,
+        0, f, 0, 0,
+        0, 0, (far + near) * nf, -1,
+        0, 0, (2 * far * near) * nf, 0
+    ]);
+}
+</script>
+</body>
+</html>
