@@ -43,7 +43,7 @@ const world = {
 };
 
 // --- 2. WEBGPU SETUP ---
-let device, context, canvasFormat;
+let device, context, canvasFormat, canvas;
 let renderPipeline;
 let uniformBuffer; // Stores View/Proj matrices
 
@@ -54,7 +54,7 @@ async function initGraphics() {
     device = await adapter.requestDevice();
     canvasFormat = navigator.gpu.getPreferredCanvasFormat();
 
-    const canvas = document.getElementById('screen-canvas');
+    canvas = document.getElementById('screen-canvas');
     context = canvas.getContext('webgpu');
     context.configure({ device, format: canvasFormat, alphaMode: 'premultiplied' });
 
@@ -265,14 +265,22 @@ function onXRFrame(time, frame) {
 
 // --- 5. HELPERS & BOOTSTRAP ---
 function createDepthTexture(w, h) {
-    // Simple transient depth texture
-    if (window.cachedDepth && window.cachedDepth.width === w) return window.cachedDepth.view;
+    // FIX: Check BOTH width and height to prevent mismatch errors
+    if (window.cachedDepth &&
+        window.cachedDepth.width === w &&
+        window.cachedDepth.height === h) {
+        return window.cachedDepth.view;
+    }
+
+    if (window.cachedDepth) window.cachedDepth.texture.destroy();
+
     const tex = device.createTexture({
         size: [w, h],
         format: 'depth24plus',
         usage: GPUTextureUsage.RENDER_ATTACHMENT
     });
-    window.cachedDepth = { width: w, view: tex.createView() };
+
+    window.cachedDepth = { width: w, height: h, texture: tex, view: tex.createView() };
     return window.cachedDepth.view;
 }
 
@@ -308,16 +316,24 @@ function multiplyMatrices(a, b) {
 (async () => {
     await initGraphics();
     await initVR();
-    
-    // Start non-VR loop
+
     function frame() {
         if (!xrSession) {
-            // Mock View/Proj for screen
-            const aspect = window.innerWidth / window.innerHeight;
+            if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+
+            const aspect = canvas.width / canvas.height;
             const proj = perspective(Math.PI/3, aspect, 0.1, 1000.0);
-            const view = new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]); // Identity (camera at 0)
-            
-            render(multiplyMatrices(proj, view), context.getCurrentTexture().createView(), {x:0, y:0, width:window.innerWidth, height:window.innerHeight});
+            const view = new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+
+            render(
+                multiplyMatrices(proj, view),
+                context.getCurrentTexture().createView(),
+                { x:0, y:0, width: canvas.width, height: canvas.height }
+            );
+
             requestAnimationFrame(frame);
         }
     }

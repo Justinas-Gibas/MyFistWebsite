@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU Huge World Engine</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: monospace; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #ui { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; }
+        button { pointer-events: auto; padding: 12px 24px; font-size: 16px; background: #00ff88; border: none; cursor: pointer; font-weight: bold; border-radius: 4px; }
+        #debug { position: absolute; top: 10px; left: 10px; color: #00ff88; pointer-events: none; white-space: pre; }
+    </style>
+</head>
+<body>
+    <div id="debug">Initializing Core...</div>
+    <div id="ui">
+        <button id="vr-btn" disabled>ENTER VR</button>
+    </div>
+    <canvas id="screen-canvas"></canvas>
+
+<script type="module">
+// Modern WebGPU + WebXR micro-engine for solar-scale scenes.
+// CPU stays in double precision, GPU receives camera-relative floats.
+
+const world = {
+    camera: { x: 0, y: 1.6, z: 0, yaw: 0, pitch: 0 },
+    moveSpeed: 10,
+    objects: [
+        { x: 0, y: 1.6, z: -5, color: [1.0, 0.35, 0.35, 1] },
+        { x: 25, y: 2, z: -40, color: [0.4, 0.9, 1.0, 1] },
+        { x: -35, y: 1, z: -60, color: [0.9, 0.8, 0.4, 1] },
+        { x: 10000000.5, y: 1.6, z: 0, color: [0.25, 0.6, 1, 1] },
+        { x: -25000000.0, y: 0, z: 500000.0, color: [0.4, 1, 0.6, 1] },
+        { x: 150000000.0, y: -2000, z: 750000.0, color: [1, 0.5, 0.2, 1] }
+    ]
+};
+
+let device, context, canvasFormat, canvas, pipeline;
+let uniformBuffer, uniformBindGroup, vertexBuffer, instanceBuffer;
+let maxInstances = 0;
+let xrSession = null;
+let xrRefSpace = null;
+let xrBinding = null;
+let xrLayer = null;
+
+const cubeVertices = new Float32Array([
+    // pos (3) + normal (3)
+    // Front (+Z)
+    -0.5, -0.5,  0.5,  0, 0, 1,
+     0.5, -0.5,  0.5,  0, 0, 1,
+     0.5,  0.5,  0.5,  0, 0, 1,
+    -0.5, -0.5,  0.5,  0, 0, 1,
+     0.5,  0.5,  0.5,  0, 0, 1,
+    -0.5,  0.5,  0.5,  0, 0, 1,
+    // Back (-Z)
+    -0.5, -0.5, -0.5,  0, 0,-1,
+    -0.5,  0.5, -0.5,  0, 0,-1,
+     0.5,  0.5, -0.5,  0, 0,-1,
+    -0.5, -0.5, -0.5,  0, 0,-1,
+     0.5,  0.5, -0.5,  0, 0,-1,
+     0.5, -0.5, -0.5,  0, 0,-1,
+    // Left (-X)
+    -0.5, -0.5, -0.5, -1, 0, 0,
+    -0.5, -0.5,  0.5, -1, 0, 0,
+    -0.5,  0.5,  0.5, -1, 0, 0,
+    -0.5, -0.5, -0.5, -1, 0, 0,
+    -0.5,  0.5,  0.5, -1, 0, 0,
+    -0.5,  0.5, -0.5, -1, 0, 0,
+    // Right (+X)
+     0.5, -0.5, -0.5,  1, 0, 0,
+     0.5,  0.5,  0.5,  1, 0, 0,
+     0.5, -0.5,  0.5,  1, 0, 0,
+     0.5, -0.5, -0.5,  1, 0, 0,
+     0.5,  0.5, -0.5,  1, 0, 0,
+     0.5,  0.5,  0.5,  1, 0, 0,
+    // Top (+Y)
+    -0.5,  0.5, -0.5,  0, 1, 0,
+    -0.5,  0.5,  0.5,  0, 1, 0,
+     0.5,  0.5,  0.5,  0, 1, 0,
+    -0.5,  0.5, -0.5,  0, 1, 0,
+     0.5,  0.5,  0.5,  0, 1, 0,
+     0.5,  0.5, -0.5,  0, 1, 0,
+    // Bottom (-Y)
+    -0.5, -0.5, -0.5,  0,-1, 0,
+     0.5, -0.5,  0.5,  0,-1, 0,
+    -0.5, -0.5,  0.5,  0,-1, 0,
+    -0.5, -0.5, -0.5,  0,-1, 0,
+     0.5, -0.5, -0.5,  0,-1, 0,
+     0.5, -0.5,  0.5,  0,-1, 0,
+]);
+
+const keyState = new Set();
+let pointerLocked = false;
+let lastTime = performance.now();
+
+const depthCache = new Map();
+
+async function initGraphics() {
+    if (!navigator.gpu) throw new Error('WebGPU not supported');
+    const adapter = await navigator.gpu.requestAdapter({ xrCompatible: true });
+    device = await adapter.requestDevice();
+    canvasFormat = navigator.gpu.getPreferredCanvasFormat();
+
+    canvas = document.getElementById('screen-canvas');
+    context = canvas.getContext('webgpu');
+    resizeCanvas();
+    context.configure({
+        device,
+        format: canvasFormat,
+        alphaMode: 'premultiplied',
+        usage: GPUTextureUsage.RENDER_ATTACHMENT
+    });
+
+    vertexBuffer = device.createBuffer({
+        size: cubeVertices.byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+    });
+    device.queue.writeBuffer(vertexBuffer, 0, cubeVertices);
+
+    uniformBuffer = device.createBuffer({
+        size: 64,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+
+    const shaderModule = device.createShaderModule({ code: shaderCode });
+
+    pipeline = device.createRenderPipeline({
+        layout: 'auto',
+        vertex: {
+            module: shaderModule,
+            entryPoint: 'vs_main',
+            buffers: [
+                {
+                    arrayStride: 24,
+                    attributes: [
+                        { shaderLocation: 0, offset: 0, format: 'float32x3' },
+                        { shaderLocation: 1, offset: 12, format: 'float32x3' }
+                    ]
+                },
+                {
+                    arrayStride: 32,
+                    stepMode: 'instance',
+                    attributes: [
+                        { shaderLocation: 2, offset: 0, format: 'float32x4' },
+                        { shaderLocation: 3, offset: 16, format: 'float32x4' }
+                    ]
+                }
+            ]
+        },
+        fragment: {
+            module: shaderModule,
+            entryPoint: 'fs_main',
+            targets: [{ format: canvasFormat }]
+        },
+        primitive: { topology: 'triangle-list', cullMode: 'back' },
+        depthStencil: {
+            depthWriteEnabled: true,
+            depthCompare: 'less',
+            format: 'depth24plus'
+        }
+    });
+
+    uniformBindGroup = device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }]
+    });
+}
+
+async function initVR() {
+    if (!navigator.xr) return;
+    const supported = await navigator.xr.isSessionSupported('immersive-vr');
+    if (!supported) return;
+
+    const btn = document.getElementById('vr-btn');
+    btn.disabled = false;
+    btn.onclick = onEnterVR;
+    setDebug('System Ready. 64-bit engine armed.');
+}
+
+async function onEnterVR() {
+    xrSession = await navigator.xr.requestSession('immersive-vr', {
+        requiredFeatures: ['local-floor'],
+        optionalFeatures: []
+    });
+
+    xrBinding = new XRGPUBinding(xrSession, device);
+    xrLayer = xrBinding.createProjectionLayer({
+        colorFormat: canvasFormat,
+        depthStencilFormat: 'depth24plus'
+    });
+    xrRefSpace = await xrSession.requestReferenceSpace('local-floor');
+    xrSession.updateRenderState({ layers: [xrLayer] });
+    xrSession.requestAnimationFrame(onXRFrame);
+}
+
+function onXRFrame(time, frame) {
+    const session = frame.session;
+    session.requestAnimationFrame(onXRFrame);
+
+    const pose = frame.getViewerPose(xrRefSpace);
+    if (!pose) return;
+
+    updateInstanceBuffer();
+
+    for (const view of pose.views) {
+        const subImage = xrBinding.getViewSubImage(xrLayer, view);
+        const rotationOnly = new Float32Array(view.transform.inverse.matrix);
+        rotationOnly[12] = 0; rotationOnly[13] = 0; rotationOnly[14] = 0;
+
+        const viewProj = mul4x4(view.projectionMatrix, rotationOnly);
+        renderView(viewProj, subImage.colorTexture.createView(subImage.viewDescriptor), subImage.viewport);
+    }
+}
+
+function updateInstanceBuffer() {
+    const needed = world.objects.length;
+    const byteLength = needed * 32;
+    if (needed > maxInstances) {
+        if (instanceBuffer) instanceBuffer.destroy();
+        instanceBuffer = device.createBuffer({
+            size: Math.max(byteLength, 1024),
+            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
+        });
+        maxInstances = needed;
+    }
+
+    const data = new Float32Array(needed * 8);
+    let i = 0;
+    for (const obj of world.objects) {
+        const rx = obj.x - world.camera.x;
+        const ry = obj.y - world.camera.y;
+        const rz = obj.z - world.camera.z;
+        data[i++] = rx; data[i++] = ry; data[i++] = rz; data[i++] = 1;
+        data[i++] = obj.color[0]; data[i++] = obj.color[1]; data[i++] = obj.color[2]; data[i++] = obj.color[3];
+    }
+    device.queue.writeBuffer(instanceBuffer, 0, data);
+}
+
+function renderView(viewProjMatrix, targetView, viewport) {
+    device.queue.writeBuffer(uniformBuffer, 0, viewProjMatrix);
+
+    const encoder = device.createCommandEncoder();
+    const depthView = getDepthView(viewport.width, viewport.height);
+
+    const pass = encoder.beginRenderPass({
+        colorAttachments: [{
+            view: targetView,
+            loadOp: 'clear',
+            storeOp: 'store',
+            clearValue: { r: 0.02, g: 0.02, b: 0.03, a: 1 }
+        }],
+        depthStencilAttachment: {
+            view: depthView,
+            depthClearValue: 1,
+            depthLoadOp: 'clear',
+            depthStoreOp: 'discard'
+        }
+    });
+
+    pass.setPipeline(pipeline);
+    pass.setViewport(viewport.x, viewport.y, viewport.width, viewport.height, 0, 1);
+    pass.setBindGroup(0, uniformBindGroup);
+    pass.setVertexBuffer(0, vertexBuffer);
+    pass.setVertexBuffer(1, instanceBuffer);
+    pass.draw(cubeVertices.length / 6, world.objects.length, 0, 0);
+    pass.end();
+
+    device.queue.submit([encoder.finish()]);
+}
+
+function desktopFrame(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.1);
+    lastTime = now;
+
+    if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+        resizeCanvas();
+        context.configure({ device, format: canvasFormat, alphaMode: 'premultiplied', usage: GPUTextureUsage.RENDER_ATTACHMENT });
+    }
+
+    stepCamera(dt);
+    updateInstanceBuffer();
+
+    const aspect = canvas.width / canvas.height;
+    const proj = perspective(Math.PI / 3, aspect, 0.05, 2000.0);
+    const view = viewFromYawPitch(world.camera.yaw, world.camera.pitch);
+    const viewProj = mul4x4(proj, view);
+
+    renderView(viewProj, context.getCurrentTexture().createView(), { x: 0, y: 0, width: canvas.width, height: canvas.height });
+
+    setDebug(`FPS ${(1 / dt).toFixed(1)}\nCamera ${world.camera.x.toFixed(1)}, ${world.camera.y.toFixed(1)}, ${world.camera.z.toFixed(1)}`);
+
+    if (!xrSession) requestAnimationFrame(desktopFrame);
+}
+
+function stepCamera(dt) {
+    const speed = world.moveSpeed * dt;
+    const yaw = world.camera.yaw;
+    const forward = { x: Math.sin(yaw), z: Math.cos(yaw) };
+    const right = { x: Math.cos(yaw), z: -Math.sin(yaw) };
+
+    if (keyState.has('KeyW')) {
+        world.camera.x += forward.x * speed;
+        world.camera.z -= forward.z * speed;
+    }
+    if (keyState.has('KeyS')) {
+        world.camera.x -= forward.x * speed;
+        world.camera.z += forward.z * speed;
+    }
+    if (keyState.has('KeyA')) {
+        world.camera.x -= right.x * speed;
+        world.camera.z += right.z * speed;
+    }
+    if (keyState.has('KeyD')) {
+        world.camera.x += right.x * speed;
+        world.camera.z -= right.z * speed;
+    }
+    if (keyState.has('Space')) world.camera.y += speed;
+    if (keyState.has('ShiftLeft') || keyState.has('ShiftRight')) world.camera.y -= speed;
+}
+
+function handleInput() {
+    window.addEventListener('keydown', (e) => keyState.add(e.code));
+    window.addEventListener('keyup', (e) => keyState.delete(e.code));
+
+    canvas.addEventListener('click', () => {
+        if (!pointerLocked) canvas.requestPointerLock();
+    });
+
+    document.addEventListener('pointerlockchange', () => {
+        pointerLocked = document.pointerLockElement === canvas;
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!pointerLocked) return;
+        const sensitivity = 0.0025;
+        world.camera.yaw += e.movementX * sensitivity;
+        world.camera.pitch += e.movementY * sensitivity;
+        world.camera.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, world.camera.pitch));
+    });
+}
+
+const shaderCode = /* wgsl */ `
+struct Uniforms {
+    viewProj : mat4x4<f32>,
+};
+@group(0) @binding(0) var<uniform> uniforms : Uniforms;
+
+struct VSOut {
+    @builtin(position) position : vec4<f32>,
+    @location(0) color : vec4<f32>,
+};
+
+@vertex
+fn vs_main(
+    @location(0) position : vec3<f32>,
+    @location(1) normal : vec3<f32>,
+    @location(2) instancePos : vec4<f32>,
+    @location(3) instanceColor : vec4<f32>
+) -> VSOut {
+    var out : VSOut;
+    let worldPos = vec4<f32>(position + instancePos.xyz, 1.0);
+    out.position = uniforms.viewProj * worldPos;
+
+    let lightDir = normalize(vec3<f32>(-0.45, -1.0, 0.35));
+    let n = normalize(normal);
+    let diffuse = max(dot(n, -lightDir), 0.0);
+    let ambient = 0.12;
+    let lit = ambient + diffuse * 0.9;
+    out.color = vec4<f32>(instanceColor.rgb * lit, instanceColor.a);
+    return out;
+}
+
+@fragment
+fn fs_main(@location(0) color : vec4<f32>) -> @location(0) vec4<f32> {
+    return color;
+}
+`;
+
+function perspective(fov, aspect, near, far) {
+    const f = 1.0 / Math.tan(fov / 2);
+    const nf = 1 / (near - far);
+    return new Float32Array([
+        f / aspect, 0, 0, 0,
+        0, f, 0, 0,
+        0, 0, (far + near) * nf, -1,
+        0, 0, (2 * far * near) * nf, 0
+    ]);
+}
+
+function viewFromYawPitch(yaw, pitch) {
+    const cy = Math.cos(-yaw); const sy = Math.sin(-yaw);
+    const cp = Math.cos(-pitch); const sp = Math.sin(-pitch);
+    return new Float32Array([
+        cy,  sp * sy,  sy * cp, 0,
+         0,       cp,      -sp, 0,
+       -sy,  sp * cy,  cy * cp, 0,
+         0,        0,        0, 1
+    ]);
+}
+
+function mul4x4(a, b) {
+    const out = new Float32Array(16);
+    for (let i = 0; i < 4; i++) {
+        for (let j = 0; j < 4; j++) {
+            out[i * 4 + j] =
+                a[i * 4 + 0] * b[0 * 4 + j] +
+                a[i * 4 + 1] * b[1 * 4 + j] +
+                a[i * 4 + 2] * b[2 * 4 + j] +
+                a[i * 4 + 3] * b[3 * 4 + j];
+        }
+    }
+    return out;
+}
+
+function getDepthView(w, h) {
+    const key = `${w}x${h}`;
+    const cached = depthCache.get(key);
+    if (cached) return cached.view;
+
+    const texture = device.createTexture({
+        size: [w, h],
+        format: 'depth24plus',
+        usage: GPUTextureUsage.RENDER_ATTACHMENT
+    });
+    const view = texture.createView();
+    depthCache.set(key, { texture, view });
+    return view;
+}
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+
+function setDebug(text) {
+    document.getElementById('debug').innerText = text;
+}
+
+(async () => {
+    await initGraphics();
+    handleInput();
+    await initVR();
+    requestAnimationFrame(desktopFrame);
+})();
+</script>
+</body>
+</html>
