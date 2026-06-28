@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebGPU Neuromorphic SNN Demo (Embodied Control)</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #0b0e14; color: #e6e6e6; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    #wrap { display: grid; grid-template-columns: 1fr 360px; gap: 12px; height: 100%; padding: 12px; box-sizing: border-box; }
+    canvas { width: 100%; height: 100%; background: #070a10; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+    #panel { border-radius: 14px; padding: 12px; background: rgba(255,255,255,.04); box-shadow: 0 10px 30px rgba(0,0,0,.35); overflow: auto; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0; }
+    .row label { font-size: 13px; opacity: .9; }
+    input[type="range"] { width: 170px; }
+    button { cursor: pointer; border: 0; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,.10); color: #e6e6e6; }
+    button:hover { background: rgba(255,255,255,.16); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; opacity: .9; }
+    .hint { font-size: 12px; line-height: 1.35; opacity: .85; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.10); font-size: 12px; }
+    .kpi { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .kpi > div { padding: 10px; border-radius: 12px; background: rgba(255,255,255,.06); }
+    .kpi .v { font-size: 16px; font-weight: 650; }
+    .kpi .k { font-size: 11px; opacity: .8; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="c"></canvas>
+    <div id="panel">
+      <div class="row">
+        <div>
+          <div style="font-weight:700">Neuromorphic SNN • Embodied control</div>
+          <div class="mono">WebGPU compute + spiking LIF neurons + reward-modulated Hebbian update</div>
+        </div>
+        <span class="pill" id="gpuBadge">WebGPU</span>
+      </div>
+
+      <div class="hint">
+        <b>What this is:</b> A small spiking neural network (C. elegans-inspired: sensory → interneuron → motor) learns to move a 2D “agent” toward a target.
+        The entire SNN state update runs on the GPU. Learning is a minimal, local, biologically-plausible rule:
+        <span class="mono">Δw ∝ reward · eligibility</span>, with eligibility built locally from spikes.
+        <br><br>
+        <b>Not handholding:</b> no PID, no symbolic state. Sensors are spikes. Motors are spikes.
+      </div>
+
+      <div class="row">
+        <label>Steps per frame</label>
+        <input id="steps" type="range" min="1" max="64" value="16" />
+        <span class="mono" id="stepsV">16</span>
+      </div>
+
+      <div class="row">
+        <label>Learning rate</label>
+        <input id="lr" type="range" min="0" max="100" value="12" />
+        <span class="mono" id="lrV">0.012</span>
+      </div>
+
+      <div class="row">
+        <label>Noise</label>
+        <input id="noise" type="range" min="0" max="100" value="8" />
+        <span class="mono" id="noiseV">0.08</span>
+      </div>
+
+      <div class="row">
+        <label>Eligibility τ (steps)</label>
+        <input id="tauE" type="range" min="1" max="200" value="40" />
+        <span class="mono" id="tauEV">40</span>
+      </div>
+
+      <div class="row">
+        <label>Weight decay</label>
+        <input id="wDecay" type="range" min="0" max="50" value="2" />
+        <span class="mono" id="wDecayV">0.002</span>
+      </div>
+
+      <div class="row">
+        <label>Reward scale</label>
+        <input id="rewScale" type="range" min="50" max="600" value="300" />
+        <span class="mono" id="rewScaleV">3.00</span>
+      </div>
+
+      <div class="row">
+        <label>Enable learning</label>
+        <input id="learn" type="checkbox" checked />
+      </div>
+
+      <div class="row">
+        <button id="reset">Reset</button>
+        <button id="newTarget">New target</button>
+      </div>
+
+      <div class="kpi">
+        <div><div class="v" id="dist">–</div><div class="k">distance to target</div></div>
+        <div><div class="v" id="rew">–</div><div class="k">reward (Δ distance)</div></div>
+        <div><div class="v" id="mL">–</div><div class="k">motor spikes (left)</div></div>
+        <div><div class="v" id="mR">–</div><div class="k">motor spikes (right)</div></div>
+        <div><div class="v" id="mU">–</div><div class="k">motor spikes (up)</div></div>
+        <div><div class="v" id="mD">–</div><div class="k">motor spikes (down)</div></div>
+      </div>
+
+      <hr style="border:0;border-top:1px solid rgba(255,255,255,.10); margin: 14px 0;" />
+      <div class="hint">
+        <b>Share-worthy angle:</b> this is a minimal “nervous system” loop that learns via local synaptic updates + a scalar reward.
+        It’s the same design pattern you’d scale toward a “bee NN”: event-based sensors (optic flow), recurrent interneurons, motor spike outputs.
+        <br><br>
+        <b>Tip:</b> In Chrome/Edge enable WebGPU in flags if needed.
+      </div>
+
+      <div class="mono" id="status" style="margin-top:10px; white-space:pre-wrap"></div>
+    </div>
+  </div>
+
+<script type="module">
+  // KISS philosophy:
+  // - One HTML file.
+  // - One compute pipeline does: sensor spikes -> LIF update -> motor spikes -> env step -> (optional) learning.
+  // - Rendering is plain 2D canvas.
+
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const statusEl = document.getElementById('status');
+  const gpuBadge = document.getElementById('gpuBadge');
+
+  function resize() {
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    canvas.width = Math.floor(canvas.clientWidth * dpr);
+    canvas.height = Math.floor(canvas.clientHeight * dpr);
+    ctx.setTransform(1,0,0,1,0,0);
+  }
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+
+  // UI
+  const steps = document.getElementById('steps');
+  const lr = document.getElementById('lr');
+  const noise = document.getElementById('noise');
+  const tauE = document.getElementById('tauE');
+  const wDecay = document.getElementById('wDecay');
+  const rewScale = document.getElementById('rewScale');
+  const learn = document.getElementById('learn');
+  const resetBtn = document.getElementById('reset');
+  const newTargetBtn = document.getElementById('newTarget');
+
+  const stepsV = document.getElementById('stepsV');
+  const lrV = document.getElementById('lrV');
+  const noiseV = document.getElementById('noiseV');
+  const tauEV = document.getElementById('tauEV');
+  const wDecayV = document.getElementById('wDecayV');
+  const rewScaleV = document.getElementById('rewScaleV');
+  const distEl = document.getElementById('dist');
+  const rewEl = document.getElementById('rew');
+  const mLEl = document.getElementById('mL');
+  const mREl = document.getElementById('mR');
+  const mUEl = document.getElementById('mU');
+  const mDEl = document.getElementById('mD');
+
+  const clamp01 = (x)=>Math.max(0, Math.min(1, x));
+  const fmt = (x)=> (Math.round(x*1000)/1000).toFixed(3);
+
+  function updateUIReadouts(sim) {
+    stepsV.textContent = steps.value;
+    lrV.textContent = (Number(lr.value)/1000).toFixed(3);
+    noiseV.textContent = (Number(noise.value)/100).toFixed(2);
+    tauEV.textContent = tauE.value;
+    wDecayV.textContent = (Number(wDecay.value) / 1000).toFixed(3);
+    rewScaleV.textContent = (Number(rewScale.value) / 100).toFixed(2);
+    distEl.textContent = fmt(Math.hypot(sim.agentX - sim.targetX, sim.agentY - sim.targetY));
+    rewEl.textContent = fmt(sim.reward);
+    mLEl.textContent = String(sim.motorL);
+    mREl.textContent = String(sim.motorR);
+    mUEl.textContent = String(sim.motorU);
+    mDEl.textContent = String(sim.motorD);
+  }
+
+  // ---------- WebGPU setup ----------
+  if (!('gpu' in navigator)) {
+    gpuBadge.textContent = 'No WebGPU';
+    statusEl.textContent = 'WebGPU not available in this browser.';
+    throw new Error('WebGPU not available');
+  }
+
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) throw new Error('No GPU adapter');
+  const device = await adapter.requestDevice();
+  const queue = device.queue;
+
+  const supportsTimestamp = adapter.features?.has?.('timestamp-query') || false;
+  gpuBadge.textContent = 'WebGPU ✓';
+
+  // ---------- Model: small spiking nervous system ----------
+  // Neuron layout (very simple but meaningful):
+  //  - 4 sensory neurons: Left/Right/Up/Down (spike more if target is in that direction)
+  //  - N interneurons: recurrent pool
+  //  - 4 motor neurons: Left/Right/Up/Down (spikes push the agent)
+  // Total neurons = 4 + N + 4
+
+  const N_INTER = 192;                 // interneuron pool size
+  const N_SENS = 4;
+  const N_MOTOR = 4;
+  const N = N_SENS + N_INTER + N_MOTOR;
+  const S_LEFT = 0;
+  const S_RIGHT = 1;
+  const S_UP = 2;
+  const S_DOWN = 3;
+  const M_LEFT = N-4;
+  const M_RIGHT = N-3;
+  const M_UP = N-2;
+  const M_DOWN = N-1;
+
+  // Sparse connectivity: each neuron has K fixed presynaptic inputs.
+  // weights are float32.
+  const K = 16;                        // fan-in per neuron
+
+  // Storage buffers
+  // Neuron state: v (membrane), ref (refractory timer), spike (u32 0/1)
+  // Env state: agentX, agentY, targetX, targetY, prevDist, reward, motor spikes, time
+
+  const bytesF32 = 4, bytesU32 = 4;
+
+  const bufV = device.createBuffer({ size: N * bytesF32, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+  const bufRef = device.createBuffer({ size: N * bytesF32, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+  const bufSpike = device.createBuffer({ size: N * bytesU32, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
+  const bufSpikePrev = device.createBuffer({ size: N * bytesU32, usage: GPUBufferUsage.STORAGE });
+
+  // Connectivity
+  const bufIdx = device.createBuffer({ size: N * K * bytesU32, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+  const bufW = device.createBuffer({ size: N * K * bytesF32, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+
+  // Eligibility trace buffer for gradual learning (one float per synapse)
+  const bufE = device.createBuffer({ size: N * K * bytesF32, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
+
+  // Simulation parameters
+  const bufParams = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
+  // Environment state buffer (struct aligned to 16 bytes)
+  const ENV_BYTES = 64;
+  const bufEnv = device.createBuffer({ size: ENV_BYTES, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST });
+
+  // Readback buffer for env + motor spikes (small)
+  const readback = device.createBuffer({ size: ENV_BYTES + 16, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+
+  // Init random sparse connectivity:
+  // - Sensory -> interneurons (excitatory)
+  // - Interneurons -> motors (excitatory)
+  // - Interneurons recurrent (mixed)
+  // - Small inhibition via negative weights to prevent runaway
+
+  function randInt(a,b){ return a + Math.floor(Math.random()*(b-a+1)); }
+  function randFloat(a,b){ return a + Math.random()*(b-a); }
+
+  const idx = new Uint32Array(N*K);
+  const w = new Float32Array(N*K);
+
+  function setConn(n, k, pre, weight) {
+    idx[n*K + k] = pre >>> 0;
+    w[n*K + k] = weight;
+  }
+
+  for (let n=0; n<N; n++) {
+    for (let k=0; k<K; k++) {
+      // default: random interneuron inputs
+      let pre;
+      if (n === S_LEFT || n === S_RIGHT || n === S_UP || n === S_DOWN) {
+        // sensory neurons: weak recurrent drive + noise (they'll be clamped by sensor logic anyway)
+        pre = randInt(N_SENS, N - N_MOTOR - 1);
+        setConn(n,k, pre, randFloat(-0.05, 0.05));
+      } else if (n === M_LEFT || n === M_RIGHT || n === M_UP || n === M_DOWN) {
+        // motors: take mostly from interneurons
+        pre = randInt(N_SENS, N - N_MOTOR - 1);
+        setConn(n,k, pre, randFloat(0.00, 0.18));
+      } else {
+        // interneurons: mix sensory + interneuron recurrence
+        const r = Math.random();
+        if (r < 0.33) {
+          const s = Math.floor(Math.random() * N_SENS);
+          pre = s;
+        } else {
+          pre = randInt(N_SENS, N - N_MOTOR - 1);
+        }
+        const base = randFloat(-0.10, 0.16);
+        setConn(n,k, pre, base);
+      }
+    }
+  }
+
+  // Slightly bias pathways so it can learn faster (still needs learning):
+  // Seed a few stronger weights from matching-direction sensors into each motor.
+  for (let k=0; k<3; k++) {
+    setConn(M_LEFT, k, S_LEFT, randFloat(0.10, 0.20));
+    setConn(M_RIGHT, k, S_RIGHT, randFloat(0.10, 0.20));
+    setConn(M_UP, k, S_UP, randFloat(0.10, 0.20));
+    setConn(M_DOWN, k, S_DOWN, randFloat(0.10, 0.20));
+  }
+
+  queue.writeBuffer(bufIdx, 0, idx);
+  queue.writeBuffer(bufW, 0, w);
+
+  // Reset function
+  const zeroF = new Float32Array(N);
+  const zeroU = new Uint32Array(N);
+  const zeroE = new Float32Array(N * K);
+
+  function resetSimState(targetX = Math.random(), targetY = Math.random()) {
+    queue.writeBuffer(bufV, 0, zeroF);
+    queue.writeBuffer(bufRef, 0, zeroF);
+    queue.writeBuffer(bufSpike, 0, zeroU);
+    queue.writeBuffer(bufSpikePrev, 0, zeroU);
+    queue.writeBuffer(bufE, 0, zeroE);
+
+    // env struct (16 floats):
+    // agentX, agentY, targetX, targetY, prevDist, reward,
+    // motorL, motorR, motorU, motorD, t, pad...
+    const env = new Float32Array(16);
+    env[0] = 0.5; // agentX
+    env[1] = 0.5; // agentY
+    env[2] = clamp01(targetX);
+    env[3] = clamp01(targetY);
+    env[4] = Math.hypot(env[0]-env[2], env[1]-env[3]);
+    env[5] = 0.0; // reward
+    env[6] = 0.0; // motorL
+    env[7] = 0.0; // motorR
+    env[8] = 0.0; // motorU
+    env[9] = 0.0; // motorD
+    env[10] = 0.0; // time
+    queue.writeBuffer(bufEnv, 0, env);
+  }
+
+  resetSimState();
+
+  // ---------- Compute shader ----------
+  // Single pass per step:
+  // - Read env, compute sensory spike probabilities from sign(error)
+  // - Update LIF for all neurons using spikes from previous step
+  // - Emit spikes to bufSpike
+  // - Update env using motor spikes
+  // - Optional reward-modulated Hebbian update of weights into motor neurons
+
+  const wgsl = `
+struct Params {
+  dt: f32,
+  vLeak: f32,
+  vThresh: f32,
+  vReset: f32,
+  tauMem: f32,
+  tauRef: f32,
+  sensorGain: f32,
+  noise: f32,
+  lr: f32,
+  tauE: f32,
+  wDecay: f32,
+  rewScale: f32,
+  learnOn: u32,
+  seed: u32,
+  _pad0: u32,
+  _pad1: u32,
+};
+
+struct Env {
+  agentX: f32,
+  agentY: f32,
+  targetX: f32,
+  targetY: f32,
+  prevDist: f32,
+  reward: f32,
+  motorL: f32,
+  motorR: f32,
+  motorU: f32,
+  motorD: f32,
+  t: f32,
+  _pad0: f32,
+  _pad1: f32,
+  _pad2: f32,
+  _pad3: f32,
+  _pad4: f32,
+};
+
+@group(0) @binding(0) var<storage, read_write> v: array<f32>;
+@group(0) @binding(1) var<storage, read_write> refT: array<f32>;
+@group(0) @binding(2) var<storage, read_write> spike: array<u32>;
+@group(0) @binding(3) var<storage, read_write> spikePrev: array<u32>;
+@group(0) @binding(4) var<storage, read> idx: array<u32>;
+@group(0) @binding(5) var<storage, read_write> w: array<f32>;
+@group(0) @binding(6) var<uniform> p: Params;
+@group(0) @binding(7) var<storage, read_write> e: array<f32>;
+@group(0) @binding(8) var<storage, read_write> env: Env;
+
+fn xorshift32(x: u32) -> u32 {
+  var s = x;
+  s ^= (s << 13u);
+  s ^= (s >> 17u);
+  s ^= (s << 5u);
+  return s;
+}
+
+fn rand01(seed: u32) -> f32 {
+  let r = xorshift32(seed);
+  // 24-bit mantissa-ish
+  return f32(r & 0x00FFFFFFu) / f32(0x01000000u);
+}
+
+// cheap approx exp decay: v += (-(v - leak) + I) * (dt/tau)
+// This is intentionally simple and stable for small dt.
+
+@compute @workgroup_size(128)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let n = gid.x;
+  if (n >= ${N}u) { return; }
+
+  // Copy current spikes to spikePrev at the start of the step (per-neuron)
+  // so everybody reads a consistent previous-step spike buffer.
+  spikePrev[n] = spike[n];
+
+  // --- Sensory neurons are clamped by environment (spike probability based on target direction) ---
+  // We do it inside the same kernel to avoid extra passes.
+  // Sensory neurons:
+  // 0 = left, 1 = right, 2 = up, 3 = down
+  // Direction is computed from (target - agent).
+
+  var localSeed = (p.seed + 1664525u * (n + 1u)) ^ u32(env.t * 1000.0);
+  let r = rand01(localSeed);
+
+  if (n < ${N_SENS}u) {
+    let dx = env.targetX - env.agentX;
+    let dy = env.targetY - env.agentY;
+
+    let magX = clamp(abs(dx) * p.sensorGain, 0.0, 1.0);
+    let magY = clamp(abs(dy) * p.sensorGain, 0.0, 1.0);
+
+    // NOTE: env Y increases downward (same convention as canvas)
+    // Up means dy < 0, Down means dy > 0.
+    let pLeft = select(magX * 0.15, magX, dx < 0.0);
+    let pRight = select(magX, magX * 0.15, dx < 0.0);
+    let pUp = select(magY * 0.15, magY, dy < 0.0);
+    let pDown = select(magY, magY * 0.15, dy < 0.0);
+
+    let fire = select(
+      0u,
+      1u,
+      (n == ${S_LEFT}u && r < pLeft) ||
+      (n == ${S_RIGHT}u && r < pRight) ||
+      (n == ${S_UP}u && r < pUp) ||
+      (n == ${S_DOWN}u && r < pDown)
+    );
+    spike[n] = fire;
+    v[n] = select(v[n], p.vReset, fire == 1u);
+    refT[n] = select(refT[n], p.tauRef, fire == 1u);
+    return;
+  }
+
+  // --- LIF neuron update ---
+  var rt = refT[n];
+  if (rt > 0.0) {
+    rt = max(0.0, rt - p.dt);
+    refT[n] = rt;
+    spike[n] = 0u;
+    // tiny noise during refractory to avoid dead networks
+    v[n] = v[n] + (rand01(localSeed ^ 0xA3C59AC3u) - 0.5) * p.noise * 0.02;
+    return;
+  }
+
+  // Input current from presynaptic spikes (sparse fan-in)
+  var I: f32 = 0.0;
+  let base = n * ${K}u;
+  for (var k: u32 = 0u; k < ${K}u; k = k + 1u) {
+    let pre = idx[base + k];
+    let s = f32(spikePrev[pre] & 1u);
+    I = I + w[base + k] * s;
+  }
+
+  // Add small noise current
+  let noiseI = (rand01(localSeed ^ 0xC0FFEEu) - 0.5) * p.noise;
+  I = I + noiseI;
+
+  // Euler update toward leak
+  let dv = (-(v[n] - p.vLeak) + I) * (p.dt / p.tauMem);
+  var vn = v[n] + dv;
+
+  // Spike?
+  let fired = vn >= p.vThresh;
+  spike[n] = select(0u, 1u, fired);
+  if (fired) {
+    vn = p.vReset;
+    refT[n] = p.tauRef;
+  }
+  v[n] = vn;
+
+  // --- More gradual local learning (reward-modulated eligibility trace), motor neurons only ---
+  // e_ij <- e_ij * exp(-dt/tauE) + pre_spike * post_spike
+  // Δw_ij = lr * reward * e_ij  (reward is 1-step delayed by design)
+  // Optional small weight decay for stability.
+
+  if (p.learnOn == 1u && (
+    n == ${M_LEFT}u || n == ${M_RIGHT}u || n == ${M_UP}u || n == ${M_DOWN}u
+  )) {
+    let post = f32(spike[n] & 1u);
+    let R = env.reward; // scalar neuromodulator (previous step)
+
+    // decay eligibility even if post doesn't spike (keeps traces well-behaved)
+    let tau = max(p.tauE, 1.0);
+    let eDecay = exp(-p.dt / tau);
+
+    for (var k2: u32 = 0u; k2 < ${K}u; k2 = k2 + 1u) {
+      let pre2 = idx[base + k2];
+      let preS = f32(spikePrev[pre2] & 1u);
+      let eOld = e[base + k2];
+      let eNew = eOld * eDecay + (preS * post);
+      e[base + k2] = eNew;
+
+      // Apply learning only when reward is present (prevents drift)
+      if (abs(R) > 0.0001) {
+        let dw = p.lr * R * eNew;
+        let dec = max(0.0, 1.0 - p.wDecay);
+        let newW = clamp(w[base + k2] * dec + dw, -0.25, 0.35);
+        w[base + k2] = newW;
+      }
+    }
+  }
+}
+
+// Environment update (separate kernel so all motor spikes are written before acting)
+@compute @workgroup_size(1)
+fn env_step() {
+  // Count motor spikes in this step (single thread)
+  let sL = f32(spike[${M_LEFT}u] & 1u);
+  let sR = f32(spike[${M_RIGHT}u] & 1u);
+  let sU = f32(spike[${M_UP}u] & 1u);
+  let sD = f32(spike[${M_DOWN}u] & 1u);
+
+  // Integrate as small velocity impulses
+  let vx = (sR - sL) * 0.012;
+  let vy = (sD - sU) * 0.012;
+
+  let x0 = env.agentX;
+  let y0 = env.agentY;
+  let x1 = clamp(x0 + vx, 0.0, 1.0);
+  let y1 = clamp(y0 + vy, 0.0, 1.0);
+
+  let d0 = env.prevDist;
+  let d1 = distance(vec2<f32>(x1, y1), vec2<f32>(env.targetX, env.targetY));
+
+  // Reward = improvement in distance (positive if got closer)
+  let R = clamp((d0 - d1) * p.rewScale, -1.0, 1.0);
+
+  env.agentX = x1;
+  env.agentY = y1;
+  env.prevDist = d1;
+  env.reward = R;
+  env.motorL = sL;
+  env.motorR = sR;
+  env.motorU = sU;
+  env.motorD = sD;
+  env.t = env.t + 1.0;
+}
+`;
+
+  const module = device.createShaderModule({ code: wgsl });
+
+  const pipelineNeuron = device.createComputePipeline({
+    layout: 'auto',
+    compute: { module, entryPoint: 'main' }
+  });
+
+  const pipelineEnv = device.createComputePipeline({
+    layout: 'auto',
+    compute: { module, entryPoint: 'env_step' }
+  });
+
+  const bindGroup = device.createBindGroup({
+    layout: pipelineNeuron.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: { buffer: bufV } },
+      { binding: 1, resource: { buffer: bufRef } },
+      { binding: 2, resource: { buffer: bufSpike } },
+      { binding: 3, resource: { buffer: bufSpikePrev } },
+      { binding: 4, resource: { buffer: bufIdx } },
+      { binding: 5, resource: { buffer: bufW } },
+      { binding: 6, resource: { buffer: bufParams } },
+      { binding: 7, resource: { buffer: bufE } },
+      { binding: 8, resource: { buffer: bufEnv } },
+    ]
+  });
+
+  // Shared bindgroup for env pipeline too (same layout)
+  const bindGroupEnv = device.createBindGroup({
+    layout: pipelineEnv.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: { buffer: bufV } },
+      { binding: 1, resource: { buffer: bufRef } },
+      { binding: 2, resource: { buffer: bufSpike } },
+      { binding: 3, resource: { buffer: bufSpikePrev } },
+      { binding: 4, resource: { buffer: bufIdx } },
+      { binding: 5, resource: { buffer: bufW } },
+      { binding: 6, resource: { buffer: bufParams } },
+      { binding: 7, resource: { buffer: bufE } },
+      { binding: 8, resource: { buffer: bufEnv } },
+    ]
+  });
+
+  // Params pack (must match Params struct alignment)
+  function writeParams() {
+    const dt = 1.0;
+    const vLeak = 0.0;
+    const vThresh = 1.0;
+    const vReset = 0.0;
+    const tauMem = 18.0;
+    const tauRef = 3.0;
+    const sensorGain = 2.8;
+    const noiseVal = Number(noise.value) / 100;
+    const lrVal = Number(lr.value) / 1000;
+    const tauEVal = Number(tauE.value);
+    const wDecayVal = Number(wDecay.value) / 1000;
+    const rewScaleVal = Number(rewScale.value) / 100;
+    const learnOn = learn.checked ? 1 : 0;
+
+    const u = new ArrayBuffer(64);
+    const f = new Float32Array(u);
+    const u32 = new Uint32Array(u);
+
+    f[0] = dt;
+    f[1] = vLeak;
+    f[2] = vThresh;
+    f[3] = vReset;
+    f[4] = tauMem;
+    f[5] = tauRef;
+    f[6] = sensorGain;
+    f[7] = noiseVal;
+    f[8] = lrVal;
+    f[9] = tauEVal;
+    f[10] = wDecayVal;
+    f[11] = rewScaleVal;
+    u32[12] = learnOn;
+    u32[13] = (Math.random() * 0xFFFFFFFF) >>> 0;
+
+    queue.writeBuffer(bufParams, 0, u);
+  }
+
+  // UI bindings
+  steps.addEventListener('input', () => updateUIReadouts(simRead));
+  lr.addEventListener('input', () => updateUIReadouts(simRead));
+  noise.addEventListener('input', () => updateUIReadouts(simRead));
+  tauE.addEventListener('input', () => updateUIReadouts(simRead));
+  wDecay.addEventListener('input', () => updateUIReadouts(simRead));
+  rewScale.addEventListener('input', () => updateUIReadouts(simRead));
+  learn.addEventListener('change', () => updateUIReadouts(simRead));
+
+  resetBtn.addEventListener('click', () => resetSimState(Math.random(), Math.random()));
+  newTargetBtn.addEventListener('click', async () => {
+    // write env.targetX/Y only, keep agent
+    const tmp = await readEnv();
+    const env = new Float32Array(16);
+    env[0] = tmp.agentX;
+    env[1] = tmp.agentY;
+    env[2] = Math.random();
+    env[3] = Math.random();
+    env[4] = Math.hypot(env[0]-env[2], env[1]-env[3]);
+    env[5] = 0;
+    env[6] = 0;
+    env[7] = 0;
+    env[8] = 0;
+    env[9] = 0;
+    env[10] = tmp.t;
+    queue.writeBuffer(bufEnv, 0, env);
+  });
+
+  // Read env back (small) for UI and render
+  async function readEnv() {
+    const encoder = device.createCommandEncoder();
+    encoder.copyBufferToBuffer(bufEnv, 0, readback, 0, ENV_BYTES);
+    const cmd = encoder.finish();
+    queue.submit([cmd]);
+
+    await readback.mapAsync(GPUMapMode.READ);
+    const data = readback.getMappedRange(0, ENV_BYTES);
+    const f = new Float32Array(data.slice(0));
+    readback.unmap();
+
+    return {
+      agentX: f[0],
+      agentY: f[1],
+      targetX: f[2],
+      targetY: f[3],
+      prevDist: f[4],
+      reward: f[5],
+      motorL: f[6],
+      motorR: f[7],
+      motorU: f[8],
+      motorD: f[9],
+      t: f[10],
+    };
+  }
+
+  // Keep a CPU-side mirror for UI convenience
+  const simRead = { agentX: 0.5, agentY: 0.5, targetX: 0.5, targetY: 0.5, reward: 0, motorL: 0, motorR: 0, motorU: 0, motorD: 0 };
+
+  function draw(sim) {
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+
+    // Arena
+    const pad = Math.min(w,h) * 0.08;
+    const x0 = pad, y0 = pad;
+    const x1 = w - pad, y1 = h - pad;
+    const arenaW = x1 - x0;
+    const arenaH = y1 - y0;
+
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = Math.max(2, Math.min(6, w*0.004));
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+    ctx.strokeRect(x0, y0, arenaW, arenaH);
+
+    // Target
+    const tx = x0 + arenaW * sim.targetX;
+    const ty = y0 + arenaH * sim.targetY;
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath();
+    ctx.arc(tx, ty, Math.max(6, w*0.010), 0, Math.PI*2);
+    ctx.fill();
+
+    // Agent
+    const ax = x0 + arenaW * sim.agentX;
+    const ay = y0 + arenaH * sim.agentY;
+    ctx.fillStyle = 'rgba(255,255,255,0.90)';
+    ctx.beginPath();
+    ctx.arc(ax, ay, Math.max(7, w*0.012), 0, Math.PI*2);
+    ctx.fill();
+
+    // Reward indicator
+    const R = sim.reward;
+    ctx.fillStyle = R >= 0 ? 'rgba(120,255,170,0.18)' : 'rgba(255,120,120,0.18)';
+    ctx.fillRect(0, 0, w, Math.max(8, h*0.02));
+
+    // Mini legend
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.font = `${Math.max(12, w*0.018)}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+    ctx.fillText(`SNN neurons: ${N}  (sens=${N_SENS} inter=${N_INTER} motor=${N_MOTOR})  fan-in K=${K}`, pad, pad*0.8);
+    ctx.fillText(`agent=(${sim.agentX.toFixed(3)},${sim.agentY.toFixed(3)}) target=(${sim.targetX.toFixed(3)},${sim.targetY.toFixed(3)})  R=${sim.reward.toFixed(3)}`, pad, pad*0.8 + Math.max(16, w*0.020));
+  }
+
+  // One simulation step = (neuron update over N threads) then env update (1 thread)
+  function stepGPU(stepCount) {
+    writeParams();
+
+    const encoder = device.createCommandEncoder();
+    const pass = encoder.beginComputePass();
+
+    pass.setPipeline(pipelineNeuron);
+    pass.setBindGroup(0, bindGroup);
+    for (let i=0; i<stepCount; i++) {
+      // neuron update
+      pass.dispatchWorkgroups(Math.ceil(N/128));
+      // env update
+      pass.setPipeline(pipelineEnv);
+      pass.setBindGroup(0, bindGroupEnv);
+      pass.dispatchWorkgroups(1);
+      // restore neuron pipeline for next iteration
+      pass.setPipeline(pipelineNeuron);
+      pass.setBindGroup(0, bindGroup);
+    }
+
+    pass.end();
+    queue.submit([encoder.finish()]);
+  }
+
+  let lastUI = 0;
+  async function frame(t) {
+    const stepCount = Number(steps.value);
+    stepGPU(stepCount);
+
+    // UI/readback at ~20 Hz (keeps it responsive without stalling GPU every frame)
+    if (t - lastUI > 50) {
+      const e = await readEnv();
+      Object.assign(simRead, e);
+      updateUIReadouts(simRead);
+      lastUI = t;
+    }
+
+    draw(simRead);
+    requestAnimationFrame(frame);
+  }
+
+  statusEl.textContent = [
+    `Compute: LIF spiking network on GPU`,
+    `Learning: reward-modulated eligibility trace (motor synapses only)`,
+    `Sensors: 4-way probabilistic spikes from (target - agent)`,
+    `Motors: 4-way spikes push in 2D`,
+    `Notes: reward is 1-step delayed by design (neuromodulator)`
+  ].join('\n');
+
+  updateUIReadouts(simRead);
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>

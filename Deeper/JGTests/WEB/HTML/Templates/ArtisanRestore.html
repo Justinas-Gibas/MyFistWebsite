@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Artisan Restorations | Interior Specialist</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #d4af37; --light: #f4f4f4; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; line-height: 1.6; color: #333; overflow-x: hidden; width: 100%; }
+        header { background: #fff; padding: 1rem 5%; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        nav a { margin-left: 20px; text-decoration: none; color: var(--primary); font-weight: 600; }
+        .hero { height: 80vh; background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200') center/cover; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; text-align: center; }
+        .hero h1 { font-size: 3.5rem; margin-bottom: 10px; }
+        .hero p { font-size: 1.2rem; max-width: 600px; }
+        .container { padding: 4rem 5%; }
+        .gallery-item { max-width: 800px; margin: 2rem auto; position: relative; overflow: hidden; border-radius: 8px; }
+        .comparison-slider { position: relative; width: 100%; aspect-ratio: 16/9; }
+        .comparison-slider img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+        .img-after { z-index: 1; }
+        .img-before { z-index: 2; clip-path: inset(0 50% 0 0); }
+        .slider-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; -webkit-appearance: none; appearance: none; z-index: 3; cursor: col-resize; margin: 0; touch-action: pan-y; }
+        .slider-line { position: absolute; left: 50%; top: 0; bottom: 0; width: 4px; background: #fff; z-index: 2; pointer-events: none; }
+        footer { background: var(--primary); color: #fff; text-align: center; padding: 2rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo"><strong>ARTISAN</strong> RESTORE</div>
+        <nav><a href="#work">Our Work</a><a href="#contact">Contact</a></nav>
+    </header>
+
+    <section class="hero">
+        <h1>Reviving Elegance</h1>
+        <p>Specializing in high-end interior restoration, bringing history back to your living space with precision and care.</p>
+    </section>
+
+    <section id="work" class="container">
+        <h2 style="text-align:center">Transformations</h2>
+        <div class="gallery-item">
+            <div class="comparison-slider">
+                <!-- Replace with actual project images -->
+                <img class="img-after" src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200" alt="After Restoration">
+                <img class="img-before" src="https://images.unsplash.com/photo-1516455590571-18256e5bb9ff?auto=format&fit=crop&w=1200" alt="Before Restoration">
+                <div class="slider-line" id="line"></div>
+                <input type="range" min="0" max="100" value="50" class="slider-input" oninput="slide(this)">
+            </div>
+            <p style="text-align: center; margin-top: 1rem;">Historic Parlor - Wood & Plaster Restoration</p>
+        </div>
+    </section>
+
+    <footer id="contact">
+        <h3>Master Your Interiors</h3>
+        <p>Email: contact@artisanrestore.com | Tel: 123-456-789</p>
+    </footer>
+
+    <script>
+        function slide(slider) {
+            const container = slider.parentElement;
+            const beforeImg = container.querySelector('.img-before');
+            const line = container.querySelector('.slider-line');
+            beforeImg.style.clipPath = `inset(0 ${100 - slider.value}% 0 0)`;
+            line.style.left = `${slider.value}%`;
+        }
+    </script>
+</body>
+</html>

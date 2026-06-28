@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VR-OS Spatial Component Kernel</title>
+    <script src="https://unpkg.com/wabt@1.0.32/index.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        #canvas-overlay {
+            position: absolute; top: 10px; left: 10px; color: #00ff41; pointer-events: none;
+            text-shadow: 0 0 5px #00ff41; z-index: 10;
+        }
+        #hidden-editor { 
+            position: absolute; 
+            left: -9999px; 
+            top: 0; 
+            width: 100px; 
+            height: 100px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-overlay">
+        <div style="font-size: 1.2rem; font-weight: bold;">VR-OS SPATIAL KERNEL v1.2.1</div>
+        <div id="status">SYS: INITIALIZING...</div>
+        <div id="file-indicator" style="color: #fff; margin-top: 5px;">ACTIVE: kernel.wat</div>
+    </div>
+
+    <textarea id="hidden-editor" spellcheck="false"></textarea>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const VFS = {
+            "kernel.wat": `(module
+  (import "env" "spawn" (func $spawn (param f32 f32 f32) (result i32)))
+  (import "env" "transform" (func $transform (param i32 f32 f32 f32)))
+  (import "env" "sin" (func $sin (param f32) (result f32)))
+  (global $id (mut i32) (i32.const -1))
+  (func (export "init")
+    (global.set $id (call $spawn (f32.const -3.0) (f32.const 1.0) (f32.const -2.0)))
+  )
+  (func (export "update") (param $time f32)
+    (call $transform (global.get $id)
+      (f32.add (f32.const -3.0) (call $sin (local.get $time)))
+      (f32.add (f32.const 1.0) (call $sin (f32.mul (local.get $time) (f32.const 2.0))))
+      (f32.const -2.0)
+    )
+  )
+)`,
+            "agent_b.wat": `(module
+  (import "env" "spawn" (func $spawn (param f32 f32 f32) (result i32)))
+  (import "env" "transform" (func $transform (param i32 f32 f32 f32)))
+  (import "env" "sin" (func $sin (param f32) (result f32)))
+  (global $id (mut i32) (i32.const -1))
+  (func (export "init")
+    (global.set $id (call $spawn (f32.const 3.0) (f32.const 1.0) (f32.const -2.0)))
+  )
+  (func (export "update") (param $time f32)
+    (call $transform (global.get $id) (f32.const 3.0) (f32.add (f32.const 1.0) (call $sin (local.get $time))) (f32.const -2.0))
+  )
+)`
+        };
+
+        class SpatialKernel {
+            constructor() {
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+                
+                this.entities = []; 
+                this.activeWasm = null;
+                this.currentFile = "kernel.wat";
+                
+                this.editorCanvas = document.createElement('canvas');
+                this.editorCanvas.width = 1024; this.editorCanvas.height = 1024;
+                this.editorCtx = this.editorCanvas.getContext('2d');
+                this.editorTexture = new THREE.CanvasTexture(this.editorCanvas);
+                this.editorPlane = null;
+                this.fileButtons = [];
+
+                this.init();
+            }
+
+            async init() {
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(this.renderer.domElement);
+                
+                this.scene.background = new THREE.Color(0x020202);
+                const grid = new THREE.GridHelper(50, 50, 0x00ff41, 0x111111);
+                this.scene.add(grid);
+
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                this.scene.add(ambientLight);
+                
+                // Use MeshStandardMaterial to support emissive feedback
+                this.editorPlane = new THREE.Mesh(
+                    new THREE.PlaneGeometry(5, 5),
+                    new THREE.MeshStandardMaterial({ 
+                        map: this.editorTexture, 
+                        side: THREE.DoubleSide,
+                        emissive: new THREE.Color(0x000000),
+                        emissiveIntensity: 1.0
+                    })
+                );
+                this.editorPlane.position.set(2.5, 2.5, -3);
+                this.scene.add(this.editorPlane);
+
+                this.vfsPlane = new THREE.Group();
+                this.vfsPlane.position.set(-3.5, 2.5, -3);
+                this.scene.add(this.vfsPlane);
+                this.buildVfsUI();
+
+                this.camera.position.set(0, 4, 8);
+                this.camera.lookAt(0, 2, -3);
+
+                document.getElementById('hidden-editor').value = VFS[this.currentFile];
+                
+                await this.bootKernel();
+                this.setupInteraction();
+                this.animate();
+            }
+
+            buildVfsUI() {
+                this.fileButtons.forEach(b => this.vfsPlane.remove(b));
+                this.fileButtons = [];
+                Object.keys(VFS).forEach((name, i) => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 512; canvas.height = 128;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#001100'; ctx.fillRect(0,0,512,128);
+                    ctx.strokeStyle = '#00ff41'; ctx.lineWidth = 4; ctx.strokeRect(5,5,502,118);
+                    ctx.fillStyle = '#00ff41'; ctx.font = 'bold 40px monospace';
+                    ctx.fillText(name, 40, 75);
+                    
+                    const tex = new THREE.CanvasTexture(canvas);
+                    const btn = new THREE.Mesh(
+                        new THREE.PlaneGeometry(2.5, 0.6), 
+                        new THREE.MeshStandardMaterial({
+                            map: tex,
+                            emissive: new THREE.Color(0x000000)
+                        })
+                    );
+                    btn.position.y = 1.5 - (i * 0.8);
+                    btn.userData = { filename: name };
+                    this.vfsPlane.add(btn);
+                    this.fileButtons.push(btn);
+                });
+            }
+
+            async bootKernel() {
+                try {
+                    this.entities.forEach(e => this.scene.remove(e));
+                    this.entities = [];
+                    const wat = document.getElementById('hidden-editor').value;
+                    const wabt = await window.WabtModule();
+                    const module = wabt.parseWat("kernel.wat", wat);
+                    const { buffer } = module.toBinary({});
+                    const result = await WebAssembly.instantiate(buffer, {
+                        env: {
+                            spawn: (x, y, z) => {
+                                const m = new THREE.Mesh(
+                                    new THREE.BoxGeometry(0.6, 0.6, 0.6), 
+                                    new THREE.MeshStandardMaterial({ color: 0x00ff41, wireframe: true, emissive: 0x00ff41, emissiveIntensity: 0.5 })
+                                );
+                                m.position.set(x, y, z); 
+                                this.scene.add(m); 
+                                return this.entities.push(m) - 1;
+                            },
+                            transform: (id, x, y, z) => { 
+                                if (this.entities[id]) {
+                                    this.entities[id].position.set(x, y, z);
+                                    this.entities[id].rotation.y += 0.01;
+                                } 
+                            },
+                            sin: (v) => Math.sin(v)
+                        }
+                    });
+                    this.activeWasm = result.instance.exports;
+                    if (this.activeWasm.init) this.activeWasm.init();
+                    document.getElementById('status').innerText = "SYS: KERNEL DEPLOYED";
+                    this.updateEditorTexture();
+                } catch (e) { 
+                    document.getElementById('status').innerText = "ERR: " + e.message; 
+                }
+            }
+
+            updateEditorTexture() {
+                const ctx = this.editorCtx;
+                const area = document.getElementById('hidden-editor');
+                const text = area.value;
+                
+                ctx.fillStyle = '#000800'; 
+                ctx.fillRect(0,0,1024,1024);
+                ctx.strokeStyle = '#00ff41'; 
+                ctx.lineWidth = 10;
+                ctx.strokeRect(5, 5, 1014, 1014);
+
+                ctx.fillStyle = '#002200';
+                ctx.fillRect(5, 5, 1014, 60);
+                ctx.fillStyle = '#00ff41';
+                ctx.font = 'bold 32px monospace';
+                ctx.fillText(`EDITOR // ${this.currentFile}`, 40, 45);
+                
+                ctx.font = '28px monospace';
+                const lines = text.split('\n');
+                lines.forEach((l, i) => {
+                    ctx.fillText(l, 40, 120 + (i * 35));
+                });
+
+                const cursorLine = text.substring(0, area.selectionStart).split('\n').length - 1;
+                const currentLineText = text.split('\n')[cursorLine] || "";
+                const charsBeforeInLine = area.selectionStart - text.split('\n').slice(0, cursorLine).join('\n').length - (cursorLine > 0 ? 1 : 0);
+                const cursorX = ctx.measureText(currentLineText.substring(0, charsBeforeInLine)).width + 40;
+
+                if (Math.floor(Date.now() / 500) % 2 === 0) {
+                    ctx.fillRect(cursorX, 95 + (cursorLine * 35), 20, 35);
+                }
+                
+                this.editorTexture.needsUpdate = true;
+            }
+
+            setupInteraction() {
+                window.addEventListener('mousemove', (e) => {
+                    this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                    this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                });
+
+                window.addEventListener('mousedown', () => {
+                    this.raycaster.setFromCamera(this.mouse, this.camera);
+                    
+                    const vfsHits = this.raycaster.intersectObjects(this.fileButtons);
+                    if (vfsHits.length > 0) {
+                        const file = vfsHits[0].object.userData.filename;
+                        VFS[this.currentFile] = document.getElementById('hidden-editor').value;
+                        this.currentFile = file;
+                        document.getElementById('hidden-editor').value = VFS[file];
+                        document.getElementById('file-indicator').innerText = "ACTIVE: " + file;
+                        this.bootKernel();
+                        return;
+                    }
+
+                    const editorHits = this.raycaster.intersectObject(this.editorPlane);
+                    if (editorHits.length > 0) {
+                        document.getElementById('hidden-editor').focus();
+                        document.getElementById('status').innerText = "SYS: FOCUS_EDITOR";
+                    }
+                });
+
+                document.getElementById('hidden-editor').addEventListener('input', () => this.updateEditorTexture());
+                document.getElementById('hidden-editor').addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && e.ctrlKey) {
+                        e.preventDefault();
+                        this.bootKernel();
+                    }
+                    setTimeout(() => this.updateEditorTexture(), 10);
+                });
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                if (this.activeWasm?.update) {
+                    this.activeWasm.update(Date.now() / 1000);
+                }
+                
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                
+                // Safe check for emissive property
+                if (this.editorPlane && this.editorPlane.material.emissive) {
+                    const hoverEditor = this.raycaster.intersectObject(this.editorPlane);
+                    this.editorPlane.material.emissive.setHex(hoverEditor.length > 0 ? 0x003300 : 0x000000);
+                }
+
+                this.fileButtons.forEach(btn => {
+                    if (btn.material.emissive) {
+                        const hoverBtn = this.raycaster.intersectObject(btn);
+                        btn.material.emissive.setHex(hoverBtn.length > 0 ? 0x002200 : 0x000000);
+                    }
+                });
+                
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        window.onload = () => new SpatialKernel();
+        window.addEventListener('resize', () => {
+            location.reload();
+        });
+    </script>
+</body>
+</html>
