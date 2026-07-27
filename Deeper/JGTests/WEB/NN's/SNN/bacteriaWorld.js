@@ -21,6 +21,8 @@ export class BacteriaWorld {
         this.bacteria = [];
         this.food = [];
         this.generation = 1;
+        this.elapsedTime = 0;
+        this.targetPopulation = Math.max(5, numBacteria || 20);
         this.BacteriaClass = null; // Store the Bacteria class reference
         
         // Evolution parameters
@@ -29,6 +31,7 @@ export class BacteriaWorld {
         this.energyCost = 0.2;        // Base energy cost per frame
         this.maxFood = 50;            // Maximum food items in world
         this.selectedBacteria = null; // Currently selected bacteria for inspection
+        this.hoveredBacteria = null;
         
         // Environmental zones
         this.toxicZones = [
@@ -57,6 +60,7 @@ export class BacteriaWorld {
     }
 
     update(deltaTime = 16.67) {
+        this.elapsedTime += deltaTime;
         const frameScale = Math.min(deltaTime, 50) / 16.67;
         // Spawn new food
         if (Math.random() < this.foodSpawnRate * frameScale && this.food.length < this.maxFood) {
@@ -73,6 +77,12 @@ export class BacteriaWorld {
 
         // Remove dead bacteria
         this.bacteria = this.bacteria.filter(b => b.energy > 0);
+        if (this.selectedBacteria && !this.bacteria.includes(this.selectedBacteria)) {
+            this.selectedBacteria = null;
+        }
+        if (this.hoveredBacteria && !this.bacteria.includes(this.hoveredBacteria)) {
+            this.hoveredBacteria = null;
+        }
 
         // If population is too low, start new generation from survivors
         if (this.bacteria.length < 5) {
@@ -82,51 +92,64 @@ export class BacteriaWorld {
     }
 
     draw(ctx) {
-        // Clear and draw background
-        ctx.clearRect(0, 0, this.width, this.height);
-        
+        ctx.fillStyle = '#061115';
+        ctx.fillRect(0, 0, this.width, this.height);
+
+        // Environmental fields sit behind agents so spatial context stays legible.
+        for (const zone of this.toxicZones) {
+            ctx.beginPath();
+            ctx.arc(zone.x, zone.y, zone.r, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(205, 75, 224, 0.13)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(205, 75, 224, 0.34)';
+            ctx.stroke();
+        }
+        for (const zone of this.tempZones) {
+            ctx.beginPath();
+            ctx.arc(zone.x, zone.y, zone.r, 0, Math.PI * 2);
+            ctx.fillStyle = zone.temp > this.optimalTemp
+                ? 'rgba(255, 126, 52, 0.11)'
+                : 'rgba(50, 145, 255, 0.11)';
+            ctx.fill();
+            ctx.strokeStyle = zone.temp > this.optimalTemp
+                ? 'rgba(255, 126, 52, 0.28)'
+                : 'rgba(50, 145, 255, 0.28)';
+            ctx.stroke();
+        }
+
         // Draw food
         for (const food of this.food) {
             food.draw(ctx);
+        }
+
+        if (this.selectedBacteria?.trail.length > 1) {
+            ctx.beginPath();
+            this.selectedBacteria.trail.forEach((point, index) => {
+                if (index === 0) ctx.moveTo(point.x, point.y);
+                else ctx.lineTo(point.x, point.y);
+            });
+            ctx.strokeStyle = 'rgba(184, 234, 101, 0.55)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.lineWidth = 1;
         }
 
         // Draw bacteria
         for (const b of this.bacteria) {
             b.draw(ctx, this);
         }
-        
-        // Draw toxic zones
-        for (const zone of this.toxicZones) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(zone.x, zone.y, zone.r, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(200,0,200,0.12)';
-            ctx.fill();
-            ctx.restore();
-        }
-        // Draw temperature zones
-        for (const zone of this.tempZones) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(zone.x, zone.y, zone.r, 0, Math.PI * 2);
-            ctx.fillStyle = zone.temp > this.optimalTemp ? 'rgba(255,120,0,0.10)' : 'rgba(0,120,255,0.10)';
-            ctx.fill();
-            ctx.restore();
-        }
-        // Draw generation info
-        ctx.fillStyle = 'black';
-        ctx.font = '14px Arial';
-        ctx.fillText(`Generation: ${this.generation}`, 10, 20);
 
-        // Draw species counts
-        this.updateSpeciesCounts();
-        let y = 40;
-        for (const [species, count] of Object.entries(this.speciesCounts)) {
-            ctx.fillStyle = species;
-            ctx.fillRect(10, y, 16, 16);
-            ctx.fillStyle = 'black';
-            ctx.fillText(`Species: ${species}  Count: ${count}`, 30, y + 13);
-            y += 20;
+        if (this.hoveredBacteria && this.hoveredBacteria !== this.selectedBacteria) {
+            ctx.beginPath();
+            ctx.arc(
+                this.hoveredBacteria.x,
+                this.hoveredBacteria.y,
+                this.hoveredBacteria.radius + 4,
+                0,
+                Math.PI * 2
+            );
+            ctx.strokeStyle = 'rgba(85, 217, 210, 0.8)';
+            ctx.stroke();
         }
     }
 
@@ -177,17 +200,20 @@ export class BacteriaWorld {
         
         // Create new population
         const newPopulation = [];
-        while (newPopulation.length < 20) {
+        while (newPopulation.length < this.targetPopulation) {
             const parent = survivors[Math.floor(Math.random() * survivors.length)];
             const child = new BacteriaConstructor(
                 Math.random() * this.width,
                 Math.random() * this.height,
                 parent ? parent.mutateGenome(this.mutationRate) : null
             );
+            child.parentId = parent?.id ?? null;
             newPopulation.push(child);
         }
         
         this.bacteria = newPopulation;
+        this.selectedBacteria = null;
+        this.hoveredBacteria = null;
         this.generation++;
     }
 }

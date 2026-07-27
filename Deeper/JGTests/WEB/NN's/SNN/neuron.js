@@ -38,6 +38,10 @@ export class Neuron {
         this.isFiring = false;
         /** @type {number} Time remaining (in ms) in the refractory period. */
         this.refractoryTime = 0;
+        /** @type {number} Lifetime number of emitted spikes. */
+        this.spikeCount = 0;
+        /** @type {?number} Brain-relative time of the most recent spike. */
+        this.lastSpikeTime = null;
         /** @type {Array<string>} Array of IDs of neurons this neuron connects to. */
         this.connections = []; 
 
@@ -109,6 +113,7 @@ export class Neuron {
      */
     fire() {
         this.isFiring = true;
+        this.spikeCount++;
         if (this.type === 'regular') {
             this.potential = 0; 
         }

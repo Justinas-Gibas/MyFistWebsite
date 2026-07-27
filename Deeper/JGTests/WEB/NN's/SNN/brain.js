@@ -48,6 +48,8 @@ export class Brain {
         this.activeSpikes = [];
         /** @type {number} Current fitness score of the brain, used for evolution. */
         this.fitness = 0;
+        /** @type {number} Simulated milliseconds elapsed for instrumentation. */
+        this.simulationTime = 0;
 
         this.initializeNeurons();
     }
@@ -166,6 +168,7 @@ export class Brain {
         this.isRunning = false;
         this.initializeNeurons(); // Re-initialize with default neurons
         this.fitness = 0;
+        this.simulationTime = 0;
     }
 
     /**
@@ -177,9 +180,11 @@ export class Brain {
     update(deltaTime) {
         if (!this.isRunning) return;
 
+        this.simulationTime += deltaTime;
         const newlyFiringNeurons = [];
         this.neurons.forEach(neuron => {
             if (neuron.update(deltaTime)) {
+                neuron.lastSpikeTime = this.simulationTime;
                 newlyFiringNeurons.push(neuron);
                 if (neuron.type === 'regular') this.fitness += 0.1; // Simple fitness increment
             }

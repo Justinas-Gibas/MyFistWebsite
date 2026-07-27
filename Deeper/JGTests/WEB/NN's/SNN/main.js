@@ -28,7 +28,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const numBacteriaInput = document.getElementById('numBacteria');
     const initBacteriaSimBtn = document.getElementById('initBacteriaSimBtn');
     const startBacteriaSimBtn = document.getElementById('startBacteriaSimBtn');
+    const stepBacteriaSimBtn = document.getElementById('stepBacteriaSimBtn');
     const resetBacteriaSimBtn = document.getElementById('resetBacteriaSimBtn');
+    const selectBestBtn = document.getElementById('selectBestBtn');
+    const selectPrevBtn = document.getElementById('selectPrevBtn');
+    const selectNextBtn = document.getElementById('selectNextBtn');
+    const exportExperimentBtn = document.getElementById('exportExperimentBtn');
 
     let bacteriaSim = new BacteriaSim(bacteriaCanvas, bacteriaStats);
 
@@ -202,7 +207,12 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function enableBacteriaControls(enabled) {
         startBacteriaSimBtn.disabled = !enabled;
+        stepBacteriaSimBtn.disabled = !enabled;
         resetBacteriaSimBtn.disabled = !enabled;
+        selectBestBtn.disabled = !enabled;
+        selectPrevBtn.disabled = !enabled;
+        selectNextBtn.disabled = !enabled;
+        exportExperimentBtn.disabled = !enabled;
     }
     enableBacteriaControls(false); // Initially disabled
 
@@ -215,7 +225,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const num = parseInt(numBacteriaInput.value, 10);
         bacteriaSim.initialize(num);
         enableBacteriaControls(true); // Ensure controls are enabled after init
-        startBacteriaSimBtn.textContent = 'Start';
+        startBacteriaSimBtn.textContent = 'Run';
+        bacteriaSim.selectBest();
         console.log(`Bacteria simulation initialized with ${num} bacterium.`);
     });
 
@@ -227,14 +238,22 @@ document.addEventListener('DOMContentLoaded', () => {
     startBacteriaSimBtn.addEventListener('click', () => {
         if (bacteriaSim.running) {
             bacteriaSim.stop();
-            startBacteriaSimBtn.textContent = 'Start';
+            startBacteriaSimBtn.textContent = 'Run';
+            stepBacteriaSimBtn.disabled = false;
             console.log("Bacteria simulation paused.");
         } else {
             bacteriaSim.start();
             startBacteriaSimBtn.textContent = 'Pause';
+            stepBacteriaSimBtn.disabled = true;
             console.log("Bacteria simulation started.");
         }
     });
+
+    stepBacteriaSimBtn.addEventListener('click', () => bacteriaSim.step());
+    selectBestBtn.addEventListener('click', () => bacteriaSim.selectBest());
+    selectPrevBtn.addEventListener('click', () => bacteriaSim.selectAdjacent(-1));
+    selectNextBtn.addEventListener('click', () => bacteriaSim.selectAdjacent(1));
+    exportExperimentBtn.addEventListener('click', () => bacteriaSim.exportSnapshot());
 
     /**
      * Event listener for the "Reset" button in Bacteria Simulation.
@@ -244,8 +263,16 @@ document.addEventListener('DOMContentLoaded', () => {
     resetBacteriaSimBtn.addEventListener('click', () => {
         const numBacteria = parseInt(numBacteriaInput.value, 10);
         bacteriaSim.reset(numBacteria);
-        startBacteriaSimBtn.textContent = 'Start';
+        startBacteriaSimBtn.textContent = 'Run';
+        stepBacteriaSimBtn.disabled = false;
+        bacteriaSim.selectBest();
         console.log("Bacteria simulation reset.");
+    });
+
+    document.addEventListener('keydown', event => {
+        if (!bacteriaSim.world || ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+        if (event.key === 'ArrowLeft') bacteriaSim.selectAdjacent(-1);
+        if (event.key === 'ArrowRight') bacteriaSim.selectAdjacent(1);
     });
 
     console.log("SNN Environment system initialized.");

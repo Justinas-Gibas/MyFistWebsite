@@ -14,6 +14,14 @@ export class Bacteria {
         this.age = 0;
         this.fitness = 0;
         this.heading = Math.random() * Math.PI * 2;
+        this.distanceTraveled = 0;
+        this.foodEaten = 0;
+        this.offspring = 0;
+        this.parentId = null;
+        this.trail = [{ x, y }];
+        this.lastTrailSampleAge = 0;
+        this.lastSensorValues = new Array(7).fill(0);
+        this.lastMotorCommand = { turn: 0, speed: 0 };
         this.color = `rgba(${this.genome.color.r},${this.genome.color.g},${this.genome.color.b},0.8)`;
         this.species = this.color; // Color as species key
         
@@ -89,6 +97,7 @@ export class Bacteria {
     update(world, deltaTime = 16.67) {
         try {
             const sensorValues = this.getSensorInputs(world);
+            this.lastSensorValues = sensorValues;
 
             // Encode continuous sensor values as spike rates. Higher values cause
             // input neurons to be active on more simulation steps.
@@ -100,12 +109,21 @@ export class Bacteria {
 
             // Get movement commands from brain outputs
             const [turn, speed] = this.getBrainOutputs();
+            this.lastMotorCommand = { turn, speed };
 
             // Move based on brain outputs
             const frameScale = Math.min(deltaTime, 50) / 16.67;
+            const previousX = this.x;
+            const previousY = this.y;
             this.heading += turn * 0.25 * frameScale;
             this.x += Math.cos(this.heading) * speed * this.genome.speed * 3 * frameScale;
             this.y += Math.sin(this.heading) * speed * this.genome.speed * 3 * frameScale;
+            this.distanceTraveled += Math.hypot(this.x - previousX, this.y - previousY);
+            if (this.age - this.lastTrailSampleAge >= 4) {
+                this.trail.push({ x: this.x, y: this.y });
+                this.lastTrailSampleAge = this.age;
+                if (this.trail.length > 80) this.trail.shift();
+            }
 
             // Environmental effects
             let toxicPenalty = 0;
@@ -235,6 +253,7 @@ export class Bacteria {
         const food = world.findNearbyFood(this.x, this.y, this.radius * 2);
         if (food) {
             this.energy += food.energy;
+            this.foodEaten++;
             world.removeFood(food);
         }
     }
@@ -247,7 +266,10 @@ export class Bacteria {
         const childY = this.y + Math.sin(angle) * distance;
         
         if (childX > 0 && childX < world.width && childY > 0 && childY < world.height) {
-            world.addBacteria(new Bacteria(childX, childY, childGenome));
+            const child = new Bacteria(childX, childY, childGenome);
+            child.parentId = this.id;
+            world.addBacteria(child);
+            this.offspring++;
             this.energy *= 0.6; // Energy cost of reproduction
         }
     }
