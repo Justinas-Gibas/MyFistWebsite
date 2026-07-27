@@ -49,15 +49,17 @@ export class BacteriaWorld {
             const y = Math.random() * height;
             this.bacteria.push({ x, y });
         }
-    }    initializeBacteria(BacteriaClass) {
+    }
+
+    initializeBacteria(BacteriaClass) {
         this.BacteriaClass = BacteriaClass; // Store the reference to the Bacteria class
         this.bacteria = this.bacteria.map(b => new BacteriaClass(b.x, b.y));
     }
 
-    update() {
-        console.log(`[BacteriaWorld.update] Generation: ${this.generation}, Bacteria: ${this.bacteria.length}, Food: ${this.food.length}`);
+    update(deltaTime = 16.67) {
+        const frameScale = Math.min(deltaTime, 50) / 16.67;
         // Spawn new food
-        if (Math.random() < this.foodSpawnRate && this.food.length < this.maxFood) {
+        if (Math.random() < this.foodSpawnRate * frameScale && this.food.length < this.maxFood) {
             this.addFood(new Food(
                 Math.random() * this.width,
                 Math.random() * this.height
@@ -65,8 +67,8 @@ export class BacteriaWorld {
         }
 
         // Update all bacteria
-        for (const b of this.bacteria) {
-            b.update(this);
+        for (const b of [...this.bacteria]) {
+            b.update(this, deltaTime);
         }
 
         // Remove dead bacteria
@@ -157,7 +159,9 @@ export class BacteriaWorld {
             const dy = f.y - y;
             return Math.sqrt(dx * dx + dy * dy) < radius;
         });
-    }    startNewGeneration() {
+    }
+
+    startNewGeneration() {
         // Sort by fitness
         this.bacteria.sort((a, b) => b.fitness - a.fitness);
         
@@ -178,7 +182,7 @@ export class BacteriaWorld {
             const child = new BacteriaConstructor(
                 Math.random() * this.width,
                 Math.random() * this.height,
-                parent.mutateGenome()
+                parent ? parent.mutateGenome(this.mutationRate) : null
             );
             newPopulation.push(child);
         }

@@ -10,6 +10,7 @@ export class BacteriaSim {
         this.world = null;
         this.running = false;
         this.rafId = null;
+        this.lastTime = 0;
 
         // Evolution metrics tracking
         this.metrics = {
@@ -48,7 +49,8 @@ export class BacteriaSim {
         if (!this.running) {
             console.log('[BacteriaSim] Simulation started');
             this.running = true;
-            this.loop();
+            this.lastTime = performance.now();
+            this.rafId = requestAnimationFrame(timestamp => this.loop(timestamp));
         }
     }
 
@@ -211,27 +213,35 @@ export class BacteriaSim {
         });
     }
 
-    loop() {
+    loop(timestamp) {
         if (!this.running) return;
-        console.log(`[BacteriaSim.loop] Frame, generation: ${this.world ? this.world.generation : 'n/a'}`);
-        this.world.update();
+        const deltaTime = Math.min(timestamp - this.lastTime, 50);
+        this.lastTime = timestamp;
+        this.world.update(deltaTime);
         this.draw();
         this.updateStats();
         this.updateSelectedBacteriaDisplay();
         this.updateMetrics();
-        this.rafId = requestAnimationFrame(() => this.loop());
+        this.rafId = requestAnimationFrame(nextTimestamp => this.loop(nextTimestamp));
     }
 
     draw() {
         this.world.draw(this.ctx);
-    }    updateStats() {
+    }
+
+    updateStats() {
         if (!this.world) return;
 
         // Calculate statistics
         const alive = this.world.bacteria.filter(b => b.energy > 0).length;
-        const avgEnergy = this.world.bacteria.reduce((sum, b) => sum + b.energy, 0) / this.world.bacteria.length;
-        const avgFitness = this.world.bacteria.reduce((sum, b) => sum + b.fitness, 0) / this.world.bacteria.length;
-        const bestFitness = Math.max(...this.world.bacteria.map(b => b.fitness));
+        const population = this.world.bacteria.length;
+        const avgEnergy = population
+            ? this.world.bacteria.reduce((sum, b) => sum + b.energy, 0) / population
+            : 0;
+        const avgFitness = population
+            ? this.world.bacteria.reduce((sum, b) => sum + b.fitness, 0) / population
+            : 0;
+        const bestFitness = population ? Math.max(...this.world.bacteria.map(b => b.fitness)) : 0;
 
         // Update stats display
         this.statsDiv.innerHTML = `
@@ -245,6 +255,8 @@ export class BacteriaSim {
     }
 
     handleClick(event) {
+        if (!this.world) return;
+
         const rect = this.canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;

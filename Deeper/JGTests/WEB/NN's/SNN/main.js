@@ -3,7 +3,7 @@
 import { getCanvasContext, updateInputNodeControls } from './ui.js';
 import { Environment } from './environment.js';
 import { BacteriaSim } from './bacteriaSim.js';
-import { INPUT_NODE_RADIUS, NEURON_RADIUS, INPUT_SPIKE_STRENGTH } from './config.js'; // Import for click interaction logic
+import { INPUT_NODE_RADIUS, NEURON_RADIUS, SPIKE_THRESHOLD } from './config.js'; // Import for click interaction logic
 
 /**
  * Initializes the SNN environment and attaches event listeners to UI controls
@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (clickedNeuron) {
                     if (clickedNeuron.type === 'regular') {
                         console.log(`Manually spiking ${clickedNeuron.id} in Brain ${brain.id}`);
-                        clickedNeuron.integrate(INPUT_SPIKE_STRENGTH * 2); // Stronger manual spike
+                        clickedNeuron.integrate(SPIKE_THRESHOLD); // Guarantee a spike on the next update
                         if (!brain.isRunning) brain.drawNeurons(); // Redraw if paused
                     } else if (clickedNeuron.type === 'input') {
                         console.log(`Toggling input ${clickedNeuron.id} in Brain ${brain.id}`);

@@ -113,7 +113,6 @@ export class Neuron {
             this.potential = 0; 
         }
         this.refractoryTime = REFRACTORY_PERIOD;
-        console.log(`Neuron ${this.id} (${this.type}) at (${this.x.toFixed(0)}, ${this.y.toFixed(0)}) fired!`);
     }
 
     /**
