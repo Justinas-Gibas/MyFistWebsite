@@ -1,7 +1,6 @@
-import { Bacteria, SENSOR_DEFINITIONS } from './bacteria.js';
+import { Bacteria } from './bacteria.js';
 import { BacteriaWorld } from './bacteriaWorld.js';
 
-const SENSOR_NAMES = SENSOR_DEFINITIONS.map(sensor => sensor.label);
 const MOTOR_NAMES = ['Turn left', 'Turn right'];
 const COLORS = {
     background: '#081419',
@@ -280,9 +279,15 @@ export class BacteriaSim {
 
         this.selectionStatus.textContent = `${selected.id} · live`;
         this.agentSelect.value = selected.id;
+        const sensorNames = selected.sensorDefinitions.map(sensor => sensor.label);
         const sensors = selected.lastSensorValues.map((value, index) =>
-            this.signalMarkup(SENSOR_NAMES[index], value, 'sensor')
+            this.signalMarkup(sensorNames[index], value, 'sensor')
         ).join('');
+        const stepCost = Object.values(selected.lastEnergyCosts)
+            .reduce((sum, cost) => sum + cost, 0);
+        const connectionCount = selected.brain.neurons.reduce(
+            (sum, neuron) => sum + neuron.connections.length, 0
+        );
         const [left, right] = selected.outputNeurons.map(neuron =>
             neuron.isFiring ? 1 : Math.max(0, Math.min(1, neuron.potential))
         );
@@ -300,15 +305,21 @@ export class BacteriaSim {
             <div class="stat-grid">
                 ${this.statMarkup('Fitness', selected.fitness.toFixed(1))}
                 ${this.statMarkup('Energy', selected.energy.toFixed(1))}
-                ${this.statMarkup('Age', selected.age.toFixed(0))}
+                ${this.statMarkup('Age', `${selected.age.toFixed(0)} / ${selected.genome.lifeHistory.lifespan.toFixed(0)}`)}
+                ${this.statMarkup('Mating type', selected.matingType)}
+                ${this.statMarkup('Family', selected.genome.familyId)}
+                ${this.statMarkup('Step energy cost', stepCost.toFixed(3))}
                 ${this.statMarkup('Distance', selected.distanceTraveled.toFixed(0))}
                 ${this.statMarkup('Food', selected.foodEaten)}
                 ${this.statMarkup('Offspring', selected.offspring)}
                 ${this.statMarkup('Layers', selected.genome.brain.hiddenLayers.join('×'))}
                 ${this.statMarkup('Density', selected.genome.brain.connectionDensity.toFixed(2))}
+                ${this.statMarkup('Connections', connectionCount)}
+                ${this.statMarkup('Wiring cost', (selected.lastEnergyCosts.synapses ?? 0).toFixed(3))}
                 ${this.statMarkup('Sense range', selected.genome.sensors.range.toFixed(2))}
+                ${this.statMarkup('Receptors', selected.sensorDefinitions.length)}
                 ${this.statMarkup('Sense noise', selected.genome.sensors.noise.toFixed(3))}
-                ${this.statMarkup('Parent', selected.parentId ?? 'founder')}
+                ${this.statMarkup('Parents', selected.parentIds.length ? selected.parentIds.join(' + ') : 'founder')}
             </div>
             <div class="io-grid">
                 <div><h4>Sensor encoding</h4>${sensors}</div>
@@ -372,8 +383,9 @@ export class BacteriaSim {
             return;
         }
         const layers = this.getBrainLayers(bacteria);
+        const sensorNames = bacteria.sensorDefinitions.map(sensor => sensor.label);
         const labels = new Map([
-            ...layers.inputs.map((neuron, index) => [neuron.id, `Sensor · ${SENSOR_NAMES[index]}`]),
+            ...layers.inputs.map((neuron, index) => [neuron.id, `Sensor · ${sensorNames[index]}`]),
             ...layers.hiddenLayers.flatMap((layer, layerIndex) =>
                 layer.map((neuron, index) => [neuron.id, `Hidden ${layerIndex + 1} · H${index}`])
             ),
@@ -466,7 +478,8 @@ export class BacteriaSim {
             ctx.font = '9px ui-monospace, monospace';
             if (neuron.type === 'input') {
                 ctx.textAlign = 'right';
-                ctx.fillText(SENSOR_NAMES[layers.inputs.indexOf(neuron)] ?? neuron.id, x - 11, y + 3);
+                const sensor = bacteria.sensorDefinitions[layers.inputs.indexOf(neuron)];
+                ctx.fillText(sensor?.label ?? neuron.id, x - 11, y + 3);
             } else {
                 ctx.textAlign = 'left';
                 const hiddenIndex = layers.hiddenLayers[layerIndex - 1]?.indexOf(neuron) ?? -1;
@@ -666,7 +679,9 @@ export class BacteriaSim {
             metrics: this.metrics,
             population: this.world.bacteria.map(bacteria => ({
                 id: bacteria.id,
-                parentId: bacteria.parentId,
+                parentIds: bacteria.parentIds,
+                matingType: bacteria.matingType,
+                cumulativeEnergyCosts: bacteria.cumulativeEnergyCosts,
                 position: { x: bacteria.x, y: bacteria.y },
                 energy: bacteria.energy,
                 age: bacteria.age,

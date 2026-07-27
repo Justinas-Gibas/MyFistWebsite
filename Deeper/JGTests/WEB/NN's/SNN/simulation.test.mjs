@@ -61,6 +61,66 @@ try {
         !SENSOR_DEFINITIONS.some(sensor => /position|coordinate/i.test(sensor.label)),
         'agents must not receive privileged absolute coordinates'
     );
+    assert.ok(bacteria.lastEnergyCosts.neurons > 0);
+    assert.ok(bacteria.lastEnergyCosts.synapses > 0);
+    assert.ok(bacteria.lastEnergyCosts.body > 0);
+    assert.ok(bacteria.lastEnergyCosts.speedCapacity > 0);
+
+    const sparseGenome = JSON.parse(JSON.stringify(genome));
+    sparseGenome.brain.connectionDensity = 0;
+    const denseGenome = JSON.parse(JSON.stringify(genome));
+    denseGenome.brain.connectionDensity = 0.65;
+    const sparse = new Bacteria(250, 100, sparseGenome);
+    const dense = new Bacteria(350, 100, denseGenome);
+    const wiringWorld = new BacteriaWorld(600, 400, 0);
+    wiringWorld.bacteria = [sparse, dense];
+    sparse.update(wiringWorld, 16.67);
+    dense.update(wiringWorld, 16.67);
+    assert.ok(
+        dense.lastEnergyCosts.synapses > sparse.lastEnergyCosts.synapses * 2,
+        'dense brains should pay a strongly nonlinear wiring cost'
+    );
+
+    const largeGenome = JSON.parse(JSON.stringify(genome));
+    largeGenome.size = 2;
+    const large = new Bacteria(400, 100, largeGenome);
+    large.update(wiringWorld, 16.67);
+    assert.ok(
+        large.lastEnergyCosts.body > bacteria.lastEnergyCosts.body * 7,
+        'body maintenance should grow cubically with size'
+    );
+
+    const reducedGenome = JSON.parse(JSON.stringify(genome));
+    reducedGenome.sensors.enabled = ['energy', 'foodFront', 'wallFront'];
+    reducedGenome.lifeHistory = {
+        maturityAge: 1, lifespan: 100, reproductionEnergy: 90, mateCooldown: 10
+    };
+    const reduced = new Bacteria(200, 200, reducedGenome);
+    assert.equal(reduced.brain.getInputNodes().length, 3);
+    assert.deepEqual(
+        reduced.sensorDefinitions.map(sensor => sensor.id),
+        reducedGenome.sensors.enabled
+    );
+
+    const mate = new Bacteria(205, 200, reducedGenome);
+    reduced.matingType = 'α';
+    mate.matingType = 'β';
+    reduced.age = mate.age = 5;
+    reduced.energy = mate.energy = 140;
+    const matingWorld = new BacteriaWorld(600, 400, 0);
+    matingWorld.BacteriaClass = Bacteria;
+    matingWorld.bacteria = [reduced, mate];
+    matingWorld.handleMating();
+    assert.equal(matingWorld.bacteria.length, 3, 'compatible nearby adults should reproduce');
+    assert.deepEqual(matingWorld.bacteria[2].parentIds, [reduced.id, mate.id]);
+
+    const agingGenome = JSON.parse(JSON.stringify(reducedGenome));
+    agingGenome.lifeHistory.lifespan = 1;
+    const aging = new Bacteria(300, 300, agingGenome);
+    const agingWorld = new BacteriaWorld(600, 400, 0);
+    agingWorld.bacteria = [aging];
+    aging.update(agingWorld, 16.67);
+    assert.equal(aging.energy, 0, 'organisms should die at their inherited lifespan');
 
     const emptyWorld = new BacteriaWorld(600, 400, 0);
     emptyWorld.BacteriaClass = Bacteria;

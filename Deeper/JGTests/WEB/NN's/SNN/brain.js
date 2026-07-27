@@ -15,6 +15,7 @@ export class Brain {
         this.activeSpikes = [];
         this.fitness = 0;
         this.simulationTime = 0;
+        this.lastStepStats = { spikes: 0, transmissions: 0 };
     }
 
     addNeuron(type = 'regular') {
@@ -42,7 +43,8 @@ export class Brain {
     }
 
     update(deltaTime) {
-        if (!this.isRunning) return;
+        this.lastStepStats = { spikes: 0, transmissions: 0 };
+        if (!this.isRunning) return this.lastStepStats;
 
         this.simulationTime += deltaTime;
         const newlyFiring = [];
@@ -50,6 +52,7 @@ export class Brain {
             if (!neuron.update(deltaTime)) return;
             neuron.lastSpikeTime = this.simulationTime;
             newlyFiring.push(neuron);
+            this.lastStepStats.spikes++;
             if (neuron.type === 'regular') this.fitness += 0.1;
         });
 
@@ -62,11 +65,13 @@ export class Brain {
                 if (!target || target.type !== 'regular') return;
                 if (target.integrate(strength)) {
                     this.activeSpikes.push({ source, target, life: 10 });
+                    this.lastStepStats.transmissions++;
                     this.fitness += 0.05;
                 }
             });
         });
 
         this.activeSpikes = this.activeSpikes.filter(spike => --spike.life > 0);
+        return this.lastStepStats;
     }
 }

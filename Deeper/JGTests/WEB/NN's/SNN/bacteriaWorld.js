@@ -21,6 +21,7 @@ export class BacteriaWorld {
         this.bacteria = [];
         this.food = [];
         this.generation = 1;
+        this.totalBirths = 0;
         this.elapsedTime = 0;
         this.targetPopulation = Math.max(5, numBacteria || 20);
         this.BacteriaClass = null; // Store the Bacteria class reference
@@ -84,9 +85,11 @@ export class BacteriaWorld {
             this.hoveredBacteria = null;
         }
 
-        // If population is too low, start new generation from survivors
-        if (this.bacteria.length < 5) {
-            console.warn(`[BacteriaWorld.update] Population low (${this.bacteria.length}), starting new generation.`);
+        this.handleMating();
+
+        // Natural reproduction may fail; reseeding happens only after extinction.
+        if (this.bacteria.length === 0) {
+            console.warn('[BacteriaWorld.update] Population extinct; reseeding founders.');
             this.startNewGeneration();
         }
     }
@@ -156,7 +159,7 @@ export class BacteriaWorld {
     updateSpeciesCounts() {
         this.speciesCounts = {};
         for (const b of this.bacteria) {
-            const key = b.color;
+            const key = b.species;
             this.speciesCounts[key] = (this.speciesCounts[key] || 0) + 1;
         }
     }
@@ -180,18 +183,38 @@ export class BacteriaWorld {
         return this.food.find(f => {
             const dx = f.x - x;
             const dy = f.y - y;
-            return Math.sqrt(dx * dx + dy * dy) < radius;
+            return Math.sqrt(dx * dx + dy * dy) < radius + (f.radius ?? 0);
         });
     }
 
+    handleMating() {
+        if (this.bacteria.length >= this.targetPopulation * 2) return;
+        const paired = new Set();
+        for (const candidate of this.bacteria) {
+            if (paired.has(candidate) || !candidate.canMate()) continue;
+            let nearest = null;
+            let nearestDistance = Infinity;
+            for (const partner of this.bacteria) {
+                if (partner === candidate || paired.has(partner) || !partner.canMate() ||
+                    partner.matingType === candidate.matingType) continue;
+                const distance = Math.hypot(partner.x - candidate.x, partner.y - candidate.y);
+                const matingDistance = candidate.radius + partner.radius + 14;
+                if (distance <= matingDistance && distance < nearestDistance) {
+                    nearest = partner;
+                    nearestDistance = distance;
+                }
+            }
+            if (!nearest) continue;
+            if (candidate.reproduceWith(nearest, this)) {
+                paired.add(candidate);
+                paired.add(nearest);
+                this.totalBirths++;
+            }
+        }
+    }
+
     startNewGeneration() {
-        // Sort by fitness
-        this.bacteria.sort((a, b) => b.fitness - a.fitness);
-        
-        // Keep top performers
-        const survivors = this.bacteria.slice(0, Math.max(2, Math.floor(this.bacteria.length * 0.2)));
-          // Use the stored BacteriaClass or get constructor from an existing bacteria instance 
-        const BacteriaConstructor = this.BacteriaClass || (survivors[0] && survivors[0].constructor);
+        const BacteriaConstructor = this.BacteriaClass;
         
         if (!BacteriaConstructor) {
             console.error('[BacteriaWorld.startNewGeneration] ERROR: No Bacteria class reference available');
@@ -199,17 +222,12 @@ export class BacteriaWorld {
         }
         
         // Create new population
-        const newPopulation = [];
-        while (newPopulation.length < this.targetPopulation) {
-            const parent = survivors[Math.floor(Math.random() * survivors.length)];
-            const child = new BacteriaConstructor(
+        const newPopulation = Array.from({ length: this.targetPopulation }, () =>
+            new BacteriaConstructor(
                 Math.random() * this.width,
-                Math.random() * this.height,
-                parent ? parent.mutateGenome(this.mutationRate) : null
-            );
-            child.parentId = parent?.id ?? null;
-            newPopulation.push(child);
-        }
+                Math.random() * this.height
+            )
+        );
         
         this.bacteria = newPopulation;
         this.selectedBacteria = null;

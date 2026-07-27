@@ -17,9 +17,40 @@ export const SENSOR_DEFINITIONS = [
     { id: 'heat', label: 'Heat', family: 'temperature' },
     { id: 'cold', label: 'Cold', family: 'temperature' }
 ];
+const SENSOR_BY_ID = new Map(SENSOR_DEFINITIONS.map(sensor => [sensor.id, sensor]));
+const STARTER_SENSORS = ['energy', 'foodLeft', 'foodFront', 'foodRight', 'wallFront'];
 
 // Static ID counter for unique bacteria IDs
 let nextBacteriaId = 1;
+let nextFamilyId = 1;
+
+function hueToRgb(hue) {
+    const h = ((hue % 360) + 360) % 360;
+    const c = 0.72;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = 0.18;
+    const sectors = [
+        [c, x, 0], [x, c, 0], [0, c, x],
+        [0, x, c], [x, 0, c], [c, 0, x]
+    ];
+    const [r, g, b] = sectors[Math.floor(h / 60) % 6];
+    return {
+        r: Math.round((r + m) * 255),
+        g: Math.round((g + m) * 255),
+        b: Math.round((b + m) * 255)
+    };
+}
+
+function rgbToHue({ r, g, b }) {
+    const [red, green, blue] = [r, g, b].map(value => value / 255);
+    const max = Math.max(red, green, blue);
+    const min = Math.min(red, green, blue);
+    const delta = max - min;
+    if (delta === 0) return 0;
+    if (max === red) return 60 * (((green - blue) / delta) % 6);
+    if (max === green) return 60 * ((blue - red) / delta + 2);
+    return 60 * ((red - green) / delta + 4);
+}
 
 export class Bacteria {
     constructor(x, y, genome = null) {
@@ -27,10 +58,25 @@ export class Bacteria {
         this.x = x;
         this.y = y;
         this.genome = genome || this.createGenome();
+        this.genome.familyId ??= `f${nextFamilyId++}`;
+        this.genome.familyHue ??= rgbToHue(this.genome.color);
+        this.genome.color = hueToRgb(this.genome.familyHue);
         this.genome.sensors ??= {
             range: 0.45,
             directionalSharpness: 3,
             noise: 0.02
+        };
+        this.genome.sensors.enabled ??= SENSOR_DEFINITIONS.map(sensor => sensor.id);
+        this.genome.sensors.enabled = [...new Set(this.genome.sensors.enabled)]
+            .filter(id => SENSOR_BY_ID.has(id));
+        if (this.genome.sensors.enabled.length < 2) {
+            this.genome.sensors.enabled = [...STARTER_SENSORS];
+        }
+        this.genome.lifeHistory ??= {
+            maturityAge: 220,
+            lifespan: 2200,
+            reproductionEnergy: 125,
+            mateCooldown: 240
         };
         const legacyHiddenCount = this.genome.brain.numNeurons;
         this.genome.brain.hiddenLayers = (
@@ -45,17 +91,22 @@ export class Bacteria {
         this.distanceTraveled = 0;
         this.foodEaten = 0;
         this.offspring = 0;
-        this.parentId = null;
+        this.parentIds = [];
+        this.matingType = Math.random() < 0.5 ? 'α' : 'β';
+        this.reproductiveCooldown = 0;
+        this.sensorDefinitions = this.genome.sensors.enabled.map(id => SENSOR_BY_ID.get(id));
         this.trail = [{ x, y }];
         this.lastTrailSampleAge = 0;
-        this.lastSensorValues = new Array(SENSOR_DEFINITIONS.length).fill(0);
+        this.lastSensorValues = new Array(this.sensorDefinitions.length).fill(0);
         this.lastMotorCommand = { turn: 0, speed: 0 };
-        this.color = `rgba(${this.genome.color.r},${this.genome.color.g},${this.genome.color.b},0.8)`;
-        this.species = this.color; // Color as species key
+        this.lastEnergyCosts = {};
+        this.cumulativeEnergyCosts = {};
+        this.color = `rgba(${this.genome.color.r},${this.genome.color.g},${this.genome.color.b},0.9)`;
+        this.species = this.genome.familyId;
         
         // Initialize brain with genome parameters
         const brainConfig = {
-            numInputs: SENSOR_DEFINITIONS.length,
+            numInputs: this.sensorDefinitions.length,
             numOutputs: 2, // movement (angle, speed)
             ...this.genome.brain
         };
@@ -109,23 +160,34 @@ export class Bacteria {
     createGenome() {
         const hiddenLayers = [4 + Math.floor(Math.random() * 3)];
         if (Math.random() < 0.3) hiddenLayers.push(2 + Math.floor(Math.random() * 4));
+        const enabled = SENSOR_DEFINITIONS
+            .filter(sensor => sensor.id === 'energy' || Math.random() < 0.4)
+            .map(sensor => sensor.id);
+        STARTER_SENSORS.forEach(id => {
+            if (enabled.length < 4 && !enabled.includes(id)) enabled.push(id);
+        });
         return {
             size: 0.8 + Math.random() * 0.4,
             speed: 0.8 + Math.random() * 0.4,
             efficiency: 0.8 + Math.random() * 0.4,
-            color: {
-                r: Math.floor(Math.random() * 255),
-                g: Math.floor(Math.random() * 255),
-                b: Math.floor(Math.random() * 255)
-            },
+            familyId: `f${nextFamilyId++}`,
+            familyHue: Math.random() * 360,
+            color: { r: 255, g: 255, b: 255 },
             brain: {
                 hiddenLayers,
-                connectionDensity: 0.3 + Math.random() * 0.4
+                connectionDensity: 0.05 + Math.random() * 0.2
             },
             sensors: {
                 range: 0.35 + Math.random() * 0.25,
                 directionalSharpness: 2 + Math.random() * 2,
-                noise: Math.random() * 0.04
+                noise: Math.random() * 0.04,
+                enabled
+            },
+            lifeHistory: {
+                maturityAge: 180 + Math.random() * 140,
+                lifespan: 1700 + Math.random() * 1000,
+                reproductionEnergy: 115 + Math.random() * 25,
+                mateCooldown: 180 + Math.random() * 140
             }
         };
     }
@@ -176,22 +238,50 @@ export class Bacteria {
                     tempPenalty += Math.abs(zone.temp - world.optimalTemp) * 0.02;
                 }
             }
-            this.energy -= toxicPenalty + tempPenalty;
-
             // Update state
             this.age += frameScale;
-            const neuralCost = this.brain.neurons.length * 0.002;
-            const sensoryCost = this.genome.sensors.range * 0.03;
-            this.energy -= (world.energyCost + neuralCost + sensoryCost) *
-                frameScale * (1 / this.genome.efficiency);
+            this.reproductiveCooldown = Math.max(0, this.reproductiveCooldown - frameScale);
+            const history = this.genome.lifeHistory;
+            const senescenceStart = history.lifespan * 0.7;
+            const senescence = Math.max(0, Math.min(1,
+                (this.age - senescenceStart) / (history.lifespan - senescenceStart)
+            ));
+            const connections = this.brain.neurons.reduce(
+                (sum, neuron) => sum + neuron.connections.length, 0
+            );
+            const fanoutLoad = this.brain.neurons.reduce(
+                (sum, neuron) => sum + neuron.connections.length ** 2, 0
+            );
+            const scale = frameScale / this.genome.efficiency;
+            this.lastEnergyCosts = {
+                basal: world.energyCost * 0.35 * scale,
+                body: 0.055 * this.genome.size ** 3 * scale,
+                speedCapacity: 0.022 * this.genome.speed ** 2 *
+                    this.genome.size * scale,
+                movement: 0.018 * speed ** 2 * this.genome.speed ** 2 *
+                    this.genome.size ** 2 * scale,
+                receptors: (
+                    0.0025 * this.sensorDefinitions.length +
+                    0.018 * this.genome.sensors.range
+                ) * scale,
+                neurons: 0.0012 * this.brain.neurons.length * scale,
+                synapses: (0.0005 * connections + 0.00004 * fanoutLoad) * scale,
+                spikes: 0.004 * this.brain.lastStepStats.spikes / this.genome.efficiency,
+                transmissions: 0.0012 * this.brain.lastStepStats.transmissions /
+                    this.genome.efficiency,
+                senescence: 0.08 * senescence ** 2 * scale,
+                environment: toxicPenalty + tempPenalty
+            };
+            const totalCost = Object.values(this.lastEnergyCosts)
+                .reduce((sum, cost) => sum + cost, 0);
+            this.energy -= totalCost;
+            Object.entries(this.lastEnergyCosts).forEach(([key, cost]) => {
+                this.cumulativeEnergyCosts[key] = (this.cumulativeEnergyCosts[key] ?? 0) + cost;
+            });
+            if (this.age >= history.lifespan) this.energy = 0;
 
             // Find and consume nearby food
             this.consumeNearbyFood(world);
-
-            // Potentially reproduce
-            if (this.energy > 150) {
-                this.reproduce(world);
-            }
 
             // Clamp to world bounds
             this.x = Math.max(this.radius, Math.min(world.width - this.radius, this.x));
@@ -255,17 +345,19 @@ export class Bacteria {
             }
         }
 
-        const raw = [
-            Math.max(0, Math.min(1, this.energy / 100)),
-            ...foodSignals,
-            ...wallSignals,
-            ...dangerSignals,
-            ...socialSignals,
-            Math.max(0, Math.min(1, temperatureDelta)),
-            Math.max(0, Math.min(1, -temperatureDelta))
-        ];
+        const values = new Map([
+            ['energy', Math.max(0, Math.min(1, this.energy / 100))],
+            ['foodLeft', foodSignals[0]], ['foodFront', foodSignals[1]], ['foodRight', foodSignals[2]],
+            ['wallLeft', wallSignals[0]], ['wallFront', wallSignals[1]], ['wallRight', wallSignals[2]],
+            ['dangerLeft', dangerSignals[0]], ['dangerFront', dangerSignals[1]], ['dangerRight', dangerSignals[2]],
+            ['socialLeft', socialSignals[0]], ['socialFront', socialSignals[1]], ['socialRight', socialSignals[2]],
+            ['heat', Math.max(0, Math.min(1, temperatureDelta))],
+            ['cold', Math.max(0, Math.min(1, -temperatureDelta))]
+        ]);
         const noise = this.genome.sensors.noise;
-        return raw.map(value => Math.max(0, Math.min(1, value + (Math.random() * 2 - 1) * noise)));
+        return this.sensorDefinitions.map(sensor => Math.max(0, Math.min(1,
+            (values.get(sensor.id) ?? 0) + (Math.random() * 2 - 1) * noise
+        )));
     }
 
     findNearestTarget(targets) {
@@ -327,13 +419,14 @@ export class Bacteria {
         const left = activity(this.outputNeurons[0]);
         const right = activity(this.outputNeurons[1]);
         const turn = right - left;
-        // A small basal speed keeps agents exploring while motor spikes accelerate them.
-        const speed = 0.15 + 0.85 * Math.max(left, right);
+        // Tiny basal drift prevents a silent founder from being permanently stuck;
+        // almost all useful speed must come from motor-neuron activity.
+        const speed = 0.03 + 0.97 * Math.max(left, right);
         return [turn, speed];
     }
 
     consumeNearbyFood(world) {
-        const food = world.findNearbyFood(this.x, this.y, this.radius * 2);
+        const food = world.findNearbyFood(this.x, this.y, this.radius);
         if (food) {
             this.energy += food.energy;
             this.foodEaten++;
@@ -341,40 +434,77 @@ export class Bacteria {
         }
     }
 
-    reproduce(world) {
-        const childGenome = this.mutateGenome(world.mutationRate);
+    canMate() {
+        const history = this.genome.lifeHistory;
+        return this.age >= history.maturityAge &&
+            this.age < history.lifespan &&
+            this.reproductiveCooldown <= 0 &&
+            this.energy >= history.reproductionEnergy;
+    }
+
+    reproduceWith(partner, world) {
+        if (!this.canMate() || !partner.canMate() || this.matingType === partner.matingType) {
+            return null;
+        }
+        const childGenome = this.crossoverGenome(partner, world.mutationRate);
         const angle = Math.random() * Math.PI * 2;
-        const distance = this.radius * 3;
-        const childX = this.x + Math.cos(angle) * distance;
-        const childY = this.y + Math.sin(angle) * distance;
+        const distance = Math.max(this.radius, partner.radius) * 2.5;
+        const childX = (this.x + partner.x) / 2 + Math.cos(angle) * distance;
+        const childY = (this.y + partner.y) / 2 + Math.sin(angle) * distance;
         
         if (childX > 0 && childX < world.width && childY > 0 && childY < world.height) {
             const child = new Bacteria(childX, childY, childGenome);
-            child.parentId = this.id;
+            child.parentIds = [this.id, partner.id];
             world.addBacteria(child);
             this.offspring++;
-            this.energy *= 0.6; // Energy cost of reproduction
+            partner.offspring++;
+            this.energy -= 32;
+            partner.energy -= 32;
+            this.reproductiveCooldown = this.genome.lifeHistory.mateCooldown;
+            partner.reproductiveCooldown = partner.genome.lifeHistory.mateCooldown;
+            return child;
         }
+        return null;
     }
 
-    mutateGenome(mutationRate = 0.1) {
-        const mutatedGenome = JSON.parse(JSON.stringify(this.genome));
-        
-        // Mutate numeric properties
+    crossoverGenome(partner, mutationRate) {
+        const source = Math.random() < 0.5 ? this.genome : partner.genome;
+        const crossed = JSON.parse(JSON.stringify(source));
         for (const key of ['size', 'speed', 'efficiency']) {
-            if (Math.random() < mutationRate) {
-                mutatedGenome[key] *= 0.8 + Math.random() * 0.4;
-            }
+            crossed[key] = Math.random() < 0.5 ? this.genome[key] : partner.genome[key];
         }
+        for (const key of ['brain', 'sensors', 'lifeHistory']) {
+            crossed[key] = JSON.parse(JSON.stringify(
+                Math.random() < 0.5 ? this.genome[key] : partner.genome[key]
+            ));
+        }
+        return this.mutateGenome(mutationRate, crossed);
+    }
+
+    mutateGenome(mutationRate = 0.1, sourceGenome = this.genome) {
+        const mutatedGenome = JSON.parse(JSON.stringify(sourceGenome));
         
-        // Mutate color slightly
-        for (const component of ['r', 'g', 'b']) {
-            if (Math.random() < mutationRate) {
-                mutatedGenome.color[component] = Math.max(0, Math.min(255,
-                    mutatedGenome.color[component] + Math.floor(Math.random() * 40 - 20)
-                ));
-            }
+        // Additive mutations avoid compounding body size and speed exponentially.
+        if (Math.random() < mutationRate) {
+            mutatedGenome.size += (Math.random() * 2 - 1) * 0.14;
         }
+        if (Math.random() < mutationRate) {
+            mutatedGenome.speed += (Math.random() * 2 - 1) * 0.16;
+        }
+        if (Math.random() < mutationRate) {
+            mutatedGenome.efficiency *= 0.94 + Math.random() * 0.12;
+        }
+
+        // Most children retain a clearly recognizable family color. Rare lineage
+        // splits make a large hue jump and receive a new family identifier.
+        if (Math.random() < mutationRate * 0.15) {
+            const direction = Math.random() < 0.5 ? -1 : 1;
+            mutatedGenome.familyHue += direction * (45 + Math.random() * 75);
+            mutatedGenome.familyId = `f${nextFamilyId++}`;
+        } else if (Math.random() < mutationRate) {
+            mutatedGenome.familyHue += Math.random() * 12 - 6;
+        }
+        mutatedGenome.color = hueToRgb(mutatedGenome.familyHue);
         
         // Mutate brain parameters
         if (Math.random() < mutationRate) {
@@ -395,8 +525,8 @@ export class Bacteria {
             }
         }
         if (Math.random() < mutationRate) {
-            mutatedGenome.brain.connectionDensity = Math.max(0.1, Math.min(0.9,
-                mutatedGenome.brain.connectionDensity + (Math.random() * 0.2 - 0.1)
+            mutatedGenome.brain.connectionDensity = Math.max(0, Math.min(0.65,
+                mutatedGenome.brain.connectionDensity + (Math.random() * 0.12 - 0.06)
             ));
         }
         if (Math.random() < mutationRate) {
@@ -414,6 +544,37 @@ export class Bacteria {
                 mutatedGenome.sensors.noise + (Math.random() * 0.03 - 0.015)
             ));
         }
+        if (Math.random() < mutationRate) {
+            const enabled = mutatedGenome.sensors.enabled;
+            const missing = SENSOR_DEFINITIONS.map(sensor => sensor.id)
+                .filter(id => !enabled.includes(id));
+            if (enabled.length > 2 && (missing.length === 0 || Math.random() < 0.5)) {
+                enabled.splice(Math.floor(Math.random() * enabled.length), 1);
+            } else if (missing.length) {
+                enabled.push(missing[Math.floor(Math.random() * missing.length)]);
+            }
+        }
+        for (const key of ['maturityAge', 'lifespan', 'reproductionEnergy', 'mateCooldown']) {
+            if (Math.random() < mutationRate) {
+                mutatedGenome.lifeHistory[key] *= 0.9 + Math.random() * 0.2;
+            }
+        }
+        mutatedGenome.size = Math.max(0.35, Math.min(2, mutatedGenome.size));
+        mutatedGenome.speed = Math.max(0.25, Math.min(3, mutatedGenome.speed));
+        mutatedGenome.efficiency = Math.max(0.45, Math.min(1.8, mutatedGenome.efficiency));
+        mutatedGenome.lifeHistory.lifespan = Math.max(
+            600, Math.min(5000, mutatedGenome.lifeHistory.lifespan)
+        );
+        mutatedGenome.lifeHistory.maturityAge = Math.max(80, Math.min(
+            mutatedGenome.lifeHistory.lifespan * 0.6,
+            mutatedGenome.lifeHistory.maturityAge
+        ));
+        mutatedGenome.lifeHistory.reproductionEnergy = Math.max(
+            90, Math.min(180, mutatedGenome.lifeHistory.reproductionEnergy)
+        );
+        mutatedGenome.lifeHistory.mateCooldown = Math.max(
+            80, Math.min(600, mutatedGenome.lifeHistory.mateCooldown)
+        );
         
         return mutatedGenome;
     }
