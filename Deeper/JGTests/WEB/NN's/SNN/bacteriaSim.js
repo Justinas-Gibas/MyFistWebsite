@@ -1,7 +1,7 @@
-import { Bacteria } from './bacteria.js';
+import { Bacteria, SENSOR_DEFINITIONS } from './bacteria.js';
 import { BacteriaWorld } from './bacteriaWorld.js';
 
-const SENSOR_NAMES = ['Energy', 'X position', 'Y position', 'Food near', 'Agent near', 'Toxic', 'Temperature'];
+const SENSOR_NAMES = SENSOR_DEFINITIONS.map(sensor => sensor.label);
 const MOTOR_NAMES = ['Turn left', 'Turn right'];
 const COLORS = {
     background: '#081419',
@@ -46,6 +46,9 @@ export class BacteriaSim {
         this.selectedBacteriaStats = document.getElementById('selectedBacteriaStats');
         this.selectionStatus = document.getElementById('selectionStatus');
         this.brainNodeDetails = document.getElementById('brainNodeDetails');
+        this.agentSelect = document.getElementById('agentSelect');
+        this.brainNeuronSelect = document.getElementById('brainNeuronSelect');
+        this.agentRosterSignature = '';
 
         this.mutationRateSlider = document.getElementById('mutationRate');
         this.foodSpawnRateSlider = document.getElementById('foodSpawnRate');
@@ -59,6 +62,18 @@ export class BacteriaSim {
             if (!this.running) this.draw();
         });
         this.brainVisCanvas.addEventListener('click', event => this.handleBrainClick(event));
+        this.brainVisCanvas.addEventListener('mousemove', event => {
+            const neuron = this.findNearestBrainNeuron(this.canvasPoint(event, this.brainVisCanvas), 30);
+            this.brainVisCanvas.style.cursor = neuron ? 'pointer' : 'default';
+        });
+        this.agentSelect.addEventListener('change', event => {
+            const bacteria = this.world?.bacteria.find(candidate => candidate.id === event.target.value);
+            if (bacteria) this.setSelectedBacteria(bacteria);
+        });
+        this.brainNeuronSelect.addEventListener('change', event => {
+            this.selectedNeuronId = event.target.value || null;
+            if (this.world?.selectedBacteria) this.drawBrainVisualization(this.world.selectedBacteria);
+        });
         this.setupControlListeners();
         this.clearInvestigationCanvases(true);
     }
@@ -69,6 +84,7 @@ export class BacteriaSim {
         this.world.initializeBacteria(Bacteria);
         this.applyExperimentControls();
         this.resetInstrumentation();
+        this.refreshAgentRoster(true);
         this.updateFrame();
     }
 
@@ -169,7 +185,7 @@ export class BacteriaSim {
         const population = this.world.bacteria.length;
         const fitness = this.world.bacteria.map(bacteria => bacteria.fitness);
         const signatures = new Set(this.world.bacteria.map(bacteria => [
-            bacteria.genome.brain.numNeurons,
+            bacteria.genome.brain.hiddenLayers.join('-'),
             bacteria.genome.brain.connectionDensity.toFixed(1),
             bacteria.genome.size.toFixed(1),
             bacteria.genome.speed.toFixed(1),
@@ -244,6 +260,7 @@ export class BacteriaSim {
             ${this.metricMarkup('Best fitness', bestFitness.toFixed(1))}
             ${this.metricMarkup('Diversity', `${(diversity * 100).toFixed(0)}%`)}
         `;
+        this.refreshAgentRoster();
     }
 
     metricMarkup(label, value) {
@@ -255,11 +272,14 @@ export class BacteriaSim {
         if (!selected) {
             this.selectionStatus.textContent = 'No selection';
             this.selectedBacteriaStats.innerHTML = '<div class="empty-state">Select an organism in the ecology viewport.</div>';
+            this.agentSelect.value = '';
+            this.refreshNeuronRoster(null);
             this.clearInvestigationCanvases();
             return;
         }
 
         this.selectionStatus.textContent = `${selected.id} · live`;
+        this.agentSelect.value = selected.id;
         const sensors = selected.lastSensorValues.map((value, index) =>
             this.signalMarkup(SENSOR_NAMES[index], value, 'sensor')
         ).join('');
@@ -284,8 +304,10 @@ export class BacteriaSim {
                 ${this.statMarkup('Distance', selected.distanceTraveled.toFixed(0))}
                 ${this.statMarkup('Food', selected.foodEaten)}
                 ${this.statMarkup('Offspring', selected.offspring)}
-                ${this.statMarkup('Hidden', selected.genome.brain.numNeurons)}
+                ${this.statMarkup('Layers', selected.genome.brain.hiddenLayers.join('×'))}
                 ${this.statMarkup('Density', selected.genome.brain.connectionDensity.toFixed(2))}
+                ${this.statMarkup('Sense range', selected.genome.sensors.range.toFixed(2))}
+                ${this.statMarkup('Sense noise', selected.genome.sensors.noise.toFixed(3))}
                 ${this.statMarkup('Parent', selected.parentId ?? 'founder')}
             </div>
             <div class="io-grid">
@@ -296,6 +318,7 @@ export class BacteriaSim {
 
         this.drawBrainVisualization(selected);
         this.drawSpikeRaster(selected);
+        this.refreshNeuronRoster(selected);
     }
 
     statMarkup(label, value) {
@@ -317,8 +340,51 @@ export class BacteriaSim {
     getBrainLayers(bacteria) {
         const inputs = bacteria.brain.getInputNodes();
         const outputIds = new Set(bacteria.outputNeurons.map(neuron => neuron.id));
-        const hidden = bacteria.brain.getRegularNeurons().filter(neuron => !outputIds.has(neuron.id));
-        return { inputs, hidden, outputs: bacteria.outputNeurons };
+        const hiddenLayers = bacteria.hiddenLayers ??
+            [bacteria.brain.getRegularNeurons().filter(neuron => !outputIds.has(neuron.id))];
+        return {
+            inputs,
+            hiddenLayers,
+            hidden: hiddenLayers.flat(),
+            outputs: bacteria.outputNeurons
+        };
+    }
+
+    refreshAgentRoster(force = false) {
+        const bacteria = this.world?.bacteria ?? [];
+        const signature = `${this.world?.generation ?? 0}:${bacteria.map(agent => agent.id).join(',')}`;
+        if (!force && signature === this.agentRosterSignature) return;
+        this.agentRosterSignature = signature;
+        const selectedId = this.world?.selectedBacteria?.id ?? '';
+        this.agentSelect.innerHTML = '<option value="">Choose agent…</option>' + bacteria
+            .slice()
+            .sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)))
+            .map(agent => `<option value="${agent.id}">${agent.id}</option>`)
+            .join('');
+        this.agentSelect.disabled = bacteria.length === 0;
+        this.agentSelect.value = selectedId;
+    }
+
+    refreshNeuronRoster(bacteria) {
+        if (!bacteria) {
+            this.brainNeuronSelect.innerHTML = '<option value="">Choose neuron…</option>';
+            this.brainNeuronSelect.disabled = true;
+            return;
+        }
+        const layers = this.getBrainLayers(bacteria);
+        const labels = new Map([
+            ...layers.inputs.map((neuron, index) => [neuron.id, `Sensor · ${SENSOR_NAMES[index]}`]),
+            ...layers.hiddenLayers.flatMap((layer, layerIndex) =>
+                layer.map((neuron, index) => [neuron.id, `Hidden ${layerIndex + 1} · H${index}`])
+            ),
+            ...layers.outputs.map((neuron, index) => [neuron.id, `Motor · ${MOTOR_NAMES[index]}`])
+        ]);
+        this.brainNeuronSelect.innerHTML = '<option value="">Choose neuron…</option>' +
+            bacteria.brain.neurons.map(neuron =>
+                `<option value="${neuron.id}">${labels.get(neuron.id) ?? neuron.id}</option>`
+            ).join('');
+        this.brainNeuronSelect.disabled = false;
+        this.brainNeuronSelect.value = this.selectedNeuronId ?? '';
     }
 
     getLayerPositions(neurons, x, height) {
@@ -338,18 +404,28 @@ export class BacteriaSim {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         const layers = this.getBrainLayers(bacteria);
-        const positioned = [
-            ...this.getLayerPositions(layers.inputs, 92, canvas.height),
-            ...this.getLayerPositions(layers.hidden, canvas.width / 2, canvas.height),
-            ...this.getLayerPositions(layers.outputs, canvas.width - 72, canvas.height)
-        ];
+        const columns = [layers.inputs, ...layers.hiddenLayers, layers.outputs];
+        const left = 92;
+        const right = canvas.width - 72;
+        const positioned = columns.flatMap((layer, index) =>
+            this.getLayerPositions(
+                layer,
+                columns.length === 1 ? canvas.width / 2 : left + (right - left) * index / (columns.length - 1),
+                canvas.height
+            ).map(item => ({ ...item, layerIndex: index }))
+        );
         this.brainLayout = new Map(positioned.map(item => [item.neuron.id, item]));
 
         ctx.font = '10px ui-monospace, monospace';
         ctx.fillStyle = COLORS.text;
-        ctx.fillText('SENSORS', 12, 16);
-        ctx.fillText('HIDDEN', canvas.width / 2 - 22, 16);
-        ctx.fillText('MOTOR', canvas.width - 98, 16);
+        columns.forEach((layer, index) => {
+            const x = columns.length === 1 ? canvas.width / 2 : left + (right - left) * index / (columns.length - 1);
+            const label = index === 0
+                ? 'SENSORS'
+                : index === columns.length - 1 ? 'MOTOR' : `HIDDEN ${index}`;
+            ctx.textAlign = 'center';
+            ctx.fillText(label, x, 16);
+        });
 
         bacteria.brain.neurons.forEach(source => {
             const from = this.brainLayout.get(source.id);
@@ -366,7 +442,7 @@ export class BacteriaSim {
             });
         });
 
-        positioned.forEach(({ neuron, x, y }) => {
+        positioned.forEach(({ neuron, x, y, layerIndex }) => {
             const isOutput = layers.outputs.includes(neuron);
             const color = neuron.type === 'input' ? COLORS.sensor : isOutput ? COLORS.motor : COLORS.hidden;
             const activity = neuron.isFiring ? 1 : Math.max(0, Math.min(1, neuron.potential));
@@ -393,7 +469,10 @@ export class BacteriaSim {
                 ctx.fillText(SENSOR_NAMES[layers.inputs.indexOf(neuron)] ?? neuron.id, x - 11, y + 3);
             } else {
                 ctx.textAlign = 'left';
-                const label = isOutput ? (MOTOR_NAMES[layers.outputs.indexOf(neuron)] ?? neuron.id) : `H${layers.hidden.indexOf(neuron)}`;
+                const hiddenIndex = layers.hiddenLayers[layerIndex - 1]?.indexOf(neuron) ?? -1;
+                const label = isOutput
+                    ? (MOTOR_NAMES[layers.outputs.indexOf(neuron)] ?? neuron.id)
+                    : `L${layerIndex}H${hiddenIndex}`;
                 ctx.fillText(label, x + 11, y + 3);
             }
         });
@@ -405,18 +484,18 @@ export class BacteriaSim {
     updateBrainNodeDetails(bacteria) {
         const neuron = bacteria?.brain.neurons.find(candidate => candidate.id === this.selectedNeuronId);
         if (!neuron) {
-            this.brainNodeDetails.textContent = 'Select a neuron in the network to inspect its state.';
+            this.brainNodeDetails.classList.remove('has-selection');
+            this.brainNodeDetails.textContent = 'Click a node or choose one above to inspect its state.';
             return;
         }
-        this.brainNodeDetails.textContent = [
-            neuron.id,
-            `type=${neuron.type}`,
-            `potential=${neuron.potential.toFixed(3)}`,
-            `refractory=${Math.max(0, neuron.refractoryTime).toFixed(1)}ms`,
-            `spikes=${neuron.spikeCount}`,
-            `out=${neuron.connections.length}`,
-            `last=${neuron.lastSpikeTime === null ? 'never' : `${neuron.lastSpikeTime.toFixed(0)}ms`}`
-        ].join(' · ');
+        this.brainNodeDetails.classList.add('has-selection');
+        this.brainNodeDetails.innerHTML = `
+            <strong>Selected ${neuron.id}</strong><br>
+            type=${neuron.type} · potential=${neuron.potential.toFixed(3)} ·
+            refractory=${Math.max(0, neuron.refractoryTime).toFixed(1)}ms ·
+            spikes=${neuron.spikeCount} · outputs=${neuron.connections.length} ·
+            last=${neuron.lastSpikeTime === null ? 'never' : `${neuron.lastSpikeTime.toFixed(0)}ms`}
+        `;
     }
 
     captureSpikeSample() {
@@ -435,6 +514,8 @@ export class BacteriaSim {
     drawSpikeRaster(bacteria) {
         const ctx = this.spikeRasterCtx;
         const canvas = this.spikeRasterCanvas;
+        const desiredHeight = Math.min(420, Math.max(170, bacteria.brain.neurons.length * 9 + 24));
+        if (canvas.height !== desiredHeight) canvas.height = desiredHeight;
         ctx.fillStyle = COLORS.background;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -476,6 +557,7 @@ export class BacteriaSim {
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         });
         this.brainNodeDetails.textContent = 'Select a neuron in the network to inspect its state.';
+        this.brainNodeDetails.classList.remove('has-selection');
     }
 
     canvasPoint(event, canvas) {
@@ -502,7 +584,7 @@ export class BacteriaSim {
 
     handleClick(event) {
         if (!this.world) return;
-        this.setSelectedBacteria(this.findNearestBacteria(this.canvasPoint(event, this.canvas), 12));
+        this.setSelectedBacteria(this.findNearestBacteria(this.canvasPoint(event, this.canvas), Infinity));
     }
 
     handlePointerMove(event) {
@@ -515,9 +597,15 @@ export class BacteriaSim {
     handleBrainClick(event) {
         const selected = this.world?.selectedBacteria;
         if (!selected) return;
-        const point = this.canvasPoint(event, this.brainVisCanvas);
+        const nearest = this.findNearestBrainNeuron(this.canvasPoint(event, this.brainVisCanvas), 34);
+        this.selectedNeuronId = nearest?.id ?? null;
+        this.brainNeuronSelect.value = this.selectedNeuronId ?? '';
+        this.drawBrainVisualization(selected);
+    }
+
+    findNearestBrainNeuron(point, tolerance = 34) {
         let nearest = null;
-        let distance = 14;
+        let distance = tolerance;
         this.brainLayout.forEach(item => {
             const candidateDistance = Math.hypot(item.x - point.x, item.y - point.y);
             if (candidateDistance < distance) {
@@ -525,8 +613,7 @@ export class BacteriaSim {
                 distance = candidateDistance;
             }
         });
-        this.selectedNeuronId = nearest?.id ?? null;
-        this.drawBrainVisualization(selected);
+        return nearest;
     }
 
     setSelectedBacteria(bacteria) {
@@ -537,6 +624,8 @@ export class BacteriaSim {
             this.selectedNeuronId = null;
         }
         this.world.selectedBacteria = bacteria;
+        this.refreshAgentRoster();
+        this.agentSelect.value = bacteria?.id ?? '';
         if (bacteria) {
             bacteria.brain.neurons.forEach(neuron => this.lastSpikeCounts.set(neuron.id, neuron.spikeCount));
         }

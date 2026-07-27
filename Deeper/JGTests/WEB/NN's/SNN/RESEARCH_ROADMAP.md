@@ -12,8 +12,11 @@ ablation against simpler controllers.
 
 ## Current foundation
 
-- Embodied agents with rate-coded sensors and two motor neurons
-- Evolved morphology, hidden-neuron count, and connection density
+- Embodied agents with egocentric directional food, wall, hazard, social, and
+  temperature receptors; no privileged absolute coordinates
+- Evolved morphology, sensory range/noise/directionality, one-to-three hidden
+  layers, neuron count, and connection density
+- Explicit metabolic costs for neural tissue and longer-range sensing
 - Agent selection with sensor, motor, neuron, spike-raster, and trajectory views
 - Population fitness and phenotype-diversity monitoring
 - Single-step execution and versioned JSON experiment snapshots
@@ -39,7 +42,26 @@ identity, bias current, and per-neuron thresholds. Support both adaptive LIF and
 Izhikevich neurons behind one interface. Treat sensor encoding and motor
 decoding as explicit, evolvable modules.
 
-Required comparisons:
+## Novel candidate — evolution of sensory niches
+
+The immediate novel hypothesis is that resource-costed sensory morphology
+causes evolution to discover distinct ecological strategies rather than one
+globally optimal controller. Sensor range, directional tuning, and noise should
+co-evolve with hidden-layer organization under a fixed energy budget.
+
+Compare:
+
+- privileged absolute coordinates
+- fixed egocentric sensors
+- freely evolvable egocentric sensors
+- evolvable egocentric sensors with metabolic cost
+
+Measure held-out survival, behavioral coverage, niche diversity, information
+per spike, and adaptation after food/hazard relocation. This study is tractable
+before implementing synaptic plasticity and provides a clear ablation of
+embodiment rather than network size alone.
+
+Phase 2 required comparisons:
 
 - LIF versus adaptive LIF versus Izhikevich
 - Rate versus latency versus population encoding

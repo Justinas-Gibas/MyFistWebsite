@@ -1,5 +1,23 @@
 import { Brain } from './brain.js';
 
+export const SENSOR_DEFINITIONS = [
+    { id: 'energy', label: 'Energy reserve', family: 'internal' },
+    { id: 'foodLeft', label: 'Food · left', family: 'food' },
+    { id: 'foodFront', label: 'Food · front', family: 'food' },
+    { id: 'foodRight', label: 'Food · right', family: 'food' },
+    { id: 'wallLeft', label: 'Wall · left', family: 'wall' },
+    { id: 'wallFront', label: 'Wall · front', family: 'wall' },
+    { id: 'wallRight', label: 'Wall · right', family: 'wall' },
+    { id: 'dangerLeft', label: 'Hazard · left', family: 'danger' },
+    { id: 'dangerFront', label: 'Hazard · front', family: 'danger' },
+    { id: 'dangerRight', label: 'Hazard · right', family: 'danger' },
+    { id: 'socialLeft', label: 'Agent · left', family: 'social' },
+    { id: 'socialFront', label: 'Agent · front', family: 'social' },
+    { id: 'socialRight', label: 'Agent · right', family: 'social' },
+    { id: 'heat', label: 'Heat', family: 'temperature' },
+    { id: 'cold', label: 'Cold', family: 'temperature' }
+];
+
 // Static ID counter for unique bacteria IDs
 let nextBacteriaId = 1;
 
@@ -9,6 +27,16 @@ export class Bacteria {
         this.x = x;
         this.y = y;
         this.genome = genome || this.createGenome();
+        this.genome.sensors ??= {
+            range: 0.45,
+            directionalSharpness: 3,
+            noise: 0.02
+        };
+        const legacyHiddenCount = this.genome.brain.numNeurons;
+        this.genome.brain.hiddenLayers = (
+            this.genome.brain.hiddenLayers ?? [legacyHiddenCount ?? 4]
+        ).slice(0, 3).map(size => Math.max(2, Math.min(12, Math.round(size))));
+        delete this.genome.brain.numNeurons;
         this.radius = this.genome.size * 5;
         this.energy = 100;
         this.age = 0;
@@ -20,37 +48,30 @@ export class Bacteria {
         this.parentId = null;
         this.trail = [{ x, y }];
         this.lastTrailSampleAge = 0;
-        this.lastSensorValues = new Array(7).fill(0);
+        this.lastSensorValues = new Array(SENSOR_DEFINITIONS.length).fill(0);
         this.lastMotorCommand = { turn: 0, speed: 0 };
         this.color = `rgba(${this.genome.color.r},${this.genome.color.g},${this.genome.color.b},0.8)`;
         this.species = this.color; // Color as species key
         
         // Initialize brain with genome parameters
         const brainConfig = {
-            numInputs: 7,  // distance to food, wall sensors, energy level, toxic, temp, other bacteria
+            numInputs: SENSOR_DEFINITIONS.length,
             numOutputs: 2, // movement (angle, speed)
             ...this.genome.brain
         };
-        this.brain = new Brain(this.id, null, {
+        this.brain = new Brain(this.id, {
             x: 0,
             y: 0,
             width: 100,
             height: 100
         });
 
-        // Brain creates playground defaults in its constructor; bacteria need a
-        // purpose-built sensor -> hidden -> motor network instead.
-        this.brain.neurons = [];
-        this.brain.nextNeuronId = 0;
-        this.brain.activeSpikes = [];
-
         const inputs = Array.from(
             { length: brainConfig.numInputs },
             () => this.brain.addNeuron('input')
         );
-        const hidden = Array.from(
-            { length: brainConfig.numNeurons },
-            () => this.brain.addNeuron('regular')
+        this.hiddenLayers = brainConfig.hiddenLayers.map(layerSize =>
+            Array.from({ length: layerSize }, () => this.brain.addNeuron('regular'))
         );
         this.outputNeurons = Array.from(
             { length: brainConfig.numOutputs },
@@ -59,25 +80,35 @@ export class Bacteria {
 
         // Always provide a path from every sensor to the motor layer. The genome's
         // density controls additional paths instead of risking a disconnected brain.
-        inputs.forEach((input, index) => {
-            const hiddenTarget = hidden[index % hidden.length];
-            input.addConnection(hiddenTarget.id);
-            if (Math.random() < brainConfig.connectionDensity) {
-                input.addConnection(this.outputNeurons[index % this.outputNeurons.length].id);
-            }
-        });
-        hidden.forEach((neuron, index) => {
-            neuron.addConnection(this.outputNeurons[index % this.outputNeurons.length].id);
-            hidden.forEach(target => {
-                if (target !== neuron && Math.random() < brainConfig.connectionDensity) {
-                    neuron.addConnection(target.id);
-                }
+        const connectLayers = (sourceLayer, targetLayer) => {
+            sourceLayer.forEach((neuron, index) => {
+                neuron.addConnection(targetLayer[index % targetLayer.length].id);
+                targetLayer.forEach(target => {
+                    if (Math.random() < brainConfig.connectionDensity) {
+                        neuron.addConnection(target.id);
+                    }
+                });
+            });
+        };
+
+        connectLayers(inputs, this.hiddenLayers[0]);
+        this.hiddenLayers.forEach((layer, layerIndex) => {
+            const nextLayer = this.hiddenLayers[layerIndex + 1] ?? this.outputNeurons;
+            connectLayers(layer, nextLayer);
+            layer.forEach(neuron => {
+                layer.forEach(target => {
+                    if (target !== neuron && Math.random() < brainConfig.connectionDensity) {
+                        neuron.addConnection(target.id);
+                    }
+                });
             });
         });
         this.brain.start();
     }
 
     createGenome() {
+        const hiddenLayers = [4 + Math.floor(Math.random() * 3)];
+        if (Math.random() < 0.3) hiddenLayers.push(2 + Math.floor(Math.random() * 4));
         return {
             size: 0.8 + Math.random() * 0.4,
             speed: 0.8 + Math.random() * 0.4,
@@ -88,8 +119,13 @@ export class Bacteria {
                 b: Math.floor(Math.random() * 255)
             },
             brain: {
-                numNeurons: 3 + Math.floor(Math.random() * 3),
+                hiddenLayers,
                 connectionDensity: 0.3 + Math.random() * 0.4
+            },
+            sensors: {
+                range: 0.35 + Math.random() * 0.25,
+                directionalSharpness: 2 + Math.random() * 2,
+                noise: Math.random() * 0.04
             }
         };
     }
@@ -144,7 +180,10 @@ export class Bacteria {
 
             // Update state
             this.age += frameScale;
-            this.energy -= world.energyCost * frameScale * (1 / this.genome.efficiency);
+            const neuralCost = this.brain.neurons.length * 0.002;
+            const sensoryCost = this.genome.sensors.range * 0.03;
+            this.energy -= (world.energyCost + neuralCost + sensoryCost) *
+                frameScale * (1 / this.genome.efficiency);
 
             // Find and consume nearby food
             this.consumeNearbyFood(world);
@@ -196,45 +235,89 @@ export class Bacteria {
     }
 
     getSensorInputs(world) {
-        try {
-            // Normalized sensor inputs for the brain
-            if (typeof this.getNearestFoodDistance !== 'function') {
-                console.error('[Bacteria.getSensorInputs] getNearestFoodDistance is not a function!', this);
+        const sensorRange = Math.hypot(world.width, world.height) * this.genome.sensors.range;
+        const nearestFood = this.findNearestTarget(world.food);
+        const nearestAgent = this.findNearestTarget(world.bacteria.filter(agent => agent !== this));
+        const nearestHazard = this.findNearestHazard(world.toxicZones);
+
+        const foodSignals = this.directionalSignals(nearestFood, sensorRange);
+        const wallSignals = [-Math.PI / 3, 0, Math.PI / 3].map(offset => {
+            const distance = this.rayDistanceToWall(world, this.heading + offset);
+            return 1 - Math.min(1, distance / sensorRange);
+        });
+        const dangerSignals = this.directionalSignals(nearestHazard, sensorRange);
+        const socialSignals = this.directionalSignals(nearestAgent, sensorRange);
+
+        let temperatureDelta = 0;
+        for (const zone of world.tempZones) {
+            if (Math.hypot(this.x - zone.x, this.y - zone.y) < zone.r) {
+                temperatureDelta = (zone.temp - world.optimalTemp) / 25;
             }
-            if (typeof this.getNearestBacteriaDistance !== 'function') {
-                console.error('[Bacteria.getSensorInputs] getNearestBacteriaDistance is not a function!', this);
-            }
-            // Add environmental sensors
-            const inToxic = world.toxicZones.some(z => Math.hypot(this.x - z.x, this.y - z.y) < z.r) ? 1 : 0;
-            let tempDelta = 0;
-            for (const zone of world.tempZones) {
-                if (Math.hypot(this.x - zone.x, this.y - zone.y) < zone.r) {
-                    tempDelta = (zone.temp - world.optimalTemp) / 50;
-                }
-            }
-            const worldDiagonal = Math.hypot(world.width, world.height);
-            const foodProximity = 1 - Math.min(
-                1,
-                this.getNearestFoodDistance(world) / worldDiagonal
-            );
-            const bacteriaProximity = 1 - Math.min(
-                1,
-                this.getNearestBacteriaDistance(world) / worldDiagonal
-            );
-            const result = [
-                this.energy / 100,
-                this.x / world.width,
-                this.y / world.height,
-                foodProximity,
-                bacteriaProximity,
-                inToxic,
-                Math.max(0, Math.min(1, 0.5 + tempDelta))
-            ];
-            return result;
-        } catch (err) {
-            console.error(`[Bacteria.getSensorInputs] ERROR id: ${this.id || 'n/a'}:`, err);
-            throw err;
         }
+
+        const raw = [
+            Math.max(0, Math.min(1, this.energy / 100)),
+            ...foodSignals,
+            ...wallSignals,
+            ...dangerSignals,
+            ...socialSignals,
+            Math.max(0, Math.min(1, temperatureDelta)),
+            Math.max(0, Math.min(1, -temperatureDelta))
+        ];
+        const noise = this.genome.sensors.noise;
+        return raw.map(value => Math.max(0, Math.min(1, value + (Math.random() * 2 - 1) * noise)));
+    }
+
+    findNearestTarget(targets) {
+        let nearest = null;
+        let nearestDistance = Infinity;
+        targets.forEach(target => {
+            const distance = Math.hypot(target.x - this.x, target.y - this.y);
+            if (distance < nearestDistance) {
+                nearest = target;
+                nearestDistance = distance;
+            }
+        });
+        return nearest ? { x: nearest.x, y: nearest.y, distance: nearestDistance } : null;
+    }
+
+    findNearestHazard(zones) {
+        let nearest = null;
+        let nearestDistance = Infinity;
+        zones.forEach(zone => {
+            const centerDistance = Math.hypot(zone.x - this.x, zone.y - this.y);
+            const edgeDistance = Math.max(0, centerDistance - zone.r);
+            if (edgeDistance < nearestDistance) {
+                nearest = { x: zone.x, y: zone.y, distance: edgeDistance };
+                nearestDistance = edgeDistance;
+            }
+        });
+        return nearest;
+    }
+
+    directionalSignals(target, sensorRange) {
+        if (!target || target.distance > sensorRange) return [0, 0, 0];
+        const bearing = this.normalizeAngle(Math.atan2(target.y - this.y, target.x - this.x) - this.heading);
+        const proximity = 1 - target.distance / sensorRange;
+        const sharpness = this.genome.sensors.directionalSharpness;
+        return [-Math.PI / 3, 0, Math.PI / 3].map(direction =>
+            proximity * Math.max(0, Math.cos(this.normalizeAngle(bearing - direction))) ** sharpness
+        );
+    }
+
+    rayDistanceToWall(world, angle) {
+        const dx = Math.cos(angle);
+        const dy = Math.sin(angle);
+        const distances = [];
+        if (dx > 0) distances.push(Math.max(0, (world.width - this.radius - this.x) / dx));
+        if (dx < 0) distances.push(Math.max(0, (this.radius - this.x) / dx));
+        if (dy > 0) distances.push(Math.max(0, (world.height - this.radius - this.y) / dy));
+        if (dy < 0) distances.push(Math.max(0, (this.radius - this.y) / dy));
+        return Math.min(...distances);
+    }
+
+    normalizeAngle(angle) {
+        return Math.atan2(Math.sin(angle), Math.cos(angle));
     }
 
     getBrainOutputs() {
@@ -295,42 +378,44 @@ export class Bacteria {
         
         // Mutate brain parameters
         if (Math.random() < mutationRate) {
-            mutatedGenome.brain.numNeurons = Math.max(3,
-                mutatedGenome.brain.numNeurons + Math.floor(Math.random() * 3 - 1)
-            );
+            const layerIndex = Math.floor(Math.random() * mutatedGenome.brain.hiddenLayers.length);
+            mutatedGenome.brain.hiddenLayers[layerIndex] = Math.max(2, Math.min(12,
+                mutatedGenome.brain.hiddenLayers[layerIndex] + (Math.random() < 0.5 ? -1 : 1)
+            ));
+        }
+        if (Math.random() < mutationRate * 0.25) {
+            if (mutatedGenome.brain.hiddenLayers.length < 3 && Math.random() < 0.6) {
+                const insertAt = Math.floor(Math.random() * (mutatedGenome.brain.hiddenLayers.length + 1));
+                mutatedGenome.brain.hiddenLayers.splice(insertAt, 0, 2 + Math.floor(Math.random() * 4));
+            } else if (mutatedGenome.brain.hiddenLayers.length > 1) {
+                mutatedGenome.brain.hiddenLayers.splice(
+                    Math.floor(Math.random() * mutatedGenome.brain.hiddenLayers.length),
+                    1
+                );
+            }
         }
         if (Math.random() < mutationRate) {
             mutatedGenome.brain.connectionDensity = Math.max(0.1, Math.min(0.9,
                 mutatedGenome.brain.connectionDensity + (Math.random() * 0.2 - 0.1)
             ));
         }
+        if (Math.random() < mutationRate) {
+            mutatedGenome.sensors.range = Math.max(0.15, Math.min(0.9,
+                mutatedGenome.sensors.range + (Math.random() * 0.12 - 0.06)
+            ));
+        }
+        if (Math.random() < mutationRate) {
+            mutatedGenome.sensors.directionalSharpness = Math.max(1, Math.min(8,
+                mutatedGenome.sensors.directionalSharpness + (Math.random() * 0.8 - 0.4)
+            ));
+        }
+        if (Math.random() < mutationRate) {
+            mutatedGenome.sensors.noise = Math.max(0, Math.min(0.2,
+                mutatedGenome.sensors.noise + (Math.random() * 0.03 - 0.015)
+            ));
+        }
         
         return mutatedGenome;
     }
 
-    getNearestFoodDistance(world) {
-        if (!world.food || world.food.length === 0) return Math.hypot(world.width, world.height);
-        let minDist = Infinity;
-        for (const food of world.food) {
-            const dx = this.x - food.x;
-            const dy = this.y - food.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < minDist) minDist = dist;
-        }
-        return minDist;
-    }
-
-    getNearestBacteriaDistance(world) {
-        const otherBacteria = world.bacteria.filter(b => b !== this);
-        if (!otherBacteria || otherBacteria.length === 0) return Math.hypot(world.width, world.height);
-        
-        let minDist = Infinity;
-        for (const bacteria of otherBacteria) {
-            const dx = this.x - bacteria.x;
-            const dy = this.y - bacteria.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < minDist) minDist = dist;
-        }
-        return minDist;
-    }
 }

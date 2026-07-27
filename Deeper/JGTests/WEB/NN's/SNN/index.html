@@ -147,6 +147,7 @@
         .inspector { position: sticky; top: 12px; }
         .selection-tools { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--line); }
         .selection-tools button { padding: 6px 9px; font-size: .78rem; }
+        .selection-tools select { flex: 1 1 150px; min-width: 0; padding: 6px 8px; font-size: .78rem; }
         #selectedBacteriaStats { padding: 12px; }
         .empty-state { color: var(--muted); padding: 18px 0; text-align: center; }
         .agent-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -164,11 +165,21 @@
         .signal output { text-align: right; color: var(--muted); font-family: ui-monospace, monospace; }
 
         .viz-block { border-top: 1px solid var(--line); }
-        .viz-head { padding: 9px 12px; display: flex; justify-content: space-between; align-items: center; }
+        .viz-head { padding: 9px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
         .viz-head h3 { margin: 0; font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; }
+        .viz-head select { min-width: 145px; max-width: 210px; padding: 5px 7px; font-size: .7rem; }
         .legend { color: var(--muted); font-size: .64rem; }
         #brainVisCanvas, #spikeRasterCanvas, #statsGraph { width: 100%; background: #081419; }
-        #brainNodeDetails { min-height: 34px; padding: 7px 12px; border-top: 1px solid var(--line); color: var(--muted); font: .7rem ui-monospace, monospace; }
+        #brainNodeDetails {
+            min-height: 52px;
+            padding: 9px 12px;
+            border-top: 1px solid var(--line);
+            border-left: 3px solid var(--line);
+            color: var(--muted);
+            font: .7rem/1.55 ui-monospace, monospace;
+        }
+        #brainNodeDetails.has-selection { border-left-color: var(--lime); background: rgba(184, 234, 101, .06); color: var(--text); }
+        #brainNodeDetails strong { color: var(--lime); font-size: .78rem; }
 
         .research-notes {
             margin-top: 12px;
@@ -180,13 +191,6 @@
         .note strong { display: block; color: var(--amber); margin-bottom: 6px; }
         .note p { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.5; }
 
-        details.lab-bench { margin-top: 18px; }
-        details.lab-bench > summary { padding: 14px; cursor: pointer; font-weight: 700; }
-        .bench-content { border-top: 1px solid var(--line); padding: 14px; display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 16px; }
-        .bench-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-        #snnCanvas { background: #081419; border: 1px solid var(--line); cursor: crosshair; }
-        .input-nodes-panel { color: var(--muted); }
-
         @media (max-width: 1050px) {
             .research-grid { grid-template-columns: 1fr; }
             .inspector { position: static; }
@@ -195,7 +199,7 @@
             .topbar, .section-heading { align-items: flex-start; flex-direction: column; }
             .world-footer { grid-template-columns: repeat(2, 1fr); }
             .metric { border-bottom: 1px solid var(--line); }
-            .research-notes, .bench-content { grid-template-columns: 1fr; }
+            .research-notes { grid-template-columns: 1fr; }
             .io-grid { grid-template-columns: 1fr; }
         }
     </style>
@@ -257,7 +261,7 @@
                 <section class="world-panel">
                     <div class="panel-head">
                         <h3>Ecology viewport</h3>
-                        <span class="panel-note">Click an agent to inspect · trace shows recent trajectory</span>
+                        <span class="panel-note">Click anywhere to select the nearest agent · trace follows it</span>
                     </div>
                     <canvas id="bacteriaCanvas" width="900" height="560" aria-label="Bacteria evolution simulation"></canvas>
                     <div id="bacteriaStats" class="world-footer" aria-live="polite"></div>
@@ -269,6 +273,9 @@
                         <span class="panel-note" id="selectionStatus">No selection</span>
                     </div>
                     <div class="selection-tools">
+                        <select id="agentSelect" disabled aria-label="Select organism by ID">
+                            <option value="">Choose agent…</option>
+                        </select>
                         <button id="selectBestBtn" disabled>Best fitness</button>
                         <button id="selectPrevBtn" disabled>← Previous</button>
                         <button id="selectNextBtn" disabled>Next →</button>
@@ -278,7 +285,9 @@
                     <div class="viz-block">
                         <div class="viz-head">
                             <h3>Network anatomy</h3>
-                            <span class="legend">cyan sensor · amber hidden · lime motor</span>
+                            <select id="brainNeuronSelect" disabled aria-label="Select neuron">
+                                <option value="">Choose neuron…</option>
+                            </select>
                         </div>
                         <canvas id="brainVisCanvas" width="460" height="290" aria-label="Selected bacteria neural network"></canvas>
                         <div id="brainNodeDetails">Select a neuron in the network to inspect its state.</div>
@@ -303,32 +312,12 @@
             </div>
 
             <div class="research-notes">
-                <article class="note"><strong>Measure before adding complexity</strong><p>Use stepping, raster activity, trajectories, and snapshots to establish whether a controller is genuinely causal rather than merely moving.</p></article>
-                <article class="note"><strong>Separate genotype and phenotype</strong><p>Brain topology, neuron parameters, morphology, and ecological state should be recorded independently for reproducible ablations.</p></article>
-                <article class="note"><strong>Next research target</strong><p>Add synaptic weights and reward-modulated STDP, then compare it against evolution-only controls across fixed seeded environments.</p></article>
+                <article class="note"><strong>No privileged coordinates</strong><p>Agents receive only egocentric left/front/right receptors. They must infer place through sensorimotor history rather than reading absolute X/Y values.</p></article>
+                <article class="note"><strong>Embodiment has a cost</strong><p>Longer-range sensing and larger nervous systems consume more energy, allowing distinct sensory and neural strategies to occupy different ecological niches.</p></article>
+                <article class="note"><strong>Next research target</strong><p>Add signed synaptic weights and reward-modulated STDP, then compare learning, evolution, and hybrid conditions across fixed seeded environments.</p></article>
             </div>
         </section>
 
-        <details class="lab-bench">
-            <summary>Manual SNN bench — construct and stimulate isolated networks</summary>
-            <div class="bench-content">
-                <div>
-                    <div class="bench-controls">
-                        <label for="numBrains">Brains <input type="number" id="numBrains" value="1" min="1" max="10"></label>
-                        <button id="initEnvironmentBtn">Initialize bench</button>
-                        <button id="addNeuronBtn" disabled>Add neuron</button>
-                        <button id="addInputNodeBtn" disabled>Add input</button>
-                        <button id="startPauseBtn" disabled>Run all</button>
-                        <button id="resetBtn" disabled>Reset</button>
-                    </div>
-                    <canvas id="snnCanvas" width="600" height="400"></canvas>
-                </div>
-                <div id="inputNodesPanel" class="input-nodes-panel">
-                    <h3>Input nodes</h3>
-                    <div id="inputNodeControlsContainer"></div>
-                </div>
-            </div>
-        </details>
     </main>
 
     <script src="main.js" type="module"></script>
