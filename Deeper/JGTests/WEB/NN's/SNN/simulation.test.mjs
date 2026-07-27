@@ -68,8 +68,10 @@ try {
 
     const sparseGenome = JSON.parse(JSON.stringify(genome));
     sparseGenome.brain.connectionDensity = 0;
+    delete sparseGenome.brain.connections;
     const denseGenome = JSON.parse(JSON.stringify(genome));
     denseGenome.brain.connectionDensity = 0.65;
+    delete denseGenome.brain.connections;
     const sparse = new Bacteria(250, 100, sparseGenome);
     const dense = new Bacteria(350, 100, denseGenome);
     const wiringWorld = new BacteriaWorld(600, 400, 0);
@@ -121,6 +123,49 @@ try {
     agingWorld.bacteria = [aging];
     aging.update(agingWorld, 16.67);
     assert.equal(aging.energy, 0, 'organisms should die at their inherited lifespan');
+
+    const eliteWorld = new BacteriaWorld(600, 400, 0);
+    eliteWorld.BacteriaClass = Bacteria;
+    eliteWorld.mutationRate = 0;
+    const candidates = Array.from({ length: 6 }, (_, index) => {
+        const candidate = new Bacteria(100 + index * 20, 250, reducedGenome);
+        candidate.foodEaten = index;
+        candidate.energyHarvested = index * 30;
+        eliteWorld.considerElite(candidate, 'finalized');
+        return candidate;
+    });
+    assert.equal(eliteWorld.eliteArchive.length, 5);
+    assert.equal(eliteWorld.eliteArchive[0].id, candidates[5].id);
+    assert.ok(!eliteWorld.eliteArchive.some(record => record.id === candidates[0].id));
+    const championEdges = JSON.stringify(eliteWorld.eliteArchive[0].genome.brain.connections);
+    const eliteIds = new Set(eliteWorld.eliteArchive.map(record => record.id));
+    eliteWorld.startNewGeneration();
+    assert.equal(eliteWorld.generationSummaries[0].elites.length, 5);
+    assert.ok(eliteWorld.bacteria.every(child =>
+        child.parentIds.length > 0 && child.parentIds.every(id => eliteIds.has(id))
+    ));
+    assert.equal(
+        JSON.stringify(eliteWorld.bacteria[0].genome.brain.connections),
+        championEdges,
+        'elite descendants should inherit the realized connection topology'
+    );
+
+    const fullCost = new Bacteria(450, 250, reducedGenome);
+    const lowCost = new Bacteria(500, 250, reducedGenome);
+    const fullCostWorld = new BacteriaWorld(600, 400, 0);
+    fullCostWorld.toxicZones = [];
+    fullCostWorld.tempZones = [];
+    fullCostWorld.energyCost = 1;
+    const lowCostWorld = new BacteriaWorld(600, 400, 0);
+    lowCostWorld.toxicZones = [];
+    lowCostWorld.tempZones = [];
+    lowCostWorld.energyCost = 0.01;
+    fullCost.update(fullCostWorld, 16.67);
+    lowCost.update(lowCostWorld, 16.67);
+    assert.ok(
+        fullCost.lastEnergyCosts.body > lowCost.lastEnergyCosts.body * 99,
+        'metabolic multiplier should scale the complete biological cost ledger'
+    );
 
     const emptyWorld = new BacteriaWorld(600, 400, 0);
     emptyWorld.BacteriaClass = Bacteria;

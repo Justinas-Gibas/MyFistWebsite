@@ -163,6 +163,12 @@
         .signal-track { height: 5px; background: #26383e; }
         .signal-fill { height: 100%; background: var(--cyan); }
         .signal output { text-align: right; color: var(--muted); font-family: ui-monospace, monospace; }
+        .elite-table { width: 100%; border-collapse: collapse; font: .67rem ui-monospace, monospace; }
+        .elite-table th, .elite-table td { padding: 5px 4px; border-bottom: 1px solid var(--line); text-align: right; }
+        .elite-table th:first-child, .elite-table td:first-child,
+        .elite-table th:nth-child(2), .elite-table td:nth-child(2) { text-align: left; }
+        .elite-table th { color: var(--muted); font-weight: 500; text-transform: uppercase; }
+        .elite-family { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 
         .viz-block { border-top: 1px solid var(--line); }
         .viz-head { padding: 9px 12px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
@@ -251,8 +257,8 @@
                     <div class="range-row"><input type="range" id="foodSpawnRate" min="1" max="100" value="10"><output id="foodSpawnRateValue">10%</output></div>
                 </div>
                 <div class="control-group">
-                    <label for="energyCost">Metabolic cost</label>
-                    <div class="range-row"><input type="range" id="energyCost" min="1" max="100" value="20"><output id="energyCostValue">20%</output></div>
+                    <label for="energyCost">Metabolic multiplier</label>
+                    <div class="range-row"><input type="range" id="energyCost" min="1" max="100" value="20"><output id="energyCostValue">0.20×</output></div>
                 </div>
                 <button id="exportExperimentBtn" disabled>Export snapshot</button>
             </div>
@@ -281,6 +287,14 @@
                         <button id="selectNextBtn" disabled>Next →</button>
                     </div>
                     <div id="selectedBacteriaStats"><div class="empty-state">Start an experiment, then select an organism.</div></div>
+
+                    <div class="viz-block">
+                        <div class="viz-head">
+                            <h3>Elite brain archive</h3>
+                            <span class="legend">top 5 · inherited at extinction</span>
+                        </div>
+                        <div id="eliteArchive"><div class="empty-state">No candidates recorded.</div></div>
+                    </div>
 
                     <div class="viz-block">
                         <div class="viz-head">

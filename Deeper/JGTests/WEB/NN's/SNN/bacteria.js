@@ -90,8 +90,12 @@ export class Bacteria {
         this.heading = Math.random() * Math.PI * 2;
         this.distanceTraveled = 0;
         this.foodEaten = 0;
+        this.energyHarvested = 0;
         this.offspring = 0;
         this.parentIds = [];
+        this.birthEpoch = 1;
+        this.lineageDepth = 0;
+        this.deathCause = null;
         this.matingType = Math.random() < 0.5 ? 'α' : 'β';
         this.reproductiveCooldown = 0;
         this.sensorDefinitions = this.genome.sensors.enabled.map(id => SENSOR_BY_ID.get(id));
@@ -129,32 +133,54 @@ export class Bacteria {
             () => this.brain.addNeuron('regular')
         );
 
-        // Always provide a path from every sensor to the motor layer. The genome's
-        // density controls additional paths instead of risking a disconnected brain.
-        const connectLayers = (sourceLayer, targetLayer) => {
-            sourceLayer.forEach((neuron, index) => {
-                neuron.addConnection(targetLayer[index % targetLayer.length].id);
-                targetLayer.forEach(target => {
-                    if (Math.random() < brainConfig.connectionDensity) {
-                        neuron.addConnection(target.id);
-                    }
-                });
+        const inheritedConnections = Array.isArray(brainConfig.connections)
+            ? brainConfig.connections
+            : null;
+        if (inheritedConnections) {
+            inheritedConnections.forEach(([sourceIndex, targetIndex]) => {
+                const source = this.brain.neurons[sourceIndex];
+                const target = this.brain.neurons[targetIndex];
+                if (source && target && target.type === 'regular') {
+                    source.addConnection(target.id);
+                }
             });
-        };
+        } else {
+            // Founders get a minimally connected graph plus optional extra edges.
+            const connectLayers = (sourceLayer, targetLayer) => {
+                sourceLayer.forEach((neuron, index) => {
+                    neuron.addConnection(targetLayer[index % targetLayer.length].id);
+                    targetLayer.forEach(target => {
+                        if (Math.random() < brainConfig.connectionDensity) {
+                            neuron.addConnection(target.id);
+                        }
+                    });
+                });
+            };
 
-        connectLayers(inputs, this.hiddenLayers[0]);
-        this.hiddenLayers.forEach((layer, layerIndex) => {
-            const nextLayer = this.hiddenLayers[layerIndex + 1] ?? this.outputNeurons;
-            connectLayers(layer, nextLayer);
-            layer.forEach(neuron => {
-                layer.forEach(target => {
-                    if (target !== neuron && Math.random() < brainConfig.connectionDensity) {
-                        neuron.addConnection(target.id);
-                    }
+            connectLayers(inputs, this.hiddenLayers[0]);
+            this.hiddenLayers.forEach((layer, layerIndex) => {
+                const nextLayer = this.hiddenLayers[layerIndex + 1] ?? this.outputNeurons;
+                connectLayers(layer, nextLayer);
+                layer.forEach(neuron => {
+                    layer.forEach(target => {
+                        if (target !== neuron && Math.random() < brainConfig.connectionDensity) {
+                            neuron.addConnection(target.id);
+                        }
+                    });
                 });
             });
-        });
+        }
+        this.genome.brain.connections = this.serializeBrainConnections();
         this.brain.start();
+    }
+
+    serializeBrainConnections() {
+        const indexById = new Map(this.brain.neurons.map((neuron, index) => [neuron.id, index]));
+        return this.brain.neurons.flatMap((source, sourceIndex) =>
+            source.connections
+                .map(targetId => [sourceIndex, indexById.get(targetId)])
+                .filter(([, targetIndex]) => Number.isInteger(targetIndex))
+        );
     }
 
     createGenome() {
@@ -252,25 +278,26 @@ export class Bacteria {
             const fanoutLoad = this.brain.neurons.reduce(
                 (sum, neuron) => sum + neuron.connections.length ** 2, 0
             );
-            const scale = frameScale / this.genome.efficiency;
+            const scale = frameScale * world.energyCost / this.genome.efficiency;
             this.lastEnergyCosts = {
-                basal: world.energyCost * 0.35 * scale,
-                body: 0.055 * this.genome.size ** 3 * scale,
-                speedCapacity: 0.022 * this.genome.speed ** 2 *
+                basal: 0.0025 * scale,
+                body: 0.0025 * this.genome.size ** 3 * scale,
+                speedCapacity: 0.001 * this.genome.speed ** 2 *
                     this.genome.size * scale,
-                movement: 0.018 * speed ** 2 * this.genome.speed ** 2 *
+                movement: 0.001 * speed ** 2 * this.genome.speed ** 2 *
                     this.genome.size ** 2 * scale,
                 receptors: (
-                    0.0025 * this.sensorDefinitions.length +
-                    0.018 * this.genome.sensors.range
+                    0.000125 * this.sensorDefinitions.length +
+                    0.0009 * this.genome.sensors.range
                 ) * scale,
-                neurons: 0.0012 * this.brain.neurons.length * scale,
-                synapses: (0.0005 * connections + 0.00004 * fanoutLoad) * scale,
-                spikes: 0.004 * this.brain.lastStepStats.spikes / this.genome.efficiency,
-                transmissions: 0.0012 * this.brain.lastStepStats.transmissions /
-                    this.genome.efficiency,
-                senescence: 0.08 * senescence ** 2 * scale,
-                environment: toxicPenalty + tempPenalty
+                neurons: 0.00006 * this.brain.neurons.length * scale,
+                synapses: (0.000025 * connections + 0.000002 * fanoutLoad) * scale,
+                spikes: 0.0002 * this.brain.lastStepStats.spikes *
+                    world.energyCost / this.genome.efficiency,
+                transmissions: 0.00006 * this.brain.lastStepStats.transmissions *
+                    world.energyCost / this.genome.efficiency,
+                senescence: 0.004 * senescence ** 2 * scale,
+                environment: (toxicPenalty + tempPenalty) * frameScale
             };
             const totalCost = Object.values(this.lastEnergyCosts)
                 .reduce((sum, cost) => sum + cost, 0);
@@ -278,17 +305,21 @@ export class Bacteria {
             Object.entries(this.lastEnergyCosts).forEach(([key, cost]) => {
                 this.cumulativeEnergyCosts[key] = (this.cumulativeEnergyCosts[key] ?? 0) + cost;
             });
-            if (this.age >= history.lifespan) this.energy = 0;
+            if (this.age >= history.lifespan) {
+                this.deathCause = 'lifespan';
+                this.energy = 0;
+            }
 
-            // Find and consume nearby food
-            this.consumeNearbyFood(world);
+            // Lifespan death is terminal; nearby food cannot revive the organism.
+            if (!this.deathCause) this.consumeNearbyFood(world);
 
             // Clamp to world bounds
             this.x = Math.max(this.radius, Math.min(world.width - this.radius, this.x));
             this.y = Math.max(this.radius, Math.min(world.height - this.radius, this.y));
 
-            // Update fitness
-            this.fitness = this.age + (this.energy * 0.1);
+            // Versioned outcome score used for elite ordering. Raw components are
+            // archived alongside it so experiments need not rely on one scalar.
+            this.fitness = this.calculateEliteScore();
         } catch (err) {
             console.error(`[Bacteria.update] ERROR id: ${this.id || 'n/a'}:`, err);
             throw err;
@@ -430,8 +461,22 @@ export class Bacteria {
         if (food) {
             this.energy += food.energy;
             this.foodEaten++;
+            this.energyHarvested += food.energy;
             world.removeFood(food);
         }
+    }
+
+    calculateEliteScore() {
+        const survivalFraction = Math.min(1, this.age / this.genome.lifeHistory.lifespan);
+        const neuralCost = (this.cumulativeEnergyCosts.neurons ?? 0) +
+            (this.cumulativeEnergyCosts.synapses ?? 0) +
+            (this.cumulativeEnergyCosts.spikes ?? 0) +
+            (this.cumulativeEnergyCosts.transmissions ?? 0);
+        return this.offspring * 150 +
+            this.foodEaten * 30 +
+            survivalFraction * 25 +
+            Math.max(0, this.energy) * 0.1 -
+            neuralCost * 0.1;
     }
 
     canMate() {
@@ -455,6 +500,9 @@ export class Bacteria {
         if (childX > 0 && childX < world.width && childY > 0 && childY < world.height) {
             const child = new Bacteria(childX, childY, childGenome);
             child.parentIds = [this.id, partner.id];
+            child.birthEpoch = world.generation;
+            child.lineageDepth = Math.max(this.lineageDepth, partner.lineageDepth) + 1;
+            child.energy = 64;
             world.addBacteria(child);
             this.offspring++;
             partner.offspring++;
@@ -506,12 +554,15 @@ export class Bacteria {
         }
         mutatedGenome.color = hueToRgb(mutatedGenome.familyHue);
         
-        // Mutate brain parameters
+        // Mutate brain parameters. Structural changes rebuild the edge blueprint;
+        // otherwise evolution adds or removes individual inherited synapses.
+        let topologyChanged = false;
         if (Math.random() < mutationRate) {
             const layerIndex = Math.floor(Math.random() * mutatedGenome.brain.hiddenLayers.length);
             mutatedGenome.brain.hiddenLayers[layerIndex] = Math.max(2, Math.min(12,
                 mutatedGenome.brain.hiddenLayers[layerIndex] + (Math.random() < 0.5 ? -1 : 1)
             ));
+            topologyChanged = true;
         }
         if (Math.random() < mutationRate * 0.25) {
             if (mutatedGenome.brain.hiddenLayers.length < 3 && Math.random() < 0.6) {
@@ -523,6 +574,7 @@ export class Bacteria {
                     1
                 );
             }
+            topologyChanged = true;
         }
         if (Math.random() < mutationRate) {
             mutatedGenome.brain.connectionDensity = Math.max(0, Math.min(0.65,
@@ -553,6 +605,7 @@ export class Bacteria {
             } else if (missing.length) {
                 enabled.push(missing[Math.floor(Math.random() * missing.length)]);
             }
+            topologyChanged = true;
         }
         for (const key of ['maturityAge', 'lifespan', 'reproductionEnergy', 'mateCooldown']) {
             if (Math.random() < mutationRate) {
@@ -575,6 +628,27 @@ export class Bacteria {
         mutatedGenome.lifeHistory.mateCooldown = Math.max(
             80, Math.min(600, mutatedGenome.lifeHistory.mateCooldown)
         );
+        if (topologyChanged) {
+            delete mutatedGenome.brain.connections;
+        } else if (Array.isArray(mutatedGenome.brain.connections) &&
+            Math.random() < mutationRate) {
+            const edges = mutatedGenome.brain.connections;
+            const inputCount = mutatedGenome.sensors.enabled.length;
+            const neuronCount = inputCount +
+                mutatedGenome.brain.hiddenLayers.reduce((sum, size) => sum + size, 0) + 2;
+            if (edges.length > 1 && Math.random() < 0.5) {
+                edges.splice(Math.floor(Math.random() * edges.length), 1);
+            } else {
+                const sourceIndex = Math.floor(Math.random() * Math.max(1, neuronCount - 2));
+                const targetIndex = inputCount +
+                    Math.floor(Math.random() * Math.max(1, neuronCount - inputCount));
+                if (sourceIndex !== targetIndex &&
+                    !edges.some(([source, target]) =>
+                        source === sourceIndex && target === targetIndex)) {
+                    edges.push([sourceIndex, targetIndex]);
+                }
+            }
+        }
         
         return mutatedGenome;
     }

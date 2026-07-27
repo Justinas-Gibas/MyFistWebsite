@@ -15,13 +15,39 @@ ablation against simpler controllers.
 - Embodied agents with egocentric directional food, wall, hazard, social, and
   temperature receptors; no privileged absolute coordinates
 - Evolved morphology, sensory range/noise/directionality, one-to-three hidden
-  layers, neuron count, and connection density
-- Explicit metabolic costs for neural tissue and longer-range sensing
+  layers, neuron count, and inherited realized connection topology
+- Explicit energy ledger for morphology, sensing, neurons, wiring, spikes,
+  synaptic transfers, movement, senescence, and environmental injury
+- Five-member elite archive with raw outcome components, lineage metadata,
+  epoch summaries, and elite-descendant extinction recovery
 - Agent selection with sensor, motor, neuron, spike-raster, and trajectory views
 - Population fitness and phenotype-diversity monitoring
 - Single-step execution and versioned JSON experiment snapshots
 - Integration coverage for movement, sensor-to-motor propagation, trajectory
-  instrumentation, and extinction recovery
+  instrumentation, topology inheritance, global metabolic scaling, elite
+  ordering, and extinction recovery
+
+## Phase 0 — selection validity
+
+Implemented:
+
+1. Archive candidates before dead agents are removed.
+2. Store realized neural edges in the genome and mutate edges explicitly.
+3. Refill an extinct population with balanced descendants of the top five
+   archived candidates rather than unrelated random founders.
+4. Preserve parent IDs, birth epoch, lineage depth, family, raw outcomes, and
+   decomposed energy costs.
+5. Apply the metabolic control to the complete biological cost ledger and
+   report food-energy throughput.
+
+Still required before interpreting elite score as a scientific result:
+
+1. Calibrate the `elite-v1` score against preregistered outcome priorities.
+2. Compare strict top-five elitism with family-capped and novelty-preserving
+   archives to quantify diversity collapse.
+3. Replace deterministic lifespan cutoffs with a documented mortality model,
+   or define extinction epochs explicitly as the experimental protocol.
+4. Add invariant energy-balance checks and death-cause summaries.
 
 ## Phase 1 — reproducible experimental kernel
 

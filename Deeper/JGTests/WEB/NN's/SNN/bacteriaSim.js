@@ -45,6 +45,7 @@ export class BacteriaSim {
         this.selectedBacteriaStats = document.getElementById('selectedBacteriaStats');
         this.selectionStatus = document.getElementById('selectionStatus');
         this.brainNodeDetails = document.getElementById('brainNodeDetails');
+        this.eliteArchiveElement = document.getElementById('eliteArchive');
         this.agentSelect = document.getElementById('agentSelect');
         this.brainNeuronSelect = document.getElementById('brainNeuronSelect');
         this.agentRosterSignature = '';
@@ -122,7 +123,8 @@ export class BacteriaSim {
             if (this.world) this.world.foodSpawnRate = Number(event.target.value) / 1000;
         });
         this.energyCostSlider.addEventListener('input', event => {
-            document.getElementById('energyCostValue').textContent = `${event.target.value}%`;
+            document.getElementById('energyCostValue').textContent =
+                `${(Number(event.target.value) / 100).toFixed(2)}×`;
             if (this.world) this.world.energyCost = Number(event.target.value) / 100;
         });
         this.speedSelect.addEventListener('change', event => {
@@ -257,9 +259,48 @@ export class BacteriaSim {
             ${this.metricMarkup('Food', `${this.world.food.length}/${this.world.maxFood}`)}
             ${this.metricMarkup('Mean energy', avg(b => b.energy).toFixed(1))}
             ${this.metricMarkup('Best fitness', bestFitness.toFixed(1))}
+            ${this.metricMarkup('Elite candidates', this.world.eliteArchive.length)}
+            ${this.metricMarkup('Births / deaths', `${this.world.totalBirths}/${this.world.totalDeaths}`)}
+            ${this.metricMarkup('Food energy used', this.world.totalFoodEnergyConsumed.toFixed(0))}
             ${this.metricMarkup('Diversity', `${(diversity * 100).toFixed(0)}%`)}
         `;
+        this.updateEliteArchive();
         this.refreshAgentRoster();
+    }
+
+    updateEliteArchive() {
+        if (!this.eliteArchiveElement) return;
+        const current = this.world.eliteArchive.map(record => ({
+            ...record,
+            displayStatus: record.status
+        }));
+        const records = current.length
+            ? current
+            : this.world.hallOfFame.map(record => ({ ...record, displayStatus: 'hall' }));
+        if (!records.length) {
+            this.eliteArchiveElement.innerHTML =
+                '<div class="empty-state">Candidates appear after the first simulation step.</div>';
+            return;
+        }
+        const colorFor = record => {
+            const genome = record.genome;
+            return `rgb(${genome.color.r},${genome.color.g},${genome.color.b})`;
+        };
+        this.eliteArchiveElement.innerHTML = `
+            <table class="elite-table">
+                <thead><tr><th>#</th><th>Agent</th><th>Score</th><th>Food</th><th>Edges</th><th>State</th></tr></thead>
+                <tbody>${records.slice(0, 5).map((record, index) => `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td><span class="elite-family" style="background:${colorFor(record)}"></span>${record.id}</td>
+                        <td>${record.score.toFixed(1)}</td>
+                        <td>${record.foodEaten}</td>
+                        <td>${record.connections}</td>
+                        <td>${record.displayStatus}</td>
+                    </tr>
+                `).join('')}</tbody>
+            </table>
+        `;
     }
 
     metricMarkup(label, value) {
@@ -664,7 +705,7 @@ export class BacteriaSim {
     exportSnapshot() {
         if (!this.world) return;
         const snapshot = {
-            schema: 'snn-evolab-experiment@1',
+            schema: 'snn-evolab-experiment@2',
             exportedAt: new Date().toISOString(),
             generation: this.world.generation,
             elapsedTime: this.world.elapsedTime,
@@ -677,6 +718,18 @@ export class BacteriaSim {
                 optimalTemp: this.world.optimalTemp
             },
             metrics: this.metrics,
+            scoreDefinition: this.world.scoreDefinition,
+            energyLedger: {
+                foodEnergySpawned: this.world.totalFoodEnergySpawned,
+                foodEnergyConsumed: this.world.totalFoodEnergyConsumed,
+                births: this.world.totalBirths,
+                deaths: this.world.totalDeaths
+            },
+            eliteArchive: this.world.eliteArchive.map(record =>
+                this.world.publicEliteRecord(record)
+            ),
+            hallOfFame: this.world.hallOfFame,
+            generationSummaries: this.world.generationSummaries,
             population: this.world.bacteria.map(bacteria => ({
                 id: bacteria.id,
                 parentIds: bacteria.parentIds,
@@ -688,7 +741,10 @@ export class BacteriaSim {
                 fitness: bacteria.fitness,
                 distanceTraveled: bacteria.distanceTraveled,
                 foodEaten: bacteria.foodEaten,
+                energyHarvested: bacteria.energyHarvested,
                 offspring: bacteria.offspring,
+                birthEpoch: bacteria.birthEpoch,
+                lineageDepth: bacteria.lineageDepth,
                 genome: bacteria.genome,
                 neurons: bacteria.brain.neurons.map(neuron => ({
                     id: neuron.id,

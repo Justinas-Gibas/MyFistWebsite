@@ -14,6 +14,8 @@ export class Food {
     }
 }
 
+const cloneData = value => JSON.parse(JSON.stringify(value));
+
 export class BacteriaWorld {
     constructor(width, height, numBacteria) {
         this.width = width;
@@ -22,6 +24,18 @@ export class BacteriaWorld {
         this.food = [];
         this.generation = 1;
         this.totalBirths = 0;
+        this.totalDeaths = 0;
+        this.epochBirths = 0;
+        this.epochDeaths = 0;
+        this.totalFoodEnergySpawned = 0;
+        this.totalFoodEnergyConsumed = 0;
+        this.epochFoodEnergySpawned = 0;
+        this.epochFoodEnergyConsumed = 0;
+        this.eliteLimit = 5;
+        this.eliteArchive = [];
+        this.hallOfFame = [];
+        this.generationSummaries = [];
+        this.scoreDefinition = 'elite-v1:150*offspring+30*food+25*survival+0.1*energy-0.1*neuralCost';
         this.elapsedTime = 0;
         this.targetPopulation = Math.max(5, numBacteria || 20);
         this.BacteriaClass = null; // Store the Bacteria class reference
@@ -57,7 +71,12 @@ export class BacteriaWorld {
 
     initializeBacteria(BacteriaClass) {
         this.BacteriaClass = BacteriaClass; // Store the reference to the Bacteria class
-        this.bacteria = this.bacteria.map(b => new BacteriaClass(b.x, b.y));
+        this.bacteria = this.bacteria.map(b => {
+            const bacteria = new BacteriaClass(b.x, b.y);
+            bacteria.birthEpoch = this.generation;
+            return bacteria;
+        });
+        this.seedFood(Math.min(this.maxFood, this.targetPopulation));
     }
 
     update(deltaTime = 16.67) {
@@ -74,9 +93,17 @@ export class BacteriaWorld {
         // Update all bacteria
         for (const b of [...this.bacteria]) {
             b.update(this, deltaTime);
+            this.considerElite(b, b.energy > 0 ? 'living' : 'finalized');
         }
 
         // Remove dead bacteria
+        const dead = this.bacteria.filter(b => b.energy <= 0);
+        dead.forEach(bacteria => {
+            bacteria.deathCause ??= 'energy';
+            this.totalDeaths++;
+            this.epochDeaths++;
+            this.considerElite(bacteria, 'finalized');
+        });
         this.bacteria = this.bacteria.filter(b => b.energy > 0);
         if (this.selectedBacteria && !this.bacteria.includes(this.selectedBacteria)) {
             this.selectedBacteria = null;
@@ -166,13 +193,68 @@ export class BacteriaWorld {
 
     addFood(food) {
         this.food.push(food);
+        this.totalFoodEnergySpawned += food.energy;
+        this.epochFoodEnergySpawned += food.energy;
     }
 
     removeFood(food) {
         const index = this.food.indexOf(food);
         if (index !== -1) {
             this.food.splice(index, 1);
+            this.totalFoodEnergyConsumed += food.energy;
+            this.epochFoodEnergyConsumed += food.energy;
         }
+    }
+
+    seedFood(count) {
+        for (let index = 0; index < count && this.food.length < this.maxFood; index++) {
+            this.addFood(new Food(
+                Math.random() * this.width,
+                Math.random() * this.height
+            ));
+        }
+    }
+
+    considerElite(bacteria, status = 'living') {
+        const record = {
+            id: bacteria.id,
+            score: bacteria.calculateEliteScore(),
+            scoreDefinition: this.scoreDefinition,
+            status,
+            deathCause: bacteria.deathCause,
+            familyId: bacteria.genome.familyId,
+            parentIds: [...bacteria.parentIds],
+            birthEpoch: bacteria.birthEpoch,
+            lineageDepth: bacteria.lineageDepth,
+            age: bacteria.age,
+            energy: bacteria.energy,
+            foodEaten: bacteria.foodEaten,
+            energyHarvested: bacteria.energyHarvested,
+            offspring: bacteria.offspring,
+            neurons: bacteria.brain.neurons.length,
+            connections: bacteria.brain.neurons.reduce(
+                (sum, neuron) => sum + neuron.connections.length, 0
+            ),
+            spikes: bacteria.brain.neurons.reduce(
+                (sum, neuron) => sum + neuron.spikeCount, 0
+            ),
+            transmissions: bacteria.brain.totalStats?.transmissions ?? 0,
+            cumulativeEnergyCosts: cloneData(bacteria.cumulativeEnergyCosts),
+            genome: cloneData(bacteria.genome),
+            source: bacteria
+        };
+        const existingIndex = this.eliteArchive.findIndex(elite => elite.id === record.id);
+        if (existingIndex >= 0) this.eliteArchive.splice(existingIndex, 1);
+        this.eliteArchive.push(record);
+        this.eliteArchive.sort((a, b) =>
+            b.score - a.score || a.id.localeCompare(b.id, undefined, { numeric: true })
+        );
+        this.eliteArchive = this.eliteArchive.slice(0, this.eliteLimit);
+    }
+
+    publicEliteRecord(record) {
+        const { source, ...publicRecord } = record;
+        return cloneData(publicRecord);
     }
 
     addBacteria(bacteria) {
@@ -209,6 +291,7 @@ export class BacteriaWorld {
                 paired.add(candidate);
                 paired.add(nearest);
                 this.totalBirths++;
+                this.epochBirths++;
             }
         }
     }
@@ -221,17 +304,61 @@ export class BacteriaWorld {
             return; // Prevent error if no constructor is available
         }
         
-        // Create new population
-        const newPopulation = Array.from({ length: this.targetPopulation }, () =>
-            new BacteriaConstructor(
-                Math.random() * this.width,
-                Math.random() * this.height
-            )
+        const parents = [...this.eliteArchive];
+        const completedEpoch = this.generation;
+        const publicElites = parents.map(record => this.publicEliteRecord(record));
+        this.generationSummaries.push({
+            epoch: completedEpoch,
+            endedAt: this.elapsedTime,
+            populationSize: this.targetPopulation,
+            births: this.epochBirths,
+            deaths: this.epochDeaths,
+            foodEnergySpawned: this.epochFoodEnergySpawned,
+            foodEnergyConsumed: this.epochFoodEnergyConsumed,
+            scoreDefinition: this.scoreDefinition,
+            elites: publicElites
+        });
+        this.hallOfFame.push(...publicElites);
+        this.hallOfFame.sort((a, b) =>
+            b.score - a.score || a.id.localeCompare(b.id, undefined, { numeric: true })
         );
+        this.hallOfFame = this.hallOfFame.slice(0, this.eliteLimit);
+        this.generation++;
+
+        const newPopulation = Array.from({ length: this.targetPopulation }, (_, index) => {
+            let genome = null;
+            let parentIds = [];
+            let lineageDepth = 0;
+            if (parents.length) {
+                const primary = parents[index % parents.length];
+                const secondary = parents[(index + 1) % parents.length];
+                genome = parents.length > 1
+                    ? primary.source.crossoverGenome(secondary.source, this.mutationRate)
+                    : primary.source.mutateGenome(this.mutationRate, primary.genome);
+                parentIds = [...new Set([primary.id, secondary.id])];
+                lineageDepth = Math.max(primary.lineageDepth, secondary.lineageDepth) + 1;
+            }
+            const child = new BacteriaConstructor(
+                Math.random() * this.width,
+                Math.random() * this.height,
+                genome
+            );
+            child.parentIds = parentIds;
+            child.birthEpoch = this.generation;
+            child.lineageDepth = lineageDepth;
+            child.matingType = index % 2 === 0 ? 'α' : 'β';
+            return child;
+        });
         
         this.bacteria = newPopulation;
+        this.eliteArchive = [];
+        this.food = [];
+        this.epochBirths = 0;
+        this.epochDeaths = 0;
+        this.epochFoodEnergySpawned = 0;
+        this.epochFoodEnergyConsumed = 0;
+        this.seedFood(Math.min(this.maxFood, this.targetPopulation));
         this.selectedBacteria = null;
         this.hoveredBacteria = null;
-        this.generation++;
     }
 }

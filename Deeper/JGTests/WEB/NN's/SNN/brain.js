@@ -16,6 +16,7 @@ export class Brain {
         this.fitness = 0;
         this.simulationTime = 0;
         this.lastStepStats = { spikes: 0, transmissions: 0 };
+        this.totalStats = { spikes: 0, transmissions: 0 };
     }
 
     addNeuron(type = 'regular') {
@@ -72,6 +73,8 @@ export class Brain {
         });
 
         this.activeSpikes = this.activeSpikes.filter(spike => --spike.life > 0);
+        this.totalStats.spikes += this.lastStepStats.spikes;
+        this.totalStats.transmissions += this.lastStepStats.transmissions;
         return this.lastStepStats;
     }
 }
