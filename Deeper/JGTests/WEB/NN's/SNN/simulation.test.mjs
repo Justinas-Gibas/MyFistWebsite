@@ -141,7 +141,14 @@ try {
     const eliteIds = new Set(eliteWorld.eliteArchive.map(record => record.id));
     eliteWorld.startNewGeneration();
     assert.equal(eliteWorld.generationSummaries[0].elites.length, 5);
-    assert.ok(eliteWorld.bacteria.every(child =>
+    const eliteDerived = eliteWorld.bacteria.filter(child => child.parentIds.length);
+    const immigrants = eliteWorld.bacteria.filter(child => child.origin === 'immigrant');
+    assert.equal(immigrants.length, 4);
+    assert.equal(
+        eliteWorld.bacteria.filter(child => child.origin === 'elite-clone').length,
+        3
+    );
+    assert.ok(eliteDerived.every(child =>
         child.parentIds.length > 0 && child.parentIds.every(id => eliteIds.has(id))
     ));
     assert.equal(
@@ -202,7 +209,7 @@ try {
     [
         'selectedBacteriaStats', 'selectionStatus', 'brainNodeDetails',
         'mutationRateValue', 'foodSpawnRateValue', 'energyCostValue',
-        'agentSelect', 'brainNeuronSelect'
+        'agentSelect', 'brainNeuronSelect', 'eliteArchive'
     ].forEach(id => element(id));
     element('mutationRate', { value: '10' });
     element('foodSpawnRate', { value: '10' });
@@ -220,6 +227,13 @@ try {
     assert.ok(sim.world.selectedBacteria);
     assert.ok(sim.brainLayout.size > 0);
     assert.match(elements.get('selectedBacteriaStats').innerHTML, /Sensor encoding/);
+    assert.match(elements.get('eliteArchive').innerHTML, /Current epoch candidates/);
+    const archivedForDisplay = sim.world.publicEliteRecord(sim.world.eliteArchive[0]);
+    sim.world.eliteArchive = [];
+    sim.world.hallOfFame = [archivedForDisplay];
+    sim.updateEliteArchive();
+    assert.match(elements.get('eliteArchive').innerHTML, /Persistent hall of fame/);
+    assert.doesNotMatch(elements.get('eliteArchive').innerHTML, /No candidates/);
 
     sim.handleClick({ clientX: 899, clientY: 559 });
     assert.ok(sim.world.selectedBacteria, 'clicking anywhere should select the nearest agent');

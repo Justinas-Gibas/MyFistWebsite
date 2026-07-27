@@ -36,6 +36,13 @@ export class BacteriaWorld {
         this.hallOfFame = [];
         this.generationSummaries = [];
         this.scoreDefinition = 'elite-v1:150*offspring+30*food+25*survival+0.1*energy-0.1*neuralCost';
+        this.reseedPolicy = {
+            eliteClones: 0.125,
+            eliteOffspring: 0.7,
+            immigrants: 0.175
+        };
+        this.matingRadius = 45;
+        this.environmentSeverity = 0.03;
         this.elapsedTime = 0;
         this.targetPopulation = Math.max(5, numBacteria || 20);
         this.BacteriaClass = null; // Store the Bacteria class reference
@@ -226,6 +233,7 @@ export class BacteriaWorld {
             parentIds: [...bacteria.parentIds],
             birthEpoch: bacteria.birthEpoch,
             lineageDepth: bacteria.lineageDepth,
+            origin: bacteria.origin,
             age: bacteria.age,
             energy: bacteria.energy,
             foodEaten: bacteria.foodEaten,
@@ -280,7 +288,7 @@ export class BacteriaWorld {
                 if (partner === candidate || paired.has(partner) || !partner.canMate() ||
                     partner.matingType === candidate.matingType) continue;
                 const distance = Math.hypot(partner.x - candidate.x, partner.y - candidate.y);
-                const matingDistance = candidate.radius + partner.radius + 14;
+                const matingDistance = candidate.radius + partner.radius + this.matingRadius;
                 if (distance <= matingDistance && distance < nearestDistance) {
                     nearest = partner;
                     nearestDistance = distance;
@@ -325,18 +333,43 @@ export class BacteriaWorld {
         this.hallOfFame = this.hallOfFame.slice(0, this.eliteLimit);
         this.generation++;
 
+        const eliteCloneCount = parents.length
+            ? Math.min(parents.length, Math.round(
+                this.targetPopulation * this.reseedPolicy.eliteClones
+            ))
+            : 0;
+        const immigrantCount = parents.length
+            ? Math.round(this.targetPopulation * this.reseedPolicy.immigrants)
+            : this.targetPopulation;
+        const eliteOffspringCount = this.targetPopulation -
+            eliteCloneCount - immigrantCount;
+        this.generationSummaries.at(-1).reseedComposition = {
+            eliteClones: eliteCloneCount,
+            eliteOffspring: eliteOffspringCount,
+            immigrants: immigrantCount
+        };
+
         const newPopulation = Array.from({ length: this.targetPopulation }, (_, index) => {
             let genome = null;
             let parentIds = [];
             let lineageDepth = 0;
-            if (parents.length) {
-                const primary = parents[index % parents.length];
-                const secondary = parents[(index + 1) % parents.length];
+            let origin = 'immigrant';
+            if (index < eliteCloneCount) {
+                const elite = parents[index % parents.length];
+                genome = cloneData(elite.genome);
+                parentIds = [elite.id];
+                lineageDepth = elite.lineageDepth + 1;
+                origin = 'elite-clone';
+            } else if (index < eliteCloneCount + eliteOffspringCount) {
+                const offspringIndex = index - eliteCloneCount;
+                const primary = parents[offspringIndex % parents.length];
+                const secondary = parents[(offspringIndex + 1) % parents.length];
                 genome = parents.length > 1
                     ? primary.source.crossoverGenome(secondary.source, this.mutationRate)
                     : primary.source.mutateGenome(this.mutationRate, primary.genome);
                 parentIds = [...new Set([primary.id, secondary.id])];
                 lineageDepth = Math.max(primary.lineageDepth, secondary.lineageDepth) + 1;
+                origin = 'elite-offspring';
             }
             const child = new BacteriaConstructor(
                 Math.random() * this.width,
@@ -346,6 +379,7 @@ export class BacteriaWorld {
             child.parentIds = parentIds;
             child.birthEpoch = this.generation;
             child.lineageDepth = lineageDepth;
+            child.origin = origin;
             child.matingType = index % 2 === 0 ? 'α' : 'β';
             return child;
         });

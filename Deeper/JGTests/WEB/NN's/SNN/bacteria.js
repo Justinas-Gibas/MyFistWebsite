@@ -73,9 +73,9 @@ export class Bacteria {
             this.genome.sensors.enabled = [...STARTER_SENSORS];
         }
         this.genome.lifeHistory ??= {
-            maturityAge: 220,
+            maturityAge: 180,
             lifespan: 2200,
-            reproductionEnergy: 125,
+            reproductionEnergy: 95,
             mateCooldown: 240
         };
         const legacyHiddenCount = this.genome.brain.numNeurons;
@@ -95,6 +95,7 @@ export class Bacteria {
         this.parentIds = [];
         this.birthEpoch = 1;
         this.lineageDepth = 0;
+        this.origin = 'founder';
         this.deathCause = null;
         this.matingType = Math.random() < 0.5 ? 'α' : 'β';
         this.reproductiveCooldown = 0;
@@ -210,9 +211,9 @@ export class Bacteria {
                 enabled
             },
             lifeHistory: {
-                maturityAge: 180 + Math.random() * 140,
+                maturityAge: 140 + Math.random() * 100,
                 lifespan: 1700 + Math.random() * 1000,
-                reproductionEnergy: 115 + Math.random() * 25,
+                reproductionEnergy: 90 + Math.random() * 20,
                 mateCooldown: 180 + Math.random() * 140
             }
         };
@@ -297,7 +298,8 @@ export class Bacteria {
                 transmissions: 0.00006 * this.brain.lastStepStats.transmissions *
                     world.energyCost / this.genome.efficiency,
                 senescence: 0.004 * senescence ** 2 * scale,
-                environment: (toxicPenalty + tempPenalty) * frameScale
+                environment: (toxicPenalty + tempPenalty) * frameScale *
+                    world.environmentSeverity
             };
             const totalCost = Object.values(this.lastEnergyCosts)
                 .reduce((sum, cost) => sum + cost, 0);
@@ -502,6 +504,7 @@ export class Bacteria {
             child.parentIds = [this.id, partner.id];
             child.birthEpoch = world.generation;
             child.lineageDepth = Math.max(this.lineageDepth, partner.lineageDepth) + 1;
+            child.origin = 'natural-offspring';
             child.energy = 64;
             world.addBacteria(child);
             this.offspring++;
@@ -623,7 +626,7 @@ export class Bacteria {
             mutatedGenome.lifeHistory.maturityAge
         ));
         mutatedGenome.lifeHistory.reproductionEnergy = Math.max(
-            90, Math.min(180, mutatedGenome.lifeHistory.reproductionEnergy)
+            75, Math.min(150, mutatedGenome.lifeHistory.reproductionEnergy)
         );
         mutatedGenome.lifeHistory.mateCooldown = Math.max(
             80, Math.min(600, mutatedGenome.lifeHistory.mateCooldown)

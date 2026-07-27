@@ -274,10 +274,11 @@ export class BacteriaSim {
             ...record,
             displayStatus: record.status
         }));
-        const records = current.length
-            ? current
-            : this.world.hallOfFame.map(record => ({ ...record, displayStatus: 'hall' }));
-        if (!records.length) {
+        const hall = this.world.hallOfFame.map(record => ({
+            ...record,
+            displayStatus: `epoch ${record.birthEpoch}`
+        }));
+        if (!current.length && !hall.length) {
             this.eliteArchiveElement.innerHTML =
                 '<div class="empty-state">Candidates appear after the first simulation step.</div>';
             return;
@@ -286,7 +287,8 @@ export class BacteriaSim {
             const genome = record.genome;
             return `rgb(${genome.color.r},${genome.color.g},${genome.color.b})`;
         };
-        this.eliteArchiveElement.innerHTML = `
+        const table = (title, records) => records.length ? `
+            <div class="elite-section-title">${title}</div>
             <table class="elite-table">
                 <thead><tr><th>#</th><th>Agent</th><th>Score</th><th>Food</th><th>Edges</th><th>State</th></tr></thead>
                 <tbody>${records.slice(0, 5).map((record, index) => `
@@ -300,7 +302,10 @@ export class BacteriaSim {
                     </tr>
                 `).join('')}</tbody>
             </table>
-        `;
+        ` : '';
+        this.eliteArchiveElement.innerHTML =
+            table('Current epoch candidates', current) +
+            table('Persistent hall of fame', hall);
     }
 
     metricMarkup(label, value) {
@@ -349,6 +354,7 @@ export class BacteriaSim {
                 ${this.statMarkup('Age', `${selected.age.toFixed(0)} / ${selected.genome.lifeHistory.lifespan.toFixed(0)}`)}
                 ${this.statMarkup('Mating type', selected.matingType)}
                 ${this.statMarkup('Family', selected.genome.familyId)}
+                ${this.statMarkup('Origin', selected.origin)}
                 ${this.statMarkup('Step energy cost', stepCost.toFixed(3))}
                 ${this.statMarkup('Distance', selected.distanceTraveled.toFixed(0))}
                 ${this.statMarkup('Food', selected.foodEaten)}
@@ -745,6 +751,7 @@ export class BacteriaSim {
                 offspring: bacteria.offspring,
                 birthEpoch: bacteria.birthEpoch,
                 lineageDepth: bacteria.lineageDepth,
+                origin: bacteria.origin,
                 genome: bacteria.genome,
                 neurons: bacteria.brain.neurons.map(neuron => ({
                     id: neuron.id,
