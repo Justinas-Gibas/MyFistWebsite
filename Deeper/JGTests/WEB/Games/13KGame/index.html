@@ -1004,58 +1004,168 @@
     // Draws the entire HUD onto the 2D canvas
     function drawHUDCanvas(dt) {
         const ui = currentUI();
-        timer=(self._tm=(+self._tm||0)+dt/60).toFixed(3);
+        timer = (self._tm = (+self._tm || 0) + dt / 60).toFixed(3);
         hudCtx.clearRect(0, 0, hudCan.width, hudCan.height);
 
+        // Draw the compact menu tab while the main HUD is closed.
         if (!hudVisible) {
             const b = ui[0];
-            const x=b[0]*640,y=b[1]*320,w=(b[2]-b[0])*640,h=(b[3]-b[1])*320;
-            hudCtx.fillStyle=hoverBtn===b?'#586b58':'#202923';hudCtx.fillRect(x,y,w,h);
-            hudCtx.fillStyle='#fff';hudCtx.font='16px system-ui';hudCtx.textAlign='center';hudCtx.textBaseline='middle';
-            hudCtx.fillText('MENU',x+w/2,y+h/2);
+            const x = b[0] * 640;
+            const y = b[1] * 320;
+            const w = (b[2] - b[0]) * 640;
+            const h = (b[3] - b[1]) * 320;
+
+            hudCtx.fillStyle = hoverBtn === b ? '#586b58' : '#27332b';
+            hudCtx.fillRect(x, y, w, h);
+            hudCtx.fillStyle = '#eef';
+            hudCtx.font = '16px system-ui';
+            hudCtx.textAlign = 'center';
+            hudCtx.textBaseline = 'middle';
+            hudCtx.fillText('MENU', x + w / 2, y + h / 2);
+
+            // Keep the latest chat messages visible over the closed HUD.
             if (closedChat && CHAT.length) {
-                const lines=CHAT.slice(-3);hudCtx.fillStyle='#111914dd';hudCtx.fillRect(20,48,600,22+lines.length*18);
-                hudCtx.fillStyle='#eef';hudCtx.font='14px monospace';hudCtx.textAlign='left';hudCtx.textBaseline='alphabetic';
-                lines.forEach((s,i)=>hudCtx.fillText(s.slice(0,68),28,68+i*18));
+                const lines = CHAT.slice(-3);
+                hudCtx.fillStyle = '#111914dd';
+                hudCtx.fillRect(20, 48, 600, 22 + lines.length * 18);
+                hudCtx.fillStyle = '#eef';
+                hudCtx.font = '14px monospace';
+                hudCtx.textAlign = 'left';
+                hudCtx.textBaseline = 'alphabetic';
+                lines.forEach((s, i) =>
+                    hudCtx.fillText(s.slice(0, 68), 28, 68 + i * 18)
+                );
             }
         } else {
-            hudCtx.fillStyle='#111914e8';hudCtx.fillRect(6,6,628,308);
-            hudCtx.fillStyle='#9f9';hudCtx.fillRect(6,6,5,308);
-            hudCtx.textAlign='left';hudCtx.textBaseline='alphabetic';hudCtx.font='20px system-ui';
-            hudCtx.fillText(hudPage===1?'CHAT':hudPage===2?'INVENTORY':hudPage===3?'SETTINGS':'WILD CATCH',20,34);
-            hudCtx.font='15px system-ui';hudCtx.fillStyle='#ccd8cc';
-            if (hudPage===1) {
-                const n=xr?4:11,iy=xr?120:270,lines=LOG.slice(MAX(0,LOG.length-n-logScroll),LOG.length-logScroll);
-                lines.forEach((s,i)=>hudCtx.fillText(s.slice(0,xr?62:48),20,48+i*(xr?18:19)));
-                hudCtx.fillStyle='#27332b';hudCtx.fillRect(20,iy,390,28);
-                hudCtx.fillStyle='#fff';hudCtx.fillText('> '+chatText.slice(-58)+(performance.now()%1e3<500?'_':''),28,iy+20);
-            } else if (hudPage===2) {
-                hudCtx.fillStyle='#899';hudCtx.font='16px system-ui';hudCtx.fillText('INVENTORY PLACEHOLDER',20,82);
-                hudCtx.font='14px monospace';hudCtx.fillText('Items and equipment will appear here.',20,112);
+            // Main panel and accent bar.
+            hudCtx.fillStyle = '#111914dd';
+            hudCtx.fillRect(6, 6, 628, 308);
+            hudCtx.fillStyle = '#9f9';
+            hudCtx.fillRect(6, 6, 5, 308);
+
+            // Page title.
+            hudCtx.textAlign = 'left';
+            hudCtx.textBaseline = 'alphabetic';
+            hudCtx.font = '20px system-ui';
+            hudCtx.fillText(
+                hudPage === 1 ? 'CHAT' :
+                hudPage === 2 ? 'INVENTORY' :
+                hudPage === 3 ? 'SETTINGS' :
+                'WILD CATCH',
+                20,
+                34
+            );
+
+            hudCtx.font = '16px system-ui';
+            hudCtx.fillStyle = '#eef';
+
+            if (hudPage === 1) {
+                // Chat history and text entry field.
+                const n = xr ? 4 : 11;
+                const iy = xr ? 120 : 270;
+                const lines = LOG.slice(
+                    MAX(0, LOG.length - n - logScroll),
+                    LOG.length - logScroll
+                );
+
+                lines.forEach((s, i) =>
+                    hudCtx.fillText(
+                        s.slice(0, xr ? 62 : 48),
+                        20,
+                        48 + i * (xr ? 18 : 19)
+                    )
+                );
+
+                hudCtx.fillStyle = '#27332b';
+                hudCtx.fillRect(20, iy, 390, 28);
+                hudCtx.fillStyle = '#eef';
+                hudCtx.fillText(
+                    '> ' + chatText.slice(-58) +
+                        (performance.now() % 1e3 < 500 ? '_' : ''),
+                    28,
+                    iy + 20
+                );
+            } else if (hudPage === 2) {
+                // Inventory placeholder.
+                hudCtx.fillStyle = '#899';
+                hudCtx.font = '16px system-ui';
+                hudCtx.fillText('INVENTORY', 20, 82);
+                hudCtx.font = '14px monospace';
+                hudCtx.fillText('Items and equipment', 20, 112);
             } else if (!hudPage) {
-                let peerCount=0,now=performance.now();peers.forEach(p=>now-(p.last||0)<15000&&peerCount++);
-                hudCtx.fillText(`CATS ${cat.caught}/13   BOOSTS ${speedBoosts.length}   ${timer}m`,20,64);
-                hudCtx.fillStyle=mmoEnabled?'#9f9':'#899';hudCtx.fillText(`MMO ${mmoEnabled?'ON':'OFF'}   PLAYERS ${peerCount}`,20,88);
-                hudCtx.fillStyle='#aeb8ae';hudCtx.font='14px monospace';
-                const lines=LOG.slice(MAX(0,LOG.length-9-logScroll),LOG.length-logScroll);
-                lines.forEach((s,i)=>hudCtx.fillText(s.slice(0,48),20,126+i*19));
+                // Main status page.
+                let peerCount = 0,
+                    now = performance.now();
+                peers.forEach(p =>
+                    now - (p.last || 0) < 15000 && peerCount++
+                );
+
+                hudCtx.fillText(
+                    `CATS ${cat.caught}/13   BOOSTS ${speedBoosts.length}   ${timer}m`,20,64
+                );
+                hudCtx.fillStyle = mmoEnabled ? '#9f9' : '#899';
+                hudCtx.fillText(
+                    `MMO ${mmoEnabled ? 'ON' : 'OFF'}   PLAYERS ${peerCount}`,20,88
+                );
+                hudCtx.fillStyle = '#899';
+                hudCtx.font = '14px monospace';
+
+                const lines = LOG.slice(
+                    MAX(0, LOG.length - 9 - logScroll),
+                    LOG.length - logScroll
+                );
+                lines.forEach((s, i) =>
+                    hudCtx.fillText(s.slice(0, 48), 20, 126 + i * 19)
+                );
             }
+
+            // Draw every button belonging to the active page.
             for (const b of ui) {
-                const x=b[0]*640,y=b[1]*320,w=(b[2]-b[0])*640,h=(b[3]-b[1])*320,a=b[5];
-                hudCtx.fillStyle=hoverBtn===b?'#586b58':'#27332b';hudCtx.fillRect(x,y,w,h);
-                hudCtx.fillStyle='#eef';hudCtx.font=((hudPage===1&&xr)||(b[2]-b[0]<.2)?'13':'16')+'px system-ui';hudCtx.textAlign='center';hudCtx.textBaseline='middle';
-                hudCtx.fillText(a===1?uiEnterLabel:a===2?'MMO '+(mmoEnabled?'ON':'OFF'):a===14?'INVERT X '+(invertX?'ON':'OFF'):a===15?'INVERT Y '+(invertY?'ON':'OFF'):a===16?'CLOSED CHAT '+(closedChat?'ON':'OFF'):b[4],x+w/2,y+h/2);
+                const x = b[0] * 640;
+                const y = b[1] * 320;
+                const w = (b[2] - b[0]) * 640;
+                const h = (b[3] - b[1]) * 320;
+                const a = b[5];
+
+                hudCtx.fillStyle = hoverBtn === b ? '#586b58' : '#27332b';
+                hudCtx.fillRect(x, y, w, h);
+                hudCtx.fillStyle = '#eef';
+                hudCtx.font = (
+                    (hudPage === 1 && xr) || b[2] - b[0] < .2 ? '13' : '16'
+                ) + 'px system-ui';
+                hudCtx.textAlign = 'center';
+                hudCtx.textBaseline = 'middle';
+                hudCtx.fillText(
+                    a === 1 ? uiEnterLabel :
+                    a === 2 ? 'MMO ' + (mmoEnabled ? 'ON' : 'OFF') :
+                    a === 14 ? 'INVERT X ' + (invertX ? 'ON' : 'OFF') :
+                    a === 15 ? 'INVERT Y ' + (invertY ? 'ON' : 'OFF') :
+                    a === 16 ? 'CLOSED CHAT ' + (closedChat ? 'ON' : 'OFF') :
+                    b[4],
+                    x + w / 2,
+                    y + h / 2
+                );
             }
         }
+
+        // Temporary overlay shown after catching a cat.
         if (congratsTimer > 0) {
-            const x=330,y=128;
-            hudCtx.globalAlpha=congratsTimer>.5?1:congratsTimer/.5;
-            hudCtx.fillStyle='#101814dd';hudCtx.fillRect(110,82,440,132);
-            hudCtx.fillStyle='#dfe8b0';hudCtx.textAlign='center';hudCtx.textBaseline='middle';hudCtx.font='bold 36px system-ui';
-            hudCtx.fillText(`CAT #${cat.caught} CAUGHT`,x,y);
-            hudCtx.font='20px system-ui';
-            hudCtx.fillText(cat.caught<13?`${13-cat.caught} CATS TO CATCH`:'VICTORY! THE END?',x,y+52);
-            hudCtx.globalAlpha=1;
+            const x = 330;
+            const y = 128;
+            hudCtx.globalAlpha = congratsTimer > .5 ? 1 : congratsTimer / .5;
+            hudCtx.fillStyle = '#111914dd';
+            hudCtx.fillRect(110, 82, 440, 132);
+            hudCtx.fillStyle = '#eef';
+            hudCtx.textAlign = 'center';
+            hudCtx.textBaseline = 'middle';
+            hudCtx.font = 'bold 36px system-ui';
+            hudCtx.fillText(`CAT #${cat.caught} CAUGHT`, x, y);
+            hudCtx.font = '20px system-ui';
+            hudCtx.fillText(
+                cat.caught < 13 ?
+                    `${13 - cat.caught} CATS TO CATCH` :
+                    'VICTORY! THE END?',x,y + 52);
+            hudCtx.globalAlpha = 1;
         }
         
         // Upload the canvas content to the WebGL texture
@@ -1082,7 +1192,7 @@
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
     // Simple textured quad shader for the HUD (unified MVP)
-    const vsMVP = `layout(location=0)in vec3 p;layout(location=1)in vec2 uv;uniform mat4 M,V,P;out vec2 f;out vec3 W;void main(){vec4 wpos=M*vec4(p,1.);W=wpos.xyz;f=uv;gl_Position=P*V*wpos;}`;
+    const vsMVP = `layout(location=0)in vec3 p;layout(location=1)in vec2 uv;uniform mat4 M,V,P;out vec2 f;void main(){f=uv;gl_Position=P*V*M*vec4(p,1.);}`;
     const fsH = `in vec2 f;uniform sampler2D T;out vec4 o;void main(){o=texture(T,f);}`;
     const PH = prog(vsMVP, fsH);
     // Shared solid-color fragment program (reused by spheres and beam)
@@ -1090,8 +1200,7 @@
     const PC = prog(vsMVP, fsColor);
     const uMH = gl.getUniformLocation(PH, 'M'),
           uVH = gl.getUniformLocation(PH, 'V'),
-          uPH = gl.getUniformLocation(PH, 'P'),
-          uT = gl.getUniformLocation(PH, 'T');
+          uPH = gl.getUniformLocation(PH, 'P');
 
     const vboH = gl.createBuffer(), vaoH = gl.createVertexArray();
     gl.bindVertexArray(vaoH);
@@ -1408,261 +1517,157 @@
     // -- /FEATURE: Scene --
     
     // -- CORE: render --
-    // --- Main Render Loop (Desktop) ---
-    //let frameCount = 0;
-    function loop(t) {
-        // If an immersive XR session is active, stop the desktop loop chain.
-        if (xr) return;  // prevents scheduling the next frame; XR loop takes over
-        //frameCount++;
-        
-        // Calculate delta time
-        const dt = ((t - last) / 1000) || 0;
-        last = t;
-        // Ensure rocks near the player are generated and present in obstacles for collision resolution
-        // render only ever tenth frame to save CPU
-        //if (frameCount % 10 === 0) {
-            //updateRocks(u.x, u.z);
-            for (let i = obstacles.length - 1; i >= 0; i--) {
+    // Shared simulation and scene renderer. Desktop supplies one synthetic head
+    // view; WebXR supplies the headset's real eye views.
+    function updateWorld(dt, session) {
+        const range = session ? 500 : 300;
+        for (let i = obstacles.length - 1; i >= 0; i--)
             if (obstacles[i]._isRock) obstacles.splice(i, 1);
-        }
         rocks.length = 0;
-        //const c = 5; const r = 200.0;
-        const minX = FLOOR((u.x - 300.)/5);
-        const maxX = FLOOR((u.x + 300.)/5);
-        const minZ = FLOOR((u.z - 300.)/5);
-        const maxZ = FLOOR((u.z + 300.)/5);
-        for(let gz=minZ; gz<=maxZ; gz++){
-            for(let gx=minX; gx<=maxX; gx++){
-                const h = rockHash(gx, gz, .1);
-                if (h < .01){
-                    const jx = rockHash(gx, gz, 1.) - .5;
-                    const jz = rockHash(gx, gz, 2.) - .5;
-                    const px = gx*5 + (jx * 5 * .6) + 5*.5;
-                    const pz = gz*5 + (jz * 5 * .6) + 5*.5;
-                    const dx = px - u.x, dz = pz - u.z;
-                    if (dx*dx + dz*dz <= 300.*300.){
-                        const seed = rockHash(gx, gz, -7.) * 1000.;
-                        const scale = 4. + rockHash(gx, gz, 5.) * 2.; // 1.0 .. 6.0 meters
-                        const rx = px, rz = pz, ry = scale * .45; // small y offset
-                        const radius = scale * 1.2; // collision radius
-                        const rock = { x: rx, y: ry, z: rz, r: radius, seed, scale };
-                        rocks.push(rock);
-                        // also add to obstacles so collision code picks it up
-                        obstacles.push({ x: rx, y: ry, z: rz, r: radius, _isRock: true });
-                    }
+        const minX = FLOOR((u.x - range) / 5), maxX = FLOOR((u.x + range) / 5);
+        const minZ = FLOOR((u.z - range) / 5), maxZ = FLOOR((u.z + range) / 5);
+        for (let gz = minZ; gz <= maxZ; gz++) for (let gx = minX; gx <= maxX; gx++) {
+            const h = rockHash(gx, gz, .1);
+            if (h < .01) {
+                const px = gx * 5 + (rockHash(gx, gz, 1) - .5) * 3 + 2.5;
+                const pz = gz * 5 + (rockHash(gx, gz, 2) - .5) * 3 + 2.5;
+                const dx = px - u.x, dz = pz - u.z;
+                if (dx * dx + dz * dz <= range * range) {
+                    const seed = rockHash(gx, gz, -7) * 1000;
+                    const scale = 4 + rockHash(gx, gz, 5) * 2;
+                    const rock = { x: px, y: scale * .45, z: pz, r: scale * 1.2, seed, scale };
+                    rocks.push(rock);
+                    obstacles.push({ x: rock.x, y: rock.y, z: rock.z, r: rock.r, _isRock: true });
                 }
             }
         }
-        //}
-
-        // Update user position
-        const mv = getMove();
-        step(dt, mv);
-        // Update black cat AI & drops
+        step(dt, getMove(session));
         updateCat(dt);
-        // MMO tick (send position)
         mmoTick(dt);
-        // Trigger congrats overlay on catch
         if (cat.caught > lastCaughtShown) {
             lastCaughtShown = cat.caught;
             congratsTimer = 5.5;
         }
-        // Update camera matrices
-        buildViewProj();
-        // --- Rendering ---
-        gl.viewport(0, 0, C.width, C.height);
-        gl.clearColor(0, 0, 0, 1);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    }
 
-        // Render Sky
-        /* Disabled: keep the cleared framebuffer black.
-        gl.useProgram(PSKY);
-        gl.bindVertexArray(vaoSky);
-        gl.disable(gl.DEPTH_TEST);
-        const Vinv = INV(V);
-        gl.uniformMatrix4fv(uVinv, false, Vinv);
-        gl.uniformMatrix4fv(uInvPV, false, invPV);
-        //gl.uniform3fv(uSun, [0.1, 0.1, -0.9]);
-
-        // Noise texture for clouds
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, noiseTex);
-        gl.uniform1i(uNoiseSky, 1);
-        gl.uniform1f(uTimeSky, t * .001);
-        //gl.uniform1f(uCoverage, cloudCoverage);
-        //gl.uniform1f(uSharpness, cloudSharpness);
-        //gl.uniform1i(uShadowSamples, shadowSamples);
-        //gl.uniform1f(uCloudHeightLoc, cloudHeight);
-        //gl.uniform1f(uCloudScaleLoc, cloudScale);
-        //gl.uniform1f(uCloudMotionSpeedLoc, cloudMotionSpeed);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
-        gl.enable(gl.DEPTH_TEST);
-        */
-
-        // Render Grid
-        /*
-        gl.useProgram(PG);
-        gl.bindVertexArray(vao);
-        gl.uniformMatrix4fv(uM, false, M);
-        gl.uniformMatrix4fv(uV, false, V);
-        gl.uniformMatrix4fv(uP, false, P);
-        //if (beastMode===true){
-        //gl.enable(gl.CULL_FACE);
-        //gl.cullFace(gl.FRONT)}
-        //else {gl.disable(gl.CULL_FACE);};
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
-        */
-
-        // --- Render Items & Obstacles (now works because drawSphere exists) ---
-    for(const itm of items) if (itm.r>0) drawSphere(V,P,itm.x,itm.y,itm.z,itm.r,[.2,1.,.3]);
-        //for(const o of obstacles) if(!o._isRock) drawSphere(V,P,o.x,o.y,o.z,o.r,[0.9,0.2,0.2]);
-        for(const t of traps) drawSphere(V,P,t.x,t.y,t.z,t.r,[.8,.5,.1]);
-        // Render Black Cat
-        drawCat(V,P,cat.x,cat.y,cat.z,cat.yaw,cat.anim,.08,[.02,.02,.02]);
-
-        // Render MMO peers as whitish cats (smoothed)
-        if (peers && peers.size){
-            const nowMs = performance.now();
-            const targetT = nowMs - 120;
-            peers.forEach((p,id)=>{
-                if (id===myId) return;
-                if ((nowMs - (p.last||0)) >= 15000) return; // stale peer
-                const s = samplePeer(p, targetT) || p;
-                drawCat(V,P,s.x,.6,s.z,(s.yaw||0)+PI,HYPOT(s.x, s.z)||1*dt*3.5,.1,PEER_COL);
+    function drawWorld(V, P, W, t, dt, vr) {
+        for (const itm of items) if (itm.r > 0) drawSphere(V, P, itm.x, itm.y, itm.z, itm.r, [.2, 1, .3]);
+        for (const trap of traps) drawSphere(V, P, trap.x, trap.y, trap.z, trap.r, [.8, .5, .1]);
+        drawCat(V, P, cat.x, cat.y, cat.z, cat.yaw, cat.anim, .08, [.02, .02, .02]);
+        if (peers && peers.size) {
+            const now = performance.now(), target = now - 120;
+            peers.forEach((p, id) => {
+                if (id === myId || now - (p.last || 0) >= 15000) return;
+                const q = samplePeer(p, target) || p;
+                drawCat(V, P, q.x, .6, q.z, (q.yaw || 0) + PI, HYPOT(q.x, q.z) || dt * 3.5, .1, PEER_COL);
             });
         }
-
-        // Draw procedural rocks (flat-shaded, stylized)
         if (rocks.length) {
             gl.useProgram(PROCK);
             gl.bindVertexArray(rockVao);
             gl.uniformMatrix4fv(uR_V, false, V);
             gl.uniformMatrix4fv(uR_P, false, P);
-            for (const rk of rocks) {
-                gl.uniform3f(uR_Pos, rk.x, rk.y, rk.z);
-                gl.uniform1f(uR_S, rk.scale);
-                gl.uniform1f(uR_Seed, rk.seed);
+            for (const rock of rocks) {
+                gl.uniform3f(uR_Pos, rock.x, rock.y, rock.z);
+                gl.uniform1f(uR_S, rock.scale);
+                gl.uniform1f(uR_Seed, rock.seed);
                 gl.drawArrays(gl.TRIANGLES, 0, rockVerts.length / 3);
             }
-            //gl.enable(gl.DEPTH_TEST);
         }
+        const cam = [W[12], W[14]], right = [W[0], W[1], W[2]], time = t * .001;
+        drawGrassPass(V, P, cam, right, time, 1.1, vr ? 2000 : 500, 1);
+        drawGrassPass(V, P, cam, right, time, vr ? .3 : .4, vr ? 1000 : 300, 2);
+        drawGrassPass(V, P, cam, right, time, .15, vr ? 500 : 200, 3);
+    }
 
-        // Render Grass in multiple passes for density and LOD
-        {
-            const cy = COS(u.yaw), sy = SIN(u.yaw);
-            const camRight = [cy, 0, -sy];
-            const timeSec = t * .001;
-            drawGrassPass(V, P, [u.x, u.z], camRight, timeSec, 1.1, 500, /*30.0,*/ 1.); // Cell size, Strands number, Radius(bad), Seed
-            drawGrassPass(V, P, [u.x, u.z], camRight, timeSec, .4, 300, /*20.0,*/ 2.);
-            drawGrassPass(V, P, [u.x, u.z], camRight, timeSec, .15, 200, /*10.0,*/ 3.);
-        }
-
-        // Render L-System Plants
-        /*
-        {
-            gl.useProgram(PPLANTS);
-            gl.bindVertexArray(vaoPlants);
-            //gl.enable(gl.BLEND);
-            //gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-            //gl.depthMask(false); // Render transparent objects without writing to depth buffer
-
-            const camX = u.x;
-            const camZ = u.z;
-            //const plants = genPlants(camX, camZ);
-            const plants = genPlants(camX, camZ, 55);
-
-            // Only regenerate plants every 10 frames or if camera moved significantly
-            //if (frameCount % 10 === 0) {// || HYPOT(camX - lastPlantCamX, camZ - lastPlantCamZ) > 2.) {
-                //cachedPlants = genPlants(camX, camZ, 55);
-                //lastPlantCamX = camX;
-                //lastPlantCamZ = camZ;
-            //}
-
-            //for(const p of cachedPlants){
-            for(const p of plants){
-                const px = p.px, pz = p.pz, scale = p.scale;
-
-                // Distance & LOD
-                const dx = camX - px, dz = camZ - pz;
-                const dist = HYPOT(dx, dz);
-
-                //const NEAR_HIDE = 4.0;
-                //const NEAR_FULL = 6.0;
-                //const FAR_START = 18.0;
-                //const FAR_HIDE  = 50.0;
-                if(dist < 4. || dist > 55.) continue;
-
-                //const MIN_ITER = 2, MAX_ITER = 14;
-                const sstep = x => x*x*(3-2*x);
-                let a = (dist - 4.)/(6.-4.); a = sstep(MIN(1, MAX(0,a)));
-                let b = (55. - dist)/(55. - 18.); b = sstep(MIN(1, MAX(0,b)));
-                let q = a * b;
-                if(q < .05) continue;
-
-                const key = p.gx + ',' + p.gz;
-                //const target = 2 + q*(14 - 2);
-                //const iterations = MAX(2, MIN(14, target)) | 0;
-                const iterations = MAX(2, MIN(14, 2 + q*(14 - 2))) | 0;
-                const plantSeed = plantHash(p.gx, p.gz, 4.);
-
-                const angle = ATAN2(camX - px, camZ - pz);
-                const MPlants = new DOMMatrix()
-                    .translate(px, 0, pz)
-                    .rotate(0, angle / D2R, 0) // fix: radians->degrees (was *D2R)
-                    .scale(scale, scale, scale)
-                    .toFloat32Array();
-
-                gl.uniformMatrix4fv(uMPla, false, MPlants);
-                gl.uniformMatrix4fv(uVPla, false, V);
-                gl.uniformMatrix4fv(uPPla, false, P);
-                gl.uniform1f(uTimePla, t * .001);
-                gl.uniform1i(IPla, iterations);
-                gl.uniform3f(uPlantPosPla, px, 0, pz);
-                gl.uniform1f(uPlantSeedPla, plantSeed);
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
+    function drawXRInput(session, frame, V, P, hudWH) {
+        for (const src of session.inputSources || []) {
+            const col = [1, 1, .5];
+            const grip = src.gripSpace ? frame.getPose(src.gripSpace, off) : null;
+            if (grip) {
+                const M = new DOMMatrix(grip.transform.matrix).multiply(new DOMMatrix([.1,0,0,0,0,.1,0,0,0,0,.1,0,0,0,0,1])).rotate(90,0,0).translate(0,-.5,0).toFloat32Array();
+                gl.useProgram(PDisc); gl.bindVertexArray(vaoH);
+                gl.uniformMatrix4fv(uMDisc, false, M); gl.uniformMatrix4fv(uVDisc, false, V); gl.uniformMatrix4fv(uPDisc, false, P);
+                gl.uniform4f(uColDisc, col[0], col[1], col[2], .95);
+                gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+                gl.drawArrays(gl.TRIANGLES, 0, 6); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST);
             }
-
-            //gl.depthMask(true);
-            //gl.disable(gl.BLEND);
+            const target = src.targetRaySpace ? frame.getPose(src.targetRaySpace, off) : null;
+            if (target) {
+                const ray = controllerRay(frame, src);
+                const trigger = src.gamepad && src.gamepad.buttons && src.gamepad.buttons[0] ? src.gamepad.buttons[0].value || 0 : 0;
+                const w = .004 + .01 * trigger, hit = HUD_pick(hudWH, ray);
+                const M = new DOMMatrix([w,0,0,0,0,w,0,0,0,0,-(hit ? MIN(3, hit.t) : 3),0,0,0,0,1]);
+                const beam = new DOMMatrix(target.transform.matrix).multiply(M).toFloat32Array();
+                gl.useProgram(PC); gl.bindVertexArray(vaoBeam);
+                gl.uniformMatrix4fv(uMBeam, false, beam); gl.uniformMatrix4fv(uVBeam, false, V); gl.uniformMatrix4fv(uPBeam, false, P);
+                gl.uniform4f(uColBeam, col[0], col[1], col[2], .8);
+                gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+                gl.drawArrays(gl.TRIANGLES, 0, 6); gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST);
+            }
         }
-        */
+    }
 
-        // Render Reticle if there's a ground hit
-        //if (lastHit) {
-        //    const T = translateScale(lastHit[0], 0.001, lastHit[2], 0.15, 1, 0.15);
-        //    gl.useProgram(PR);
-        //    gl.bindVertexArray(vaoR);
-        //    gl.uniformMatrix4fv(uMR, false, T);
-        //    gl.uniformMatrix4fv(uVR, false, V);
-        //    gl.uniformMatrix4fv(uPR, false, P);
-        //    gl.enable(gl.BLEND);
-        //    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-        //    gl.disable(gl.DEPTH_TEST);
-        //    gl.drawArrays(gl.TRIANGLES, 0, 6);
-        //    gl.enable(gl.DEPTH_TEST);
-        //    gl.disable(gl.BLEND);
-        //}
-
-
-        // Render HUD
-        const T = getHudTransform();
-        const W = INV(V); // Get world-from-view matrix
-        const WH = new DOMMatrix(W).multiply(new DOMMatrix(T)).toFloat32Array(); // Combine to get HUD's world matri
-        HUD_WH_world = WH;
-        hoverBtn = null;
-
-        // Check for hover state if not in mouse-look mode
-        if (I.look.id === null) {
-            const r = rayFromScreen(I.pointer.x, I.pointer.y);
-            const h = HUD_pick(WH, r);
-            if (h && h.button) hoverBtn = h.button;
+    function loop(t, frame) {
+        const session = frame && frame.session;
+        if (session ? session !== xr : xr) return;
+        session ? session.requestAnimationFrame(loop) : requestAnimationFrame(loop);
+        const dt = last ? (t - last) / 1000 : 0;
+        last = t;
+        updateWorld(dt, session);
+        let hudWH;
+        gl.clearColor(0, 0, 0, 1);
+        if (session) {
+            const half = -u.yaw * .5;
+            off = ref.getOffsetReferenceSpace(new XRRigidTransform({x:0,y:0,z:0}, {x:0,y:SIN(half),z:0,w:COS(half)}))
+                .getOffsetReferenceSpace(new XRRigidTransform({x:-u.x,y:0,z:-u.z}));
+            const pose = frame.getViewerPose(off);
+            if (!pose) return;
+            hudWH = new DOMMatrix(pose.transform.matrix).multiply(new DOMMatrix(getHudTransform())).toFloat32Array();
+            HUD_WH_world = hudWH;
+            for (const src of session.inputSources || []) {
+                const gp = src.gamepad;
+                if (!gp || !gp.buttons || !gp.buttons.length) continue;
+                const now = !!gp.buttons[0].pressed, prev = pressedMap.get(src) || false;
+                if (now && !prev) {
+                    const hit = HUD_pick(hudWH, rayFrom('VR', frame, src));
+                    if (hit && hit.button) activate(hit.button[5]);
+                }
+                pressedMap.set(src, now);
+            }
+            hoverBtn = null;
+            for (const src of session.inputSources || []) {
+                const hit = HUD_pick(hudWH, controllerRay(frame, src));
+                if (hit && hit.button) { hoverBtn = hit.button; break; }
+            }
+            updHUD(dt);
+            const layer = session.renderState.baseLayer;
+            gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            for (const view of pose.views) {
+                const vp = layer.getViewport(view), Veye = view.transform.inverse.matrix, Peye = view.projectionMatrix;
+                gl.viewport(vp.x, vp.y, vp.width, vp.height);
+                drawWorld(Veye, Peye, view.transform.matrix, t, dt, true);
+                drawHud(hudWH, Veye, Peye);
+                drawXRInput(session, frame, Veye, Peye, hudWH);
+            }
+        } else {
+            buildViewProj();
+            const W = INV(V);
+            hudWH = new DOMMatrix(W).multiply(new DOMMatrix(getHudTransform())).toFloat32Array();
+            HUD_WH_world = hudWH;
+            hoverBtn = null;
+            if (I.look.id === null) {
+                const hit = HUD_pick(hudWH, rayFromScreen(I.pointer.x, I.pointer.y));
+                if (hit && hit.button) hoverBtn = hit.button;
+            }
+            updHUD(dt);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.viewport(0, 0, C.width, C.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            drawWorld(V, P, W, t, dt, false);
+            drawHud(hudWH, V, P);
         }
-
-        updHUD(dt); // Redraw and upload HUD texture
-
-        drawHud(WH,V,P);
-
-        requestAnimationFrame(loop);
     }
 
     // Helper to update the HUD canvas content
@@ -1671,7 +1676,7 @@
         drawHUDCanvas(dt);
     }
     function drawHud(M,V,P) {
-        gl.useProgram(PH);gl.bindVertexArray(vaoH);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,hudTex);gl.uniform1i(uT,0);
+        gl.useProgram(PH);gl.bindVertexArray(vaoH);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,hudTex);
         gl.uniformMatrix4fv(uMH,false,M);gl.uniformMatrix4fv(uVH,false,V);gl.uniformMatrix4fv(uPH,false,P);
         gl.disable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.drawArrays(gl.TRIANGLES,0,6);gl.disable(gl.BLEND);gl.enable(gl.DEPTH_TEST);
     }
@@ -1746,7 +1751,7 @@
                 return;
             }
             // Request a new session
-            xr = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'hand-tracking'] });
+            xr = await navigator.xr.requestSession('immersive-vr', { 'optionalFeatures': ['local-floor', 'hand-tracking'] });
             uiEnterLabel = 'Exit VR';
 
             await gl.makeXRCompatible();
@@ -1766,387 +1771,12 @@
             });
 
             last = 0;
-            xr.requestAnimationFrame(onXR); // Start the XR render loop
+            xr.requestAnimationFrame(loop); // Start the shared render loop
             resetCatPosition();
 
         } catch (e) {
             log('XR failed: ' + e.message);
             //requestAnimationFrame(loop); // Resume desktop loop
-        }
-    }
-
-    // -- Main Render Loop (WebXR) --
-    
-    function onXR(t, frame) {
-        const s = frame.session;
-        //if (s !== xr) return;
-        s.requestAnimationFrame(onXR);
-        //frameCount++;
-        
-        const dt = ((t - last) / 1000) || 0;
-        last = t;
-        
-        const pose = frame.getViewerPose(ref);
-        if (!pose) return;
-        
-        // Ensure rocks near the player are generated and present in obstacles for collision resolution
-        // render only ever tenth frame to save CPU
-        //if (frameCount % 10 === 0) {
-            //updateRocks(u.x, u.z);
-            for (let i = obstacles.length - 1; i >= 0; i--) {
-                if (obstacles[i]._isRock) obstacles.splice(i, 1);
-            }
-            rocks.length = 0;
-            //const c = 5; const r = 400.0;
-            const minX = FLOOR((u.x - 500.)/5);
-            const maxX = FLOOR((u.x + 500.)/5);
-            const minZ = FLOOR((u.z - 500.)/5);
-            const maxZ = FLOOR((u.z + 500.)/5);
-            for(let gz=minZ; gz<=maxZ; gz++){
-                for(let gx=minX; gx<=maxX; gx++){
-                    const h = rockHash(gx, gz, .1);
-                    if (h < .01){
-                        const jx = rockHash(gx, gz, 1.) - .5;
-                        const jz = rockHash(gx, gz, 2.) - .5;
-                        const px = gx*5 + (jx * 5 * .6) + 5*.5;
-                        const pz = gz*5 + (jz * 5 * .6) + 5*.5;
-                        const dx = px - u.x, dz = pz - u.z;
-                        if (dx*dx + dz*dz <= 500.*500.){
-                            const seed = rockHash(gx, gz, -7.) * 1000.;
-                            const scale = 4. + rockHash(gx, gz, 5.) * 2.; // 1.0 .. 6.0 meters
-                            const rx = px, rz = pz, ry = scale * .45; // small y offset
-                            const radius = scale * 1.2; // collision radius
-                            const rock = { x: rx, y: ry, z: rz, r: radius, seed, scale };
-                            rocks.push(rock);
-                            // also add to obstacles so collision code picks it up
-                            obstacles.push({ x: rx, y: ry, z: rz, r: radius, _isRock: true });
-                        }
-                    }
-                }
-            }
-        //}
-        
-        // Apply movement based on controller input
-        const mv = getMove(s);
-        step(dt, mv);
-        // Update black cat AI & drops
-        updateCat(dt);
-        // MMO tick (send position)
-        mmoTick(dt);
-        // Trigger congrats overlay on catch
-        if (cat.caught > lastCaughtShown) {
-            lastCaughtShown = cat.caught;
-            congratsTimer = 5.5;
-        }
-        // Create an offset reference space to account for user-controlled movement
-        const half = -u.yaw * .5;
-        const rot = new XRRigidTransform({x:0,y:0,z:0}, { x:0,y:SIN(half), z:0, w:COS(half) });
-        const rRef = ref.getOffsetReferenceSpace(rot);
-        off = rRef.getOffsetReferenceSpace(new XRRigidTransform({x:-u.x,y:0,z:-u.z}));
-        const rel = frame.getViewerPose(off);
-        if (!rel) return;// no viewer pose, skip frame
-
-        // One viewer-relative HUD transform is shared by both eyes.
-        const hudWH = new DOMMatrix(rel.transform.matrix).multiply(new DOMMatrix(getHudTransform())).toFloat32Array();
-        HUD_WH_world = hudWH;
-
-        // -- VR Input and Interaction --
-        //for (const src of (s.inputSources && Symbol.iterator in Object(s.inputSources) ? s.inputSources : [])) {
-        for (const src of s.inputSources || []) {
-            const gp = src.gamepad;
-            if (!gp || !gp.buttons || !gp.buttons.length) continue;
-
-            const now = !!gp.buttons[0].pressed;
-            const prev = pressedMap.get(src) || false;
-
-            // On button press (edge detection)
-            if (now && !prev) {
-                //playClickSound();
-                const r = rayFrom('VR', frame, src);
-                const h = HUD_pick(hudWH, r);
-
-                if (h && h.button) {
-                    activate(h.button[5]);
-                } //else {
-                    //    const g = rayHitGround(r);
-                    //    if (g) { lastHit = g; log('ground ' + g.map(v => v.toFixed(2)).join(',')); }
-                    //}
-            }
-            pressedMap.set(src, now);
-        }
-
-        // Redraw/upload once per XR frame; each eye reuses this texture.
-        hoverBtn = null;
-        for (const src of s.inputSources || []) {
-            const r = controllerRay(frame, src);
-            const h = HUD_pick(hudWH, r);
-            if (h && h.button) { hoverBtn = h.button; break; }
-        }
-        updHUD(dt);
-
-        // -- VR Rendering --
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, s.renderState.baseLayer.framebuffer);
-        gl.clearColor(0, 0, 0, 1);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        //gl.enable(gl.DEPTH_TEST);
-
-        // Render the scene for each eye
-        for (const v of rel.views) {
-            const vp = s.renderState.baseLayer.getViewport(v);
-            gl.viewport(vp.x, vp.y, vp.width, vp.height);
-
-            // Per-eye matrices
-            const Veye = v.transform.inverse.matrix;
-            /* Sky-only inverse matrices and render pass disabled.
-            const VinvEye = INV(Veye);
-            const PVeye = MULTMAT4(M4(), v.projectionMatrix, Veye);
-            const invPVEye = INV(PVeye);
-
-            // Render Sky
-            gl.useProgram(PSKY);
-            gl.bindVertexArray(vaoSky);
-            gl.disable(gl.DEPTH_TEST);
-            gl.uniformMatrix4fv(uVinv, false, VinvEye);
-            gl.uniformMatrix4fv(uInvPV, false, invPVEye);
-            //gl.uniform3fv(uSun, [0.1, 0.1, -0.9]);
-
-            // Sky uniforms per-eye (same tuning rules apply)
-            gl.activeTexture(gl.TEXTURE1);
-            gl.bindTexture(gl.TEXTURE_2D, noiseTex);
-            gl.uniform1i(uNoiseSky, 1);
-            gl.uniform1f(uTimeSky, t * .001);
-            //gl.uniform1f(uCoverage, cloudCoverage);
-            //gl.uniform1f(uSharpness, cloudSharpness);
-            //gl.uniform1i(uShadowSamples, shadowSamples);
-            //gl.uniform1f(uCloudHeightLoc, cloudHeight);
-            //gl.uniform1f(uCloudScaleLoc, cloudScale);       // adjust for global cloud size
-            //gl.uniform1f(uCloudMotionSpeedLoc, cloudMotionSpeed);
-            gl.drawArrays(gl.TRIANGLES, 0, 3);
-            gl.enable(gl.DEPTH_TEST);
-            */
-
-            // Render Grid
-            /*
-            gl.useProgram(PG);
-            gl.bindVertexArray(vao);
-            gl.uniformMatrix4fv(uM, false, M);
-            gl.uniformMatrix4fv(uV, false, v.transform.inverse.matrix);
-            gl.uniformMatrix4fv(uP, false, v.projectionMatrix);
-            gl.drawArrays(gl.TRIANGLES, 0, 6);
-            */
-
-            // --- NEW: Render Items & Obstacles (now works because drawSphere exists) ---
-            for(const itm of items) if (itm.r>0) drawSphere(v.transform.inverse.matrix,v.projectionMatrix,itm.x,itm.y,itm.z,itm.r,[.2,1.,.3]);
-            //for(const o of obstacles)  if(!o._isRock) drawSphere(v.transform.inverse.matrix,v.projectionMatrix,o.x,o.y,o.z,o.r,[0.9,0.2,0.2]);
-            for(const t of traps) drawSphere(v.transform.inverse.matrix,v.projectionMatrix,t.x,t.y,t.z,t.r,[.8,.5,.1]);
-            // Render Black Cat
-            drawCat(v.transform.inverse.matrix,v.projectionMatrix,cat.x,cat.y,cat.z,cat.yaw,cat.anim,.08,[.02,.02,.02]);
-
-            // Render MMO peers (VR eye, smoothed)
-            if (peers && peers.size){
-                const nowMs = performance.now();
-                const targetT = nowMs - 120;
-                peers.forEach((p,id)=>{
-                    if (id===myId) return;
-                    if ((nowMs - (p.last||0)) >= 15000) return;
-                    const s = samplePeer(p, targetT) || p;
-                    drawCat(v.transform.inverse.matrix, v.projectionMatrix, s.x, .6, s.z,(s.yaw||0)+PI,HYPOT(s.x, s.z)||1*dt*3.5,.1, PEER_COL);
-                });
-            }
-
-            // Draw procedural rocks (flat-shaded, stylized)
-            if (rocks.length) {
-                gl.useProgram(PROCK);
-                gl.bindVertexArray(rockVao);
-                gl.uniformMatrix4fv(uR_V, false, v.transform.inverse.matrix);
-                gl.uniformMatrix4fv(uR_P, false, v.projectionMatrix);
-                for (const rk of rocks) {
-                    gl.uniform3f(uR_Pos, rk.x, rk.y, rk.z);
-                    gl.uniform1f(uR_S, rk.scale);
-                    gl.uniform1f(uR_Seed, rk.seed);
-                    gl.drawArrays(gl.TRIANGLES, 0, rockVerts.length / 3);
-                }
-                //gl.enable(gl.DEPTH_TEST);
-            }
-
-
-            // Render Grass
-            {
-                const worldFromView = v.transform.matrix;
-                const camXZ = [worldFromView[12], worldFromView[14]];
-                const camRight = [worldFromView[0], worldFromView[1], worldFromView[2]];
-                const timeSec = t * .001;
-                drawGrassPass(v.transform.inverse.matrix, v.projectionMatrix, camXZ, camRight, timeSec, 1.1, 2000, /*30.0,*/ 1); 
-                drawGrassPass(v.transform.inverse.matrix, v.projectionMatrix, camXZ, camRight, timeSec, .3, 1000, /*20.0,*/ 2);
-                drawGrassPass(v.transform.inverse.matrix, v.projectionMatrix, camXZ, camRight, timeSec, .15, 500, /*10.0,*/ 3);
-            }
-
-            // Render L-System Plants
-            /*
-            {
-                gl.useProgram(PPLANTS);
-                gl.bindVertexArray(vaoPlants);
-                //gl.enable(gl.BLEND);
-                //gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-                //gl.depthMask(false); // Render transparent objects without writing to depth buffer
-
-                const worldFromView = v.transform.matrix;
-                const camX = worldFromView[12];
-                const camZ = worldFromView[14];
-                //const plants = genPlants(camX, camZ);
-                const plants = genPlants(camX, camZ, 120);
-                
-                // Only regenerate plants every 10 frames or if camera moved significantly
-                ///if (frameCount % 10 === 0) {// || HYPOT(camX - lastPlantCamX, camZ - lastPlantCamZ) > 5.) {
-                    //cachedPlants = genPlants(camX, camZ,120);
-                    //lastPlantCamX = camX;
-                    //lastPlantCamZ = camZ;
-                //}
-
-            //if (frameCount % 10 === 0) {
-            //for(const p of cachedPlants){
-            for(const p of plants){
-                const px = p.px, pz = p.pz, scale = p.scale;
-
-                // Distance & LOD
-                const dx = camX - px, dz = camZ - pz;
-                const dist = HYPOT(dx, dz);
-
-                //const NEAR_HIDE = 4.0;
-                //const NEAR_FULL = 6.0;
-                //const FAR_START = 18.0;
-                //const FAR_HIDE  = 50.0;
-                if(dist < 4. || dist > 120.) continue;
-
-                //const MIN_ITER = 2, MAX_ITER = 16;
-                const sstep = x => x*x*(3-2*x);
-                let a = (dist - 4.)/(6.-4.); a = sstep(MIN(1, MAX(0,a)));
-                let b = (120. - dist)/(120. - 18.); b = sstep(MIN(1, MAX(0,b)));
-                let q = a * b;
-                if(q < .05) continue;
-
-                const key = p.gx + ',' + p.gz;
-                //const target = 2 + q*(16 - 2);
-                //const iterations = MAX(2, MIN(16, target)) | 0;
-                const iterations = MAX(2, MIN(16, 2 + q*(14 - 2))) | 0;
-                const plantSeed = plantHash(p.gx, p.gz, 4.);
-
-                const angle = ATAN2(camX - px, camZ - pz);
-                const MPlants = new DOMMatrix()
-                    .translate(px, 0, pz)
-                    .rotate(0, angle / D2R, 0)
-                    .scale(scale, scale, scale)
-                    .toFloat32Array();
-
-                gl.uniformMatrix4fv(uMPla, false, MPlants);
-                gl.uniformMatrix4fv(uVPla, false, v.transform.inverse.matrix);
-                gl.uniformMatrix4fv(uPPla, false, v.projectionMatrix);
-                gl.uniform1f(uTimePla, t * .001);
-                gl.uniform1i(IPla, iterations);
-                gl.uniform3f(uPlantPosPla, px, 0, pz);
-                gl.uniform1f(uPlantSeedPla, plantSeed);
-                gl.drawArrays(gl.TRIANGLES, 0, 6);
-            }
-
-            //gl.depthMask(true);
-            //gl.disable(gl.BLEND);
-            }
-            */
-
-            // Render Reticle
-            //if (lastHit) {
-            //    const Tm = translateScale(lastHit[0], 0.001, lastHit[2], 0.15, 1, 0.15);
-            //    gl.useProgram(PR);
-            //    gl.bindVertexArray(vaoR);
-            //    gl.uniformMatrix4fv(uMR, false, Tm);
-            //    gl.uniformMatrix4fv(uVR, false, v.transform.inverse.matrix);
-            //    gl.uniformMatrix4fv(uPR, false, v.projectionMatrix);
-            //    gl.enable(gl.BLEND); 
-            //    gl.blendFunc(gl.SRC_ALPHA, 
-            //    gl.ONE_MINUS_SRC_ALPHA);
-            //    gl.disable(gl.DEPTH_TEST); 
-            //    gl.drawArrays(gl.TRIANGLES, 0, 6);
-            //    gl.enable(gl.DEPTH_TEST); 
-            //    gl.disable(gl.BLEND);
-            //}
-            
-            // Render the shared HUD texture for this eye.
-            drawHud(hudWH,v.transform.inverse.matrix,v.projectionMatrix);
-
-            // Render Controller Indicators and Rays
-            for (const src of s.inputSources || []) {
-                const col = [1, 1, .5]
-
-                // Hand grip indicator
-                const grip = src.gripSpace ? frame.getPose(src.gripSpace, off) : null;
-                if (grip) {
-                    //const Mhand = new DOMMatrix(grip.transform.matrix).multiply(new DOMMatrix([.06,0,0,0, 0,.06,0,0, 0,0,.06,0, 0,0,0,1])).toFloat32Array();
-                    const Mhand = new DOMMatrix(grip.transform.matrix).multiply(new DOMMatrix([.1,0,0,0, 0,.1,0,0, 0,0,.1,0, 0,0,0,1])).rotate(90,0,0).translate(0,-.5,0).toFloat32Array();
-                    //const Mhand = new DOMMatrix(grip.transform.matrix)
-                    //    .multiply(new DOMMatrix().translate(0,-1,0).rotate(90,0,0).scale(.1,1,.1))
-                    //    .toFloat32Array();
-                    gl.useProgram(PDisc);
-                    gl.bindVertexArray(vaoH);
-
-                    gl.uniformMatrix4fv(uMDisc, false, Mhand);
-                    gl.uniformMatrix4fv(uVDisc, false, v.transform.inverse.matrix); 
-                    gl.uniformMatrix4fv(uPDisc, false, v.projectionMatrix);
-                    gl.uniform4f(uColDisc, col[0], col[1], col[2], .95);
-                    gl.disable(gl.DEPTH_TEST); 
-                    gl.enable(gl.BLEND); 
-                    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-                    gl.drawArrays(gl.TRIANGLES, 0, 6);
-                    gl.disable(gl.BLEND); 
-                    gl.enable(gl.DEPTH_TEST);
-                }
-
-                // Laser beam
-                const targ = src.targetRaySpace ? frame.getPose(src.targetRaySpace, off) : null;
-                if (targ) {
-                    const r = controllerRay(frame, src);
-                    const triggerVal = (src.gamepad && src.gamepad.buttons && src.gamepad.buttons[0]) ? (src.gamepad.buttons[0].value || 0) : 0;
-                    const w = .004 + .01 * triggerVal; // Beam gets thicker when trigger is pressed
-                    let len = 3.;
-                    //const tGround = (0 - r.o[1]) / r.d[1];
-                    //if (tGround > 0) len = MIN(len, MIN(5.0, tGround));
-                    const h = HUD_pick(hudWH, r);
-                    if (h) len = MIN(len, h.t); // Shorten beam if it hits the HUD
-                    
-                    const S = new DOMMatrix([w,0,0,0, 0,w,0,0, 0,0,-len,0, 0,0,0,1]);
-                    const Mbeam = new DOMMatrix(targ.transform.matrix).multiply(S).toFloat32Array();
-                    gl.useProgram(PC); 
-                    gl.bindVertexArray(vaoBeam);
-                    gl.uniformMatrix4fv(uMBeam, false, Mbeam); 
-                    gl.uniformMatrix4fv(uVBeam, false, v.transform.inverse.matrix); 
-                    gl.uniformMatrix4fv(uPBeam, false, v.projectionMatrix);
-                    gl.uniform4f(uColBeam, col[0], col[1], col[2], .8);
-                    gl.disable(gl.DEPTH_TEST); 
-                    gl.enable(gl.BLEND); 
-                    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-                    gl.drawArrays(gl.TRIANGLES, 0, 6);
-                    gl.disable(gl.BLEND); 
-                    gl.enable(gl.DEPTH_TEST);
-
-                    // Ground hit indicator for the controller ray
-                    //const g = rayHitGround(r);
-                    //if (g) {
-                    //    const Mhit = translateScale(g[0], 0.001, g[2], 0.09, 1, 0.09);
-                    //    gl.useProgram(PDisc); 
-                    //    gl.bindVertexArray(vaoR);
-                    //    gl.uniformMatrix4fv(uMDisc, false, Mhit); 
-                    //    gl.uniformMatrix4fv(uVDisc, false, v.transform.inverse.matrix); 
-                    //    gl.uniformMatrix4fv(uPDisc, false, v.projectionMatrix);
-                    //    gl.uniform4f(uColDisc, 1.0, 0.95, 0.3, 0.95);
-                    //    gl.disable(gl.DEPTH_TEST); 
-                    //    gl.enable(gl.BLEND); 
-                    //    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-                    //    gl.drawArrays(gl.TRIANGLES, 0, 6);
-                    //    gl.disable(gl.BLEND); 
-                    //    gl.enable(gl.DEPTH_TEST);
-                    //}
-                }
-            }
         }
     }
 
