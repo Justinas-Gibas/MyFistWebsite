@@ -1459,7 +1459,7 @@
           uPDisc = gl.getUniformLocation(PDisc, 'P'),
           uColDisc = gl.getUniformLocation(PDisc, 'col');
 
-    // No custom VAO: we reuse the existing quad with UVs (vaoPlants)
+    // No custom VAO: reuse the HUD quad, which already has positions and UVs.
 
     // -- /MODULE: Scene-VR-Disc --
 
@@ -2177,7 +2177,7 @@
                     //    .multiply(new DOMMatrix().translate(0,-1,0).rotate(90,0,0).scale(.1,1,.1))
                     //    .toFloat32Array();
                     gl.useProgram(PDisc);
-                    gl.bindVertexArray(vaoPlants);
+                    gl.bindVertexArray(vaoH);
 
                     gl.uniformMatrix4fv(uMDisc, false, Mhand);
                     gl.uniformMatrix4fv(uVDisc, false, v.transform.inverse.matrix); 
