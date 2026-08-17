@@ -1923,11 +1923,6 @@
         const rel = frame.getViewerPose(off);
         if (!rel) return;// no viewer pose, skip frame
 
-        // The viewer-relative HUD transform is shared by both eyes.
-        const hudT = getHudTransform();
-        const hudWH = new DOMMatrix(rel.transform.matrix).multiply(new DOMMatrix(hudT)).toFloat32Array();
-        HUD_WH_world = hudWH;
-
         // -- VR Input and Interaction --
         //for (const src of (s.inputSources && Symbol.iterator in Object(s.inputSources) ? s.inputSources : [])) {
         for (const src of s.inputSources || []) {
@@ -1941,26 +1936,24 @@
             if (now && !prev) {
                 //playClickSound();
                 const r = rayFrom('VR', frame, src);
-                const h = HUD_pick(hudWH, r, currentUI());
+                const viewer = frame.getViewerPose(off);
+                if (viewer) {
+                    const T = getHudTransform();
+                    // World-from-viewer in offset space (consistent for both eyes)
+                    const WH = new DOMMatrix(rel.transform.matrix).multiply(new DOMMatrix(T)).toFloat32Array();
+                    //HUD_WH_world = WH;
+                    const h = HUD_pick(WH, r, currentUI());
 
-                if (h && h.button) {
-                    h.button.onClick();
-                } //else {
+                    if (h && h.button) {
+                        h.button.onClick();
+                    } //else {
                     //    const g = rayHitGround(r);
                     //    if (g) { lastHit = g; log('ground ' + g.map(v => v.toFixed(2)).join(',')); }
                     //}
+                }
             }
             pressedMap.set(src, now);
         }
-
-        // Canvas redraw and texture upload happen once per XR frame, not once per eye.
-        hoverBtn = null;
-        for (const src of s.inputSources || []) {
-            const r = controllerRay(frame, src);
-            const h = HUD_pick(hudWH, r, currentUI());
-            if (h && h.button) { hoverBtn = h.button; break; }
-        }
-        updHUD('VR', lastHit, currentUI(), dt);
 
         // -- VR Rendering --
 
@@ -2149,13 +2142,24 @@
             //    gl.disable(gl.BLEND);
             //}
             
-            // Render the same HUD texture and transform for each eye.
+            // Render HUD
+            const T = getHudTransform();
+            // World-from-viewer in offset space (consistent for both eyes)
+            const WH = new DOMMatrix(rel.transform.matrix).multiply(new DOMMatrix(T)).toFloat32Array(); // Hud snaped to eyes, bad
+            HUD_WH_world = WH;
+            hoverBtn = null;
+            for (const src of s.inputSources || []) {
+                const r = controllerRay(frame, src);
+                const h = HUD_pick(WH, r, currentUI());
+                if (h && h.button) { hoverBtn = h.button; break; }
+            }
+            updHUD('VR', lastHit, currentUI(), dt);
             gl.useProgram(PH);
             gl.bindVertexArray(vaoH);
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, hudTex);
             gl.uniform1i(uT, 0);
-            gl.uniformMatrix4fv(uMH, false, hudWH);
+            gl.uniformMatrix4fv(uMH, false, WH);
             gl.uniformMatrix4fv(uVH, false, v.transform.inverse.matrix);
             gl.uniformMatrix4fv(uPH, false, v.projectionMatrix);
             gl.disable(gl.DEPTH_TEST);
